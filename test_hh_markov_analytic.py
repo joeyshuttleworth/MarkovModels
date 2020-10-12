@@ -6,7 +6,8 @@ import scipy.integrate as integrate
 
 def main():
     #Setup the model with an example parameter set and constant voltage
-    params = [1, 1, 1, 1, 1, 1, 1, 0.1524]
+    # params = [1, 1, 1, 1, 1, 1, 1, 0.1524]
+    params = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
     model = ChannelModel(params, lambda t: -80)
 
     #Get the transition rates of the model
@@ -30,7 +31,7 @@ def main():
     K = np.linalg.inv(C)*np.matrix(model.getStates(0)).T - np.linalg.inv(C) * X2
     print("K ", K)
 
-    t = 100
+    t = 1000
 
     #Calculate the value at time t
     z = np.matrix([K[i,0] * np.exp(t*eigenvalues[i]) for i in range(0,3)]).T
