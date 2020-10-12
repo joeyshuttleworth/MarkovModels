@@ -30,10 +30,11 @@ class ChannelModel:
     k4 = 0
 
     #Constructor to set Parameters values
-    def __init__(self, params):
+    def __init__(self, params, voltage_function = lambda x: 0):
         self.P = params
+        self.V = voltage_function
 
-    def SetTransitionRates(self, V):
+    def setTransitionRates(self, V):
         self.k1 = self.P[0] * np.exp(self.P[1]*V)
         self.k2 = self.P[2] * np.exp(-self.P[3]*V)
         self.k3 = self.P[4] * np.exp(self.P[5]*V)
@@ -52,6 +53,7 @@ class ChannelModel:
     def getDPrInactiveDt(self):
         return -(self.k2 + self.k4) * self.ProbabilityInactive + self.k3*self.ProbabilityOpen + self.k1*self.getProbabilityICState()
 
+    #Calculate the current through the membrane in nano amps
     def getCurrent(self, V):
         # G is maximal conductance
         G = self.P[-1]
@@ -67,28 +69,40 @@ class ChannelModel:
 
     def getStates(self, t):
         voltage = self.V(t)
-        self.SetTransitionRates(voltage)
+        self.setTransitionRates(voltage)
         return np.ndarray(shape=(3,), buffer=np.array([self.ProbabilityClosed, self.ProbabilityOpen, self.ProbabilityInactive]))
 
-    def SetStates(self,X):
+    def setStates(self,X):
         self.ProbabilityClosed = X[0]
         self.ProbabilityOpen = X[1]
         self.ProbabilityInactive = X[2]
 
     def getDerivatives(self, t, X):
-        self.SetStates(X)
+        self.setStates(X)
         X = self.getStates(t)
         return [self.getDPrClosedDt(), self.getDPrOpenDt(), self.getDPrInactiveDt()]
 
+    def getTransitionRates(self, t=0):
+        self.setTransitionRates(t)
+        return [self.k1, self.k2, self.k3, self.k4]
+
+    def calculateCurrent(self, probC, probO, probI, t=0):
+        self.ProbabilityOpen = probO
+        self.ProbabilityClosed = probC
+        self.ProbabilityInactive = probI
+        return self.getCurrent(self.V(t))
 
 def main():
     params = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
-    model = ChannelModel(params)
-    model.V = lambda t: np.sin(t) - 100
+    model = ChannelModel(params, lambda t: -80)
+    print(model.getTransitionRates())
     initial_conditions = model.getStates(0)
     print(model.getStates(0))
-    solution = integrate.solve_ivp(model.getDerivatives, [0,100], model.getStates(0))
-    print(solution)
+    solution = integrate.solve_ivp(model.getDerivatives, [0,100000], model.getStates(0))
+    y = solution.y
+    IVec = [model.calculateCurrent(y[0,t], y[1,t], y[2,t]) for t in range(0,len(solution.t))]
+    plt.plot(solution.t, solution.y[1])
+    plt.show()
 
 if __name__ == '__main__':
     main()
