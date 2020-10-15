@@ -10,7 +10,7 @@ class ChannelModel:
 
     #state probabilities
     ProbabilityOpen = 0
-    ProbabilityClosed = 0
+    ProbabilityClosed = 1
     ProbabilityInactive = 0
 
     # Intracellular and extracellular concentrations of potassium.
@@ -93,15 +93,17 @@ class ChannelModel:
         return self.getCurrent(self.V(t))
 
 def main():
+    t = 1000
     params = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
     model = ChannelModel(params, lambda t: -80)
     print(model.getTransitionRates())
     initial_conditions = model.getStates(0)
     print(model.getStates(0))
-    solution = integrate.solve_ivp(model.getDerivatives, [0,100000], model.getStates(0))
+    solution = integrate.solve_ivp(model.getDerivatives, [0,t], model.getStates(0))
     y = solution.y
     IVec = [model.calculateCurrent(y[0,t], y[1,t], y[2,t]) for t in range(0,len(solution.t))]
     plt.plot(solution.t, solution.y[1])
+    plt.plot(solution.t, IVec)
     plt.show()
 
 if __name__ == '__main__':
