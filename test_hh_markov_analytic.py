@@ -1,8 +1,7 @@
-from hh_markov_model import ChannelModel
 import numpy as np
 import sympy as sp
 import matplotlib.pyplot as plt
-import scipy.integrate as integrate
+from hh_markov_model import ChannelModel
 
 def compare_solutions(max_t=10):
     #Setup the model with an example parameter set and constant voltage

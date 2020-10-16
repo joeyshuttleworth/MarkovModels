@@ -34,7 +34,8 @@ class ChannelModel:
         self.P = params
         self.V = voltage_function
 
-    def setTransitionRates(self, V):
+    def setTransitionRates(self, t):
+        V = self.V(t)
         self.k1 = self.P[0] * np.exp(self.P[1]*V)
         self.k2 = self.P[2] * np.exp(-self.P[3]*V)
         self.k3 = self.P[4] * np.exp(self.P[5]*V)
@@ -68,8 +69,7 @@ class ChannelModel:
         return G * self.ProbabilityOpen*(V - E)
 
     def getStates(self, t):
-        voltage = self.V(t)
-        self.setTransitionRates(voltage)
+        self.setTransitionRates(t)
         return np.ndarray(shape=(3,), buffer=np.array([self.ProbabilityClosed, self.ProbabilityOpen, self.ProbabilityInactive]))
 
     def setStates(self,X):
@@ -92,6 +92,19 @@ class ChannelModel:
         self.ProbabilityInactive = probI
         return self.getCurrent(self.V(t))
 
+    def getSystemOfOdes(self, time=0):
+        ''' Return [A,B] where A is a 3x3 matrix and B is a 3x1 vector
+            satisfying the non-homogeneous linear system of odes
+            dX/dt = AX + B where X ]
+            (ProbabilityClosed, ProbabilityOpen, ProbabilityInactive)^T
+            assuming that the voltage remains constant.
+        '''
+        self.setTransitionRates(0)
+        A=np.matrix([[-self.k1 -self.k3 -self.k4, self.k2 - self.k4, -self.k4], [self.k1, -self.k2 - self.k3, self.k4], [-self.k1, self.k3-self.k1, -self.k2 - self.k4 - self.k1]])
+        B = np.matrix([self.k4,0,self.k1]).T
+        return [A, B]
+
+
 def main():
     t = 1000
     params = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
@@ -100,8 +113,10 @@ def main():
     initial_conditions = model.getStates(0)
     print(model.getStates(0))
     solution = integrate.solve_ivp(model.getDerivatives, [0,t], model.getStates(0))
+
     y = solution.y
     IVec = [model.calculateCurrent(y[0,t], y[1,t], y[2,t]) for t in range(0,len(solution.t))]
+
     plt.plot(solution.t, solution.y[1])
     plt.plot(solution.t, IVec)
     plt.show()
