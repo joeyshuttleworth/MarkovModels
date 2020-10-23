@@ -1,12 +1,17 @@
+import pytest
+
 import numpy as np
 import sympy as sp
 import matplotlib.pyplot as plt
 from hh_markov_model import ChannelModel
+import scipy.integrate as integrate
 
-def compare_solutions(max_t=10):
+def compare_solutions(params, max_t=10):
     #Setup the model with an example parameter set and constant voltage
-    # params = [1, 1, 1, 1, 1, 1, 1, 0.1524]
-    params = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
+
+    if any(x < 0 for x in params) == True:
+        raise ValueError("Negative parameters not allowed")
+
     model = ChannelModel(params, lambda t: -80)
 
     #Get the transition rates of the model
@@ -33,9 +38,17 @@ def compare_solutions(max_t=10):
 
     print(numericalI, analyticI)
     if not analyticI == 0:
-        assert(np.abs(numericalI - analyticI)/analyticI < 0.1)
+        assert np.abs(numericalI - analyticI)/analyticI < 0.1, "Solutions don't match"
 
 
 def test_solutions_agree():
-    for t in np.linspace(0,1000,100):
-        compare_solutions(t)
+    params = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
+    for t in np.linspace(0, 1000, 101):
+        compare_solutions(params, 1000)
+
+
+def test_nonsensical_parameters():
+    params = -1 * np.ones(9)
+    with pytest.raises(ValueError, match="Negative parameters not allowed"):
+        compare_solutions(params, 1000)
+
