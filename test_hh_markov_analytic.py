@@ -1,8 +1,5 @@
 import pytest
-
 import numpy as np
-import sympy as sp
-import matplotlib.pyplot as plt
 from hh_markov_model import ChannelModel
 import scipy.integrate as integrate
 
