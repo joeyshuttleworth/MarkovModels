@@ -9,6 +9,8 @@ import scipy.integrate as integrate
 def compare_solutions(params, max_t=10):
     #Setup the model with an example parameter set and constant voltage
 
+    assert len(params) == 9, "Parameter vector has the wrong dimensions"
+
     if any(x < 0 for x in params) == True:
         raise ValueError("Negative parameters not allowed")
 
@@ -50,5 +52,11 @@ def test_solutions_agree():
 def test_nonsensical_parameters():
     params = -1 * np.ones(9)
     with pytest.raises(ValueError, match="Negative parameters not allowed"):
+        compare_solutions(params, 1000)
+
+
+def test_incorrect_parameter_vector():
+    params = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158]
+    with pytest.raises(AssertionError, match="Parameter vector has the wrong dimensions"):
         compare_solutions(params, 1000)
 
