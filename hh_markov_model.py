@@ -61,7 +61,7 @@ class ChannelModel:
         # E is the Nernst potential for potassium ions across the membrane
         # Gas constant R, temperature T, Faradays constat F
         R = 8.3145
-        T = 25
+        T = 293
         F = 96485
 
         #Nernst potential
@@ -106,9 +106,12 @@ class ChannelModel:
 
 
 def main():
-    t = 1000
+    t = 5000
     params = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
-    model = ChannelModel(params, lambda t: -80)
+    amplitudes = [54,26,10]
+    frequencies = [0.007,0.037, 0.19]
+    V =  lambda t: -30 + sum([amplitudes[i]*np.sin(frequencies[i]*(t-2500)) for i in range(0,3)])
+    model = ChannelModel(params, V)
     print(model.getTransitionRates())
     initial_conditions = model.getStates(0)
     print(model.getStates(0))
@@ -117,8 +120,12 @@ def main():
     y = solution.y
     IVec = [model.calculateCurrent(y[0,t], y[1,t], y[2,t]) for t in range(0,len(solution.t))]
 
+    plt.plot(np.linspace(4000,5000,1000), V(np.linspace(4000,5000,1000)))
     plt.plot(solution.t, solution.y[1])
     plt.plot(solution.t, IVec)
+
+    plt.xlabel("time / ms")
+    plt.legend(["[O]", "I / A"])
     plt.show()
 
 if __name__ == '__main__':
