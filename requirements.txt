@@ -1,4 +1,6 @@
 matplotlib>=3.3.2
 numpy>=1.19.2
 scipy>=1.5.3
-pytest>=4.6.11 
+pytest>=4.6.11
+pandas>=1.1.4
+pints>=0.3.0

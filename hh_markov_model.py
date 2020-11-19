@@ -13,13 +13,6 @@ class ChannelModel:
     ProbabilityClosed = 1
     ProbabilityInactive = 0
 
-    # Intracellular and extracellular concentrations of potassium.
-    K_out = 4
-    K_in  = 130
-
-    # valency of ions (1 in the case of K^+)
-    z = 1
-
     #Parameters. Maximal conductance is P[8].
     P = [0] * 9
 
@@ -58,14 +51,23 @@ class ChannelModel:
     def getCurrent(self, V):
         # G is maximal conductance
         G = self.P[-1]
+
         # E is the Nernst potential for potassium ions across the membrane
         # Gas constant R, temperature T, Faradays constat F
-        R = 8.3145
+        R = 8314.5
         T = 293
         F = 96485
 
+        # Intracellular and extracellular concentrations of potassium.
+        K_out = 4
+        K_in  = 130
+
+        # valency of ions (1 in the case of K^+)
+        z = 1
+
+
         #Nernst potential
-        E = R*T/(self.z*F) * np.log(self.K_out/self.K_in)
+        E = R*T/(z*F) * np.log(K_out/K_in)
         return G * self.ProbabilityOpen*(V - E)
 
     def getStates(self, t):
@@ -79,17 +81,15 @@ class ChannelModel:
 
     def getDerivatives(self, t, X):
         self.setStates(X)
-        X = self.getStates(t)
+        self.setTransitionRates(t)
         return [self.getDPrClosedDt(), self.getDPrOpenDt(), self.getDPrInactiveDt()]
 
     def getTransitionRates(self, t=0):
         self.setTransitionRates(t)
         return [self.k1, self.k2, self.k3, self.k4]
 
-    def calculateCurrent(self, probC, probO, probI, t=0):
+    def calculateCurrent(self, probO, t=0):
         self.ProbabilityOpen = probO
-        self.ProbabilityClosed = probC
-        self.ProbabilityInactive = probI
         return self.getCurrent(self.V(t))
 
     def getSystemOfOdes(self, time=0):
@@ -118,14 +118,14 @@ def main():
     solution = integrate.solve_ivp(model.getDerivatives, [0,t], model.getStates(0))
 
     y = solution.y
-    IVec = [model.calculateCurrent(y[0,t], y[1,t], y[2,t]) for t in range(0,len(solution.t))]
+    IVec = [model.calculateCurrent(y[1,t]) for t in range(0,len(solution.t))]
 
-    plt.plot(np.linspace(4000,5000,1000), V(np.linspace(4000,5000,1000)))
+    plt.plot(np.linspace(0,5000,1000), V(np.linspace(0,5000,1000)))
     plt.plot(solution.t, solution.y[1])
     plt.plot(solution.t, IVec)
 
     plt.xlabel("time / ms")
-    plt.legend(["[O]", "I / A"])
+    plt.legend(["V", "[O]", "I / A"])
     plt.show()
 
 if __name__ == '__main__':
