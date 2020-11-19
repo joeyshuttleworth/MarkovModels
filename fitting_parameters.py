@@ -82,14 +82,14 @@ def main():
     times=dat[:,0]
     values=dat[:,1]
     current = model.simulate(true_parameters, times)
-    plt.plot(times, values)
-    plt.plot(times, current)
-    plt.show()
+    # plt.plot(times, values)
+    # plt.plot(times, current)
+    # plt.show()
     problem = pints.SingleOutputProblem(model, times, values)
     error = pints.SumOfSquaresError(problem)
     boundaries = pints.RectangularBoundaries([0 for i in range(0,9)], [1 for i in range(0,9)])
     x0 = np.array([0.1]*9)
-    found_parameters, found_value = pints.optimise(error, x0, boundaries=boundaries)
+    found_parameters, found_value = pints.optimise(error, true_parameters, boundaries=boundaries)
     print(found_parameters, found_value)
 
 if __name__ == "__main__":
