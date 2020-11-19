@@ -47,29 +47,6 @@ class ChannelModel:
     def getDPrInactiveDt(self):
         return -(self.k2 + self.k4) * self.ProbabilityInactive + self.k3*self.ProbabilityOpen + self.k1*self.getProbabilityICState()
 
-    #Calculate the current through the membrane in nano amps
-    def getCurrent(self, V):
-        # G is maximal conductance
-        G = self.P[-1]
-
-        # E is the Nernst potential for potassium ions across the membrane
-        # Gas constant R, temperature T, Faradays constat F
-        R = 8314.5
-        T = 293
-        F = 96485
-
-        # Intracellular and extracellular concentrations of potassium.
-        K_out = 4
-        K_in  = 130
-
-        # valency of ions (1 in the case of K^+)
-        z = 1
-
-
-        #Nernst potential
-        E = R*T/(z*F) * np.log(K_out/K_in)
-        return G * self.ProbabilityOpen*(V - E)
-
     def getStates(self, t):
         self.setTransitionRates(t)
         return np.ndarray(shape=(3,), buffer=np.array([self.ProbabilityClosed, self.ProbabilityOpen, self.ProbabilityInactive]))
@@ -91,6 +68,29 @@ class ChannelModel:
     def calculateCurrent(self, probO, t=0):
         self.ProbabilityOpen = probO
         return self.getCurrent(self.V(t))
+
+    #Calculate the current through the membrane in nano amps
+    def getCurrent(self, V):
+        # G is maximal conductance
+        G = self.P[-1]
+
+        # E is the Nernst potential for potassium ions across the membrane
+        # Gas constant R, temperature T, Faradays constat F
+        R = 8314.55
+        T = 293
+        F = 96485
+
+        # Intracellular and extracellular concentrations of potassium.
+        K_out = 4
+        K_in  = 130
+
+        # valency of ions (1 in the case of K^+)
+        z = 1
+
+
+        #Nernst potential
+        E = R*T/(z*F) * np.log(K_out/K_in)
+        return G * self.ProbabilityOpen*(V - E)
 
     def getSystemOfOdes(self, time=0):
         ''' Return [A,B] where A is a 3x3 matrix and B is a 3x1 vector

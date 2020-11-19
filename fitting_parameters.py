@@ -51,8 +51,12 @@ class ChannelModelPintsWrapper(pints.ForwardModel):
         solution = integrate.solve_ivp(mdl.getDerivatives, [times[0], times[-1]], mdl.getStates(0), t_eval=times, rtol=1E-8, atol=1E-8)
         y = solution.y
         #Now calculate the corresponding currents
-        IVec = [mdl.calculateCurrent(y[1,t]) for t in range(0,len(solution.t))]
-        return(IVec)
+        IVec = [mdl.calculateCurrent(y[1,t], times[t]) for t in range(0,len(solution.t))]
+        # print("plotting [Open]")
+        # plt.plot(times, y[1,:])
+        # plt.plot(times, IVec)
+        # plt.show()
+        return IVec
 
 def extract_time_ranges(lst, time_ranges):
     """
@@ -74,18 +78,12 @@ def main():
 
     model = ChannelModelPintsWrapper()
     data  = pd.read_csv("data/averaged-data.txt", delim_whitespace=True)
-    # plt.show()
-    # print(data.values[0100,:])
     dat = extract_time_ranges(data.values, timeRangesToUse)
-    # print(dat.shape)
     times=dat[:,0]
     values=dat[:,1]
-    # times=times[30000:62000]
-    # values=values[30000:62000]
     current = model.simulate(true_parameters, times)
     plt.plot(times, values)
     plt.plot(times, current)
-    # plt.plot(times, list(map(SineWaveProtocol, times)))
     plt.show()
     problem = pints.SingleOutputProblem(model, times, values)
     error = pints.SumOfSquaresError(problem)
