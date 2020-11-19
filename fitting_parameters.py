@@ -48,7 +48,7 @@ class ChannelModelPintsWrapper(pints.ForwardModel):
     def simulate(self, parameters, times):
         mdl = ChannelModel(parameters, SineWaveProtocol)
         # Solve the IVP at the required times
-        solution = integrate.solve_ivp(mdl.getDerivatives, [times[0], times[-1]], mdl.getStates(0), t_eval=times)
+        solution = integrate.solve_ivp(mdl.getDerivatives, [times[0], times[-1]], mdl.getStates(0), t_eval=times, rtol=1E-8, atol=1E-8)
         y = solution.y
         #Now calculate the corresponding currents
         IVec = [mdl.calculateCurrent(y[1,t]) for t in range(0,len(solution.t))]
@@ -63,7 +63,6 @@ def extract_time_ranges(lst, time_ranges):
     Returns a 2d numpy array containing all of the relevant data points
     """
     ret_lst = []
-    print(lst)
     for time_range in time_ranges:
         ret_lst.extend(lst[time_range[0]:time_range[1]].tolist())
     return np.array(ret_lst)
@@ -78,14 +77,14 @@ def main():
     # plt.show()
     # print(data.values[0100,:])
     dat = extract_time_ranges(data.values, timeRangesToUse)
-    print(dat.shape)
+    # print(dat.shape)
     times=dat[:,0]
     values=dat[:,1]
+    # times=times[30000:62000]
+    # values=values[30000:62000]
     current = model.simulate(true_parameters, times)
-    plt.plot(values)
-    plt.plot(current)
-    times=times[30000:62000]
-    values=values[30000:62000]
+    plt.plot(times, values)
+    plt.plot(times, current)
     # plt.plot(times, list(map(SineWaveProtocol, times)))
     plt.show()
     problem = pints.SingleOutputProblem(model, times, values)
