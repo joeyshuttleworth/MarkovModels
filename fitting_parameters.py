@@ -13,8 +13,9 @@ def SineWaveProtocol(t):
     https://github.com/mirams/sine-wave/blob/master/Code/MexAslanidi.c.
     """
 
-    shift = 0.1
     # This shift is needed for simulated protocol to match the protocol recorded in experiment, which is shifted by 0.1ms as compared to the original input protocol. Consequently, each step is held for 0.1ms longer in this version of the protocol as compared to the input.
+    shift = 0.1
+
     C = [54.0, 26.0, 10.0, 0.007/(2*np.pi), 0.037/(2*np.pi), 0.19/(2*np.pi)]
     if t>=0 and t<250+shift:
         return -80
@@ -41,7 +42,7 @@ def SineWaveProtocol(t):
         return -999
 
 
-class ChannelModelPintsWrapper(pints.ForwardModel):
+class ChannelModelPintsWrapper(pints.ForwardModelS1):
     def n_parameters(self):
         return 9
 
@@ -57,6 +58,43 @@ class ChannelModelPintsWrapper(pints.ForwardModel):
         # plt.plot(times, IVec)
         # plt.show()
         return IVec
+
+    def simulateS1(self, parameters, time):
+        mdl = ChannelModel(parameters, SineWaveProtocol)
+        # Solve the IVP at the required times
+        solution = integrate.solve_ivp(mdl.getDerivatives, [times[0], times[-1]], mdl.getStates(0), t_eval=times, rtol=1E-4, atol=1E-4)
+        y = solution.y
+        #Now calculate the corresponding currents
+        IVec = [mdl.calculateCurrent(y[1,t], times[t]) for t in range(0,len(solution.t))]
+
+        return [IVec, mdl.calculateDerivatives(times, y)]
+
+
+
+class MarkovModelBoundaries(pints.Boundaries):
+    def check(self, parameters):
+        '''Check that each rate constant lies in the range 1.67E-5 < A*exp(B*V) < 1E3
+        '''
+
+        for i in range(0, 4):
+            alpha = parameters[2*i]
+            beta  = parameters[2*i + 1]
+
+            vals = [0,0]
+            vals[0] = alpha * np.exp(beta * -90 * 1E-3)
+            vals[1] = alpha * np.exp(beta *  50 * 1E-3)
+
+            for val in vals:
+                if val < 1.67E-5 or val > 1E3:
+                    return False
+        # Check maximal conductance
+        if parameters[8] > 0 and parameters[8] < 2:
+            return True
+        else:
+            return False
+
+    def n_parameters(self):
+        return 9
 
 def extract_time_ranges(lst, time_ranges):
     """
@@ -87,7 +125,7 @@ def main():
     # plt.show()
     problem = pints.SingleOutputProblem(model, times, values)
     error = pints.SumOfSquaresError(problem)
-    boundaries = pints.RectangularBoundaries([0 for i in range(0,9)], [1 for i in range(0,9)])
+    boundaries  = MarkovModelBoundaries()
     x0 = np.array([0.1]*9)
     found_parameters, found_value = pints.optimise(error, true_parameters, boundaries=boundaries)
     print(found_parameters, found_value)

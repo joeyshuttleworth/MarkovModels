@@ -99,11 +99,13 @@ class ChannelModel:
             (ProbabilityClosed, ProbabilityOpen, ProbabilityInactive)^T
             assuming that the voltage remains constant.
         '''
-        self.setTransitionRates(0)
+        self.setTransitionRates(time)
         A=np.matrix([[-self.k1 -self.k3 -self.k4, self.k2 - self.k4, -self.k4], [self.k1, -self.k2 - self.k3, self.k4], [-self.k1, self.k3-self.k1, -self.k2 - self.k4 - self.k1]])
         B = np.matrix([self.k4,0,self.k1]).T
         return [A, B]
 
+    def calculateDerivatives(self, times, states):
+        [getDerivatives(times[i], states[i]) for i in range(0, len(times))]
 
 def main():
     t = 5000
