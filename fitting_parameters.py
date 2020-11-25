@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import scipy.integrate as integrate
-from hh_markov_model import ChannelModel
+from hh_two_gate_model import ChannelModel
 
 
 def SineWaveProtocol(t):
@@ -52,24 +52,17 @@ class ChannelModelPintsWrapper(pints.ForwardModelS1):
         solution = integrate.solve_ivp(mdl.getDerivatives, [times[0], times[-1]], mdl.getStates(0), t_eval=times, rtol=1E-8, atol=1E-8)
         y = solution.y
         #Now calculate the corresponding currents
-        IVec = [mdl.calculateCurrent(y[1,t], times[t]) for t in range(0,len(solution.t))]
-        # print("plotting [Open]")
-        # plt.plot(times, y[1,:])
-        # plt.plot(times, IVec)
-        # plt.show()
+        IVec = [(1-y[1]) * (1-y[0]) for t in range(0,len(solution.t))]
         return IVec
 
     def simulateS1(self, parameters, time):
         mdl = ChannelModel(parameters, SineWaveProtocol)
         # Solve the IVP at the required times
-        solution = integrate.solve_ivp(mdl.getDerivatives, [times[0], times[-1]], mdl.getStates(0), t_eval=times, rtol=1E-4, atol=1E-4)
+        solution = integrate.solve_ivp(mdl.getDerivatives, [times[0], times[-1]], mdl.getStates(0), t_eval=times, rtol=1E-8, atol=1E-8)
         y = solution.y
         #Now calculate the corresponding currents
-        IVec = [mdl.calculateCurrent(y[1,t], times[t]) for t in range(0,len(solution.t))]
-
+        IVec = [(1 - y[0,t])*(1 - y[1,t]) for t in range(0,len(solution.t))]
         return [IVec, mdl.calculateDerivatives(times, y)]
-
-
 
 class MarkovModelBoundaries(pints.Boundaries):
     def check(self, parameters):
