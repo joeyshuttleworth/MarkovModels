@@ -4,7 +4,7 @@ import scipy.integrate as integrate
 import matplotlib.pyplot as plt
 import numpy as np
 
-class ChannelModel:
+class TwoGateChannelModel:
     # Voltage as a function of time
     V = lambda t: 0
 
@@ -33,30 +33,23 @@ class ChannelModel:
         self.k3 = self.P[4] * np.exp(self.P[5]*V)
         self.k4 = self.P[6] * np.exp(-self.P[7] * V)
 
-    def getStates(self, t):
-        self.setTransitionRates(t)
-        return np.ndarray(shape=(2,), buffer=np.array([self.m, self.h]))
-
-    def setStates(self,X):
-        self.m = X[0]
-        self.h = X[1]
-
     def getDerivatives(self, t, X):
         self.setTransitionRates(t)
-        return [(1 - X[0]) * self.k1 - self.k2 * X[1], (1 - X[1])*self.k3 - X[1]*self.k4]
+        [k1, k2, k3, k4] = self.getTransitionRates(t)
+        return [(1 - X[0]) * k1 - k2 * X[0], (1 - X[1])*k3 - X[1]*k4]
 
     def getTransitionRates(self, t=0):
         self.setTransitionRates(t)
         return [self.k1, self.k2, self.k3, self.k4]
 
-    def calculateCurrent(self, probO, t=0):
-        self.ProbabilityOpen = probO
-        return self.getCurrent(self.V(t))
+    def calculateDerivatives(self, times, states):
+        return [getDerivatives(times[i], states[i]) for i in range(0, len(times))]
 
-    #Calculate the current through the membrane in nano amps
-    def getCurrent(self, V):
+    def calculateCurrent(self, t, ProbOpen):
         # G is maximal conductance
         G = self.P[-1]
+
+        V = self.V(t)
 
         # E is the Nernst potential for potassium ions across the membrane
         # Gas constant R, temperature T, Faradays constat F
@@ -74,22 +67,7 @@ class ChannelModel:
 
         #Nernst potential
         E = R*T/(z*F) * np.log(K_out/K_in)
-        return G * self.ProbabilityOpen*(V - E)
-
-    def getSystemOfOdes(self, time=0):
-        ''' Return [A,B] where A is a 3x3 matrix and B is a 3x1 vector
-            satisfying the non-homogeneous linear system of odes
-            dX/dt = AX + B where X ]
-            (ProbabilityClosed, ProbabilityOpen, ProbabilityInactive)^T
-            assuming that the voltage remains constant.
-        '''
-        self.setTransitionRates(time)
-        A=np.matrix([[-self.k1 -self.k3 -self.k4, self.k2 - self.k4, -self.k4], [self.k1, -self.k2 - self.k3, self.k4], [-self.k1, self.k3-self.k1, -self.k2 - self.k4 - self.k1]])
-        B = np.matrix([self.k4,0,self.k1]).T
-        return [A, B]
-
-    def calculateDerivatives(self, times, states):
-        [getDerivatives(times[i], states[i]) for i in range(0, len(times))]
+        return G * ProbOpen *(V - E)
 
 def main():
     t = 5000
@@ -97,14 +75,12 @@ def main():
     amplitudes = [54,26,10]
     frequencies = [0.007,0.037, 0.19]
     V =  lambda t: -30 + sum([amplitudes[i]*np.sin(frequencies[i]*(t-2500)) for i in range(0,3)])
-    model = ChannelModel(params, V)
+    model = TwoGateChannelModel(params, V)
     print(model.getTransitionRates())
-    initial_conditions = model.getStates(0)
-    print(model.getStates(0))
-    solution = integrate.solve_ivp(model.getDerivatives, [0,t], model.getStates(0))
+    solution = integrate.solve_ivp(model.getDerivatives, [0,t], [0,0])
 
     y = solution.y
-    IVec = [model.calculateCurrent(y[1,t]) for t in range(0,len(solution.t))]
+    IVec = [y[0,t]*(1 - y[1,t]) for t in range(0,len(solution.t))]
 
     plt.plot(np.linspace(0,5000,1000), V(np.linspace(0,5000,1000)))
     plt.plot(solution.t, solution.y[1])
