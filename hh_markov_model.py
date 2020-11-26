@@ -59,7 +59,9 @@ class ChannelModel:
     def getDerivatives(self, t, X):
         self.setStates(X)
         self.setTransitionRates(t)
-        return [self.getDPrClosedDt(), self.getDPrOpenDt(), self.getDPrInactiveDt()]
+        IC = self.getProbabilityICState()
+        return [1 - self.ProbabilityOpen - self.ProbabilityClosed - IC,  -(self.k2 + self.k3)*self.ProbabilityOpen + self.k1*self.ProbabilityClosed + self.k4 * self.ProbabilityInactive, -(self.k2 + self.k4) * self.ProbabilityInactive + self.k3*self.ProbabilityOpen + IC]
+
 
     def getTransitionRates(self, t=0):
         self.setTransitionRates(t)

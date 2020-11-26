@@ -49,7 +49,7 @@ class ChannelModelPintsWrapper(pints.ForwardModelS1):
     def simulate(self, parameters, times):
         mdl = ChannelModel(parameters, SineWaveProtocol)
         # Solve the IVP at the required times
-        solution = integrate.solve_ivp(mdl.getDerivatives, [times[0], times[-1]], mdl.getStates(0), t_eval=times, rtol=1E-8, atol=1E-8)
+        solution = integrate.solve_ivp(mdl.getDerivatives, [times[0], times[-1]], mdl.getStates(0), t_eval=times, rtol=1E-8, atol=1E-8, method = "LSODA")
         y = solution.y
         #Now calculate the corresponding currents
         IVec = [mdl.calculateCurrent(y[1,t], times[t]) for t in range(0,len(solution.t))]
@@ -62,7 +62,7 @@ class ChannelModelPintsWrapper(pints.ForwardModelS1):
     def simulateS1(self, parameters, time):
         mdl = ChannelModel(parameters, SineWaveProtocol)
         # Solve the IVP at the required times
-        solution = integrate.solve_ivp(mdl.getDerivatives, [times[0], times[-1]], mdl.getStates(0), t_eval=times, rtol=1E-4, atol=1E-4)
+        solution = integrate.solve_ivp(mdl.getDerivatives, [times[0], times[-1]], mdl.getStates(0), t_eval=times, rtol=1E-8, atol=1E-8, method = "LSODA")
         y = solution.y
         #Now calculate the corresponding currents
         IVec = [mdl.calculateCurrent(y[1,t], times[t]) for t in range(0,len(solution.t))]
@@ -112,14 +112,14 @@ def extract_time_ranges(lst, time_ranges):
 def main():
     #constants
     timeRangesToUse = [[1,2499], [2549,2999], [3049,4999], [5049,14999], [15049,19999], [20049,29999], [30049,64999], [65049,69999], [70049,-1]]
-    true_parameters = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
+    starting_parameters = [3.87068845e-04, 5.88028759e-02, 6.46971727e-05, 4.87408447e-02, 8.03073893e-02, 7.36295506e-03, 5.32908518e-03, 3.32254316e-02, 6.56614672e-02]
 
     model = ChannelModelPintsWrapper()
     data  = pd.read_csv("data/averaged-data.txt", delim_whitespace=True)
     dat = extract_time_ranges(data.values, timeRangesToUse)
     times=dat[:,0]
     values=dat[:,1]
-    current = model.simulate(true_parameters, times)
+    current = model.simulate(starting_parameters, times)
     # plt.plot(times, values)
     # plt.plot(times, current)
     # plt.show()
@@ -127,7 +127,7 @@ def main():
     error = pints.SumOfSquaresError(problem)
     boundaries  = MarkovModelBoundaries()
     x0 = np.array([0.1]*9)
-    found_parameters, found_value = pints.optimise(error, true_parameters, boundaries=boundaries)
+    found_parameters, found_value = pints.optimise(error, starting_parameters, boundaries=boundaries)
     print(found_parameters, found_value)
 
 if __name__ == "__main__":
