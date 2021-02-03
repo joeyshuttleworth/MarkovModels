@@ -1,20 +1,15 @@
 import numpy as np
-import sympy as sp
 import symengine as se
 from scipy.integrate import odeint
-from itertools import chain
 
 class GetSensitivityEquations(object):
     def __init__(self, global_stuff, p, y, v, rhs, ICs, sine_wave):
-
         self.par = global_stuff
         self.times = np.linspace(0, self.par.tmax, self.par.tmax + 1)
-        self.par.times = self.times
         self.compute_sensitivity_equations_rhs(p, y, v, rhs, ICs)
         self.sine_wave = sine_wave
 
     def compute_sensitivity_equations_rhs(self, p, y, v, rhs, ICs):
-
         print('Creating RHS function...')
 
         # Inputs for RHS ODEs
@@ -74,7 +69,7 @@ class GetSensitivityEquations(object):
         jS1 = [se.Matrix(fS1).jacobian(se.Matrix(Ss))]
         self.jfunc_S1 = se.lambdify(inputs, jS1)
 
-        print('Finished computing sensitivity equations.')
+        print('Finished creating sensitivity functions.')
 
     def rhs(self, y, t, p):
         return self.func_rhs((*y, *p, self.voltage(t)))
@@ -104,7 +99,6 @@ class GetSensitivityEquations(object):
         return drhs[:, self.par.open_state::self.par.n_state_vars]
 
     def voltage(self, t):
-
         if self.sine_wave:
             shift = 0.0 # Kylie set to 0.1 ms for real data
             C = [54.0, 26.0, 10.0, 0.007/(2*np.pi), 0.037/(2*np.pi), 0.19/(2*np.pi)]
@@ -130,39 +124,28 @@ class GetSensitivityEquations(object):
                 return -80
 
     def SimulateForwardModel(self, p):
-        return self.GetCurrent(self.solve_rhs(p), self.times)
-
-    def GetCurrent(self, o, times):
-        return [self.par.GKr * o[t] * (self.voltage(t) - self.par.Erev) for t, _ in enumerate(times)]
+        o = self.solve_rhs(p)
+        return np.array([self.par.GKr * o[t] * (self.voltage(t) - self.par.Erev) for t, _ in enumerate(self.times)])
 
     def GetVoltage(self):
         return [self.voltage(t) for t, _ in enumerate(self.times)]
 
-    def NormaliseSensitivities(self, S1, params):
-        # Uncomment to normalise to output as well
-        # output = self.solve_rhs(params)
-        # # Numerical hack to avoid NaN errors
-        # for i, j in enumerate(output):
-        #     if j == 0:
-        #         output[i] = 1e-7
-        S1n = np.copy(S1)
-        # Normalise to parameter value (and output)
+    def NormaliseSensitivities(self, S1n, params):
+        # Normalise to parameter value
         for i, param in enumerate(params):
-            S1n[:, i] = S1[:, i] * param #/ output
+            S1n[:, i] = S1n[:, i] * param
         return S1n
 
     def SimulateForwardModelSensitivities(self, p):
-        return self.solve_drhs(p)
+        S1 = self.solve_drhs(p)
+        return np.array([self.par.GKr * S1[t, :] * (self.voltage(t) - self.par.Erev) for t, _ in enumerate(self.times)])
 
 
 def GetSymbols(par):
-
     # Create parameter symbols
     p = [se.symbols('p%d' % j) for j in range(par.n_params)]
-
     # Create state variable symbols
     y = [se.symbols('y%d' % i) for i in range(par.n_state_vars)]
-
     # Create voltage symbol
     v = se.symbols('v')
 
