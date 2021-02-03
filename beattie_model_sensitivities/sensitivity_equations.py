@@ -82,8 +82,7 @@ class GetSensitivityEquations(object):
         return odeint(self.rhs, self.rhs0, self.times, atol=1e-8, rtol=1e-8, Dfun=self.jrhs, args=(p, ))[:, self.par.open_state]
 
     def drhs(self, y, t, p):
-        outputs = []
-        outputs.extend(self.func_rhs((*y[:self.par.n_state_vars], *p, self.voltage(t))))
+        outputs = self.func_rhs((*y[:self.par.n_state_vars], *p, self.voltage(t)))
         outputs.extend(self.func_S1((*y[:self.par.n_state_vars], *p, self.voltage(t), *y[self.par.n_state_vars:])))
 
         return outputs
