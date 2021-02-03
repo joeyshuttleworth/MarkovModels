@@ -124,7 +124,7 @@ class GetSensitivityEquations(object):
 
     def SimulateForwardModel(self, p):
         o = self.solve_rhs(p)
-        return np.array([self.par.GKr * o[t] * (self.voltage(t) - self.par.Erev) for t, _ in enumerate(self.times)])
+        return np.array([o[t] * (self.voltage(t) - self.par.Erev) for t, _ in enumerate(self.times)])
 
     def GetVoltage(self):
         return [self.voltage(t) for t, _ in enumerate(self.times)]
@@ -137,7 +137,7 @@ class GetSensitivityEquations(object):
 
     def SimulateForwardModelSensitivities(self, p):
         S1 = self.solve_drhs(p)
-        return np.array([self.par.GKr * S1[t, :] * (self.voltage(t) - self.par.Erev) for t, _ in enumerate(self.times)])
+        return np.array([S1[t, :] * (self.voltage(t) - self.par.Erev) for t, _ in enumerate(self.times)])
 
 
 def GetSymbols(par):

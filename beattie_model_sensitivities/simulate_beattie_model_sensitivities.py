@@ -20,7 +20,7 @@ args = parser.parse_args()
 par = Params()
 
 # Choose starting parameters (from J Physiol paper)
-para = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158]
+para = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
 
 # Create symbols for symbolic functions
 p, y, v = GetSymbols(par)
@@ -32,8 +32,8 @@ k3 = p[4] * se.exp(p[5] * v)
 k4 = p[6] * se.exp(-p[7] * v)
 
 # C, I, O
-rhs = [k2 * y[2] + k4 * (1.0 - y[0] - y[1] - y[2]) - (k1 + k3) * y[0],
-       k1 * (1.0 - y[0] - y[1] - y[2]) + k3 * y[2] - (k2 + k4) * y[1],
+rhs = [k2 * y[2] + k4 * (p[8] - y[0] - y[1] - y[2]) - (k1 + k3) * y[0],
+       k1 * (p[8] - y[0] - y[1] - y[2]) + k3 * y[2] - (k2 + k4) * y[1],
        k1 * y[0] + k4 * y[1] - (k2 + k3) * y[2]]
        
 ICs = [1.0, 0.0, 0.0]
