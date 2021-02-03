@@ -1,9 +1,7 @@
 import numpy as np
-import sympy as sp
 import symengine as se
 import matplotlib.pyplot as plt
 plt.rcParams['axes.axisbelow'] = True
-import os
 import argparse
 
 from settings import Params
