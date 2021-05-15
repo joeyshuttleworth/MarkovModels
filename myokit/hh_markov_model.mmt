@@ -31,8 +31,8 @@ G = 0.1524
 
 Kout = 4
 Kin  = 130
-R = 8.3145
-T = 25
+R = 8314.5
+T = 293
 F = 96485
 z=1
 
@@ -54,8 +54,6 @@ dot(pInactive) = -(k2 + k4)*pInactive + k3*pOpen + k1*pInactiveClosed
 E = R*T/(1 * F) * log(Kout/Kin) 
 
 Current = membrane.G * pOpen*(V - E)
-
-
 
 [[protocol]]
 # Level  Start    Length   Period   Multiplier

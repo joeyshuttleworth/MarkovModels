@@ -113,9 +113,9 @@ def main():
     values=dat[:,1]
 
     current = model.simulate(true_parameters, times)
-    # plt.plot(times, values)
-    # plt.plot(times, current)
-    # plt.show()
+    plt.plot(times, values)
+    plt.plot(times, current)
+    plt.show()
     problem = pints.SingleOutputProblem(model, times, values)
     error = pints.SumOfSquaresError(problem)
     boundaries  = MarkovModelBoundaries()

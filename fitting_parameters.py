@@ -53,10 +53,10 @@ class ChannelModelPintsWrapper(pints.ForwardModelS1):
         y = solution.y
         #Now calculate the corresponding currents
         IVec = [mdl.calculateCurrent(y[1,t], times[t]) for t in range(0,len(solution.t))]
-        # print("plotting [Open]")
-        # plt.plot(times, y[1,:])
-        # plt.plot(times, IVec)
-        # plt.show()
+        print("plotting [Open]")
+        plt.plot(times, y[1,:])
+        plt.plot(times, IVec)
+        plt.show()
         return IVec
 
     def simulateS1(self, parameters, time):
@@ -120,9 +120,6 @@ def main():
     times=dat[:,0]
     values=dat[:,1]
     current = model.simulate(starting_parameters, times)
-    # plt.plot(times, values)
-    # plt.plot(times, current)
-    # plt.show()
     problem = pints.SingleOutputProblem(model, times, values)
     error = pints.SumOfSquaresError(problem)
     boundaries  = MarkovModelBoundaries()

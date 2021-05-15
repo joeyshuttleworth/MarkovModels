@@ -27,6 +27,9 @@ class ChannelModel:
         self.P = params
         self.V = voltage_function
 
+    def setProtocol(self, V):
+        self.V = V
+
     def setTransitionRates(self, t):
         V = self.V(t)
         self.k1 = self.P[0] * np.exp(self.P[1]*V)
@@ -49,7 +52,7 @@ class ChannelModel:
 
     def getStates(self, t):
         self.setTransitionRates(t)
-        return np.ndarray(shape=(3,), buffer=np.array([self.ProbabilityClosed, self.ProbabilityOpen, self.ProbabilityInactive]))
+        return np.array([self.ProbabilityClosed, self.ProbabilityOpen, self.ProbabilityInactive])
 
     def setStates(self,X):
         self.ProbabilityClosed = X[0]
@@ -106,25 +109,56 @@ class ChannelModel:
         B = np.matrix([self.k4,0,self.k1]).T
         return [A, B]
 
+    def getLinearSolution(self, t_0=0):
+        '''Get the solution to the linear system ODEs obtained by assuming a constant
+        voltage v(t) for some time, t.
+
+        Returns the matrix CK, eigenvalues, and the vector X2
+        '''
+
+        A, B = self.getSystemOfOdes(t_0)
+
+        #Solve non-homogeous part
+        X2 = -np.linalg.inv(A)*B
+        # Solve the homogenous part
+        eigenvalues, C = np.linalg.eig(A)
+        D = np.diag(eigenvalues)
+
+        # Consider the system dZ/dt = D Z
+        # where X = CKZ, K is a diagonal matrix of constants and D is a diagonal matrix
+        # with elements in the order given by linalg.eig(A) such that A = CDC^-1
+        # Then Z = (e^{-D_i,i})_i and X=CKZ is the general homogenous solution to the system
+        # dX/dt = AX because dX/dt = CKdZ/dt = CKDZ = KCC^-1ACZ = KACZ = AKX
+
+        IC = np.matrix([self.ProbabilityClosed, self.ProbabilityOpen, self.ProbabilityInactive]).T
+        KZ = np.linalg.inv(C)*(IC - X2)
+        K = np.matrix(np.diag([KZ[i,0] / 1 for i in range(0,3)]))
+
+        # Then the full solution is X = CKZ + X0
+        return C*K, eigenvalues, X2
+
     def calculateDerivatives(self, times, states):
         [getDerivatives(times[i], states[i]) for i in range(0, len(times))]
 
 def main():
     t = 5000
-    params = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
+    # params = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
+    params = [3.87068845e-04, 5.88028759e-02, 6.46971727e-05, 4.87408447e-02, 8.03073893e-02, 7.36295506e-03, 5.32908518e-03, 3.32254316e-02, 6.56614672e-02]
     amplitudes = [54,26,10]
     frequencies = [0.007,0.037, 0.19]
-    V =  lambda t: -30 + sum([amplitudes[i]*np.sin(frequencies[i]*(t-2500)) for i in range(0,3)])
+    # V =  lambda t: -30 + sum([amplitudes[i]*np.sin(frequencies[i]*(t-2500)) for i in range(0,3)])
+    V = lambda t: -100 if (t % 1000) < 500 else 0
     model = ChannelModel(params, V)
     print(model.getTransitionRates())
     initial_conditions = model.getStates(0)
     print(model.getStates(0))
-    solution = integrate.solve_ivp(model.getDerivatives, [0,t], model.getStates(0))
+    solution = integrate.solve_ivp(model.getDerivatives, [0,t], model.getStates(0), abstol=1e-8, reltol=1e-8)
 
     y = solution.y
     IVec = [model.calculateCurrent(y[1,t]) for t in range(0,len(solution.t))]
 
-    plt.plot(np.linspace(0,5000,1000), V(np.linspace(0,5000,1000)))
+    t_vec = np.linspace(0,5000,1000)
+    plt.plot(t_vec, [V(tt) for tt in t_vec])
     plt.plot(solution.t, solution.y[1])
     plt.plot(solution.t, IVec)
 
