@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import pints
 import matplotlib.pyplot as plt
 import pandas as pd
