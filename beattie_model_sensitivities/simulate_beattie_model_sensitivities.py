@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import numpy as np
 import symengine as se
 import matplotlib.pyplot as plt
@@ -10,10 +12,10 @@ from sensitivity_equations import GetSensitivityEquations, GetSymbols
 # Check input arguments
 parser = argparse.ArgumentParser(
     description='Plot sensitivities of the Beattie model')
-parser.add_argument("-sw", "--sine_wave", action='store_true', help="whether or not to use sine wave protocol",
+parser.add_argument("-s", "--sine_wave", action='store_true', help="whether or not to use sine wave protocol",
     default=False)
 parser.add_argument("-p", "--plot", action='store_true', help="whether to plot figures or just save",
-    default=False)
+                    default=False)
 parser.add_argument("--dpi", type=int, default=100, help="what DPI to use for figures")
 args = parser.parse_args()
 
@@ -35,13 +37,13 @@ k4 = p[6] * se.exp(-p[7] * v)
 rhs = [k2 * y[2] + k4 * (p[8] - y[0] - y[1] - y[2]) - (k1 + k3) * y[0],
        k1 * (p[8] - y[0] - y[1] - y[2]) + k3 * y[2] - (k2 + k4) * y[1],
        k1 * y[0] + k4 * y[1] - (k2 + k3) * y[2]]
-       
+
 ICs = [1.0, 0.0, 0.0]
 
 funcs = GetSensitivityEquations(par, p, y, v, rhs, ICs, sine_wave=args.sine_wave)
-
+current = funcs.SimulateForwardModel(para)
 S1 = funcs.SimulateForwardModelSensitivities(para)
-S1n = funcs.NormaliseSensitivities(S1, para)
+S1n = funcs.NormaliseSensitivities(S1, para, current)
 
 param_labels = ['S(p' + str(i + 1) + ',t)' for i in range(par.n_params)]
 
@@ -52,13 +54,14 @@ ax1.grid(True)
 ax1.set_xticklabels([])
 ax1.set_ylabel('Voltage (mV)')
 ax2 = fig.add_subplot(312)
-ax2.plot(funcs.SimulateForwardModel(para))
+ax2.plot(current)
 ax2.grid(True)
 ax2.set_xticklabels([])
 ax2.set_ylabel('Current (nA)')
 ax3 = fig.add_subplot(313)
-for i in range(par.n_params):
-    ax3.plot(S1n[:, i], label=param_labels[i])
+print(S1n)
+for i in range(1, par.n_params+1):
+    ax3.plot(S1n[:,0], S1n[:, i], label=param_labels[i-1])
 ax3.legend(ncol=3)
 ax3.grid(True)
 ax3.set_xlabel('Time (ms)')
@@ -68,11 +71,11 @@ plt.tight_layout()
 if not args.plot:
     plt.savefig('ForwardModel_SW_' + str(args.sine_wave) + '.png')
 
-H = np.dot(S1n.T, S1n)
+# print(S1n)
+H = S1n.T @ S1n
 evals = np.linalg.eigvals(H)
-print('Eigenvalues of H:')
 eigvals = evals/np.max(evals)
-print(eigvals)
+print('Eigenvalues of H:\n{}'.format(eigvals))
 
 fig = plt.figure(figsize=(6, 6), dpi=args.dpi)
 ax = fig.add_subplot(111)

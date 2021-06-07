@@ -101,7 +101,7 @@ class GetSensitivityEquations(object):
         if self.sine_wave:
             shift = 0.0 # Kylie set to 0.1 ms for real data
             C = [54.0, 26.0, 10.0, 0.007/(2*np.pi), 0.037/(2*np.pi), 0.19/(2*np.pi)]
-            
+
             if t >= 250+shift and t < 300+shift:
                 return -120
             elif t >= 500+shift and t < 1500+shift:
@@ -123,16 +123,21 @@ class GetSensitivityEquations(object):
                 return -80
 
     def SimulateForwardModel(self, p):
-        o = self.solve_rhs(p)
-        return np.array([o[t] * (self.voltage(t) - self.par.Erev) for t, _ in enumerate(self.times)])
+        # Returns the current at each timepoint
+        res = self.solve_rhs(p)
+        return np.array([res[t] * (self.voltage(t) - self.par.Erev) for t, _ in enumerate(self.times)])
 
     def GetVoltage(self):
         return [self.voltage(t) for t, _ in enumerate(self.times)]
 
-    def NormaliseSensitivities(self, S1n, params):
+    def NormaliseSensitivities(self, S1n, params, state_variable):
         # Normalise to parameter value
         for i, param in enumerate(params):
-            S1n[:, i] = S1n[:, i] * param
+            S1n[:, i] = (S1n[:, i]/state_variable) * param
+
+        # drop time-steps when the current is equal to 0
+        S1n = np.array([[i] + row.tolist() for i, row in enumerate(S1n) if 0 not in row and np.any(np.isfinite(row))])
+
         return S1n
 
     def SimulateForwardModelSensitivities(self, p):
@@ -149,4 +154,3 @@ def GetSymbols(par):
     v = se.symbols('v')
 
     return p, y, v
-
