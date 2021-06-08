@@ -38,6 +38,8 @@ class GetSensitivityEquations(object):
         [inputs.append(p[j]) for j in range(self.par.n_params)]
         inputs.append(v)
 
+        self.rhs0 = ICs
+
         # Create RHS function
         frhs = [rhs[i] for i in range(self.par.n_state_vars)]
         self.func_rhs = se.lambdify(inputs, frhs)
@@ -49,12 +51,13 @@ class GetSensitivityEquations(object):
         print('Creating 1st order sensitivities function...')
 
         # Create symbols for 1st order sensitivities
-        dydp = [[se.symbols('dy%d' % i + 'dp%d' % j) for j in range(self.par.n_params)] for i in range(self.par.n_state_vars)]
+        dydp = [[se.symbols('dy%d' % i + 'dp%d' % j) for j in range(self.par.n_params)]
+            for i in range(self.par.n_state_vars)]
 
         # Append 1st order sensitivities to inputs
-        for i in range(self.par.n_state_vars):
-            for j in range(self.par.n_params):
-                inputs.append(dydp[i][j])
+        for i in range(self.par.n_params):
+            for j in range(self.par.n_state_vars):
+                inputs.append(dydp[j][i])
 
         # Initialise 1st order sensitivities
         dS = [[0 for j in range(self.par.n_params)] for i in range(self.par.n_state_vars)]
@@ -79,9 +82,7 @@ class GetSensitivityEquations(object):
 
         # Append 1st order sensitivities to initial conditions
         dydxs = np.zeros((self.par.n_state_var_sensitivities))
-
         self.drhs0 = np.concatenate((ICs, dydxs))
-        self.rhs0  = ICs
 
         # Concatenate RHS and 1st order sensitivities
         Ss = np.concatenate((y, Ss))
@@ -139,7 +140,7 @@ class GetSensitivityEquations(object):
 
         """
         # Chop off RHS
-        drhs = odeint(self.drhs, self.drhs0, self.times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1], Dfun=self.jdrhs, args=(p, ))[:, self.par.n_state_vars:]
+        drhs = odeint(self.drhs, self.drhs0, self.times, atol=1e-8, rtol=1e-8, Dfun=self.jdrhs, args=(p, ))[:, self.par.n_state_vars:]
         # Return only open state sensitivites
         return drhs[:, self.par.open_state::self.par.n_state_vars]
 
