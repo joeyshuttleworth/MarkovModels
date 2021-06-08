@@ -15,7 +15,9 @@ def SineWaveProtocol(t):
     https://github.com/mirams/sine-wave/blob/master/Code/MexAslanidi.c.
     """
 
-    # This shift is needed for simulated protocol to match the protocol recorded in experiment, which is shifted by 0.1ms as compared to the original input protocol. Consequently, each step is held for 0.1ms longer in this version of the protocol as compared to the input.
+    # This shift is needed for simulated protocol to match the protocol recorded in experiment, which is shifted by 0.1ms compared to the original input protocol. Consequently, each step is held for 0.1ms longer in this version of the protocol as compared to the input.
+
+    t = t + shift
     shift = 0.1
 
     C = [54.0, 26.0, 10.0, 0.007/(2*np.pi), 0.037/(2*np.pi), 0.19/(2*np.pi)]

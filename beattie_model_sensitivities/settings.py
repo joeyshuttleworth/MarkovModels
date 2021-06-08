@@ -11,3 +11,6 @@ class Params(object):
         self.tmax = 8000
         self.Erev = -88
         self.GKr = 0.1524
+
+        # Relative and absolute tolerances to solve the system with, [rtol, atol]
+        self.solver_tolerances = [1e-6, 1e-6]

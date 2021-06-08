@@ -3,13 +3,33 @@ import symengine as se
 from scipy.integrate import odeint
 
 class GetSensitivityEquations(object):
-    def __init__(self, global_stuff, p, y, v, rhs, ICs, sine_wave):
-        self.par = global_stuff
+    # A class to generate and solve sensitivity equations for the four state, nine parameter Hodgkin-Huxley model of the hERG channel
+
+    # Arguments are provided using the Params class
+
+    # The functions SimulateForwardModel and SimulateForwardModelSensitivities
+    # solve the system for each time-step.
+
+    def __init__(self, settings, p, y, v, rhs, ICs, sine_wave):
+
+        # Settings such given in a Param object
+        self.par = settings
+
+        # The timesteps we want to output at
         self.times = np.linspace(0, self.par.tmax, self.par.tmax + 1)
+
         self.compute_sensitivity_equations_rhs(p, y, v, rhs, ICs)
+
+        # Flag determining whether to use the sine-wave protocol or not
         self.sine_wave = sine_wave
 
     def compute_sensitivity_equations_rhs(self, p, y, v, rhs, ICs):
+        """Compute the system of ODEs we need to solve to find the sensitivities.
+
+        These equations will depend on the voltage protocol which does not need to be
+        defined at this stage.
+
+        """
         print('Creating RHS function...')
 
         # Inputs for RHS ODEs
@@ -71,37 +91,74 @@ class GetSensitivityEquations(object):
 
         print('Finished creating sensitivity functions.')
 
-    def rhs(self, y, t, p):
-        return self.func_rhs((*y, *p, self.voltage(t)))
+    def rhs(self, state_variables, time, parameters):
+        """ Evaluates the RHS of the model (including sensitivities)
 
-    def jrhs(self, y, t, p):
-        return self.jfunc_rhs((*y, *p, self.voltage(t)))
+        """
+        return self.func_rhs((*state_variables, *parameters, self.voltage(time)))
 
-    # Returns the open state
+    def jrhs(self, state_variables, time, parameters):
+        """ Evaluates the jacobian of the RHS
+
+            Having this function can speed up solving the system
+        """
+        return self.jfunc_rhs((*state_variables, *parameters, self.voltage(time)))
+
     def solve_rhs(self, p):
-        return odeint(self.rhs, self.rhs0, self.times, atol=1e-8, rtol=1e-8, Dfun=self.jrhs, args=(p, ))[:, self.par.open_state]
+        """ Solve the RHS of the system and return the open state probability at each timestep
+        """
+        return odeint(self.rhs, self.rhs0, self.times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1], Dfun=self.jrhs, args=(p, ))[:, self.par.open_state]
 
     def drhs(self, y, t, p):
+        """ Evaluate RHS analytically
+
+        """
+
         outputs = self.func_rhs((*y[:self.par.n_state_vars], *p, self.voltage(t)))
         outputs.extend(self.func_S1((*y[:self.par.n_state_vars], *p, self.voltage(t), *y[self.par.n_state_vars:])))
-
         return outputs
 
     def jdrhs(self, y, t, p):
+        """
+        Evaluates the jacobian of the RHS (analytically)
+
+        This allows the system to be solved faster
+
+        """
         return self.jfunc_S1((*y[:self.par.n_state_vars], *p, self.voltage(t), *y[self.par.n_state_vars:]))
 
     # Returns the open state 1st order sensitivities
     def solve_drhs(self, p):
+        """
+        Returns the sensitivities of the open state probability
+
+        These are not exactly the sensitivities of the current, you must
+        multiply by (V - E_rev) to get hte current sensitivities.
+
+        """
         # Chop off RHS
         drhs = odeint(self.drhs, self.drhs0, self.times, atol=1e-8, rtol=1e-8, Dfun=self.jdrhs, args=(p, ))[:, self.par.n_state_vars:]
         # Return only open state sensitivites
         return drhs[:, self.par.open_state::self.par.n_state_vars]
 
     def voltage(self, t):
+        """Returns the voltage of the chosen protocol after t milliseconds has passed
+
+        The voltage protocol used to produce the Sine Wave data in
+        https://github.com/mirams/sine-wave. This code is translated from the
+        function, static int f in
+        https://github.com/mirams/sine-wave/blob/master/Code/MexAslanidi.c.
+
+
+        if self.sine_wave is true, use Kylie Beattie's sine wave protocol.
+        Otherwise use a simple step protocol
+
+        """
+
         if self.sine_wave:
-            shift = 0.0 # Kylie set to 0.1 ms for real data
+            # This shift is needed for simulated protocol to match the protocol recorded in experiment, which is shifted by 0.1ms compared to the original input protocol. Consequently, each step is held for 0.1ms longer in this version of the protocol as compared to the input.
+            shift = 0.0
             C = [54.0, 26.0, 10.0, 0.007/(2*np.pi), 0.037/(2*np.pi), 0.19/(2*np.pi)]
-            
             if t >= 250+shift and t < 300+shift:
                 return -120
             elif t >= 500+shift and t < 1500+shift:
@@ -117,6 +174,7 @@ class GetSensitivityEquations(object):
             else:
                 return -80
         else:
+            # Default to a simple protocol
             if t >= 1000 and t < 5000:
                 return 20
             else:
@@ -127,20 +185,46 @@ class GetSensitivityEquations(object):
         return np.array([o[t] * (self.voltage(t) - self.par.Erev) for t, _ in enumerate(self.times)])
 
     def GetVoltage(self):
+        """
+        Returns the voltage at every timepoint
+
+        By default, there is a timestep every millisecond up to self.tmax
+        """
         return [self.voltage(t) for t, _ in enumerate(self.times)]
 
     def NormaliseSensitivities(self, S1n, params):
+        """
+        Normalise the sensitivites with regards to the size of the parameter
+
+        This is equivalent to rescaling all of the parameters so that they're
+        equal to 1.
+
+        """
+
         # Normalise to parameter value
         for i, param in enumerate(params):
             S1n[:, i] = S1n[:, i] * param
         return S1n
 
     def SimulateForwardModelSensitivities(self, p):
+        """
+        Solve the model for a given set of parameters
+
+        Returns the state variables and current sensitivities at every timestep
+
+        """
+
         S1 = self.solve_drhs(p)
         return np.array([S1[t, :] * (self.voltage(t) - self.par.Erev) for t, _ in enumerate(self.times)])
 
 
-def GetSymbols(par):
+def CreateSymbols(par):
+    """
+    Create SymEngine symbols to contain the parameters, state variables and the voltage.
+    These are used to generate functions for the right hand side and jacobian
+
+    """
+
     # Create parameter symbols
     p = [se.symbols('p%d' % j) for j in range(par.n_params)]
     # Create state variable symbols
@@ -149,4 +233,3 @@ def GetSymbols(par):
     v = se.symbols('v')
 
     return p, y, v
-
