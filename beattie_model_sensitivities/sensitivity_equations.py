@@ -23,6 +23,9 @@ class GetSensitivityEquations(object):
         # Flag determining whether to use the sine-wave protocol or not
         self.sine_wave = sine_wave
 
+    def SetInitialConditions(self, new_ICs):
+        self.rhs0 = new_ICs
+
     def compute_sensitivity_equations_rhs(self, p, y, v, rhs, ICs):
         """
         Compute the system of ODEs we need to solve to find the sensitivities.
@@ -224,7 +227,7 @@ class GetSensitivityEquations(object):
 def CreateSymbols(par):
     """
     Create SymEngine symbols to contain the parameters, state variables and the voltage.
-    These are used to generate functions for the right hand side and jacobian
+    These are used to generate functions for the right hand side and Jacobian
 
     """
 
