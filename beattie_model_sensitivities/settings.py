@@ -9,6 +9,7 @@ class Params(object):
         self.open_state = 2
 
         self.tmax = 8000
+        self.timestep = 1
         self.Erev = -88
         self.GKr = 0.1524
 

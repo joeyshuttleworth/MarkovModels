@@ -78,7 +78,7 @@ def main():
     # Plot sensitivities w.r.t the initial conditions
     ## Get machine precision
     ##h = np.sqrt(np.finfo(np.float).eps)
-    h=0.01
+    h = 0.05
 
     ax4 = fig.add_subplot(414)
     for i in range(par.n_state_vars):

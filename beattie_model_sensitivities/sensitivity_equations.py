@@ -10,13 +10,14 @@ class GetSensitivityEquations(object):
     # The functions SimulateForwardModel and SimulateForwardModelSensitivities
     # solve the system for each time-step.
 
-    def __init__(self, settings, p, y, v, rhs, ICs, sine_wave):
+    def __init__(self, settings, p, y, v, rhs, ICs, times_to_use, sine_wave=False):
 
         # Settings such given in a Param object
         self.par = settings
+        self.times = times_to_use
 
         # The timesteps we want to output at
-        self.times = np.linspace(0, self.par.tmax, self.par.tmax + 1)
+        self.times = times_to_use
 
         self.compute_sensitivity_equations_rhs(p, y, v, rhs, ICs)
 
@@ -163,7 +164,7 @@ class GetSensitivityEquations(object):
 
         if self.sine_wave:
             # This shift is needed for simulated protocol to match the protocol recorded in experiment, which is shifted by 0.1ms compared to the original input protocol. Consequently, each step is held for 0.1ms longer in this version of the protocol as compared to the input.
-            shift = 0.0
+            shift = 0.1
             C = [54.0, 26.0, 10.0, 0.007/(2*np.pi), 0.037/(2*np.pi), 0.19/(2*np.pi)]
             if t >= 250+shift and t < 300+shift:
                 return -120
