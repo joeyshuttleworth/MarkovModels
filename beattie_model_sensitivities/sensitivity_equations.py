@@ -147,7 +147,7 @@ class GetSensitivityEquations(object):
     def GetStateVariables(self, p, hold_potential=False, normalise=True):
         states = self.solve_rhs(p, hold_potential) 
         if normalise:
-            states = states / self.par.GKr # Normalise to conductance
+            states = states / p[-1] # Normalise to conductance
 
         state1 = np.zeros(self.par.tmax + 1)
         for t in range(self.par.tmax + 1):
