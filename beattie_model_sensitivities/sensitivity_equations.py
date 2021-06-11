@@ -58,8 +58,8 @@ class GetSensitivityEquations(object):
         self.par.n_state_var_sensitivities = self.par.n_params * self.par.n_state_vars
 
         # Append 1st order sensitivities to initial conditions
-        dydxs = np.zeros((self.par.n_state_var_sensitivities))
-        self.drhs0 = np.concatenate((ICs, dydxs))
+        dydps = np.zeros((self.par.n_state_var_sensitivities))
+        self.drhs0 = np.concatenate((ICs, dydps))
 
         # Concatenate RHS and 1st order sensitivities
         Ss = np.concatenate((y, Ss))
