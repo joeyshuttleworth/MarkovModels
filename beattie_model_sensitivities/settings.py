@@ -11,3 +11,5 @@ class Params(object):
         self.tmax = 8000
         self.Erev = -88
         self.GKr = 0.1524
+
+        self.holding_potential = -80

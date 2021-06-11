@@ -31,38 +31,48 @@ k2 = p[2] * se.exp(-p[3] * v)
 k3 = p[4] * se.exp(p[5] * v)
 k4 = p[6] * se.exp(-p[7] * v)
 
-# C, I, O
-rhs = [k2 * y[2] + k4 * (p[8] - y[0] - y[1] - y[2]) - (k1 + k3) * y[0],
-       k1 * (p[8] - y[0] - y[1] - y[2]) + k3 * y[2] - (k2 + k4) * y[1],
-       k1 * y[0] + k4 * y[1] - (k2 + k3) * y[2]]
+# CI, I, O
+rhs = [k2 * y[1] + k3 * (p[8] - y[0] - y[1] - y[2]) - (k1 + k4) * y[0],
+       k1 * y[0] + k3 * y[2] - (k2 + k4) * y[1],
+       k1 * (p[8] - y[0] - y[1] - y[2]) + k4 * y[1] - (k2 + k3) * y[2]]
        
-ICs = [1.0, 0.0, 0.0]
+ICs = [0.0, 0.0, 0.0]
 
-funcs = GetSensitivityEquations(par, p, y, v, rhs, ICs, sine_wave=args.sine_wave)
+funcs = GetSensitivityEquations(par, p, y, v, rhs, ICs, para, sine_wave=args.sine_wave)
 
 S1 = funcs.SimulateForwardModelSensitivities(para)
 S1n = funcs.NormaliseSensitivities(S1, para)
 
+state_variables = funcs.GetStateVariables(para)
+state_labels = ['C', 'CI', 'I', 'O']
+
 param_labels = ['S(p' + str(i + 1) + ',t)' for i in range(par.n_params)]
 
 fig = plt.figure(figsize=(8, 8), dpi=args.dpi)
-ax1 = fig.add_subplot(311)
+ax1 = fig.add_subplot(411)
 ax1.plot(funcs.GetVoltage())
 ax1.grid(True)
 ax1.set_xticklabels([])
 ax1.set_ylabel('Voltage (mV)')
-ax2 = fig.add_subplot(312)
+ax2 = fig.add_subplot(412)
 ax2.plot(funcs.SimulateForwardModel(para))
 ax2.grid(True)
 ax2.set_xticklabels([])
 ax2.set_ylabel('Current (nA)')
-ax3 = fig.add_subplot(313)
-for i in range(par.n_params):
-    ax3.plot(S1n[:, i], label=param_labels[i])
-ax3.legend(ncol=3)
+ax3 = fig.add_subplot(413)
+for i in range(par.n_state_vars + 1):
+    ax3.plot(state_variables[:, i], label=state_labels[i])
+ax3.legend(ncol=4)
 ax3.grid(True)
-ax3.set_xlabel('Time (ms)')
-ax3.set_ylabel('Sensitivities')
+ax3.set_xticklabels([])
+ax3.set_ylabel('State occupancy')
+ax4 = fig.add_subplot(414)
+for i in range(par.n_params):
+    ax4.plot(S1n[:, i], label=param_labels[i])
+ax4.legend(ncol=3)
+ax4.grid(True)
+ax4.set_xlabel('Time (ms)')
+ax4.set_ylabel('Sensitivities')
 plt.tight_layout()
 
 if not args.plot:

@@ -3,13 +3,13 @@ import symengine as se
 from scipy.integrate import odeint
 
 class GetSensitivityEquations(object):
-    def __init__(self, global_stuff, p, y, v, rhs, ICs, sine_wave):
+    def __init__(self, global_stuff, p, y, v, rhs, ICs, para, sine_wave):
         self.par = global_stuff
         self.times = np.linspace(0, self.par.tmax, self.par.tmax + 1)
-        self.compute_sensitivity_equations_rhs(p, y, v, rhs, ICs)
+        self.compute_sensitivity_equations_rhs(p, y, v, rhs, ICs, para)
         self.sine_wave = sine_wave
 
-    def compute_sensitivity_equations_rhs(self, p, y, v, rhs, ICs):
+    def compute_sensitivity_equations_rhs(self, p, y, v, rhs, ICs, para):
         print('Creating RHS function...')
 
         # Inputs for RHS ODEs
@@ -69,33 +69,51 @@ class GetSensitivityEquations(object):
         jS1 = [se.Matrix(fS1).jacobian(se.Matrix(Ss))]
         self.jfunc_S1 = se.lambdify(inputs, jS1)
 
-        print('Finished creating sensitivity functions.')
+        print('Getting ' + str(self.par.holding_potential) + ' mV steady state initial conditions...')
 
-    def rhs(self, y, t, p):
-        return self.func_rhs((*y, *p, self.voltage(t)))
+        # RHS
+        RHS_ICs_inf = self.GetStateVariables(para, hold_potential=True, normalise=False)[-1]
+        self.rhs0 = RHS_ICs_inf[1:]
 
-    def jrhs(self, y, t, p):
-        return self.jfunc_rhs((*y, *p, self.voltage(t)))
+        # 1st order sensitivities
+        S1_ICs_inf = self.solve_drhs_full(para, hold_potential=True)[-1]
+        self.drhs0 = np.concatenate((RHS_ICs_inf[1:], S1_ICs_inf))
+
+        print('Done')
+
+
+    def rhs(self, y, t, p, hold_potential=False):
+        voltage = self.par.holding_potential if hold_potential else self.voltage(t)
+        return self.func_rhs((*y, *p, voltage))
+
+    def jrhs(self, y, t, p, hold_potential=False):
+        voltage = self.par.holding_potential if hold_potential else self.voltage(t)
+        return self.jfunc_rhs((*y, *p, voltage))
 
     # Returns the open state
-    def solve_rhs(self, p):
-        return odeint(self.rhs, self.rhs0, self.times, atol=1e-8, rtol=1e-8, Dfun=self.jrhs, args=(p, ))[:, self.par.open_state]
+    def solve_rhs(self, p, hold_potential=False):
+        return odeint(self.rhs, self.rhs0, self.times, atol=1e-8, rtol=1e-8, Dfun=self.jrhs, args=(p, hold_potential, ))
 
-    def drhs(self, y, t, p):
-        outputs = self.func_rhs((*y[:self.par.n_state_vars], *p, self.voltage(t)))
-        outputs.extend(self.func_S1((*y[:self.par.n_state_vars], *p, self.voltage(t), *y[self.par.n_state_vars:])))
+    def drhs(self, y, t, p, hold_potential=False):
+        voltage = self.par.holding_potential if hold_potential else self.voltage(t)
+        outputs = self.func_rhs((*y[:self.par.n_state_vars], *p, voltage))
+        outputs.extend(self.func_S1((*y[:self.par.n_state_vars], *p, voltage, *y[self.par.n_state_vars:])))
 
         return outputs
 
-    def jdrhs(self, y, t, p):
-        return self.jfunc_S1((*y[:self.par.n_state_vars], *p, self.voltage(t), *y[self.par.n_state_vars:]))
+    def jdrhs(self, y, t, p, hold_potential=False):
+        voltage = self.par.holding_potential if hold_potential else self.voltage(t)
+        return self.jfunc_S1((*y[:self.par.n_state_vars], *p, voltage, *y[self.par.n_state_vars:]))
 
     # Returns the open state 1st order sensitivities
-    def solve_drhs(self, p):
+    def solve_drhs(self, p, hold_potential=False):
         # Chop off RHS
-        drhs = odeint(self.drhs, self.drhs0, self.times, atol=1e-8, rtol=1e-8, Dfun=self.jdrhs, args=(p, ))[:, self.par.n_state_vars:]
+        drhs = odeint(self.drhs, self.drhs0, self.times, atol=1e-8, rtol=1e-8, Dfun=self.jdrhs, args=(p, hold_potential, ))[:, self.par.n_state_vars:]
         # Return only open state sensitivites
         return drhs[:, self.par.open_state::self.par.n_state_vars]
+
+    def solve_drhs_full(self, p, hold_potential=False):
+        return odeint(self.drhs, self.drhs0, self.times, atol=1e-8, rtol=1e-8, Dfun=self.jdrhs, args=(p, hold_potential, ))[:, self.par.n_state_vars:]
 
     def voltage(self, t):
         if self.sine_wave:
@@ -123,8 +141,20 @@ class GetSensitivityEquations(object):
                 return -80
 
     def SimulateForwardModel(self, p):
-        o = self.solve_rhs(p)
+        o = self.solve_rhs(p)[:, self.par.open_state]
         return np.array([o[t] * (self.voltage(t) - self.par.Erev) for t, _ in enumerate(self.times)])
+
+    def GetStateVariables(self, p, hold_potential=False, normalise=True):
+        states = self.solve_rhs(p, hold_potential) 
+        if normalise:
+            states = states / self.par.GKr # Normalise to conductance
+
+        state1 = np.zeros(self.par.tmax + 1)
+        for t in range(self.par.tmax + 1):
+            state1[t] = 1.0 - np.sum(states[t, :])
+        state1 = state1.reshape(len(state1), 1)
+        states = np.concatenate((state1, states), axis=1)
+        return states
 
     def GetVoltage(self):
         return [self.voltage(t) for t, _ in enumerate(self.times)]
