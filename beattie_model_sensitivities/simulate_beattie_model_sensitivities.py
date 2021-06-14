@@ -35,7 +35,7 @@ k4 = p[6] * se.exp(-p[7] * v)
 rhs = [k2 * y[1] + k3 * (p[8] - y[0] - y[1] - y[2]) - (k1 + k4) * y[0],
        k1 * y[0] + k3 * y[2] - (k2 + k4) * y[1],
        k1 * (p[8] - y[0] - y[1] - y[2]) + k4 * y[1] - (k2 + k3) * y[2]]
-       
+
 ICs = [0.0, 0.0, 0.0]
 
 funcs = GetSensitivityEquations(par, p, y, v, rhs, ICs, para, sine_wave=args.sine_wave)
