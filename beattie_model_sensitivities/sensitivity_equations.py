@@ -119,7 +119,7 @@ class GetSensitivityEquations(object):
         if self.sine_wave:
             shift = 0.0 # Kylie set to 0.1 ms for real data
             C = [54.0, 26.0, 10.0, 0.007/(2*np.pi), 0.037/(2*np.pi), 0.19/(2*np.pi)]
-            
+
             if t >= 250+shift and t < 300+shift:
                 return -120
             elif t >= 500+shift and t < 1500+shift:
@@ -145,7 +145,7 @@ class GetSensitivityEquations(object):
         return np.array([o[t] * (self.voltage(t) - self.par.Erev) for t, _ in enumerate(self.times)])
 
     def GetStateVariables(self, p, hold_potential=False, normalise=True):
-        states = self.solve_rhs(p, hold_potential) 
+        states = self.solve_rhs(p, hold_potential)
         if normalise:
             states = states / p[-1] # Normalise to conductance
 
@@ -179,4 +179,3 @@ def GetSymbols(par):
     v = se.symbols('v')
 
     return p, y, v
-
