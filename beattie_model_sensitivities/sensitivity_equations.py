@@ -1,23 +1,25 @@
 import numpy as np
 import symengine as se
+import sympy
 from scipy.integrate import odeint
 
 class GetSensitivityEquations(object):
-    def __init__(self, global_stuff, p, y, v, rhs, ICs, para, sine_wave):
-        self.par = global_stuff
-        self.times = np.linspace(0, self.par.tmax, self.par.tmax + 1)
-        self.compute_sensitivity_equations_rhs(p, y, v, rhs, ICs, para)
+    def __init__(self, settings, p, y, v, A, B, para, times, sine_wave):
+        self.par = settings
+        self.times = times
         self.sine_wave = sine_wave
+        self.A = A
+        self.B = B
+        rhs = A*y + B
+        self.compute_sensitivity_equations_rhs(p, y, v, rhs, para)
 
-    def compute_sensitivity_equations_rhs(self, p, y, v, rhs, ICs, para):
+    def compute_sensitivity_equations_rhs(self, p, y, v, rhs, para):
         print('Creating RHS function...')
 
         # Inputs for RHS ODEs
         inputs = [(y[i]) for i in range(self.par.n_state_vars)]
         [inputs.append(p[j]) for j in range(self.par.n_params)]
         inputs.append(v)
-
-        self.rhs0 = ICs
 
         # Create RHS function
         frhs = [rhs[i] for i in range(self.par.n_state_vars)]
@@ -59,10 +61,9 @@ class GetSensitivityEquations(object):
 
         # Append 1st order sensitivities to initial conditions
         dydps = np.zeros((self.par.n_state_var_sensitivities))
-        self.drhs0 = np.concatenate((ICs, dydps))
 
         # Concatenate RHS and 1st order sensitivities
-        Ss = np.concatenate((y, Ss))
+        Ss = np.concatenate((list(y), Ss))
         fS1 = np.concatenate((frhs, fS1))
 
         # Create Jacobian of the 1st order sensitivities function
@@ -71,13 +72,18 @@ class GetSensitivityEquations(object):
 
         print('Getting ' + str(self.par.holding_potential) + ' mV steady state initial conditions...')
 
-        # RHS
-        RHS_ICs_inf = self.GetStateVariables(para, hold_potential=True, normalise=False)[-1]
-        self.rhs0 = RHS_ICs_inf[1:]
+        # Set the initial conditions of the model and the initial sensitivities
+        # by finding the steady state of the model
 
-        # 1st order sensitivities
-        S1_ICs_inf = self.solve_drhs_full(para, hold_potential=True)[-1]
-        self.drhs0 = np.concatenate((RHS_ICs_inf[1:], S1_ICs_inf))
+        # RHS
+        # Can be found analytically
+        rhs_inf = (-(self.A.inv())*self.B).subs(v,self.voltage(0))
+        self.rhs0 = [float(expr.evalf()) for expr in rhs_inf.subs(p, para)]
+
+        # Steady state can be found analytically
+        S1_inf = [float(se.diff(rhs_inf[i], p[j]).subs(p, para).evalf()) for i in range(0, self.par.n_state_vars) for j in range(0, self.par.n_params)]
+
+        self.drhs0 = np.concatenate((self.rhs0, S1_inf))
 
         print('Done')
 
@@ -98,7 +104,6 @@ class GetSensitivityEquations(object):
         voltage = self.par.holding_potential if hold_potential else self.voltage(t)
         outputs = self.func_rhs((*y[:self.par.n_state_vars], *p, voltage))
         outputs.extend(self.func_S1((*y[:self.par.n_state_vars], *p, voltage, *y[self.par.n_state_vars:])))
-
         return outputs
 
     def jdrhs(self, y, t, p, hold_potential=False):
@@ -149,15 +154,13 @@ class GetSensitivityEquations(object):
         if normalise:
             states = states / p[-1] # Normalise to conductance
 
-        state1 = np.zeros(self.par.tmax + 1)
-        for t in range(self.par.tmax + 1):
-            state1[t] = 1.0 - np.sum(states[t, :])
+        state1 = np.array([1.0 - np.sum(row) for row in states])
         state1 = state1.reshape(len(state1), 1)
         states = np.concatenate((state1, states), axis=1)
         return states
 
     def GetVoltage(self):
-        return [self.voltage(t) for t, _ in enumerate(self.times)]
+        return np.array([self.voltage(t) for t in self.times])
 
     def NormaliseSensitivities(self, S1n, params):
         # Normalise to parameter value
@@ -172,10 +175,9 @@ class GetSensitivityEquations(object):
 
 def GetSymbols(par):
     # Create parameter symbols
-    p = [se.symbols('p%d' % j) for j in range(par.n_params)]
+    p = se.Matrix([se.symbols('p%d' % j) for j in range(par.n_params)])
     # Create state variable symbols
-    y = [se.symbols('y%d' % i) for i in range(par.n_state_vars)]
+    y = se.Matrix([se.symbols('y%d' % i) for i in range(par.n_state_vars)])
     # Create voltage symbol
     v = se.symbols('v')
-
     return p, y, v

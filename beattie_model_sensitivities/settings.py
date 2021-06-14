@@ -6,7 +6,7 @@ class Params(object):
         # Define number of parameters and variables
         self.n_state_vars = 3
         self.n_params = 9
-        self.open_state = 2
+        self.open_state = 1
 
         self.tmax = 8000
         self.Erev = -88

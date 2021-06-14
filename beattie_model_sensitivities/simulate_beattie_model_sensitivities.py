@@ -1,6 +1,8 @@
+#!/usr/bin/env python3
+
 import numpy as np
 import symengine as se
-mport matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 plt.rcParams['axes.axisbelow'] = True
 import argparse
 
@@ -10,7 +12,7 @@ from sensitivity_equations import GetSensitivityEquations, GetSymbols
 # Check input arguments
 parser = argparse.ArgumentParser(
     description='Plot sensitivities of the Beattie model')
-parser.add_argument("-sw", "--sine_wave", action='store_true', help="whether or not to use sine wave protocol",
+parser.add_argument("-s", "--sine_wave", action='store_true', help="whether or not to use sine wave protocol",
     default=False)
 parser.add_argument("-p", "--plot", action='store_true', help="whether to plot figures or just save",
     default=False)
@@ -31,20 +33,24 @@ k2 = p[2] * se.exp(-p[3] * v)
 k3 = p[4] * se.exp(p[5] * v)
 k4 = p[6] * se.exp(-p[7] * v)
 
-# CI, I, O
-rhs = [k2 * y[1] + k3 * (p[8] - y[0] - y[1] - y[2]) - (k1 + k4) * y[0],
-       k1 * y[0] + k3 * y[2] - (k2 + k4) * y[1],
-       k1 * (p[8] - y[0] - y[1] - y[2]) + k4 * y[1] - (k2 + k3) * y[2]]
+k  = np.array([k1,k2,k3,k4]).T
 
-ICs = [0.0, 0.0, 0.0]
+# Write in matrix form taking y = ([C], [O], [I])^T
 
-funcs = GetSensitivityEquations(par, p, y, v, rhs, ICs, para, sine_wave=args.sine_wave)
+A=se.Matrix([[-k1 -k3 -k4, k2 - k4, -k4], [k1, -k2 - k3, k4], [-k1, k3-k1, -k2 - k4 - k1]])
+B = se.Matrix([k4,0,k1])
+
+rhs = np.array(A*y + B)[0]
+
+times = np.linspace(0, par.tmax, par.tmax+1)
+
+funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times, sine_wave=args.sine_wave)
 
 S1 = funcs.SimulateForwardModelSensitivities(para)
 S1n = funcs.NormaliseSensitivities(S1, para)
 
 state_variables = funcs.GetStateVariables(para)
-state_labels = ['C', 'CI', 'I', 'O']
+state_labels = ['C', 'O', 'I', 'IC']
 
 param_labels = ['S(p' + str(i + 1) + ',t)' for i in range(par.n_params)]
 
