@@ -34,16 +34,15 @@ def main():
     k3 = p[4] * se.exp(p[5] * v)
     k4 = p[6] * se.exp(-p[7] * v)
 
-    k  = np.array([k1,k2,k3,k4]).T
-
     # Write in matrix form taking y = ([C], [O], [I])^T
 
-    A=se.Matrix([[-k1 -k3 -k4, k2 - k4, -k4], [k1, -k2 - k3, k4], [-k1, k3-k1, -k2 - k4 - k1]])
-    B = se.Matrix([k4,0,k1])
+    A = se.Matrix([[-k1 - k3 - k4, k2 -  k4, -k4], [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
+    B = se.Matrix([p[8] * k4, 0, p[8] * k1])
 
-    rhs = np.array(A*y + B)[0]
+    rhs = np.array(A * y + B)
+    print(rhs)
 
-    times = np.linspace(0, par.tmax, par.tmax+1)
+    times = np.linspace(0, par.tmax, par.tmax + 1)
 
     funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times, sine_wave=args.sine_wave)
 
