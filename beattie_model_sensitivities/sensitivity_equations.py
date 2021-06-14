@@ -1,5 +1,6 @@
 import numpy as np
 import symengine as se
+import sympy
 from scipy.integrate import odeint
 
 class GetSensitivityEquations(object):
@@ -10,39 +11,26 @@ class GetSensitivityEquations(object):
     # The functions SimulateForwardModel and SimulateForwardModelSensitivities
     # solve the system for each time-step.
 
-    def __init__(self, settings, p, y, v, rhs, ICs, times_to_use, sine_wave=False):
-
-        # Settings such given in a Param object
+    def __init__(self, settings, p, y, v, A, B, para, times, sine_wave):
+        # Settings such given in the form of a Param object
         self.par = settings
-        self.times = times_to_use
-
         # The timesteps we want to output at
-        self.times = times_to_use
-
-        self.compute_sensitivity_equations_rhs(p, y, v, rhs, ICs)
+        self.times = times
 
         # Flag determining whether to use the sine-wave protocol or not
         self.sine_wave = sine_wave
+        self.A = A
+        self.B = B
+        rhs = A*y + B
+        self.compute_sensitivity_equations_rhs(p, y, v, rhs, para)
 
-    def SetInitialConditions(self, new_ICs):
-        self.rhs0 = new_ICs
-
-    def compute_sensitivity_equations_rhs(self, p, y, v, rhs, ICs):
-        """
-        Compute the system of ODEs we need to solve to find the sensitivities.
-
-        These equations will depend on the voltage protocol which does not need to be
-        defined at this stage.
-
-        """
+    def compute_sensitivity_equations_rhs(self, p, y, v, rhs, para):
         print('Creating RHS function...')
 
         # Inputs for RHS ODEs
         inputs = [(y[i]) for i in range(self.par.n_state_vars)]
         [inputs.append(p[j]) for j in range(self.par.n_params)]
         inputs.append(v)
-
-        self.rhs0 = ICs
 
         # Create RHS function
         frhs = [rhs[i] for i in range(self.par.n_state_vars)]
@@ -85,68 +73,89 @@ class GetSensitivityEquations(object):
         self.par.n_state_var_sensitivities = self.par.n_params * self.par.n_state_vars
 
         # Append 1st order sensitivities to initial conditions
-        dydxs = np.zeros((self.par.n_state_var_sensitivities))
-        self.drhs0 = np.concatenate((ICs, dydxs))
+        dydps = np.zeros((self.par.n_state_var_sensitivities))
 
         # Concatenate RHS and 1st order sensitivities
-        Ss = np.concatenate((y, Ss))
+        Ss = np.concatenate((list(y), Ss))
         fS1 = np.concatenate((frhs, fS1))
 
         # Create Jacobian of the 1st order sensitivities function
         jS1 = [se.Matrix(fS1).jacobian(se.Matrix(Ss))]
         self.jfunc_S1 = se.lambdify(inputs, jS1)
 
-        print('Finished creating sensitivity functions.')
+        print('Getting ' + str(self.par.holding_potential) + ' mV steady state initial conditions...')
+       # Set the initial conditions of the model and the initial sensitivities
+        # by finding the steady state of the model
 
-    def rhs(self, state_variables, time, parameters):
+        # RHS
+        # Can be found analytically
+        rhs_inf = (-(self.A.inv())*self.B).subs(v,self.voltage(0))
+        self.rhs0 = [float(expr.evalf()) for expr in rhs_inf.subs(p, para)]
+
+        # Steady state can be found analytically
+        S1_inf = [float(se.diff(rhs_inf[i], p[j]).subs(p, para).evalf()) for i in range(0, self.par.n_state_vars) for j in range(0, self.par.n_params)]
+
+        self.drhs0 = np.concatenate((self.rhs0, S1_inf))
+
+        print('Done')
+
+
+    def rhs(self, y, t, p, hold_potential=False):
         """ Evaluates the RHS of the model (including sensitivities)
 
         """
-        return self.func_rhs((*state_variables, *parameters, self.voltage(time)))
+        voltage = self.par.holding_potential if hold_potential else self.voltage(t)
+        return self.func_rhs((*y, *p, voltage))
 
-    def jrhs(self, state_variables, time, parameters):
+    def jrhs(self, y, t, p, hold_potential=False):
         """ Evaluates the jacobian of the RHS
 
             Having this function can speed up solving the system
         """
-        return self.jfunc_rhs((*state_variables, *parameters, self.voltage(time)))
+        voltage = self.par.holding_potential if hold_potential else self.voltage(t)
+        return self.jfunc_rhs((*y, *p, voltage))
 
-    def solve_rhs(self, p):
+    # Returns the open state
+    def solve_rhs(self, p, hold_potential=False):
         """ Solve the RHS of the system and return the open state probability at each timestep
         """
-        return odeint(self.rhs, self.rhs0, self.times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1], Dfun=self.jrhs, args=(p, ))[:, self.par.open_state]
+        return odeint(self.rhs, self.rhs0, self.times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1], Dfun=self.jrhs, args=(p, hold_potential, ))
 
-    def drhs(self, y, t, p):
+    def drhs(self, y, t, p, hold_potential=False):
         """ Evaluate RHS analytically
 
         """
-
-        outputs = self.func_rhs((*y[:self.par.n_state_vars], *p, self.voltage(t)))
-        outputs.extend(self.func_S1((*y[:self.par.n_state_vars], *p, self.voltage(t), *y[self.par.n_state_vars:])))
+        voltage = self.par.holding_potential if hold_potential else self.voltage(t)
+        outputs = self.func_rhs((*y[:self.par.n_state_vars], *p, voltage))
+        outputs.extend(self.func_S1((*y[:self.par.n_state_vars], *p, voltage, *y[self.par.n_state_vars:])))
         return outputs
 
-    def jdrhs(self, y, t, p):
-        """
-        Evaluates the jacobian of the RHS (analytically)
+    def jdrhs(self, y, t, p, hold_potential=False):
+        """  Evaluates the jacobian of the RHS (analytically)
 
         This allows the system to be solved faster
 
         """
-        return self.jfunc_S1((*y[:self.par.n_state_vars], *p, self.voltage(t), *y[self.par.n_state_vars:]))
+        voltage = self.par.holding_potential if hold_potential else self.voltage(t)
+        return self.jfunc_S1((*y[:self.par.n_state_vars], *p, voltage, *y[self.par.n_state_vars:]))
 
     # Returns the open state 1st order sensitivities
-    def solve_drhs(self, p):
-        """
-        Returns the sensitivities of the open state probability
-
-        These are not exactly the sensitivities of the current, you must
-        multiply by (V - E_rev) to get hte current sensitivities.
+    def solve_drhs(self, p, hold_potential=False):
+        """Solve the RHS of the system and return the open state probability at each
+        timestep
 
         """
-        # Chop off RHS
-        drhs = odeint(self.drhs, self.drhs0, self.times, atol=1e-8, rtol=1e-8, Dfun=self.jdrhs, args=(p, ))[:, self.par.n_state_vars:]
+       # Chop off RHS
+        drhs = odeint(self.drhs, self.drhs0, self.times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1]
+        , Dfun=self.jdrhs, args=(p, hold_potential, ))[:, self.par.n_state_vars:]
         # Return only open state sensitivites
         return drhs[:, self.par.open_state::self.par.n_state_vars]
+
+    def solve_drhs_full(self, p, hold_potential=False):
+        """ Solve the system numerically for every time in self.times
+
+        """
+        return odeint(self.drhs, self.drhs0, self.times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1], Dfun=self.jdrhs, args=(p, hold_potential, ))[:, self.par.n_state_vars:]
 
     def voltage(self, t):
         """Returns the voltage of the chosen protocol after t milliseconds has passed
@@ -166,6 +175,7 @@ class GetSensitivityEquations(object):
             # This shift is needed for simulated protocol to match the protocol recorded in experiment, which is shifted by 0.1ms compared to the original input protocol. Consequently, each step is held for 0.1ms longer in this version of the protocol as compared to the input.
             shift = 0.1
             C = [54.0, 26.0, 10.0, 0.007/(2*np.pi), 0.037/(2*np.pi), 0.19/(2*np.pi)]
+
             if t >= 250+shift and t < 300+shift:
                 return -120
             elif t >= 500+shift and t < 1500+shift:
@@ -188,8 +198,18 @@ class GetSensitivityEquations(object):
                 return -80
 
     def SimulateForwardModel(self, p):
-        o = self.solve_rhs(p)
+        o = self.solve_rhs(p)[:, self.par.open_state]
         return np.array([o[t] * (self.voltage(t) - self.par.Erev) for t, _ in enumerate(self.times)])
+
+    def GetStateVariables(self, p, hold_potential=False, normalise=True):
+        states = self.solve_rhs(p, hold_potential)
+        if normalise:
+            states = states / p[-1] # Normalise to conductance
+
+        state1 = np.array([1.0 - np.sum(row) for row in states])
+        state1 = state1.reshape(len(state1), 1)
+        states = np.concatenate((state1, states), axis=1)
+        return states
 
     def GetVoltage(self):
         """
@@ -197,7 +217,7 @@ class GetSensitivityEquations(object):
 
         By default, there is a timestep every millisecond up to self.tmax
         """
-        return [self.voltage(t) for t, _ in enumerate(self.times)]
+        return np.array([self.voltage(t) for t, _ in enumerate(self.times)])
 
     def NormaliseSensitivities(self, S1n, params):
         """
@@ -233,10 +253,9 @@ def CreateSymbols(par):
     """
 
     # Create parameter symbols
-    p = [se.symbols('p%d' % j) for j in range(par.n_params)]
+    p = se.Matrix([se.symbols('p%d' % j) for j in range(par.n_params)])
     # Create state variable symbols
-    y = [se.symbols('y%d' % i) for i in range(par.n_state_vars)]
+    y = se.Matrix([se.symbols('y%d' % i) for i in range(par.n_state_vars)])
     # Create voltage symbol
     v = se.symbols('v')
-
     return p, y, v
