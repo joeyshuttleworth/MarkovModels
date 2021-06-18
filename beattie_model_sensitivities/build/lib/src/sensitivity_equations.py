@@ -22,6 +22,7 @@ class GetSensitivityEquations(object):
         self.A = A
         self.B = B
         rhs = A * y + B
+        self.conductance = para[settings.conductance_index]
         self.compute_sensitivity_equations_rhs(p, y, v, rhs, para)
 
     def compute_sensitivity_equations_rhs(self, p, y, v, rhs, para):
@@ -198,7 +199,8 @@ class GetSensitivityEquations(object):
 
     def SimulateForwardModel(self, p):
         o = self.solve_rhs(p)[:, self.par.open_state]
-        return np.array([o[t] * (self.voltage(t) - self.par.Erev) for t, _ in enumerate(self.times)])
+        voltages = self.GetVoltages()
+        return self.conductance * (voltages - self.par.Erev) * o
 
     def GetStateVariables(self, p, normalise=True):
         states = self.solve_rhs(p)
@@ -232,17 +234,45 @@ class GetSensitivityEquations(object):
             S1n[:, i] = S1n[:, i] * param
         return S1n
 
-    def SimulateForwardModelSensitivities(self, p):
+    def SimulateForwardModelSensitivities(self, p, data):
         """
         Solve the model for a given set of parameters
 
         Returns the state variables and current sensitivities at every timestep
 
         """
+        solution = self.solve_drhs()
 
-        S1 = self.solve_drhs(p)
-        return np.array([S1[t, :] * (self.voltage(t) - self.par.Erev) for t, _ in enumerate(self.times)])
+        # Get the open state sensitivities for each parameter
+        index_sensitivities = range(self.par.n_state_vars + self.par.open_state * self.par.n_params, self.par.n_state_vars + (self.par.open_state + 1) *self.par.n_params)
+        sensitivites = solution[:, index_sensitivities]
+        o = self.solve_rhs(p)[:, self.par.open_state]
+        voltages = self.GetVoltage()
+        current = self.conductance * o * (voltages - self.par.Erev)
+        current_sensitivies = self.conductance * o * (voltages - self.par.Erev)
+        # error_sensitivity = np.stack([2*(current - data) * yhat * sensitivity for sensitivity in sensitivites])
 
+        return current, current_sensitivies
+
+    def GetErrorSensitivities(params, data):
+        """Solve the model for a given set of parameters
+
+        Returns the state variables and the sensitivities of the error measure
+        with respect to each parameter at each timestep
+
+        """
+        solution = self.solve_drhs()
+
+        # Get the open state sensitivities for each parameter
+        index_sensitivities = range(self.par.n_state_vars + self.par.open_state * self.par.n_params, self.par.n_state_vars + (self.par.open_state + 1) *self.par.n_params)
+        sensitivites = solution[:, index_sensitivities]
+        o = self.solve_rhs(p)[:, self.par.open_state]
+        voltages = self.GetVoltage()
+        current = self.conductance * o * (voltages - self.par.Erev)
+        # Compute the sensitivities of the error measure (chain rule)
+        error_sensitivity = np.stack([2*(current - data) * current * sensitivity for sensitivity in sensitivites])
+
+        return current, current_sensitivies
 
 def CreateSymbols(par):
     """
