@@ -154,7 +154,7 @@ class GetSensitivityEquations(object):
         """ Solve the system numerically for every time in self.times
 
         """
-        return odeint(self.drhs, self.drhs0, self.times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1], Dfun=self.jdrhs, \
+        return odeint(self.drhs, self.drhs0, self.times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1], Dfun=self.jdrhs,
             args=(p, ))[:, self.par.n_state_vars:]
 
     def voltage(self, t):
@@ -234,7 +234,7 @@ class GetSensitivityEquations(object):
             S1n[:, i] = S1n[:, i] * param
         return S1n
 
-    def SimulateForwardModelSensitivities(self, p, data):
+    def SimulateForwardModelSensitivities(self, p):
         """
         Solve the model for a given set of parameters
 
@@ -245,13 +245,12 @@ class GetSensitivityEquations(object):
 
         # Get the open state sensitivities for each parameter
         index_sensitivities = range(self.par.n_state_vars + self.par.open_state * self.par.n_params, self.par.n_state_vars + (self.par.open_state + 1) *self.par.n_params)
-        sensitivites = solution[:, index_sensitivities]
+        sensitivities = solution[:, index_sensitivities].T
         o = solution[:, self.par.open_state]
         voltages = self.GetVoltage()
         current = self.conductance * o * (voltages - self.par.Erev)
-        current_sensitivies = self.conductance * o * (voltages - self.par.Erev)
-        # error_sensitivity = np.stack([2*(current - data) * yhat * sensitivity for sensitivity in sensitivites])
 
+        current_sensitivies = np.stack([self.conductance * o * (voltages - self.par.Erev) * sensitivity for sensitivity in sensitivities])
         return current, current_sensitivies
 
     def GetErrorSensitivities(params, data):

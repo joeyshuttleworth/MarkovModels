@@ -1,4 +1,7 @@
 import setuptools
+import os.path
+
+from setuptools import find_packages
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -20,6 +23,9 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    package_dir={: "src"},
+    package_dir={"":"beattie_model_sensitivities/src"},
     python_requires=">=3.6",
+    reqiures=['matplotlib, pints, scipy, symengine'],
+    setup_requires=['pytest-runner', 'matplotlib', 'pints', 'scipy', 'symengine'],
+    tests_require=['pytest']
 )

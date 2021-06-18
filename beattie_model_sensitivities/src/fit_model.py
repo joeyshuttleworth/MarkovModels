@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import math
 import pints
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -8,10 +9,12 @@ import numpy as np
 import scipy.integrate as integrate
 import symengine as se
 import matplotlib.pyplot as plt
+import matplotlib
 import argparse
 
 from   settings import Params
 from   sensitivity_equations import GetSensitivityEquations, CreateSymbols
+from   scipy.stats import chi2
 
 class PintsWrapper(pints.ForwardModelS1):
 
@@ -52,7 +55,7 @@ class PintsWrapper(pints.ForwardModelS1):
         return ret
 
     def simulateS1(self, parameters, times):
-        return self.funcs.SimulateForwardModelSensitivites(parameters), self.times_to_use, 1
+        return self.funcs.SimulateForwardModelSensitivites(parameters, data), self.times_to_use, 1
 
 
 
@@ -100,9 +103,11 @@ def main():
     starting_parameters = [3.87068845e-04, 5.88028759e-02, 6.46971727e-05, 4.87408447e-02, 8.03073893e-02, 7.36295506e-03, 5.32908518e-03, 3.32254316e-02, 6.56614672e-02]
 
     plt.rcParams['axes.axisbelow'] = True
+
     # Check input arguments
     parser = argparse.ArgumentParser(
         description='Plot sensitivities of the Beattie model')
+    parser.add_argument("data_file_path", help="path to csv data for the model to be fit to")
     parser.add_argument("-s", "--sine_wave", action='store_true', help="whether or not to use sine wave protocol",
         default=False)
     parser.add_argument("-p", "--plot", action='store_true', help="whether to plot figures or just save",
@@ -115,25 +120,87 @@ def main():
     if not os.path.exists(args.output):
         os.mkdir(args.output)
 
+    if not os.path.exists(args.data_file_path):
+        print("Input file not provided. Doing nothing.")
+        return
+
     par = Params()
 
     skip = int(par.timestep/0.1)
 
-    data  = pd.read_csv("../data/averaged-data.txt", delim_whitespace=True)
+    data  = pd.read_csv(args.data_file_path, delim_whitespace=True)
     dat = extract_times(data.values, indices_to_use, skip)
     times=dat[:,0]
     values=dat[:,1]
 
     model = PintsWrapper(par, args, times)
+
     current = model.simulate(starting_parameters, times)
     problem = pints.SingleOutputProblem(model, times, values)
     error = pints.SumOfSquaresError(problem)
     boundaries  = Boundaries()
     x0 = np.array([0.1]*9)
-    found_parameters, found_value = pints.optimise(error, starting_parameters, boundaries=boundaries)
-    print(found_parameters, found_value)
+    # found_parameters, found_value = pints.optimise(error, starting_parameters, boundaries=boundaries)
+    found_parameters = [1.68482689e-05, -1.19434719e-01, 1.72795030e-05, 3.34388390e-01, 4.42337711e-01,  1.56335228e-01, 1.76629398e-03, -6.59798458e-01, 2.45905373e-01]
+    found_value = 166.01906668991023
+
+    print("finished! found parameters : {} ".format(found_parameters, found_value))
+
+    # Find error sensitivities
+    funcs = model.funcs
+    sens = funcs.SimulateForwardModelSensitivities(found_parameters)[1]
+    FIM = sens @ sens.T
+    cov = FIM**-1
+    eigvals = np.linalg.eigvals(FIM)
+    cov_ellipse(cov[0:2,0:2])
+    print('Eigenvalues of FIM:\n{}'.format(eigvals))
+    print("Covariance matrix is {}".format(cov))
+
+def cov_ellipse(cov, q=0.95, nsig=None, **kwargs):
+    """
+    Parameters
+    ----------
+    copied from stackoverflow
+
+
+    cov : (2, 2) array
+        Covariance matrix.
+    q : float, optional
+        Confidence level, should be in (0, 1)
+    nsig : int, optional
+        Confidence level in unit of standard deviations.
+        E.g. 1 stands for 68.3% and 2 stands for 95.4%.
+
+    Returns
+    -------
+    width, height, rotation :
+         The lengths of two axises and the rotation angle in degree
+    for the ellipse.
+    """
+
+    if q is not None
+        q = np.asarray(q)
+    elif nsig is not None:
+        q = 2 * norm.cdf(nsig) - 1
+    else:
+        raise ValueError('One of `q` and `nsig` should be specified.')
+    r2 = chi2.ppf(q, 2)
+
+    val, vec = np.linalg.eigh(cov)
+    print(val)
+    width, height = 2 * np.sqrt(val[:, None] * r2)
+    rotation = np.degrees(np.arctan2(*vec[::-1, 0]))
+
+    fig = plt.figure(0)
+    e = matplotlib.patches.Ellipse([0,0], width, height, rotation)
+    ax = fig.add_subplot(111, aspect='equal')
+    ax.add_artist(e)
+    e.set_clip_box(ax.bbox)
+    plt.show()
+    print(width, height)
+    return width, height, rotation
+
 
 if __name__ == "__main__":
     main()
     print("done")
-
