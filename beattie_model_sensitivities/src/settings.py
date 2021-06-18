@@ -1,4 +1,3 @@
-
 class Params(object):
     def __init__(self):
 
@@ -12,6 +11,8 @@ class Params(object):
         self.timestep = 1
         self.Erev = -88
         self.GKr = 0.1524
+
+        self.conductance_index = 8
 
         # Relative and absolute tolerances to solve the system with, [rtol, atol]
         self.solver_tolerances = [1e-8, 1e-8]

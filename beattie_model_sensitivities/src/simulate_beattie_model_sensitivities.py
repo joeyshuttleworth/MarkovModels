@@ -37,10 +37,9 @@ def main():
     # Write in matrix form taking y = ([C], [O], [I])^T
 
     A = se.Matrix([[-k1 - k3 - k4, k2 -  k4, -k4], [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
-    B = se.Matrix([p[8] * k4, 0, p[8] * k1])
+    B = se.Matrix([k4, 0, k1])
 
     rhs = np.array(A * y + B)
-    print(rhs)
 
     times = np.linspace(0, par.tmax, par.tmax + 1)
 
@@ -85,10 +84,8 @@ def main():
         plt.savefig('ForwardModel_SW_' + str(args.sine_wave) + '.png')
 
     H = np.dot(S1n.T, S1n)
-    evals = np.linalg.eigvals(H)
-    print('Eigenvalues of H:')
-    eigvals = evals/np.max(evals)
-    print(eigvals)
+    eigvals = np.linalg.eigvals(H)
+    print('Eigenvalues of H:\n{}'.format(eigvals))
 
     fig = plt.figure(figsize=(6, 6), dpi=args.dpi)
     ax = fig.add_subplot(111)
