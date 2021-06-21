@@ -6,6 +6,7 @@ import pints
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import scipy
 import scipy.integrate as integrate
 import symengine as se
 import matplotlib.pyplot as plt
@@ -14,7 +15,6 @@ import argparse
 
 from   settings import Params
 from   sensitivity_equations import GetSensitivityEquations, CreateSymbols
-from   scipy.stats import chi2
 
 class PintsWrapper(pints.ForwardModelS1):
 
@@ -116,6 +116,10 @@ def main():
     parser.add_argument("-o", "--output", type=str, default="output", help="The directory to output figures and data to")
     args = parser.parse_args()
 
+    data  = pd.read_csv(args.data_file_path, delim_whitespace=True)
+
+    print("outputting to {}".format(args.output))
+
     # Create output directory
     if not os.path.exists(args.output):
         os.mkdir(args.output)
@@ -128,7 +132,6 @@ def main():
 
     skip = int(par.timestep/0.1)
 
-    data  = pd.read_csv(args.data_file_path, delim_whitespace=True)
     dat = extract_times(data.values, indices_to_use, skip)
     times=dat[:,0]
     values=dat[:,1]
@@ -141,22 +144,46 @@ def main():
     boundaries  = Boundaries()
     x0 = np.array([0.1]*9)
     # found_parameters, found_value = pints.optimise(error, starting_parameters, boundaries=boundaries)
-    found_parameters = [1.68482689e-05, -1.19434719e-01, 1.72795030e-05, 3.34388390e-01, 4.42337711e-01,  1.56335228e-01, 1.76629398e-03, -6.59798458e-01, 2.45905373e-01]
-    found_value = 166.01906668991023
-
-    print("finished! found parameters : {} ".format(found_parameters, found_value))
+    # found_parameters = np.array([2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524])
+    # print("finished! found parameters : {} ".format(found_parameters, found_value))
+    found_parameters = np.array([1.87451202e-03, 1.36254787e-02, 1.68324276e-05, 8.77532812e-02, 5.67114947e-02, 2.66069061e-02, 1.21159939e-03, 7.96959925e-03, 5.49219181e-02])
+    # found_value=100
 
     # Find error sensitivities
     funcs = model.funcs
-    sens = funcs.SimulateForwardModelSensitivities(found_parameters)[1]
+    current, sens = funcs.SimulateForwardModelSensitivities(found_parameters)
+    sens = sens * found_parameters[:, None]
+
+    plt.plot(times, current)
+    for vec in sens:
+        plt.plot(times, vec)
+
+    if args.plot:
+        plt.show()
+    else:
+        plt.savefig(os.path.join(args.output, "maximal_likelihood_sensitivities"))
+
+    # Compute the Fischer information matrix
     FIM = sens @ sens.T
     cov = FIM**-1
     eigvals = np.linalg.eigvals(FIM)
-    cov_ellipse(cov[0:2,0:2])
-    print('Eigenvalues of FIM:\n{}'.format(eigvals))
-    print("Covariance matrix is {}".format(cov))
+    for i in range(0, par.n_params):
+        for j in range(i+1, par.n_params):
+            parameters_to_view = np.array([i,j])
+            sub_cov = cov[parameters_to_view[:,None], parameters_to_view]
+            eigen_val, eigen_vec = np.linalg.eigh(sub_cov)
+            eigen_val=eigen_val.real
+            if eigen_val[0] > 0 and eigen_val[1] > 0:
+                print("COV_{},{} : well defined".format(i, j))
+                cov_ellipse(sub_cov, i, j)
+            else:
+                print("COV_{},{} : negative eigenvalue".format(i,j))
 
-def cov_ellipse(cov, q=0.95, nsig=None, **kwargs):
+
+    print('Eigenvalues of FIM:\n{}'.format(eigvals))
+    print("Covariance matrix is: \n{}".format(cov))
+
+def cov_ellipse(cov, i, j, q=None, nsig=1, **kwargs):
     """
     Parameters
     ----------
@@ -178,27 +205,33 @@ def cov_ellipse(cov, q=0.95, nsig=None, **kwargs):
     for the ellipse.
     """
 
-    if q is not None
+    if q is not None:
         q = np.asarray(q)
     elif nsig is not None:
-        q = 2 * norm.cdf(nsig) - 1
+        q = 2 * scipy.stats.norm.cdf(nsig) - 1
     else:
         raise ValueError('One of `q` and `nsig` should be specified.')
-    r2 = chi2.ppf(q, 2)
+    r2 = scipy.stats.chi2.ppf(q, 2)
 
     val, vec = np.linalg.eigh(cov)
-    print(val)
     width, height = 2 * np.sqrt(val[:, None] * r2)
     rotation = np.degrees(np.arctan2(*vec[::-1, 0]))
 
+    print("width, height, rotation = {}, {}, {}".format(width, height,rotation))
+
     fig = plt.figure(0)
-    e = matplotlib.patches.Ellipse([0,0], width, height, rotation)
+    e = matplotlib.patches.Ellipse([0,0], width[0], height[0], rotation)
     ax = fig.add_subplot(111, aspect='equal')
     ax.add_artist(e)
     e.set_clip_box(ax.bbox)
-    plt.show()
-    print(width, height)
-    return width, height, rotation
+    e.set_facecolor([0.25, 0.25, 0])
+    ax.set_xlim(width[0])
+    ax.set_ylim(height[0])
+
+    if args.plot:
+        plt.show()
+    else:
+        plt.savefig(os.path.join(args.output, "covariance_plot_{}_{}".format(i,j)))
 
 
 if __name__ == "__main__":

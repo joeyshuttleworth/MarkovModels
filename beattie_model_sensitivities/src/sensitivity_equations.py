@@ -220,38 +220,25 @@ class GetSensitivityEquations(object):
         """
         return np.array([self.voltage(t) for t, _ in enumerate(self.times)])
 
-    def NormaliseSensitivities(self, S1n, params):
-        """
-        Normalise the sensitivites with regards to the size of the parameter
-
-        This is equivalent to rescaling all of the parameters so that they're
-        equal to 1.
-
-        """
-
-        # Normalise to parameter value
-        for i, param in enumerate(params):
-            S1n[:, i] = S1n[:, i] * param
-        return S1n
-
     def SimulateForwardModelSensitivities(self, p):
         """
         Solve the model for a given set of parameters
 
         Returns the state variables and current sensitivities at every timestep
 
+        Used by pints
         """
         solution = self.solve_drhs_full(p)
 
         # Get the open state sensitivities for each parameter
         index_sensitivities = range(self.par.n_state_vars + self.par.open_state * self.par.n_params, self.par.n_state_vars + (self.par.open_state + 1) *self.par.n_params)
-        sensitivities = solution[:, index_sensitivities].T
+        sensitivities = solution[:, index_sensitivities]
         o = solution[:, self.par.open_state]
         voltages = self.GetVoltage()
         current = self.conductance * o * (voltages - self.par.Erev)
-
-        current_sensitivies = np.stack([self.conductance * o * (voltages - self.par.Erev) * sensitivity for sensitivity in sensitivities])
-        return current, current_sensitivies
+        values = np.stack(np.array([self.conductance * o * (voltages - self.par.Erev) * sensitivity for sensitivity in sensitivities.T]), axis=0)
+        ret_vals = (current, values)
+        return ret_vals
 
     def GetErrorSensitivities(params, data):
         """Solve the model for a given set of parameters

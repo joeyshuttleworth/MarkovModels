@@ -45,8 +45,11 @@ def main():
 
     funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times, sine_wave=args.sine_wave)
 
-    S1 = funcs.SimulateForwardModelSensitivities(para)
-    S1n = funcs.NormaliseSensitivities(S1, para)
+    ret = funcs.SimulateForwardModelSensitivities(para),
+    current = ret[0][0]
+    S1 = ret[0][1]
+
+    S1n = S1 * np.array(para)[:, None]
 
     state_variables = funcs.GetStateVariables(para)
     state_labels = ['C', 'O', 'I', 'IC']
@@ -85,7 +88,7 @@ def main():
 
     H = np.dot(S1n.T, S1n)
     eigvals = np.linalg.eigvals(H)
-    print('Eigenvalues of H:\n{}'.format(eigvals))
+    print('Eigenvalues of H:\n{}'.format(eigvals.real))
 
     fig = plt.figure(figsize=(6, 6), dpi=args.dpi)
     ax = fig.add_subplot(111)

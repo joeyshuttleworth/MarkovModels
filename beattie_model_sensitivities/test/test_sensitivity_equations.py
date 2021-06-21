@@ -49,7 +49,7 @@ def test_run_functions():
     B = se.Matrix([k4, 0, k1])
     rhs = np.array(A * y + B)
 
-    data  = pd.read_csv("../data/averaged-data.txt", delim_whitespace=True)
+    data  = pd.read_csv("data/averaged-data.txt", delim_whitespace=True)
     times = data["time"].values
     data  = data["current"].values
 
@@ -57,7 +57,7 @@ def test_run_functions():
 
     # Run Functions
     funcs.SimulateForwardModel(starting_parameters)
-    funcs.SimulateForwardModelSensitivities(starting_parameters, data)
+    funcs.SimulateForwardModelSensitivities(starting_parameters)
 
 
 if __name__ == "__main__":
