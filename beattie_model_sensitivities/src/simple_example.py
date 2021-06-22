@@ -34,7 +34,8 @@ def main():
     inferred_params = np.array((inferred_params[1], inferred_params[0]))
 
     # Estimate sigma
-    sigma2 = sum((inferred_params[0] + inferred_params[1]*times - data)**2/(n_points-1))
+    sigma2 = sum((inferred_params[0] + inferred_params[1]*times - data)**2)/(n_points-1)
+    print("observed sigma^2 vs true value\t{}, {}".format(sigma2, true_parameters[2]**2))
 
     sens = np.matrix(np.stack((sens1, sens2)))
 
@@ -47,8 +48,7 @@ def main():
     cov = np.linalg.inv(FIM)
     print("Covariance matrix is {}".format(cov))
 
-    print(FIM)
-    print("estimate of sigma is {}".format(math.sqrt(sigma2)))
+    print("Fisher information matrix is:\n{}".format(FIM))
 
     # Add samples to the ellipse
     n_samples = 1000

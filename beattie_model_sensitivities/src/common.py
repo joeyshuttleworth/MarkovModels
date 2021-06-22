@@ -62,7 +62,7 @@ def cov_ellipse(cov, offset=[0,0], q=None, nsig=None, **kwargs):
     qs = np.sort(q)
 
     fig = plt.figure(0)
-    ax = fig.add_subplot(111, aspect='equal')
+    ax = fig.add_subplot(111)
     for q in qs:
         r2 = scipy.stats.chi2.ppf(q, 2)
 
@@ -78,7 +78,7 @@ def cov_ellipse(cov, offset=[0,0], q=None, nsig=None, **kwargs):
 
         window_width = np.abs(width[0]*np.cos(rotation)*1.5)
         window_height= np.abs(height[0]*np.sin(rotation)*1.5)
-        max_dim = max(window_width, window_height)[0,0]
+        max_dim = max(window_width, window_height)
 
     ax.set_xlim(offset[0]-max_dim, offset[0]+max_dim)
     ax.set_ylim(offset[1]-max_dim, offset[1]+max_dim)

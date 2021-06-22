@@ -12,8 +12,9 @@ import symengine as se
 import matplotlib.pyplot as plt
 import matplotlib
 
-from   settings import Params
-from   sensitivity_equations import GetSensitivityEquations, CreateSymbols
+from  settings import Params
+from  sensitivity_equations import GetSensitivityEquations, CreateSymbols
+from  common import get_args, cov_ellipse
 
 class PintsWrapper(pints.ForwardModelS1):
 
@@ -144,16 +145,22 @@ def main():
     current, sens = funcs.SimulateForwardModelSensitivities(found_parameters)
     sens = (sens * found_parameters[None,:]).T
 
-    for vec in sens:
-        plt.plot(times, vec)
+    for i, vec in enumerate(sens):
+        plt.plot(times, vec, label="state_variable".format(i))
 
+    plt.title("Output sensitivities for four gate Markov Model")
     if args.plot:
         plt.show()
     else:
-        plt.savefig(os.path.join(args.output, "maximal_likelihood_sensitivities"))
+        plt.savefig(os.path.join(args.output, "output_sensitivities"))
+        plt.clf()
+
+    # Estimate the various of the i.i.d Gaussian noise
+    nobs = len(times)
+    sigma2 = sum((current - values)**2)/(nobs-1)
 
     # Compute the Fischer information matrix
-    FIM = sens @ sens.T
+    FIM = sens @ sens.T/sigma2
     cov = FIM**-1
     eigvals = np.linalg.eigvals(FIM)
     for i in range(0, par.n_params):
@@ -164,11 +171,12 @@ def main():
             eigen_val=eigen_val.real
             if eigen_val[0] > 0 and eigen_val[1] > 0:
                 print("COV_{},{} : well defined".format(i, j))
-                cov_ellipse(sub_cov)
+                cov_ellipse(sub_cov, q=[0.75, 0.9, 0.99])
                 if args.plot:
                     plt.show()
                 else:
-                    plt.savefig(os.path.join(output, "parameters_to_view_covariance_{}_{}"))
+                    plt.savefig(os.path.join(args.output, "parameters_to_view_covariance_{}_{}"))
+                plt.clf()
             else:
                 print("COV_{},{} : negative eigenvalue".format(i,j))
 
@@ -176,11 +184,14 @@ def main():
     print('Eigenvalues of FIM:\n{}'.format(eigvals))
     print("Covariance matrix is: \n{}".format(cov))
 
-    # current = model.simulate(found_parameters, times)
     plt.plot(data["time"], data["current"], label="averaged data")
     plt.plot(times, current, label="current")
     plt.legend()
-    plt.show()
+    if args.plot:
+        plt.show()
+    else:
+        plt.savefig(os.path.join(args.output, "fit"))
+        plt.clf()
 
 if __name__ == "__main__":
     main()

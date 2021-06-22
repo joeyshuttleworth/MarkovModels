@@ -21,7 +21,6 @@ class GetSensitivityEquations(object):
         self.A = A
         self.B = B
         rhs = A * y + B
-        self.conductance = para[settings.conductance_index]
         self.compute_sensitivity_equations_rhs(p, y, v, rhs, para)
 
     def compute_sensitivity_equations_rhs(self, p, y, v, rhs, para):
@@ -155,10 +154,10 @@ class GetSensitivityEquations(object):
 
         """
         return odeint(self.drhs, self.drhs0, self.times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1], Dfun=self.jdrhs,
-            args=(p, ))[:, self.par.n_state_vars:]
+            args=(p, ))
 
     def voltage(self, t):
-        """Returns the voltage of the chosen protocol after t milliseconds has passed
+        """Returns the voltage in volts of the chosen protocol after t milliseconds has passed
 
         The voltage protocol used to produce the Sine Wave data in
         https://github.com/mirams/sine-wave. This code is translated from the
@@ -177,30 +176,31 @@ class GetSensitivityEquations(object):
             C = [54.0, 26.0, 10.0, 0.007/(2*np.pi), 0.037/(2*np.pi), 0.19/(2*np.pi)]
 
             if t >= 250+shift and t < 300+shift:
-                return -120
+                V = -120
             elif t >= 500+shift and t < 1500+shift:
-                return 40
+                V = 40
             elif t >= 1500+shift and t < 2000+shift:
-                return -120
+                V = -120
             elif t >= 3000+shift and t < 6500+shift:
-                v = -30 + C[0] * (np.sin(2*np.pi*C[3]*(t-2500-shift))) + C[1] * \
+                V = -30 + C[0] * (np.sin(2*np.pi*C[3]*(t-2500-shift))) + C[1] * \
                 (np.sin(2*np.pi*C[4]*(t-2500-shift))) + C[2] * (np.sin(2*np.pi*C[5]*(t-2500-shift)))
-                return(v)
             elif t >= 6500+shift and t < 7000+shift:
-                return -120
+                V = -120
             else:
-                return -80
+                V = -80
         else:
             # Default to a simple protocol
             if t >= 1000 and t < 5000:
-                return 20
+                V = 20
             else:
-                return -80
+                V = -80
+        # Convert to volts
+        return V
 
     def SimulateForwardModel(self, p):
         o = self.solve_rhs(p)[:, self.par.open_state]
         voltages = self.GetVoltage()
-        return self.conductance * (voltages - self.par.Erev) * o
+        return p[8] * o * (voltages - self.par.Erev)
 
     def GetStateVariables(self, p, normalise=True):
         states = self.solve_rhs(p)
@@ -235,9 +235,9 @@ class GetSensitivityEquations(object):
         sensitivities = solution[:, index_sensitivities]
         o = solution[:, self.par.open_state]
         voltages = self.GetVoltage()
-        current = self.conductance * o * (voltages - self.par.Erev)
-        values = np.stack(np.array([self.conductance * o * (voltages - self.par.Erev) * sensitivity for sensitivity in sensitivities.T]), axis=0)
-        ret_vals = (current, values)
+        current = p[8] * o * (voltages - self.par.Erev)
+        values = np.stack(np.array([p[8] * o * (voltages - self.par.Erev) * sensitivity for sensitivity in sensitivities.T]), axis=0)
+        ret_vals = (current, values.T)
         return ret_vals
 
     def GetErrorSensitivities(params, data):
@@ -254,9 +254,10 @@ class GetSensitivityEquations(object):
         sensitivites = solution[:, index_sensitivities]
         o = self.solve_rhs(p)[:, self.par.open_state]
         voltages = self.GetVoltage()
-        current = self.conductance * o * (voltages - self.par.Erev)
+        current = params[8] * o * (voltages - self.par.Erev)
+
         # Compute the sensitivities of the error measure (chain rule)
-        error_sensitivity = np.stack([2*(current - data) * current * sensitivity for sensitivity in sensitivites])
+        error_sensitivity = np.stack([2*(current - data) * current * sensitivity for sensitivity in sensitivites.T])
 
         return current, current_sensitivies
 

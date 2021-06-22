@@ -17,7 +17,6 @@ def SineWaveProtocol(t):
 
     # This shift is needed for simulated protocol to match the protocol recorded in experiment, which is shifted by 0.1ms compared to the original input protocol. Consequently, each step is held for 0.1ms longer in this version of the protocol as compared to the input.
 
-    t = t + shift
     shift = 0.1
 
     C = [54.0, 26.0, 10.0, 0.007/(2*np.pi), 0.037/(2*np.pi), 0.19/(2*np.pi)]
@@ -42,7 +41,6 @@ def SineWaveProtocol(t):
     elif t>= 7000+shift and t<8000+shift:
         return -80
     else:
-        # print("voltage out of bounds")
         return -999
 
 
@@ -57,10 +55,6 @@ class ChannelModelPintsWrapper(pints.ForwardModelS1):
         y = solution.y
         #Now calculate the corresponding currents
         IVec = [mdl.calculateCurrent(y[1,t], times[t]) for t in range(0,len(solution.t))]
-        print("plotting [Open]")
-        plt.plot(times, y[1,:])
-        plt.plot(times, IVec)
-        plt.show()
         return IVec
 
     def simulateS1(self, parameters, time):
