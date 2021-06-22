@@ -182,54 +182,6 @@ def main():
     plt.legend()
     plt.show()
 
-def cov_ellipse(cov, offset=[0,0], q=None, nsig=1, **kwargs):
-    """
-    Parameters
-    ----------
-    copied from stackoverflow
-
-
-    cov : (2, 2) array
-        Covariance matrix.
-    q : float, optional
-        Confidence level, should be in (0, 1)
-    nsig : int, optional
-        Confidence level in unit of standard deviations.
-        E.g. 1 stands for 68.3% and 2 stands for 95.4%.
-
-    Returns
-    -------
-    width, height, rotation :
-         The lengths of two axises and the rotation angle in degree
-    for the ellipse.
-    """
-
-    if q is not None:
-        q = np.asarray(q)
-    elif nsig is not None:
-        q = 2 * scipy.stats.norm.cdf(nsig) - 1
-    else:
-        raise ValueError('One of `q` and `nsig` should be specified.')
-    r2 = scipy.stats.chi2.ppf(q, 2)
-
-    val, vec = np.linalg.eigh(cov)
-    width, height = 2 * np.sqrt(val[:, None] * r2)
-    rotation = np.arctan2(*vec[::-1, 0])
-
-    print("width, height, rotation = {}, {}, {}".format(width, height, math.degrees(rotation)))
-
-    fig = plt.figure(0)
-    e = matplotlib.patches.Ellipse(offset, width[0], height[0], math.degrees(rotation))
-    ax = fig.add_subplot(111, aspect='equal')
-    ax.add_artist(e)
-    e.set_clip_box(ax.bbox)
-    e.set_facecolor([0.25, 0.25, 0])
-    window_width = np.abs(width[0]*np.cos(rotation)*1.5)
-    window_height= np.abs(height[0]*np.sin(rotation)*1.5)
-    max_dim = max(window_width, window_height)[0,0]
-    ax.set_xlim(offset[0]-max_dim, offset[0]+max_dim)
-    ax.set_ylim(offset[1]-max_dim, offset[1]+max_dim)
-
 if __name__ == "__main__":
     main()
     print("done")

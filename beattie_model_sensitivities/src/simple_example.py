@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 from fit_model import cov_ellipse
-from common import get_args
+from common import get_args, cov_ellipse
 
 # Compute sensitivities and Fisher information matrix for a simple
 # 1-dimensional linear model, y = alpha * t + beta with i.i.d Gaussian noise,
@@ -26,14 +26,6 @@ def main():
     times = np.linspace(0,1,n_points)
     data  = forward_model(times) + np.random.normal(0, true_parameters[2], len(times))
 
-    # Plot data against true model
-    plt.plot(times, data, "o")
-    plt.plot(times, forward_model(times))
-    if args.plot:
-        plt.show()
-    else:
-        plt.savefig(os.path.join(args.output, "simple_example", "synthetic_data"))
-
     # Sensitivities are easy to write down (use pen and paper)
     sens1 = np.ones(n_points)
     sens2 = times
@@ -47,21 +39,42 @@ def main():
 
     # Compute FIM
     FIM = H/(sigma2)
-    print(FIM)
-    print("estimate of sigma is {}".format(math.sqrt(sigma2)))
 
     # Compute covariance matrix
     cov = np.linalg.inv(FIM)
     print("Covariance matrix is {}".format(cov))
 
+    print(FIM)
+    print("estimate of sigma is {}".format(math.sqrt(sigma2)))
+
+    # Compute inferred parameters
     inferred_params = scipy.stats.linregress(x=times, y=data)
     inferred_params = np.array((inferred_params[1], inferred_params[0]))
 
+    # Add samples to the ellipse
+    n_samples = 1000
+    samples = np.random.multivariate_normal(inferred_params, cov, n_samples)
+
+    # Plot data against true model
+    plt.plot(times, data, "o")
+    plt.plot(times, forward_model(times))
+
+    # plot the output from the sampled parameters
+    for sample in samples:
+        plt.plot(times, sample[0] + sample[1]*times, color="grey", alpha=0.1)
+
+    if args.plot:
+        plt.show()
+    else:
+        plt.savefig(os.path.join(args.output, "simple_example", "synthetic_data"))
+
     # Plot 1 s.d ellipse
-    cov_ellipse(cov, offset=inferred_params)
+    fig, ax = cov_ellipse(cov, offset=inferred_params, q=[0.75, 0.9, 0.95, 0.99])
     plt.xlabel("intercept")
     plt.ylabel("gradient")
 
+    ax.plot(*samples.T, "x", color="grey", alpha=0.25)
+    ax.legend()
     if args.plot:
         plt.show()
     else:
