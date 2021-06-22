@@ -4,6 +4,7 @@ import argparse
 import matplotlib
 import matplotlib.pyplot as plt
 import scipy
+import scipy.stats
 import numpy as np
 import math
 import os

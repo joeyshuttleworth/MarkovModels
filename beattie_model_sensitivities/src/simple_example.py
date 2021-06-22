@@ -4,7 +4,6 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
-from fit_model import cov_ellipse
 from common import get_args, cov_ellipse
 
 # Compute sensitivities and Fisher information matrix for a simple
@@ -30,8 +29,12 @@ def main():
     sens1 = np.ones(n_points)
     sens2 = times
 
+    # Compute inferred parameters
+    inferred_params = scipy.stats.linregress(x=times, y=data)
+    inferred_params = np.array((inferred_params[1], inferred_params[0]))
+
     # Estimate sigma
-    sigma2 = sum(data - forward_model(times))**2/(n_points-1)
+    sigma2 = sum((inferred_params[0] + inferred_params[1]*times - data)**2/(n_points-1))
 
     sens = np.matrix(np.stack((sens1, sens2)))
 
@@ -46,10 +49,6 @@ def main():
 
     print(FIM)
     print("estimate of sigma is {}".format(math.sqrt(sigma2)))
-
-    # Compute inferred parameters
-    inferred_params = scipy.stats.linregress(x=times, y=data)
-    inferred_params = np.array((inferred_params[1], inferred_params[0]))
 
     # Add samples to the ellipse
     n_samples = 1000
