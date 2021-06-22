@@ -11,7 +11,6 @@ import scipy.integrate as integrate
 import symengine as se
 import matplotlib.pyplot as plt
 import matplotlib
-import argparse
 
 from   settings import Params
 from   sensitivity_equations import GetSensitivityEquations, CreateSymbols
@@ -73,7 +72,7 @@ class Boundaries(pints.Boundaries):
             vals[1] = alpha * np.exp(beta *  50 * 1E-3)
 
             for val in vals:
-                if val < 1.67E-5 or val > 1E3:
+                if val < 1E-7 or val > 1E3:
                     return False
         # Check maximal conductance
         if parameters[8] > 0 and parameters[8] < 2:
@@ -104,25 +103,11 @@ def main():
 
     plt.rcParams['axes.axisbelow'] = True
 
-    # Check input arguments
-    parser = argparse.ArgumentParser(
-        description='Plot sensitivities of the Beattie model')
-    parser.add_argument("data_file_path", help="path to csv data for the model to be fit to")
-    parser.add_argument("-s", "--sine_wave", action='store_true', help="whether or not to use sine wave protocol",
-        default=False)
-    parser.add_argument("-p", "--plot", action='store_true', help="whether to plot figures or just save",
-        default=False)
-    parser.add_argument("--dpi", type=int, default=100, help="what DPI to use for figures")
-    parser.add_argument("-o", "--output", type=str, default="output", help="The directory to output figures and data to")
-    args = parser.parse_args()
+    args = get_args(data_reqd=True)
 
     data  = pd.read_csv(args.data_file_path, delim_whitespace=True)
 
     print("outputting to {}".format(args.output))
-
-    # Create output directory
-    if not os.path.exists(args.output):
-        os.mkdir(args.output)
 
     if not os.path.exists(args.data_file_path):
         print("Input file not provided. Doing nothing.")
@@ -131,7 +116,6 @@ def main():
     par = Params()
 
     skip = int(par.timestep/0.1)
-
     dat = extract_times(data.values, indices_to_use, skip)
     times=dat[:,0]
     values=dat[:,1]
@@ -139,22 +123,27 @@ def main():
     model = PintsWrapper(par, args, times)
 
     current = model.simulate(starting_parameters, times)
+
+    if args.plot:
+        plt.plot(times, values)
+        plt.plot(model.times_to_use, current)
+        plt.show()
+
     problem = pints.SingleOutputProblem(model, times, values)
     error = pints.SumOfSquaresError(problem)
     boundaries  = Boundaries()
-    x0 = np.array([0.1]*9)
+    x0 = starting_parameters
+
     # found_parameters, found_value = pints.optimise(error, starting_parameters, boundaries=boundaries)
-    # found_parameters = np.array([2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524])
-    # print("finished! found parameters : {} ".format(found_parameters, found_value))
-    found_parameters = np.array([1.87451202e-03, 1.36254787e-02, 1.68324276e-05, 8.77532812e-02, 5.67114947e-02, 2.66069061e-02, 1.21159939e-03, 7.96959925e-03, 5.49219181e-02])
-    # found_value=100
+    found_parameters = np.array([2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524])
+    found_value=100
+    print("finished! found parameters : {} ".format(found_parameters, found_value))
 
     # Find error sensitivities
     funcs = model.funcs
     current, sens = funcs.SimulateForwardModelSensitivities(found_parameters)
-    sens = sens * found_parameters[:, None]
+    sens = (sens * found_parameters[None,:]).T
 
-    plt.plot(times, current)
     for vec in sens:
         plt.plot(times, vec)
 
@@ -175,7 +164,11 @@ def main():
             eigen_val=eigen_val.real
             if eigen_val[0] > 0 and eigen_val[1] > 0:
                 print("COV_{},{} : well defined".format(i, j))
-                cov_ellipse(sub_cov, i, j)
+                cov_ellipse(sub_cov)
+                if args.plot:
+                    plt.show()
+                else:
+                    plt.savefig(os.path.join(output, "parameters_to_view_covariance_{}_{}"))
             else:
                 print("COV_{},{} : negative eigenvalue".format(i,j))
 
@@ -183,7 +176,13 @@ def main():
     print('Eigenvalues of FIM:\n{}'.format(eigvals))
     print("Covariance matrix is: \n{}".format(cov))
 
-def cov_ellipse(cov, i, j, q=None, nsig=1, **kwargs):
+    # current = model.simulate(found_parameters, times)
+    plt.plot(data["time"], data["current"], label="averaged data")
+    plt.plot(times, current, label="current")
+    plt.legend()
+    plt.show()
+
+def cov_ellipse(cov, offset=[0,0], q=None, nsig=1, **kwargs):
     """
     Parameters
     ----------
@@ -215,24 +214,21 @@ def cov_ellipse(cov, i, j, q=None, nsig=1, **kwargs):
 
     val, vec = np.linalg.eigh(cov)
     width, height = 2 * np.sqrt(val[:, None] * r2)
-    rotation = np.degrees(np.arctan2(*vec[::-1, 0]))
+    rotation = np.arctan2(*vec[::-1, 0])
 
-    print("width, height, rotation = {}, {}, {}".format(width, height,rotation))
+    print("width, height, rotation = {}, {}, {}".format(width, height, math.degrees(rotation)))
 
     fig = plt.figure(0)
-    e = matplotlib.patches.Ellipse([0,0], width[0], height[0], rotation)
+    e = matplotlib.patches.Ellipse(offset, width[0], height[0], math.degrees(rotation))
     ax = fig.add_subplot(111, aspect='equal')
     ax.add_artist(e)
     e.set_clip_box(ax.bbox)
     e.set_facecolor([0.25, 0.25, 0])
-    ax.set_xlim(width[0])
-    ax.set_ylim(height[0])
-
-    if args.plot:
-        plt.show()
-    else:
-        plt.savefig(os.path.join(args.output, "covariance_plot_{}_{}".format(i,j)))
-
+    window_width = np.abs(width[0]*np.cos(rotation)*1.5)
+    window_height= np.abs(height[0]*np.sin(rotation)*1.5)
+    max_dim = max(window_width, window_height)[0,0]
+    ax.set_xlim(offset[0]-max_dim, offset[0]+max_dim)
+    ax.set_ylim(offset[1]-max_dim, offset[1]+max_dim)
 
 if __name__ == "__main__":
     main()
