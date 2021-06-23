@@ -21,7 +21,8 @@ def main():
     forward_model   = lambda t : true_parameters[0] + t * true_parameters[1]
 
     # Generate data
-    n_points = 100
+    # Use a lot of data points - the approximations used only hold asymptotically
+    n_points = 1000
     times = np.linspace(0,1,n_points)
     data  = forward_model(times) + np.random.normal(0, true_parameters[2], len(times))
 
@@ -44,7 +45,7 @@ def main():
     # Compute FIM
     FIM = H/(sigma2)
 
-    # Compute covariance matrix
+    # Compute observed covariance matrix
     cov = np.linalg.inv(FIM)
     print("Covariance matrix is {}".format(cov))
 
@@ -68,6 +69,7 @@ def main():
         plt.savefig(os.path.join(args.output, "simple_example", "synthetic_data"))
 
     # Plot 1 s.d ellipse
+    # Does this plot make sense? What does it mean?
     fig, ax = cov_ellipse(cov, offset=inferred_params, q=[0.75, 0.9, 0.95, 0.99])
     plt.xlabel("intercept")
     plt.ylabel("gradient")

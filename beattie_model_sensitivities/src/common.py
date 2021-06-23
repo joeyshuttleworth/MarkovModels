@@ -84,3 +84,25 @@ def cov_ellipse(cov, offset=[0,0], q=None, nsig=None, **kwargs):
     ax.set_ylim(offset[1]-max_dim, offset[1]+max_dim)
     return fig, ax
 
+# TODO Add some processing so it outputs the system in AX + B form
+def equations_from_adjacency_matrix(A, index_to_elim):
+    # TODO Check that the graph is connected using a library such as py_graph
+    # TODO Check types
+    A = np.array(A)
+    y = se.Matrix([[se.symbols("y%d" % i)] for i in range(0, A.shape[0])])
+
+    eqns = []
+    for row in A:
+        element = -sum([el*v for el, v in zip(row, y)])
+        for el, x in zip(A,y):
+            element += x * el
+        eqns.append(element)
+    eqns = np.array(eqns).T.tolist()[0]
+    del eqns[index_to_elim]
+    eqns = se.Matrix([row.simplify() for row in eqns])
+    eqns=eqns.subs(y[index_to_elim], 1 - sum([x for x in y if x != y[index_to_elim]]))
+
+    # Output as a list of equations
+    print(eqns)
+    return eqns
+

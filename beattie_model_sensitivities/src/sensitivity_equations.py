@@ -10,7 +10,7 @@ class GetSensitivityEquations(object):
     # The functions SimulateForwardModel and SimulateForwardModelSensitivities
     # solve the system for each time-step.
 
-    def __init__(self, settings, p, y, v, A, B, para, times, sine_wave):
+    def __init__(self, settings, p, y, v, A, B, para, times, sine_wave=False, voltage=None):
         # Settings such given in the form of a Param object
         self.par = settings
         # The timesteps we want to output at
@@ -21,6 +21,12 @@ class GetSensitivityEquations(object):
         self.A = A
         self.B = B
         rhs = A * y + B
+
+        if voltage != None:
+            if sine_wave:
+                raise
+            self.voltage = voltage
+
         self.compute_sensitivity_equations_rhs(p, y, v, rhs, para)
 
     def compute_sensitivity_equations_rhs(self, p, y, v, rhs, para):
