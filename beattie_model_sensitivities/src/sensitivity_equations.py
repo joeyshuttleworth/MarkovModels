@@ -21,6 +21,7 @@ class GetSensitivityEquations(object):
         self.A = A
         self.B = B
         rhs = A * y + B
+        print(rhs)
 
         if voltage != None:
             if sine_wave:
@@ -89,7 +90,7 @@ class GetSensitivityEquations(object):
         self.jfunc_S1 = se.lambdify(inputs, jS1)
 
         print('Getting ' + str(self.par.holding_potential) + ' mV steady state initial conditions...')
-       # Set the initial conditions of the model and the initial sensitivities
+        # Set the initial conditions of the model and the initial sensitivities
         # by finding the steady state of the model
 
         # RHS
@@ -208,14 +209,12 @@ class GetSensitivityEquations(object):
         voltages = self.GetVoltage()
         return p[8] * o * (voltages - self.par.Erev)
 
-    def GetStateVariables(self, p, normalise=True):
+    def GetStateVariables(self, p):
         states = self.solve_rhs(p)
-        if normalise:
-            states = states / p[-1] # Normalise to conductance
 
         state1 = np.array([1.0 - np.sum(row) for row in states])
         state1 = state1.reshape(len(state1), 1)
-        states = np.concatenate((state1, states), axis=1)
+        states = np.concatenate((states, state1), axis=1)
         return states
 
     def GetVoltage(self):
@@ -224,7 +223,8 @@ class GetSensitivityEquations(object):
 
         By default, there is a timestep every millisecond up to self.tmax
         """
-        return np.array([self.voltage(t) for t, _ in enumerate(self.times)])
+        v = np.array([self.voltage(t) for t, _ in enumerate(self.times)])
+        return v
 
     def SimulateForwardModelSensitivities(self, p):
         """
