@@ -36,7 +36,6 @@ def main():
     k4 = p[6] * se.exp(-p[7] * v)
 
     # Write in matrix form taking y = ([C], [O], [I])^T
-
     A = se.Matrix([[-k1 - k3 - k4, k2 -  k4, -k4], [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
     B = se.Matrix([k4, 0, k1])
 
