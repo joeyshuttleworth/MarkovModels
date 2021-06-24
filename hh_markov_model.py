@@ -158,12 +158,10 @@ def main():
     IVec = [model.calculateCurrent(y[1,t]) for t in range(0,len(solution.t))]
 
     t_vec = np.linspace(0,5000,1000)
-    plt.plot(t_vec, [V(tt) for tt in t_vec])
-    plt.plot(solution.t, solution.y[1])
-    plt.plot(solution.t, IVec)
-
+    for y in solution.y:
+        plt.plot(solution.t, y)
     plt.xlabel("time / ms")
-    plt.legend(["V", "[O]", "I / A"])
+    plt.legend()
     plt.show()
 
 if __name__ == '__main__':
