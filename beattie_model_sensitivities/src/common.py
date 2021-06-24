@@ -30,6 +30,26 @@ def get_args(data_reqd=False):
 
     return args
 
+
+def calculate_resting_potential(temp = 20):
+    # E is the Nernst potential for potassium ions across the membrane
+    # Gas constant R, temperature T, Faradays constat F
+    R = 8314.55
+    T = temp+273.15
+    F = 96485
+
+    # Intracellular and extracellular concentrations of potassium.
+    K_out = 4
+    K_in  = 130
+
+    # valency of ions (1 in the case of K^+)
+    z = 1
+
+    # Nernst potential
+    E = R*T/(z*F) * np.log(K_out/K_in)
+    return E
+
+
 def cov_ellipse(cov, offset=[0,0], q=None, nsig=None, **kwargs):
     """
     Parameters
