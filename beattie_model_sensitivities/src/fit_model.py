@@ -135,9 +135,9 @@ def main():
     boundaries  = Boundaries()
     x0 = starting_parameters
 
-    # found_parameters, found_value = pints.optimise(error, starting_parameters, boundaries=boundaries)
-    found_parameters = np.array([2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524])
-    found_value=100
+    found_parameters, found_value = pints.optimise(error, starting_parameters, boundaries=boundaries)
+    # found_parameters = np.array([2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524])
+    # found_value=100
     print("finished! found parameters : {} ".format(found_parameters, found_value))
 
     # Find error sensitivities

@@ -11,6 +11,17 @@ import os
 
 def get_args(data_reqd=False):
     # Check input arguments
+    parser = get_parser()
+    args = parser.parse_args()
+
+    # Create output directory
+    if not os.path.exists(args.output):
+        os.mkdir(args.output)
+
+    return args
+
+def get_parser(data_reqd=False):
+    # Check input arguments
     parser = argparse.ArgumentParser(
         description='Plot sensitivities of the Beattie model')
     if data_reqd:
@@ -22,13 +33,8 @@ def get_args(data_reqd=False):
         default=False)
     parser.add_argument("--dpi", type=int, default=100, help="what DPI to use for figures")
     parser.add_argument("-o", "--output", type=str, default="output", help="The directory to output figures and data to")
-    args = parser.parse_args()
+    return parser
 
-    # Create output directory
-    if not os.path.exists(args.output):
-        os.mkdir(args.output)
-
-    return args
 
 
 def calculate_resting_potential(temp = 20):
