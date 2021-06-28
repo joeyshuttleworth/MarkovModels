@@ -11,7 +11,7 @@ import os
 
 from settings import Params
 from sensitivity_equations import GetSensitivityEquations, CreateSymbols
-from common import calculate_resting_potential
+from common import calculate_reversal_potential
 
 class PintsWrapper(pints.ForwardModelS1):
 
@@ -27,9 +27,10 @@ class PintsWrapper(pints.ForwardModelS1):
         # Choose parameters (make sure conductance is the last parameter)
         para = np.array([2.07, 7.17E1, 3.44E-2, 6.18E1, 4.18E2, 2.58E1, 4.75E1, 2.51E1, 3.33E1])
         para = para*1E-3
-    # Compute resting potential for 37 degrees C
-    resting_potential = calculate_resting_potential(temp=37)
-    par.Erev = resting_potential
+
+        # Compute reversal potential for 37 degrees C
+        reversal_potential = calculate_reversal_potential(temp=37)
+        par.Erev = reversal_potential
 
 
 

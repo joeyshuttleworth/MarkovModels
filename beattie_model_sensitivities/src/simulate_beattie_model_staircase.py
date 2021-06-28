@@ -11,7 +11,7 @@ import os
 
 from settings import Params
 from sensitivity_equations import GetSensitivityEquations, CreateSymbols
-from common import calculate_resting_potential
+from common import calculate_reversal_potential
 
 def main():
     # Check input arguments
@@ -32,10 +32,10 @@ def main():
 
     para = np.array([1.87451202e-03, 1.36254787e-02, 1.68324276e-05, 8.77532812e-02, 5.67114947e-02, 2.66069061e-02, 1.21159939e-03, 7.96959925e-03, 5.49219181e-02])
 
-    # Compute resting potential for 37 degrees C
-    resting_potential = calculate_resting_potential(temp=37)
-    par.Erev = resting_potential
-    print("resting potential is {}".format(resting_potential))
+    # Compute reversal potential for 37 degrees C
+    reversal_potential = calculate_reversal_potential(temp=37)
+    par.Erev = reversal_potential
+    print("reversal potential is {}".format(reversal_potential))
 
     # Create symbols for symbolic functions
     p, y, v = CreateSymbols(par)
