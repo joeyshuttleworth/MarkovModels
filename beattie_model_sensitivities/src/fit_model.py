@@ -14,7 +14,8 @@ import matplotlib
 
 from  settings import Params
 from  sensitivity_equations import GetSensitivityEquations, CreateSymbols
-from  common import get_args, get_parser, cov_ellipse, extract_times
+from  common import get_args, get_parser, cov_ellipse, extract_times, remove_indices
+from  simulate_beattie_model_sensitivities import simulate_sine_wave_sensitivities
 
 class PintsWrapper(pints.ForwardModelS1):
 
@@ -84,17 +85,18 @@ class Boundaries(pints.Boundaries):
     def n_parameters(self):
         return 9
 
-def main(args, ms_to_remove_after_spike=50):
-    output_dir = "{}ms_removed".format(ms_to_remove_after_spike)
+def main(args, output_dir="", ms_to_remove_after_spike=50):
     output_dir = os.path.join(args.output, output_dir)
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
     # Constants
     if ms_to_remove_after_spike == 0:
-        indices_to_use = None
+        indices_to_remove = None
     else:
         spikes = [2500, 3000, 5000, 15000, 20000, 30000, 65000, 70000]
-        indices_to_use = [[spike, spike + ms_to_remove_after_spike] for spike in spikes]
+        indices_to_remove = [[spike, spike + ms_to_remove_after_spike*10] for spike in spikes]
+
+    indices_to_use = remove_indices(list(range(80000)), indices_to_remove)
     # indices_to_use = [[1,2499], [2549,2999], [3049,4999], [5049,14999], [15049,19999], [20049,29999], [30049,64999], [65049,69999], [70049,-1]]
     starting_parameters = [3.87068845e-04, 5.88028759e-02, 6.46971727e-05, 4.87408447e-02, 8.03073893e-02, 7.36295506e-03, 5.32908518e-03, 3.32254316e-02, 6.56614672e-02]
 
@@ -111,7 +113,7 @@ def main(args, ms_to_remove_after_spike=50):
     par = Params()
 
     skip = int(par.timestep/0.1)
-    dat = extract_times(data.values, indices_to_use, skip)
+    dat = data.values[indices_to_use]
 
     times=dat[:,0]
     values=dat[:,1]
@@ -188,11 +190,15 @@ def main(args, ms_to_remove_after_spike=50):
         plt.savefig(os.path.join(args.output, "fit"))
         plt.clf()
 
+    return found_parameters
+
 if __name__ == "__main__":
     spike_removal_durations=[0,50,100,150,200,1000]
     parser = get_parser(data_reqd=True)
     parser.add_argument("-r", "--remove", default=spike_removal_durations, help="ms of data to ignore after each capacitive spike", nargs='+', type=int)
     args = parser.parse_args ()
     for val in args.remove:
-        main(args,val)
+        output_dir = "{}ms_removed".format(val)
+        params = main(args, output_dir, val)
+        simulate_sine_wave_sensitivities(args, output_dir, params)
     print("done")

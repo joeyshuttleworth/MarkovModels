@@ -9,22 +9,17 @@ import os
 from settings import Params
 from sensitivity_equations import GetSensitivityEquations, CreateSymbols
 
-def main():
+def simulate_sine_wave_sensitivities(args, dirname="", para=None):
     # Check input arguments
-    parser = argparse.ArgumentParser(
-        description='Plot sensitivities of the Beattie model')
-    parser.add_argument("-s", "--sine_wave", action='store_true', help="whether or not to use sine wave protocol",
-        default=False)
-    parser.add_argument("-p", "--plot", action='store_true', help="whether to plot figures or just save",
-        default=False)
-    parser.add_argument("--dpi", type=int, default=100, help="what DPI to use for figures")
-    args = parser.parse_args()
-
     par = Params()
+
+    dirname = os.path.join(args.output, dirname)
+    os.makedirs(dirname)
 
     # Choose starting parameters (from J Physiol paper)
     # para = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
-    para = np.array([1.87451202e-03, 1.36254787e-02, 1.68324276e-05, 8.77532812e-02, 5.67114947e-02, 2.66069061e-02, 1.21159939e-03, 7.96959925e-03, 5.49219181e-02])
+    if para == None:
+        para = np.array([1.87451202e-03, 1.36254787e-02, 1.68324276e-05, 8.77532812e-02, 5.67114947e-02, 2.66069061e-02, 1.21159939e-03, 7.96959925e-03, 5.49219181e-02])
 
     # Create symbols for symbolic functions
     p, y, v = CreateSymbols(par)
@@ -84,7 +79,7 @@ def main():
     plt.tight_layout()
 
     if not args.plot:
-        plt.savefig('ForwardModel_SW_' + str(args.sine_wave) + '.png')
+        plt.savefig(os.join(dirname, 'ForwardModel_SW_' + str(args.sine_wave) + '.png'))
 
     H = np.dot(S1n.T, S1n)
     eigvals = np.linalg.eigvals(H)
@@ -99,10 +94,18 @@ def main():
     ax.grid(True)
 
     if not args.plot:
-        plt.savefig('Eigenvalues_SW_' + str(args.sine_wave) + '.png')
+        plt.savefig(os.join(dirname, 'Eigenvalues_SW_' + str(args.sine_wave) + '.png'))
 
     if args.plot:
         plt.show()
 
 if __name__=="__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description='Plot sensitivities of the Beattie model')
+    parser.add_argument("-s", "--sine_wave", action='store_true', help="whether or not to use sine wave protocol",
+        default=False)
+    parser.add_argument("-p", "--plot", action='store_true', help="whether to plot figures or just save",
+        default=False)
+    parser.add_argument("--dpi", type=int, default=100, help="what DPI to use for figures")
+    args = parser.parse_args()
+    main(args, "", None)

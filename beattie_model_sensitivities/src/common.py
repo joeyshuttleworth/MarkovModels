@@ -140,10 +140,14 @@ def extract_times(lst, time_ranges, step):
 
     Returns a 2d numpy array containing all of the relevant data points
     """
-    print(lst)
     if time_ranges == None:
         return lst
     ret_lst = []
     for time_range in time_ranges:
         ret_lst.extend(lst[time_range[0]:time_range[1]:step].tolist())
     return np.array(ret_lst)
+
+def remove_indices(lst, indices_to_remove):
+    for ind in indices_to_remove:
+        del lst[ind[0]: ind[1]]
+    return lst
