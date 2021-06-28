@@ -14,7 +14,8 @@ def simulate_sine_wave_sensitivities(args, dirname="", para=None):
     par = Params()
 
     dirname = os.path.join(args.output, dirname)
-    os.makedirs(dirname)
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
 
     # Choose starting parameters (from J Physiol paper)
     # para = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
