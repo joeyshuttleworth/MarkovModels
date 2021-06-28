@@ -9,7 +9,7 @@ import os
 from settings import Params
 from sensitivity_equations import GetSensitivityEquations, CreateSymbols
 
-def simulate_sine_wave_sensitivities(args, dirname="", para=None):
+def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=None):
     # Check input arguments
     par = Params()
 
@@ -19,7 +19,7 @@ def simulate_sine_wave_sensitivities(args, dirname="", para=None):
 
     # Choose starting parameters (from J Physiol paper)
     # para = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
-    if para == None:
+    if para == []:
         para = np.array([1.87451202e-03, 1.36254787e-02, 1.68324276e-05, 8.77532812e-02, 5.67114947e-02, 2.66069061e-02, 1.21159939e-03, 7.96959925e-03, 5.49219181e-02])
 
     # Create symbols for symbolic functions
@@ -37,7 +37,8 @@ def simulate_sine_wave_sensitivities(args, dirname="", para=None):
 
     rhs = np.array(A * y + B)
 
-    times = np.linspace(0, par.tmax, par.tmax + 1)
+    if times == []:
+        times = np.linspace(0, par.tmax, par.tmax + 1)
 
     funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times, sine_wave=args.sine_wave)
 
@@ -54,25 +55,27 @@ def simulate_sine_wave_sensitivities(args, dirname="", para=None):
 
     fig = plt.figure(figsize=(8, 8), dpi=args.dpi)
     ax1 = fig.add_subplot(411)
-    ax1.plot(funcs.GetVoltage())
+    ax1.plot(funcs.times, funcs.GetVoltage())
     ax1.grid(True)
     ax1.set_xticklabels([])
     ax1.set_ylabel('Voltage (mV)')
     ax2 = fig.add_subplot(412)
-    ax2.plot(funcs.SimulateForwardModel(para))
+    ax2.plot(funcs.times, funcs.SimulateForwardModel(para), label="model fit")
+    ax2.plot(data["time"], data["current"], label="data")
+    ax2.legend()
     ax2.grid(True)
     ax2.set_xticklabels([])
     ax2.set_ylabel('Current (nA)')
     ax3 = fig.add_subplot(413)
     for i in range(par.n_state_vars + 1):
-        ax3.plot(state_variables[:, i], label=state_labels[i])
+        ax3.plot(funcs.times, state_variables[:, i], label=state_labels[i])
     ax3.legend(ncol=4)
     ax3.grid(True)
     ax3.set_xticklabels([])
     ax3.set_ylabel('State occupancy')
     ax4 = fig.add_subplot(414)
     for i in range(par.n_params):
-        ax4.plot(S1n[:, i], label=param_labels[i])
+        ax4.plot(funcs.times, S1n[:, i], label=param_labels[i])
     ax4.legend(ncol=3)
     ax4.grid(True)
     ax4.set_xlabel('Time (ms)')
@@ -80,7 +83,7 @@ def simulate_sine_wave_sensitivities(args, dirname="", para=None):
     plt.tight_layout()
 
     if not args.plot:
-        plt.savefig(os.join(dirname, 'ForwardModel_SW_' + str(args.sine_wave) + '.png'))
+        plt.savefig(os.path.join(dirname, 'ForwardModel_SW_' + str(args.sine_wave) + '.png'))
 
     H = np.dot(S1n.T, S1n)
     eigvals = np.linalg.eigvals(H)
@@ -95,7 +98,7 @@ def simulate_sine_wave_sensitivities(args, dirname="", para=None):
     ax.grid(True)
 
     if not args.plot:
-        plt.savefig(os.join(dirname, 'Eigenvalues_SW_' + str(args.sine_wave) + '.png'))
+        plt.savefig(os.path.join(dirname, 'Eigenvalues_SW_' + str(args.sine_wave) + '.png'))
 
     if args.plot:
         plt.show()
@@ -109,4 +112,4 @@ if __name__=="__main__":
         default=False)
     parser.add_argument("--dpi", type=int, default=100, help="what DPI to use for figures")
     args = parser.parse_args()
-    main(args, "", None)
+    main(args, "")

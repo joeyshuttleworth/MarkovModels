@@ -148,6 +148,16 @@ def extract_times(lst, time_ranges, step):
     return np.array(ret_lst)
 
 def remove_indices(lst, indices_to_remove):
-    for ind in indices_to_remove:
-        del lst[ind[0]: ind[1]]
+    if indices_to_remove == None:
+        return lst
+
+    first_lst = lst[0:indices_to_remove[0][0]]
+
+    lsts = []
+    for i in range(1, len(indices_to_remove)):
+        lsts.append(lst[indices_to_remove[i-1][1] : indices_to_remove[i][0]+1])
+
+    lsts.append(lst[indices_to_remove[-1][1]:-1])
+
+    lst = first_lst + [index for lst in lsts for index in lst]
     return lst

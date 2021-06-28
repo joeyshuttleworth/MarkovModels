@@ -12,7 +12,7 @@ import argparse
 import argparse
 import matplotlib.pyplot as plt
 
-from context import Params, CreateSymbols, GetSensitivityEquations
+from context import Params, CreateSymbols, GetSensitivityEquations, remove_indices
 
 
 def test_run_functions():
@@ -62,3 +62,6 @@ def test_run_functions():
 
 if __name__ == "__main__":
     test_run_functions()
+
+    lst = list(range(100))
+    print(remove_indices(lst, [[2,5], [7,8], [75,80], [97,-1]]))

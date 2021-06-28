@@ -222,7 +222,7 @@ class GetSensitivityEquations(object):
 
         By default, there is a timestep every millisecond up to self.tmax
         """
-        v = np.array([self.voltage(t) for t, _ in enumerate(self.times)])
+        v = np.array([self.voltage(t) for t in self.times])
         return v
 
     def SimulateForwardModelSensitivities(self, p):

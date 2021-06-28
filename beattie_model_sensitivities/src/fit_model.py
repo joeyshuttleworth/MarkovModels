@@ -134,7 +134,8 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
 
     found_parameters, found_value = pints.optimise(error, starting_parameters, boundaries=boundaries)
     # found_parameters = np.array([2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524])
-    # found_value=100
+    # found_value = 100
+
     print("finished! found parameters : {} ".format(found_parameters, found_value))
 
     # Find error sensitivities
@@ -189,18 +190,19 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
     if args.plot:
         plt.show()
     else:
-        plt.savefig(os.path.join(args.output, "fit"))
+        plt.savefig(os.path.join(output_dir, "fit"))
         plt.clf()
 
-    return found_parameters
+    return times, found_parameters
 
 if __name__ == "__main__":
     spike_removal_durations=[0,50,100,150,200,1000]
     parser = get_parser(data_reqd=True)
     parser.add_argument("-r", "--remove", default=spike_removal_durations, help="ms of data to ignore after each capacitive spike", nargs='+', type=int)
     args = parser.parse_args ()
+    data  = pd.read_csv(args.data_file_path, delim_whitespace=True)
     for val in args.remove:
         output_dir = "{}ms_removed".format(val)
-        params = main(args, output_dir, val)
-        simulate_sine_wave_sensitivities(args, output_dir, params)
+        times, params = main(args, output_dir, val)
+        simulate_sine_wave_sensitivities(args, times, output_dir, params, data)
     print("done")
