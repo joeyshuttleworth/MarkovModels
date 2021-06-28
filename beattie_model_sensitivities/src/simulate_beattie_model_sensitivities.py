@@ -8,8 +8,12 @@ import os
 
 from settings import Params
 from sensitivity_equations import GetSensitivityEquations, CreateSymbols
+from common import get_parser
 
 def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=None):
+    # Capacitive spikes
+    spikes = [250, 300, 500, 1500, 2000, 3000, 6500, 7000]
+
     # Check input arguments
     par = Params()
 
@@ -61,7 +65,9 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     ax1.set_ylabel('Voltage (mV)')
     ax2 = fig.add_subplot(412)
     ax2.plot(funcs.times, funcs.SimulateForwardModel(para), label="model fit")
-    ax2.plot(data["time"], data["current"], label="data")
+    if data:
+        ax2.plot(data["time"], data["current"], label="data")
+    [ax2.axvline(spike, color="red") for spike in spikes]
     ax2.legend()
     ax2.grid(True)
     ax2.set_xticklabels([])
@@ -104,12 +110,6 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
         plt.show()
 
 if __name__=="__main__":
-    parser = argparse.ArgumentParser(
-        description='Plot sensitivities of the Beattie model')
-    parser.add_argument("-s", "--sine_wave", action='store_true', help="whether or not to use sine wave protocol",
-        default=False)
-    parser.add_argument("-p", "--plot", action='store_true', help="whether to plot figures or just save",
-        default=False)
-    parser.add_argument("--dpi", type=int, default=100, help="what DPI to use for figures")
+    parser = get_parser(data_reqd=False)
     args = parser.parse_args()
-    main(args, "")
+    simulate_sine_wave_sensitivities(args)
