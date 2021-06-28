@@ -204,5 +204,5 @@ if __name__ == "__main__":
     for val in args.remove:
         output_dir = "{}ms_removed".format(val)
         times, params = main(args, output_dir, val)
-        simulate_sine_wave_sensitivities(args, times, output_dir, params, data)
+        simulate_sine_wave_sensitivities(args, output_dir, params, data)
     print("done")

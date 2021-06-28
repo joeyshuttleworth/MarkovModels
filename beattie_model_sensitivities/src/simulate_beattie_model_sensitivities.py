@@ -65,7 +65,7 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     ax1.set_ylabel('Voltage (mV)')
     ax2 = fig.add_subplot(412)
     ax2.plot(funcs.times, funcs.SimulateForwardModel(para), label="model fit")
-    if data:
+    if data is not None:
         ax2.plot(data["time"], data["current"], label="data")
     [ax2.axvline(spike, color="red") for spike in spikes]
     ax2.legend()
