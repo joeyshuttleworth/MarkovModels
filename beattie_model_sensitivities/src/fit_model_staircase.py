@@ -11,7 +11,7 @@ import os
 
 from settings import Params
 from sensitivity_equations import GetSensitivityEquations, CreateSymbols
-from common import calculate_reversal_potential
+from common import calculate_reversal_potential, extract_times
 
 class PintsWrapper(pints.ForwardModelS1):
 
@@ -89,7 +89,3 @@ class Boundaries(pints.Boundaries):
 
     def n_parameters(self):
         return 9
-
-def extract_times(lst, time_ranges, step):
-
-
