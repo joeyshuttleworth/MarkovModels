@@ -169,10 +169,12 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
             if eigen_val[0] > 0 and eigen_val[1] > 0:
                 print("COV_{},{} : well defined".format(i, j))
                 cov_ellipse(sub_cov, q=[0.75, 0.9, 0.99])
+                plt.ylabel("parameter {}".format(i))
+                plt.xlabel("parameter {}".format(j))
                 if args.plot:
                     plt.show()
                 else:
-                    plt.savefig(os.path.join(output_dir, "parameters_to_view_covariance_{}_{}"))
+                    plt.savefig(os.path.join(output_dir, "covariance_for_parameters_{}_{}".format(i,j)))
                 plt.clf()
             else:
                 print("COV_{},{} : negative eigenvalue".format(i,j))
