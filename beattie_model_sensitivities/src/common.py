@@ -11,7 +11,7 @@ import os
 
 def get_args(data_reqd=False):
     # Check input arguments
-    parser = get_parser()
+    parser = get_parser(data_reqd)
     args = parser.parse_args()
 
     # Create output directory
@@ -132,3 +132,18 @@ def equations_from_adjacency_matrix(A, index_to_elim):
     print(eqns)
     return eqns
 
+def extract_times(lst, time_ranges, step):
+    """
+    Take values from a list, lst which are indexes between the upper and lower
+    bounds provided by time_ranges. Each element of time_ranges specifies an
+    upper and lower bound.
+
+    Returns a 2d numpy array containing all of the relevant data points
+    """
+    print(lst)
+    if time_ranges == None:
+        return lst
+    ret_lst = []
+    for time_range in time_ranges:
+        ret_lst.extend(lst[time_range[0]:time_range[1]:step].tolist())
+    return np.array(ret_lst)

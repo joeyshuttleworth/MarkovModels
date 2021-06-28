@@ -21,7 +21,6 @@ class GetSensitivityEquations(object):
         self.A = A
         self.B = B
         rhs = A * y + B
-        print(rhs)
 
         if voltage != None:
             if sine_wave:

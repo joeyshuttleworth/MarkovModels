@@ -14,7 +14,7 @@ import matplotlib
 
 from  settings import Params
 from  sensitivity_equations import GetSensitivityEquations, CreateSymbols
-from  common import get_args, cov_ellipse
+from  common import get_args, get_parser, cov_ellipse, extract_times
 
 class PintsWrapper(pints.ForwardModelS1):
 
@@ -84,27 +84,21 @@ class Boundaries(pints.Boundaries):
     def n_parameters(self):
         return 9
 
-def extract_times(lst, time_ranges, step):
-    """
-    Take values from a list, lst which are indexes between the upper and lower
-    bounds provided by time_ranges. Each element of time_ranges specifies an
-    upper and lower bound.
-
-    Returns a 2d numpy array containing all of the relevant data points
-    """
-    ret_lst = []
-    for time_range in time_ranges:
-        ret_lst.extend(lst[time_range[0]:time_range[1]:step].tolist())
-    return np.array(ret_lst)
-
-def main():
-    #constants
-    indices_to_use = [[1,2499], [2549,2999], [3049,4999], [5049,14999], [15049,19999], [20049,29999], [30049,64999], [65049,69999], [70049,-1]]
+def main(args, ms_to_remove_after_spike=50):
+    output_dir = "{}ms_removed".format(ms_to_remove_after_spike)
+    output_dir = os.path.join(args.output, output_dir)
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    # Constants
+    if ms_to_remove_after_spike == 0:
+        indices_to_use = None
+    else:
+        spikes = [2500, 3000, 5000, 15000, 20000, 30000, 65000, 70000]
+        indices_to_use = [[spike, spike + ms_to_remove_after_spike] for spike in spikes]
+    # indices_to_use = [[1,2499], [2549,2999], [3049,4999], [5049,14999], [15049,19999], [20049,29999], [30049,64999], [65049,69999], [70049,-1]]
     starting_parameters = [3.87068845e-04, 5.88028759e-02, 6.46971727e-05, 4.87408447e-02, 8.03073893e-02, 7.36295506e-03, 5.32908518e-03, 3.32254316e-02, 6.56614672e-02]
 
     plt.rcParams['axes.axisbelow'] = True
-
-    args = get_args(data_reqd=True)
 
     data  = pd.read_csv(args.data_file_path, delim_whitespace=True)
 
@@ -118,6 +112,7 @@ def main():
 
     skip = int(par.timestep/0.1)
     dat = extract_times(data.values, indices_to_use, skip)
+
     times=dat[:,0]
     values=dat[:,1]
 
@@ -152,7 +147,7 @@ def main():
     if args.plot:
         plt.show()
     else:
-        plt.savefig(os.path.join(args.output, "output_sensitivities"))
+        plt.savefig(os.path.join(output_dir, "output_sensitivities"))
         plt.clf()
 
     # Estimate the various of the i.i.d Gaussian noise
@@ -175,7 +170,7 @@ def main():
                 if args.plot:
                     plt.show()
                 else:
-                    plt.savefig(os.path.join(args.output, "parameters_to_view_covariance_{}_{}"))
+                    plt.savefig(os.path.join(output_dir, "parameters_to_view_covariance_{}_{}"))
                 plt.clf()
             else:
                 print("COV_{},{} : negative eigenvalue".format(i,j))
@@ -194,5 +189,10 @@ def main():
         plt.clf()
 
 if __name__ == "__main__":
-    main()
+    spike_removal_durations=[0,50,100,150,200,1000]
+    parser = get_parser(data_reqd=True)
+    parser.add_argument("-r", "--remove", default=spike_removal_durations, help="ms of data to ignore after each capacitive spike", nargs='+', type=int)
+    args = parser.parse_args ()
+    for val in args.remove:
+        main(args,val)
     print("done")
