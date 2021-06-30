@@ -11,7 +11,7 @@ import os
 
 def get_args(data_reqd=False):
     # Check input arguments
-    parser = get_parser()
+    parser = get_parser(data_reqd)
     args = parser.parse_args()
 
     # Create output directory
@@ -37,7 +37,7 @@ def get_parser(data_reqd=False):
 
 
 
-def calculate_resting_potential(temp = 20):
+def calculate_reversal_potential(temp = 20):
     # E is the Nernst potential for potassium ions across the membrane
     # Gas constant R, temperature T, Faradays constat F
     R = 8314.55

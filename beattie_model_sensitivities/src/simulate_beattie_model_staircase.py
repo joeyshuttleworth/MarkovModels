@@ -11,37 +11,32 @@ import os
 
 from settings import Params
 from sensitivity_equations import GetSensitivityEquations, CreateSymbols
-from common import calculate_resting_potential
+from common import calculate_reversal_potential, get_parser
 
 def main():
     # Check input arguments
-    parser = argparse.ArgumentParser(
-        description='Plot sensitivities of the Beattie model')
-    parser.add_argument("-s", "--sine_wave", action='store_true', help="whether or not to use sine wave protocol",
-        default=False)
-    parser.add_argument("-p", "--plot", action='store_true', help="whether to plot figures or just save",
-        default=False)
-    parser.add_argument("--dpi", type=int, default=100, help="what DPI to use for figures")
+    parser = get_parser()
     args = parser.parse_args()
 
     par = Params()
 
-    # Choose parameters (make sure conductance is the last parameter)
-    para = np.array([2.07, 7.17E1, 3.44E-2, 6.18E1, 4.18E2, 2.58E1, 4.75E1, 2.51E1, 3.33E1])
-    para = para*1E-3
+    plot_dir = os.path.join(args.output, "staircase")
 
-    para = np.array([1.87451202e-03, 1.36254787e-02, 1.68324276e-05, 8.77532812e-02, 5.67114947e-02, 2.66069061e-02, 1.21159939e-03, 7.96959925e-03, 5.49219181e-02])
+    if not os.path.exists(plot_dir):
+        os.makedirs(plot_dir)
+
+    # Choose parameters (make sure conductance is the last parameter)
+    para = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2, 4.75E-2, 2.51E-2, 3.33E-2])
 
     # Compute resting potential for 37 degrees C
-    resting_potential = calculate_resting_potential(temp=37)
-    par.Erev = resting_potential
-    print("resting potential is {}".format(resting_potential))
+    reversal_potential = calculate_reversal_potential(temp=37)
+    par.Erev = reversal_potential
+    print("reversal potential is {}".format(reversal_potential))
 
     # Create symbols for symbolic functions
     p, y, v = CreateSymbols(par)
 
     k = se.symbols('k1, k2, k3, k4')
-    print(k)
 
     # Define system equations and initial conditions
     k1 = p[0] * se.exp(p[1] * v)
@@ -56,9 +51,10 @@ def main():
     rhs = np.array(A * y + B)
 
     protocol = pd.read_csv(os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "protocols", "protocol-staircaseramp.csv"))
-    times = 10000*protocol["time"].values
+    times = 1E3*protocol["time"].values
     voltages = protocol["voltage"].values
 
+    # 10*times to correct units
     staircase_protocol = scipy.interpolate.interp1d(times, voltages, kind="linear")
     staircase_protocol_safe = lambda t : staircase_protocol(t) if t < times[-1] else par.holding_potential
 
@@ -102,15 +98,24 @@ def main():
     plt.tight_layout()
 
     if not args.plot:
-        plt.savefig('ForwardModel_SW_' + str(args.sine_wave) + '.png')
+        plt.savefig(os.path.join(plot_dir, 'ForwardModel_SW_{}.png'.format(args.sine_wave)))
 
     H = np.dot(S1n.T, S1n)
     print(H)
-    # eigvals = np.linalg.eigvals(H)
-    # print('Eigenvalues of H:\n{}'.format(eigvals.real))
+    eigvals = np.linalg.eigvals(H)
+    print('Eigenvalues of H:\n{}'.format(eigvals.real))
+
+    # Plot the eigenvalues of H, shows the condition of H
+    fig = plt.figure(figsize=(6, 6), dpi=args.dpi)
+    ax = fig.add_subplot(111)
+    for i in eigvals:
+        ax.axhline(y=i, xmin=0.25, xmax=0.75)
+    ax.set_yscale('log')
+    ax.set_xticks([])
+    ax.grid(True)
 
     if not args.plot:
-        plt.savefig('Eigenvalues_SW_' + str(args.sine_wave) + '.png')
+        plt.savefig(os.path.join(plot_dir, 'Eigenvalues_SW_{}.png'.format(args.sine_wave)))
 
     if args.plot:
         plt.show()

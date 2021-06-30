@@ -21,7 +21,6 @@ class GetSensitivityEquations(object):
         self.A = A
         self.B = B
         rhs = A * y + B
-        print(rhs)
 
         if voltage != None:
             if sine_wave:
@@ -89,7 +88,7 @@ class GetSensitivityEquations(object):
         jS1 = [se.Matrix(fS1).jacobian(se.Matrix(Ss))]
         self.jfunc_S1 = se.lambdify(inputs, jS1)
 
-        print('Getting ' + str(self.par.holding_potential) + ' mV steady state initial conditions...')
+        print('Getting {}mV steady state initial conditions...'.format(self.par.holding_potential))
         # Set the initial conditions of the model and the initial sensitivities
         # by finding the steady state of the model
 
@@ -223,7 +222,7 @@ class GetSensitivityEquations(object):
 
         By default, there is a timestep every millisecond up to self.tmax
         """
-        v = np.array([self.voltage(t) for t, _ in enumerate(self.times)])
+        v = np.array([self.voltage(t) for t in self.times])
         return v
 
     def SimulateForwardModelSensitivities(self, p):
