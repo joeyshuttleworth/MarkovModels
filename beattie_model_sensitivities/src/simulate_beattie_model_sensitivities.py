@@ -22,9 +22,8 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
         os.makedirs(dirname)
 
     # Choose starting parameters (from J Physiol paper)
-    # para = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
     if para == []:
-        para = np.array([1.87451202e-03, 1.36254787e-02, 1.68324276e-05, 8.77532812e-02, 5.67114947e-02, 2.66069061e-02, 1.21159939e-03, 7.96959925e-03, 5.49219181e-02])
+        para = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
 
     # Create symbols for symbolic functions
     p, y, v = CreateSymbols(par)

@@ -11,31 +11,24 @@ import os
 
 from settings import Params
 from sensitivity_equations import GetSensitivityEquations, CreateSymbols
-from common import calculate_reversal_potential, cov_ellipse, get_args
-
-def detect_spikes(x, y):
-    dx = np.diff(x)
-    dy = np.diff(y)
-
-    deriv = dy/dx
-    spike_indices = np.argwhere(np.abs(deriv)>10000)[:,0]
-
-    return x[spike_indices]
+from common import calculate_reversal_potential, get_parser
 
 def main():
     # Check input arguments
-    args = get_args()
-    output_dir = os.path.join(args.output, "staircase_protocol")
-
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    parser = get_parser()
+    args = parser.parse_args()
 
     par = Params()
 
+    plot_dir = os.path.join(args.output, "staircase")
+
+    if not os.path.exists(plot_dir):
+        os.makedirs(plot_dir)
+
     # Choose parameters (make sure conductance is the last parameter)
-    para = np.array([2.07, 7.17E1, 3.44E-2, 6.18E1, 4.18E2, 2.58E1, 4.75E1, 2.51E1, 3.33E1])
-    para = para*1E-3
-    # Compute reversal potential for 37 degrees C
+    para = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2, 4.75E-2, 2.51E-2, 3.33E-2])
+
+    # Compute resting potential for 37 degrees C
     reversal_potential = calculate_reversal_potential(temp=37)
     par.Erev = reversal_potential
     print("reversal potential is {}".format(reversal_potential))
@@ -62,6 +55,7 @@ def main():
     print("{} sens_inf calculated as {}".format(__file__, sens_inf))
 
     protocol = pd.read_csv(os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "protocols", "protocol-staircaseramp.csv"))
+
     times = 1000*protocol["time"].values
     voltages = protocol["voltage"].values
 
@@ -87,7 +81,7 @@ def main():
     if args.plot:
         plt.show()
     else:
-        plt.savefig(os.path.join(output_dir, "sensitivities_plot"))
+        plt.savefig(os.path.join(plot_dir, "sensitivities_plot"))
 
     state_variables = funcs.GetStateVariables(para)
     state_labels = ['C', 'O', 'I', 'IC']
@@ -123,16 +117,28 @@ def main():
     plt.tight_layout()
 
     if not args.plot:
-        plt.savefig(os.path.join(output_dir, 'ForwardModel_SW_' + str(args.sine_wave) + '.png'))
+        plt.savefig(os.path.join(plot_dir, 'ForwardModel_SW_{}.png'.format(args.sine_wave)))
 
     # Only take every 100th point
     # S1n = S1n[0:-1:10]
     H = np.dot(S1n.T, S1n)
+    print(H)
+    eigvals = np.linalg.eigvals(H)
+    #Sigma2 - the observed variance. 1885 is the value taken from a fit
     sigma2 = 1885/(len(funcs.times) - 1)
-    eigvals, eigvectors = np.linalg.eigh(H)
-    print("eigenvalues and eigenvectors  of S^TS are {}".format(list(zip(eigvals, eigvectors))))
+    print('Eigenvalues of H:\n{}'.format(eigvals.real))
+
+    # Plot the eigenvalues of H, shows the condition of H
+    fig = plt.figure(figsize=(6, 6), dpi=args.dpi)
+    ax = fig.add_subplot(111)
+    for i in eigvals:
+        ax.axhline(y=i, xmin=0.25, xmax=0.75)
+    ax.set_yscale('log')
+    ax.set_xticks([])
+    ax.grid(True)
+
     if not args.plot:
-        plt.savefig(os.path.join(output_dir, 'Eigenvalues_SW_' + str(args.sine_wave) + '.png'))
+        plt.savefig(os.path.join(plot_dir, 'Eigenvalues_SW_{}.png'.format(args.sine_wave)))
 
     if args.plot:
         plt.show()

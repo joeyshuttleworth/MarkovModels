@@ -93,7 +93,7 @@ class GetSensitivityEquations(object):
         jS1 = [se.Matrix(fS1).jacobian(se.Matrix(Ss))]
         self.jfunc_S1 = se.lambdify(inputs, jS1)
 
-        print('Getting ' + str(self.par.holding_potential) + ' mV steady state initial conditions...')
+        print('Getting {}mV steady state initial conditions...'.format(self.par.holding_potential))
         # Set the initial conditions of the model and the initial sensitivities
         # by finding the steady state of the model
 
