@@ -60,8 +60,52 @@ def test_run_functions():
     funcs.SimulateForwardModelSensitivities(starting_parameters)
 
 
+def test_sens_limits():
+    par = Params()
+    p, y, v = CreateSymbols(par)
+    reversal_potential = par.Erev
+    para = np.array([2.07, 7.17E1, 3.44E-2, 6.18E1, 4.18E2, 2.58E1, 4.75E1, 2.51E1, 3.33E1])
+    para = para*1E-3
+
+    # Define system equations and initial conditions
+    k1 = p[0] * se.exp(p[1] * v)
+    k2 = p[2] * se.exp(-p[3] * v)
+    k3 = p[4] * se.exp(p[5] * v)
+    k4 = p[6] * se.exp(-p[7] * v)
+
+    current_limit = (p[-1]*(par.holding_potential - reversal_potential) * k1/(k1+k2) * k4/(k3+k4)).subs(v, par.holding_potential)
+    print("{} Current limit computed as {}".format(__file__, current_limit.subs(p, para).evalf()))
+
+    sens_inf = [float(se.diff(current_limit, p[j]).subs(p, para).evalf()) for j in range(0, par.n_params)]
+    print("{} sens_inf calculated as {}".format(__file__, sens_inf))
+
+
+    k = se.symbols('k1, k2, k3, k4')
+
+    # Notation is consistent between the two papers
+    A = se.Matrix([[-k1 - k3 - k4, k2 -  k4, -k4], [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
+    B = se.Matrix([k4, 0, k1])
+
+
+    # Use results from HH equations
+    current_limit = (p[-1]*(par.holding_potential - reversal_potential) * k1/(k1+k2) * k4/(k3+k4)).subs(v, par.holding_potential)
+
+    funcs = GetSensitivityEquations(par, p, y, v, A, B, para, [0])
+    sens_inf = [float(se.diff(current_limit, p[j]).subs(p, para).evalf()) for j in range(0, par.n_params)]
+
+    sens=funcs.SimulateForwardModelSensitivities(para)[1]
+
+    # Check sens = sens_inf
+    error = np.abs(sens_inf - sens)
+
+    equal = np.all(error<1e-10)
+    assert(equal)
+    return
+
+
 if __name__ == "__main__":
     test_run_functions()
+    test_sens_limits()
 
     lst = list(range(100))
     print(remove_indices(lst, [[2,5], [7,8], [75,80], [97,-1]]))
