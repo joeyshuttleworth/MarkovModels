@@ -72,6 +72,11 @@ class GetSensitivityEquations(object):
         [[fS1.append(dS[i][j]) for i in range(self.par.n_state_vars)] for j in range(self.par.n_params)]
         [[Ss.append(S[i][j]) for i in range(self.par.n_state_vars)] for j in range(self.par.n_params)]
 
+        self.auxillary_expression = p[self.par.GKr_index]*y[self.par.open_state]*(v - self.par.Erev)
+
+        # dI/do
+        self.dIdo = se.diff(self.auxillary_expression, y[self.par.open_state])
+
         self.func_S1 = se.lambdify(inputs, fS1)
 
         # Define number of 1st order sensitivities
@@ -94,14 +99,26 @@ class GetSensitivityEquations(object):
 
         # RHS
         # Can be found analytically
-        rhs_inf = (-(self.A.inv()) * self.B).subs(v, self.par.holding_potential)
-        self.rhs0 = [float(expr.evalf()) for expr in rhs_inf.subs(p, para)]
 
-        # Steady state can be found analytically
-        S1_inf = [float(se.diff(rhs_inf[i], p[j]).subs(p, para).evalf()) for j in range(0, self.par.n_params) \
-            for i in range(0, self.par.n_state_vars)]
+        rhs_inf = (-(self.A.inv()) * self.B).subs(v, self.par.holding_potential)
+        rhs_inf_eval = np.array([float(row) for row in rhs_inf.subs(p, para)])
+
+        current_inf_expr = self.auxillary_expression.subs(y, rhs_inf_eval)
+        current_inf      = float(current_inf_expr.subs(v, self.par.holding_potential).subs(p, para).evalf())
+
+        # The limit of the current when voltage is held at the holding potential
+        print("Current limit computed as {}".format(current_inf))
+
+        self.rhs0 = rhs_inf_eval
+
+        # Find sensitivity steady states
+        S1_inf = np.array([float(se.diff(rhs_inf[i], p[j]).subs(p, para).evalf()) for j in range(0, self.par.n_params) for i in range(0, self.par.n_state_vars)])
 
         self.drhs0 = np.concatenate((self.rhs0, S1_inf))
+        index_sensitivities = self.par.n_state_vars +  self.par.open_state + self.par.n_state_vars*np.array(range(self.par.n_params))
+        sens_inf = self.drhs0[index_sensitivities]*(self.par.holding_potential - self.par.Erev)*para[-1]
+        sens_inf[-1] += (self.par.holding_potential - self.par.Erev) * rhs_inf_eval[self.par.open_state]
+        print("sens_inf calculated as {}".format(sens_inf))
 
         print('Done')
 
@@ -236,16 +253,23 @@ class GetSensitivityEquations(object):
         solution = self.solve_drhs_full(p)
 
         # Get the open state sensitivities for each parameter
-        index_sensitivities = range(self.par.n_state_vars + self.par.open_state * self.par.n_params, self.par.n_state_vars + (self.par.open_state + 1) *self.par.n_params)
+        index_sensitivities = self.par.n_state_vars + self.par.open_state + self.par.n_state_vars*np.array(range(self.par.n_params))
         sensitivities = solution[:, index_sensitivities]
+        # sensitivities = solution[:, self.par.n_state_vars:]
         o = solution[:, self.par.open_state]
         voltages = self.GetVoltage()
-        current = p[8] * o * (voltages - self.par.Erev)
-        values = np.stack(np.array([p[8] * o * (voltages - self.par.Erev) * sensitivity for sensitivity in sensitivities.T]), axis=0)
-        ret_vals = (current, values.T)
+        current = p[-1] * o * (voltages - self.par.Erev)
+        print(self.par.Erev)
+        # values = np.stack(np.array([p[8] * (voltages - self.par.Erev) * sensitivity for sensitivity in sensitivities.T[:-1]]), axis=0)
+        dIdo = (voltages - self.par.Erev)*p[-1]
+        values = sensitivities * dIdo[:,None]
+        values[:,-1] += o*(voltages - self.par.Erev)
+
+        print(values[:,2])
+        ret_vals = (current, values)
         return ret_vals
 
-    def GetErrorSensitivities(params, data):
+    def GetErrorSensitivities(self, params, data):
         """Solve the model for a given set of parameters
 
         Returns the state variables and the sensitivities of the error measure
@@ -253,9 +277,9 @@ class GetSensitivityEquations(object):
 
         """
         solution = self.solve_drhs_full(p)
+        index_sensitivities = self.par.open_state + self.par.n_state_vars*np.array(range(self.par.n_params))
 
         # Get the open state sensitivities for each parameter
-        index_sensitivities = range(self.par.n_state_vars + self.par.open_state * self.par.n_params, self.par.n_state_vars + (self.par.open_state + 1) *self.par.n_params)
         sensitivites = solution[:, index_sensitivities]
         o = self.solve_rhs(p)[:, self.par.open_state]
         voltages = self.GetVoltage()

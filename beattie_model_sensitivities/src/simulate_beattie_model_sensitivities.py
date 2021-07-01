@@ -109,6 +109,28 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     if args.plot:
         plt.show()
 
+    for i in range(0, par.n_params):
+        for j in range(i+1, par.n_params):
+            parameters_to_view = np.array([i,j])
+            sub_cov = cov[parameters_to_view[:,None], parameters_to_view]
+            eigen_val, eigen_vec = np.linalg.eigh(sub_cov)
+            eigen_val=eigen_val.real
+            if eigen_val[0] > 0 and eigen_val[1] > 0:
+                print("COV_{},{} : well defined".format(i, j))
+                cov_ellipse(sub_cov, q=[0.75, 0.9, 0.99])
+                plt.ylabel("parameter {}".format(i))
+                plt.xlabel("parameter {}".format(j))
+                if args.plot:
+                    plt.show()
+                else:
+                    plt.savefig(os.path.join(output_dir, "covariance_for_parameters_{}_{}".format(i,j)))
+                plt.clf()
+            else:
+                print("COV_{},{} : negative eigenvalue".format(i,j))
+
+
+
+
 if __name__=="__main__":
     parser = get_parser(data_reqd=False)
     args = parser.parse_args()

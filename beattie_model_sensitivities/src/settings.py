@@ -10,7 +10,7 @@ class Params(object):
         self.tmax = 8000
         self.timestep = 1
         self.Erev = -88
-        self.GKr = 0.1524
+        self.GKr_index = -1
 
         self.conductance_index = 8
 
