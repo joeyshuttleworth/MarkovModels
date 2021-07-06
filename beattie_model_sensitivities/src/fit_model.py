@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# Found optimal parameters [2.73318378e+07 3.44828704e+06 8.02615766e+05 2.52224782e+05 9.42360426e+04 2.67322394e+04 1.53260080e+03 6.84216241e+03 4.49633961e+03]
+
 import os
 import math
 import pints
@@ -14,7 +16,7 @@ import matplotlib
 
 from  settings import Params
 from  sensitivity_equations import GetSensitivityEquations, CreateSymbols
-from  common import get_args, get_parser, cov_ellipse, extract_times, remove_indices
+from  common import *
 from  simulate_beattie_model_sensitivities import simulate_sine_wave_sensitivities
 
 class PintsWrapper(pints.ForwardModelS1):
@@ -22,12 +24,12 @@ class PintsWrapper(pints.ForwardModelS1):
     def __init__(self, settings, args, times_to_use):
         par = Params()
         self.times_to_use = times_to_use
-        self.starting_parameters = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
+        para = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
+        self.starting_parameters = np.array(para)
         # Create symbols for symbolic functions
         p, y, v = CreateSymbols(settings)
 
         # Choose starting parameters (from J Physiol paper)
-        para = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
 
         # Create symbols for symbolic functions
         p, y, v = CreateSymbols(par)
@@ -45,7 +47,12 @@ class PintsWrapper(pints.ForwardModelS1):
 
         rhs = np.array(A * y + B)
 
-        self.funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times_to_use, sine_wave=args.sine_wave)
+        protocol = None
+
+        if args.sine_wave:
+            protocol = beattie_sine_wave
+
+        self.funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times_to_use, voltage=protocol)
 
     def n_parameters(self):
         return len(self.starting_parameters)
@@ -87,8 +94,6 @@ class Boundaries(pints.Boundaries):
 
 def main(args, output_dir="", ms_to_remove_after_spike=50):
     output_dir = os.path.join(args.output, output_dir)
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
     # Constants
     if ms_to_remove_after_spike == 0:
         indices_to_remove = None
@@ -202,7 +207,9 @@ if __name__ == "__main__":
     args = parser.parse_args ()
     data  = pd.read_csv(args.data_file_path, delim_whitespace=True)
     for val in args.remove:
-        output_dir = "{}ms_removed".format(val)
+        output_dir = os.path.join("{}ms_removed".format(val))
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
         times, params = main(args, output_dir, val)
         simulate_sine_wave_sensitivities(args, times, dirname=output_dir, para=params, data=data)
     print("done")

@@ -8,7 +8,7 @@ import os
 
 from settings import Params
 from sensitivity_equations import GetSensitivityEquations, CreateSymbols
-from common import get_parser
+from common import *
 
 def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=None):
     # Capacitive spikes
@@ -43,7 +43,11 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     if times == []:
         times = np.linspace(0, par.tmax, par.tmax + 1)
 
-    funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times, sine_wave=args.sine_wave)
+    voltage=None
+    if args.sine_wave:
+        voltage = beattie_sine_wave
+
+    funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times, voltage=voltage)
 
     ret = funcs.SimulateForwardModelSensitivities(para),
     current = ret[0][0]

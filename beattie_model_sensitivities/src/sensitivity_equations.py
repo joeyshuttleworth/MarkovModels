@@ -10,21 +10,16 @@ class GetSensitivityEquations(object):
     # The functions SimulateForwardModel and SimulateForwardModelSensitivities
     # solve the system for each time-step.
 
-    def __init__(self, settings, p, y, v, A, B, para, times, sine_wave=False, voltage=None):
+    def __init__(self, settings, p, y, v, A, B, para, times, voltage=None):
         # Settings such given in the form of a Param object
         self.par = settings
         # The timesteps we want to output at
         self.times = times
-
-        # Flag determining whether to use the sine-wave protocol or not
-        self.sine_wave = sine_wave
         self.A = A
         self.B = B
         rhs = A * y + B
 
         if voltage != None:
-            if sine_wave:
-                raise
             self.voltage = voltage
 
         self.compute_sensitivity_equations_rhs(p, y, v, rhs, para)
@@ -98,8 +93,12 @@ class GetSensitivityEquations(object):
         # by finding the steady state of the model
 
         # RHS
-        # Can be found analytically
+        # First check that a steady state exists for this system at this holding voltage
+        npmatrix = np.matrix([float(el.evalf()) for el in self.A.subs(v, self.par.holding_potential).subs(p, para)]).reshape(self.A.rows, self.A.cols)
+        eigvals, eigvectors = np.linalg.eig(npmatrix)
+        assert(np.all(eigvals < 0))
 
+        # Can be found analytically
         rhs_inf = (-(self.A.inv()) * self.B).subs(v, self.par.holding_potential)
         rhs_inf_eval = np.array([float(row) for row in rhs_inf.subs(p, para)])
 
@@ -186,37 +185,12 @@ class GetSensitivityEquations(object):
         https://github.com/mirams/sine-wave. This code is translated from the
         function, static int f in
         https://github.com/mirams/sine-wave/blob/master/Code/MexAslanidi.c.
-
-
-        if self.sine_wave is true, use Kylie Beattie's sine wave protocol.
-        Otherwise use a simple step protocol
-
         """
-
-        if self.sine_wave:
-            # This shift is needed for simulated protocol to match the protocol recorded in experiment, which is shifted by 0.1ms compared to the original input protocol. Consequently, each step is held for 0.1ms longer in this version of the protocol as compared to the input.
-            shift = 0.1
-            C = [54.0, 26.0, 10.0, 0.007/(2*np.pi), 0.037/(2*np.pi), 0.19/(2*np.pi)]
-
-            if t >= 250+shift and t < 300+shift:
-                V = -120
-            elif t >= 500+shift and t < 1500+shift:
-                V = 40
-            elif t >= 1500+shift and t < 2000+shift:
-                V = -120
-            elif t >= 3000+shift and t < 6500+shift:
-                V = -30 + C[0] * (np.sin(2*np.pi*C[3]*(t-2500-shift))) + C[1] * \
-                (np.sin(2*np.pi*C[4]*(t-2500-shift))) + C[2] * (np.sin(2*np.pi*C[5]*(t-2500-shift)))
-            elif t >= 6500+shift and t < 7000+shift:
-                V = -120
-            else:
-                V = -80
+        # Default to a simple protocol
+        if t >= 1000 and t < 5000:
+            V = 20
         else:
-            # Default to a simple protocol
-            if t >= 1000 and t < 5000:
-                V = 20
-            else:
-                V = -80
+            V = -80
         # Convert to volts
         return V
 
@@ -259,13 +233,11 @@ class GetSensitivityEquations(object):
         o = solution[:, self.par.open_state]
         voltages = self.GetVoltage()
         current = p[-1] * o * (voltages - self.par.Erev)
-        print(self.par.Erev)
         # values = np.stack(np.array([p[8] * (voltages - self.par.Erev) * sensitivity for sensitivity in sensitivities.T[:-1]]), axis=0)
         dIdo = (voltages - self.par.Erev)*p[-1]
         values = sensitivities * dIdo[:,None]
         values[:,-1] += o*(voltages - self.par.Erev)
 
-        print(values[:,2])
         ret_vals = (current, values)
         return ret_vals
 

@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import scipy
 import scipy.stats
 import numpy as np
+import pandas as pd
 import math
 import os
 
@@ -161,3 +162,46 @@ def remove_indices(lst, indices_to_remove):
 
     lst = first_lst + [index for lst in lsts for index in lst]
     return lst
+
+def detect_spikes(x, y):
+    dx = np.diff(x)
+    dy = np.diff(y)
+
+    deriv = dy/dx
+    spike_indices = np.argwhere(np.abs(deriv)>10000)[:,0]
+
+    return x[spike_indices]
+
+def beattie_sine_wave(t):
+        # This shift is needed for simulated protocol to match the protocol recorded in experiment, which is shifted by 0.1ms compared to the original input protocol. Consequently, each step is held for 0.1ms longer in this version of the protocol as compared to the input.
+        shift = 0.1
+        C = [54.0, 26.0, 10.0, 0.007/(2*np.pi), 0.037/(2*np.pi), 0.19/(2*np.pi)]
+
+        if t >= 250+shift and t < 300+shift:
+            V = -120
+        elif t >= 500+shift and t < 1500+shift:
+            V = 40
+        elif t >= 1500+shift and t < 2000+shift:
+            V = -120
+        elif t >= 3000+shift and t < 6500+shift:
+            V = -30 + C[0] * (np.sin(2*np.pi*C[3]*(t-2500-shift))) + C[1] * \
+            (np.sin(2*np.pi*C[4]*(t-2500-shift))) + C[2] * (np.sin(2*np.pi*C[5]*(t-2500-shift)))
+        elif t >= 6500+shift and t < 7000+shift:
+            V = -120
+        else:
+            V = -80
+        return V
+
+def get_staircase_protocol(par):
+    protocol = pd.read_csv(os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "protocols", "protocol-staircaseramp.csv"))
+
+    times = 1000*protocol["time"].values
+    voltages = protocol["voltage"].values
+
+    spikes = 1000*detect_spikes(protocol["time"], protocol["voltage"])
+
+    staircase_protocol = scipy.interpolate.interp1d(times, voltages, kind="linear")
+    staircase_protocol_safe = lambda t : staircase_protocol(t) if t < times[-1] else par.holding_potential
+    return staircase_protocol_safe
+
+

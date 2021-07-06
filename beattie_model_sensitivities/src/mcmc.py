@@ -15,11 +15,11 @@ import argparse
 
 from settings import Params
 from sensitivity_equations import GetSensitivityEquations, CreateSymbols
-from common import get_parser
+from common import *
 
 class PintsWrapper(pints.LogPDF):
 
-    def __init__(self, data, settings, args, times_to_use):
+    def __init__(self, data, settings, args, times_to_use, protocol=None):
         par = Params()
         self.data = data
         self.times_to_use = times_to_use
@@ -29,9 +29,6 @@ class PintsWrapper(pints.LogPDF):
 
         # Choose starting parameters (from J Physiol paper)
         para = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
-
-        # Create symbols for symbolic functions
-        p, y, v = CreateSymbols(par)
 
         # Define system equations and initial conditions
         k1 = p[0] * se.exp(p[1] * v)
@@ -46,7 +43,12 @@ class PintsWrapper(pints.LogPDF):
 
         rhs = np.array(A * y + B)
 
-        self.funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times_to_use, sine_wave=args.sine_wave)
+        if protocol == "sine_wave":
+            voltage = beattie_sine_wave
+        elif protocol == "staircase":
+            voltage = get_staircase_protocol()
+
+        self.funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times_to_use, voltage=voltage)
 
     def __call__(self, p):
         pred = self.funcs.SimulateForwardModel(p)
@@ -85,6 +87,7 @@ def main():
     parser = get_parser(data_reqd=True)
     parser.add_argument("-n", "--no_chains", default=5, help="number of chains to use")
     parser.add_argument("-l", "--chain_length", default=1000, help="length of chain to use")
+    parser.add_argument("-p", "--protocol", default=None, help="length of chain to use")
     args = parser.parse_args()
 
     data = pd.read_csv(args.data_file_path, delim_whitespace=True)
