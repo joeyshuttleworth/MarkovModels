@@ -3,6 +3,7 @@
 import os
 import math
 import pints
+import pints.plot
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -19,7 +20,7 @@ from common import *
 
 class PintsWrapper(pints.LogPDF):
 
-    def __init__(self, data, settings, args, times_to_use, protocol=None):
+    def __init__(self, data, settings, args, times_to_use):
         par = Params()
         self.data = data
         self.times_to_use = times_to_use
@@ -43,22 +44,27 @@ class PintsWrapper(pints.LogPDF):
 
         rhs = np.array(A * y + B)
 
+        voltage = None
+        protocol = args.protocol
         if protocol == "sine_wave":
             voltage = beattie_sine_wave
         elif protocol == "staircase":
             voltage = get_staircase_protocol()
+        else:
+            assert(False)
 
         self.funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times_to_use, voltage=voltage)
 
     def __call__(self, p):
-        pred = self.funcs.SimulateForwardModel(p)
+        # Fix all parameters except p_5 and p_7
+        p_vec = self.starting_parameters
+        p_vec[4] = p[0]
+        p_vec[6] = p[1]
+        pred = self.funcs.SimulateForwardModel(p_vec)
         return sum(np.log((pred - self.data)**2))
 
     def n_parameters(self):
-        return len(self.starting_parameters)
-
-    def evaluateS1(self, parameters):
-        return self(parameters), self.funcs.GetErrorSensitivities(parameters, self.data)
+        return 2
 
 def extract_times(lst, time_ranges, step):
     """
@@ -77,7 +83,7 @@ def main():
     #constants
     indices_to_use = [[1,2499], [2549,2999], [3049,4999], [5049,14999], [15049,19999], [20049,29999], [30049,64999], [65049,69999], [70049,-1]]
 
-    self.starting_parameters = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
+    starting_parameters = np.array([2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524])
 
     plt.rcParams['axes.axisbelow'] = True
 
@@ -85,10 +91,18 @@ def main():
     parser = argparse.ArgumentParser(
         description='Plot sensitivities of the Beattie model')
     parser = get_parser(data_reqd=True)
-    parser.add_argument("-n", "--no_chains", default=5, help="number of chains to use")
-    parser.add_argument("-l", "--chain_length", default=1000, help="length of chain to use")
-    parser.add_argument("-p", "--protocol", default=None, help="length of chain to use")
+    parser.add_argument("-n", "--no_chains",type=int, default=3, help="number of chains to use")
+    parser.add_argument("-l", "--chain_length", type=int, default=1000, help="length of chain to use")
+    parser.add_argument("-v", "--protocol", default=None, help="name of the protocol to use")
+    parser.add_argument("-b", "--burn_in", type=int, default=None, help="amount of burn in to use")
+
     args = parser.parse_args()
+
+    output_dir = os.path.join(args.output, "{}_mcmc".format(args.protocol))
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
 
     data = pd.read_csv(args.data_file_path, delim_whitespace=True)
     times = data["time"]
@@ -110,13 +124,24 @@ def main():
 
     dat = extract_times(data, indices_to_use, skip)
 
-    model = PintsWrapper(data, par, args, times)
-
-    mcmc = pints.MCMCController(model, args.no_chains, args.no_chains*[starting_parameters], method=pints.HaarioBardenetACMC)
+    ll = PintsWrapper(data, par, args, times)
+    prior = pints.UniformLogPrior([0,0], [1,1])
+    posterior = pints.LogPosterior(ll, prior)
+    mcmc = pints.MCMCController(posterior, args.no_chains, np.tile(starting_parameters[[4,6]], [args.no_chains,1]), method=pints.HaarioBardenetACMC)
     mcmc.set_max_iterations(args.chain_length)
 
     chains = mcmc.run()
-    print(chains)
+    if args.burn_in is not None:
+        chains = chains[:, args.burn_in:, :]
+    for i, chain in enumerate(chains):
+        np.savetxt(os.path.join(output_dir, "chain_{}.csv".format(i)), chain, delimiter=",")
+
+    # Plot histograms
+    pints.plot.histogram(chains, parameter_names=["p5","p7"], kde=True)
+    if args.plot:
+        plt.show()
+    else:
+        plt.savefig(os.path.join(output_dir, "histogram.pdf"))
 
 if __name__ == "__main__":
     main()
