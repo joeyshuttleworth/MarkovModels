@@ -287,7 +287,8 @@ def fit_model(funcs, times, values, starting_parameters, par, max_iterations=Non
     error = pints.SumOfSquaresError(problem)
     boundaries  = Boundaries()
     controller=pints.OptimisationController(error, starting_parameters, boundaries=boundaries)
-    if max_iterations is None:
+    if max_iterations is not None:
+        print("Setting max iterations = {}".format(max_iterations))
         controller.set_max_iterations(max_iterations)
     found_parameters, found_value = controller.run()
     return found_parameters, found_value

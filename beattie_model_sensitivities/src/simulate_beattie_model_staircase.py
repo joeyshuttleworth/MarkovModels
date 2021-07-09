@@ -52,7 +52,7 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     axes.set_title('Log Likelihood Surface')
     axes.axis([l_a, r_a, l_b, r_b])
 
-    mle = fit_model(funcs, funcs.times, data, paras, Params(), max_its=500)[params_to_change]
+    mle = fit_model(funcs, funcs.times, data, paras, Params(), max_iterations=20)[params_to_change]
 
     plt.plot(mle[0], mle[1], "x", label="Maximum likelihood estimator", color="red")
 
@@ -185,7 +185,7 @@ def main():
     print(H)
     eigvals = np.linalg.eigvals(H)
     #Sigma2 - the observed variance. 1885 is the value taken from a fit
-    sigma2 = 1885/(len(funcs.times) - 1)
+    sigma2 = 50/(len(funcs.times) - 1)
     print(sigma2)
     print('Eigenvalues of H:\n{}'.format(eigvals.real))
 
