@@ -14,6 +14,10 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     # Capacitive spikes
     spikes = [250, 300, 500, 1500, 2000, 3000, 6500, 7000]
 
+    print(args.sine_wave)
+    if not args.sine_wave:
+        spikes = []
+
     # Check input arguments
     par = Params()
 
@@ -21,9 +25,12 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     if not os.path.exists(dirname):
         os.makedirs(dirname)
 
-    # Choose starting parameters (from J Physiol paper)
+    # Choose parameters (from J Physiol paper)
     if para == []:
         para = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
+
+    # Sigma copied from output of fit_model
+    sigma2 = 0.00025
 
     # Create symbols for symbolic functions
     p, y, v = CreateSymbols(par)
@@ -66,11 +73,11 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     ax1.grid(True)
     ax1.set_xticklabels([])
     ax1.set_ylabel('Voltage (mV)')
+    [ax1.axvline(spike, linestyle="--", color="red", alpha=0.25) for spike in spikes]
     ax2 = fig.add_subplot(412)
     ax2.plot(funcs.times, funcs.SimulateForwardModel(para), label="model fit")
     if data is not None:
         ax2.plot(data["time"], data["current"], label="data")
-    [ax2.axvline(spike, color="red") for spike in spikes]
     ax2.legend()
     ax2.grid(True)
     ax2.set_xticklabels([])
@@ -112,29 +119,9 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     if args.plot:
         plt.show()
 
-    for i in range(0, par.n_params):
-        for j in range(i+1, par.n_params):
-            parameters_to_view = np.array([i,j])
-            sub_cov = cov[parameters_to_view[:,None], parameters_to_view]
-            eigen_val, eigen_vec = np.linalg.eigh(sub_cov)
-            eigen_val=eigen_val.real
-            if eigen_val[0] > 0 and eigen_val[1] > 0:
-                print("COV_{},{} : well defined".format(i, j))
-                cov_ellipse(sub_cov, q=[0.75, 0.9, 0.99])
-                plt.ylabel("parameter {}".format(i))
-                plt.xlabel("parameter {}".format(j))
-                if args.plot:
-                    plt.show()
-                else:
-                    plt.savefig(os.path.join(output_dir, "covariance_for_parameters_{}_{}".format(i,j)))
-                plt.clf()
-            else:
-                print("COV_{},{} : negative eigenvalue".format(i,j))
-
-
-
+    draw_cov_ellipses(para, par, S1n=S1n, sigma2=sigma2, plot_dir=dirname)
 
 if __name__=="__main__":
     parser = get_parser(data_reqd=False)
     args = parser.parse_args()
-    simulate_sine_wave_sensitivities(args)
+    simulate_sine_wave_sensitivities(args, dirname="sine_wave")

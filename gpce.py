@@ -1,3 +1,5 @@
+#!/usr/bin/env python3 
+
 import pints
 import os
 import matplotlib.pyplot as plt
@@ -30,7 +32,7 @@ def simulate(parameters, ts, first_V, second_V):
 
     return I
 
-def do_gpce(forward_problem, starting_parameters, first_V, second_V, distribution, quad_order=20, poly_order=30, plot=True):
+def do_gpce(forward_problem, starting_parameters, first_V, second_V, distribution, quad_order=20, poly_order=30, plot=True, param_index=None):
 
     # Do the pseudo spectral projection
     abscissas, weights = chaospy.generate_quadrature(quad_order, distribution, rule="gaussian")
@@ -47,7 +49,8 @@ def do_gpce(forward_problem, starting_parameters, first_V, second_V, distributio
     if plot:
         xs = np.linspace(distribution.mom(1)-math.sqrt(distribution.mom(2))*5,distribution.mom(1) + math.sqrt(distribution.mom(2))*5, 50)
         fig, ax = plt.subplots()
-        ax.set_xlabel("p8")
+        if param_index is not None:
+            ax.set_xlabel("p_{}".format(param_index))
         ax.axvline(distribution.mom(1), linestyle="--", label="mean parameter value")
         ax.plot(xs, [foo_approx(x)[0].sum() for x in xs], label="gpce approximation" ,color="blue")
         ax.plot(xs, [forward_problem(x)[0] for x in xs], label="true value", color="red")
@@ -91,10 +94,10 @@ if __name__ == "__main__":
 
     distribution = chaospy.Normal(starting_parameters[index_of_parameter], starting_parameters[index_of_parameter])
     forward_problem = get_forward_problem(starting_parameters, index_of_parameter, coordinates, first_V, second_V)
-    mean, std = do_gpce(forward_problem, starting_parameters, first_V, second_V, distribution, quad_order=50, poly_order=10, plot=True)
+    mean, std = do_gpce(forward_problem, starting_parameters, first_V, second_V, distribution, quad_order=50, poly_order=10, plot=True, param_index = index_of_parameter)
 
     forward_problem = get_forward_problem(starting_parameters, index_of_parameter, coordinates, second_V, first_V)
-    mean, std = do_gpce(forward_problem, starting_parameters, second_V, first_V, distribution, quad_order=50, poly_order=10, plot=True)
+    mean, std = do_gpce(forward_problem, starting_parameters, second_V, first_V, distribution, quad_order=50, poly_order=10, plot=True, param_index = index_of_parameter)
 
 
     # # Compute the 'true' mean and std using many monte carlo samples

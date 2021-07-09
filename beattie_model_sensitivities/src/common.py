@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import math
 import os
+import pints
 
 def get_args(data_reqd=False):
     # Check input arguments
@@ -204,4 +205,90 @@ def get_staircase_protocol(par):
     staircase_protocol_safe = lambda t : staircase_protocol(t) if t < times[-1] else par.holding_potential
     return staircase_protocol_safe
 
+
+
+def draw_cov_ellipses(para, settings, S1n=None, sigma2=None, cov=None, plot_dir=None):
+    if S1n is None and cov is None:
+        raise
+    elif S1n is not None and cov is not None:
+        raise
+
+    for j in range(0, settings.n_params):
+        for i in range(j+1, settings.n_params):
+            parameters_to_view = np.array([i,j])
+            if S1n is not None:
+                if sigma2 is None:
+                    raise
+                sub_sens = S1n[:,[i,j]]
+                sub_cov = sigma2*np.linalg.inv(np.dot(sub_sens.T, sub_sens))
+            # Else use cov
+            else:
+                sub_cov = cov[parameters_to_view[:,None], parameters_to_view]
+            eigen_val, eigen_vec = np.linalg.eigh(sub_cov)
+            eigen_val=eigen_val.real
+            if eigen_val[0] > 0 and eigen_val[1] > 0:
+                cov_ellipse(sub_cov, q=[0.5, 0.95], offset=[1,1]) # Parameters have been normalised to 1
+                plt.ylabel("parameter {}".format(i+1))
+                plt.xlabel("parameter {}".format(j+1))
+                plt.legend()
+                if plot_dir is None:
+                    plt.show()
+                else:
+                    plt.savefig(os.path.join(plot_dir, "covariance_for_parameters_{}_{}".format(j+1,i+1)))
+                plt.clf()
+            else:
+                print("COV_{},{} : negative eigenvalue: {}".format(i,j, eigen_val))
+
+def fit_model(funcs, times, values, starting_parameters, par, max_iterations=None):
+    class Boundaries(pints.Boundaries):
+        def check(self, parameters):
+            '''Check that each rate constant lies in the range 1.67E-5 < A*exp(B*V) < 1E3
+            '''
+
+            for i in range(0, 4):
+                alpha = parameters[2*i]
+                beta  = parameters[2*i + 1]
+
+                vals = [0,0]
+                vals[0] = alpha * np.exp(beta * -90 * 1E-3)
+                vals[1] = alpha * np.exp(beta *  50 * 1E-3)
+
+                for val in vals:
+                    if val < 1E-7 or val > 1E3:
+                        return False
+            # Check maximal conductance
+            if parameters[8] > 0 and parameters[8] < 2:
+                return True
+            else:
+                return False
+
+        def n_parameters(self):
+            return 9
+
+    class PintsWrapper(pints.ForwardModelS1):
+
+        def __init__(self, settings, funcs):
+            self.funcs = funcs
+            self.settings = settings
+
+        def n_parameters(self):
+            return self.settings.n_params
+
+        def simulate(self, parameters, times):
+            ret = self.funcs.SimulateForwardModel(parameters)
+            # print(ret.shape)
+            return ret
+
+        def simulateS1(self, parameters, times):
+            return self.funcs.SimulateForwardModelSensitivites(parameters, data), self.times_to_use, 1
+
+    model = PintsWrapper(par, funcs)
+    problem = pints.SingleOutputProblem(model, times, values)
+    error = pints.SumOfSquaresError(problem)
+    boundaries  = Boundaries()
+    controller=pints.OptimisationController(error, starting_parameters, boundaries=boundaries)
+    if max_iterations is None:
+        controller.set_max_iterations(max_iterations)
+    found_parameters, found_value = controller.run()
+    return found_parameters, found_value
 

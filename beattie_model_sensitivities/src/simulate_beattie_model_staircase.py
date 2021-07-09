@@ -12,9 +12,9 @@ import os
 
 from settings import Params
 from sensitivity_equations import GetSensitivityEquations, CreateSymbols
-from common import calculate_reversal_potential, get_parser, detect_spikes, cov_ellipse, get_staircase_protocol
+from common import *
 
-def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data):
+def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output_dir=None):
     """
     Draw a heatmap of the log-likelihood surface when two parameters are changed
     The likeihood is assumed to be based of i.i.d Gaussian error
@@ -23,12 +23,16 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data):
     n = len(funcs.times)
     if data is None:
         data = np.linspace(0, 0, n)
-    ll = lambda p: -sum((funcs.SimulateForwardModel(p) - data)**2)/2
+    labels = ["p{}".format(p+1) for p in params_to_change]
 
     def llxy(x,y):
         p = paras
         p[params_to_change[0]] = x
         p[params_to_change[1]] = y
+
+        y = funcs.SimulateForwardModel(p)
+        sample_var = (y - data).var()
+        ll = lambda p: -n*0.5*np.log(2*np.pi) - n*0.5*np.log(sample_var**2) -1/(2*sample_var**2)*sum(y - data)**2
         return ll(p)
 
     xs = np.linspace(ranges[0][0], ranges[0][1], 25)
@@ -44,16 +48,28 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data):
 
     figure, axes = plt.subplots()
 
-    c = axes.pcolormesh(xs, ys, zs, cmap='copper', vmin=l_z, vmax=r_z, label="Unnormalised log likelihood")
+    c = axes.pcolormesh(xs, ys, zs, vmin=l_z, vmax=r_z, label="Unnormalised log likelihood")
     axes.set_title('Log Likelihood Surface')
     axes.axis([l_a, r_a, l_b, r_b])
-    figure.colorbar(c)
+
+    mle = fit_model(funcs, funcs.times, data, paras, Params(), max_its=500)[params_to_change]
+
+    plt.plot(mle[0], mle[1], "x", label="Maximum likelihood estimator", color="red")
+
+    # Not normalised so the legend doesn't really mean anything
+    # figure.colorbar(c)
+
+    plt.xlabel(labels[0])
+    plt.ylabel(labels[1])
 
     print(true_vals)
     plt.plot(true_vals[0], true_vals[1], marker="x", label="true value of parameters")
     plt.legend()
 
-    plt.show()
+    if output_dir is None:
+        plt.show()
+    else:
+        plt.savefig(os.path.join(output_dir, "heatmap_{}_{}".format(*(np.array(params_to_change)+1))))
     return
 
 def generate_synthetic_data(funcs, para, sigma2):
@@ -66,6 +82,7 @@ def generate_synthetic_data(funcs, para, sigma2):
 def main():
     # Check input arguments
     parser = get_parser()
+    parser.add_argument("-m", "--heatmap", action='store_true')
     args = parser.parse_args()
 
     par = Params()
@@ -169,6 +186,7 @@ def main():
     eigvals = np.linalg.eigvals(H)
     #Sigma2 - the observed variance. 1885 is the value taken from a fit
     sigma2 = 1885/(len(funcs.times) - 1)
+    print(sigma2)
     print('Eigenvalues of H:\n{}'.format(eigvals.real))
 
     # Plot the eigenvalues of H, shows the condition of H
@@ -202,39 +220,9 @@ def main():
 
     # Draw log-likelihood surface using synthetic data
     synthetic_data = generate_synthetic_data(funcs, para, sigma2)
-    # draw_likelihood_surface(funcs, para, [4,6], [[0.25,0.75],[0,0.1]], synthetic_data)
 
-def draw_cov_ellipses(para, par, S1n=None, sigma2=None, cov=None, plot_dir=None):
-    if S1n is None and cov is None:
-        raise
-    elif S1n is not None and cov is not None:
-        raise
-
-    for j in range(0, par.n_params):
-        for i in range(j+1, par.n_params):
-            parameters_to_view = np.array([i,j])
-            if S1n is not None:
-                if sigma2 is None:
-                    raise
-                sub_sens = S1n[:,[i,j]]
-                sub_cov = np.linalg.inv(np.dot(sub_sens.T, sub_sens)*sigma2)
-            # Else use cov
-            else:
-                sub_cov = cov[parameters_to_view[:,None], parameters_to_view]
-            eigen_val, eigen_vec = np.linalg.eigh(sub_cov)
-            eigen_val=eigen_val.real
-            if eigen_val[0] > 0 and eigen_val[1] > 0:
-                cov_ellipse(sub_cov, q=[0.75, 0.9, 0.99], offset=[1,1]) # Parameters have been normalised to 1
-                plt.ylabel("parameter {}".format(i+1))
-                plt.xlabel("parameter {}".format(j+1))
-                if plot_dir is None:
-                    plt.show()
-                else:
-                    plt.savefig(os.path.join(plot_dir, "covariance_for_parameters_{}_{}".format(j+1,i+1)))
-            else:
-                print("COV_{},{} : negative eigenvalue: {}".format(i,j, eigen_val))
-
-
+    if args.heatmap:
+        draw_likelihood_surface(funcs, para, [4,6], [[0.25,0.75],[0,0.1]], synthetic_data, output_dir=plot_dir)
 
 if __name__=="__main__":
     main()
