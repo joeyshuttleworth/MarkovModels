@@ -245,7 +245,7 @@ def draw_cov_ellipses(para, settings, S1n=None, sigma2=None, cov=None, plot_dir=
             else:
                 print("COV_{},{} : negative eigenvalue: {}".format(i,j, eigen_val))
 
-def fit_model(funcs, times, data, starting_parameters, par, fix_parameters=None, max_iterations=None, method=pints.CMAES):
+def fit_model(funcs, data, starting_parameters, par, fix_parameters=None, max_iterations=None, method=pints.CMAES):
     class Boundaries(pints.Boundaries):
         def __init__(self, parameters, fix_parameters = None):
             self.fix_parameters = fix_parameters
@@ -325,7 +325,7 @@ def fit_model(funcs, times, data, starting_parameters, par, fix_parameters=None,
                 return self.funcs.SimulateForwardModelSensitivities(sim_params)
 
     model = PintsWrapper(par, funcs, starting_parameters, fix_parameters=fix_parameters)
-    problem = pints.SingleOutputProblem(model, times, data)
+    problem = pints.SingleOutputProblem(model, funcs.times, data)
     error = pints.SumOfSquaresError(problem)
     boundaries  = Boundaries(starting_parameters, fix_parameters)
 
@@ -338,5 +338,6 @@ def fit_model(funcs, times, data, starting_parameters, par, fix_parameters=None,
     if max_iterations is not None:
         print("Setting max iterations = {}".format(max_iterations))
         controller.set_max_iterations(max_iterations)
+
     found_parameters, found_value = controller.run()
     return found_parameters, found_value

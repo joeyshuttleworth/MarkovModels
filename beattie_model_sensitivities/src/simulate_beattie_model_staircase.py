@@ -39,9 +39,10 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
         p[params_to_change[1]] = y
 
         y = funcs.SimulateForwardModel(p)
-        sample_var = (y - data).var()
+        # sample_var = (y - data).var()
+        sample_var = sigma2
         ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(sample_var) -1/(2*sample_var)*sum(y - data)**2
-        return ll
+        return max(ll, -10000)
 
     # log likelihood of true parameters values
     print("log likelihood of true values {}".format(llxy(*paras[params_to_change])))
@@ -49,34 +50,17 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     xs = np.linspace(ranges[0][0], ranges[0][1], 25)
     ys = np.linspace(ranges[1][0], ranges[1][1], 25)
 
-    zs = np.array([[llxy(x,y) for x in xs] for y in ys])
-
-    l_a=xs.min()
-    r_a=xs.max()
-    l_b=ys.min()
-    r_b=ys.max()
-    l_z,r_z  = zs.min(), zs.max()
-
-    figure, axes = plt.subplots()
-
-    c = axes.pcolormesh(xs, ys, zs, vmin=l_z, vmax=r_z, label="Unnormalised log likelihood")
-    axes.set_title('Log Likelihood Surface')
-    axes.axis([l_a, r_a, l_b, r_b])
-
     fix_params = [i for i in range(len(paras)) if i not in params_to_change]
     print(fix_params)
 
-    # mle = fit_model(funcs, funcs.times, data, paras, Params(), fix_parameters=fix_params, method=pints.NelderMead)[0]
-    res = scipy.optimize.minimize(lambda p : llxy(*p), true_vals)
-    mle = res.x
+    mle = fit_model(funcs, data, paras, Params(), fix_parameters=fix_params)[0]
+    # res = scipy.optimize.minimize(lambda p : -llxy(*p), true_vals)
+    # mle = res.x
 
     print("mle is {}".format(mle))
 
     # log likelihood of true parameters values
-    print("log likelihood of true values {}".format(llxy(*mle)))
-
-    xs = np.linspace(ranges[0][0], ranges[0][1], 10)
-    ys = np.linspace(ranges[1][0], ranges[1][1], 10)
+    print("log likelihood of mle values {}".format(llxy(*mle)))
 
     zs = np.array([[llxy(x,y) for x in xs] for y in ys])
 
@@ -88,12 +72,9 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
 
     figure, axes = plt.subplots()
 
-    c = axes.pcolormesh(xs, ys, zs, vmin=l_z, vmax=r_z, label="Unnormalised log likelihood")
+    c = axes.pcolormesh(xs, ys, zs, vmin=l_z, vmax=r_z, label="Unnormalised log likelihood", shading="auto")
     axes.set_title('Log Likelihood Surface')
     axes.axis([l_a, r_a, l_b, r_b])
-
-    fix_params = [i for i in range(len(paras)) if i not in params_to_change]
-    print(fix_params)
 
     plt.plot(mle[0], mle[1], "x", label="Maximum likelihood estimator", color="red")
 
@@ -104,51 +85,23 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
 
     # Draw confidence region
     confidence_levels = [0.5, 0.95]
-    mle_paras = paras
+    mle_paras = np.copy(paras)
 
     for i,j in enumerate(params_to_change):
         mle_paras[j] = mle[i]
 
     pred, S1n = funcs.SimulateForwardModelSensitivities(mle_paras)
     # S1n = S1n * mle_paras[None,:]
-    sample_var = (pred - data).var()
+    sample_var = sigma2
 
     # Discard rows that are fixed
     S1n = S1n[:,params_to_change]
-    H   = S1n.T @ S1n
+    H   = np.dot(S1n.T, S1n)
+    print(H)
 
     cov = sample_var*np.linalg.inv(H)
     cov_ellipse(cov, q=confidence_levels, offset=mle, new_figure=False) # Parameters have been normalised to 1
 
-    eigvals, eigvecs = np.linalg.eigh(H)
-    max(eigvals)
-
-    if np.abs(eigvals[0]) > np.abs(eigvals[1]):
-        eigvec = eigvecs[0]
-    else:
-        eigvec = eigvecs[1]
-
-    # normalise vector
-    eigvec = eigvec / math.sqrt((eigvec**2).sum())
-
-    start_point = [0,0]
-    end_point = eigvec * 20
-
-    class likelihood(pints.LogPDF):
-        def __call__(self, p):
-            llxy(*p)
-        def n_parameters(self):
-            return 2
-
-    pints.plot.function_between_points(likelihood, start_point, end_point, evaluations=500)
-
-    if output_dir is not None:
-        plt.savefig(os.path.join(output_dir, "likelihood_1d_plot.pdf"))
-        plt.clf()
-    else:
-        plt.show()
-
-    # Plot the true values
     plt.plot(true_vals[0], true_vals[1], "x", label="true value of parameters", color="black")
     plt.legend()
 
@@ -160,7 +113,7 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
 
     plt.plot(funcs.times, data, "x", label="synthetic data")
     plt.plot(funcs.times, funcs.SimulateForwardModel(paras), label="True model response")
-    # plt.plot(funcs.times, funcs.SimulateForwardModel(mle_paras), label="Fitted model response")
+    plt.plot(funcs.times, funcs.SimulateForwardModel(mle_paras), label="Fitted model response")
     plt.legend()
 
     if output_dir is None:
@@ -168,7 +121,38 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     else:
         plt.savefig(os.path.join(output_dir, "synthetic_data_generation.pdf"))
 
+    eigvals, eigvecs = np.linalg.eigh(H)
+    max(eigvals)
 
+    if np.abs(eigvals[0]) < np.abs(eigvals[1]):
+        eigvec = eigvecs[0]
+    else:
+        eigvec = eigvecs[1]
+    # Plot the true values
+
+    if eigvec[0] < 0 and eigvec[1] < 0:
+        eigvec = -eigvec
+    elif eigvec [0] < 0 or eigvec[1] < 0:
+        assert(False)
+
+    scale_factor = (20 - mle[0])/eigvec[0]
+    start_point = mle
+    end_point = mle + eigvec*scale_factor
+    print("start and end points for plot: {}, {}".format(start_point, end_point))
+
+    class likelihood(pints.LogPDF):
+        def __call__(self, p):
+            return max(llxy(*p), -100)
+        def n_parameters(self):
+            return 2
+
+    pints.plot.function_between_points(likelihood(), start_point, end_point, evaluations=500, padding=0.01)
+
+    if output_dir is not None:
+        plt.savefig(os.path.join(output_dir, "likelihood_1d_plot.pdf"))
+        plt.clf()
+    else:
+        plt.show()
 
     return
 
@@ -322,7 +306,7 @@ def main():
     synthetic_data = generate_synthetic_data(funcs, para, sigma2)
 
     if args.heatmap:
-        draw_likelihood_surface(funcs, para, [4,6], [[0, 20],[0, 2]], synthetic_data, output_dir=plot_dir)
+        draw_likelihood_surface(funcs, para, [4,6], [[0, 0.2],[0, 0.02]], synthetic_data, output_dir=plot_dir)
 
 if __name__=="__main__":
     # Seed numpy
