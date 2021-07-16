@@ -19,7 +19,7 @@ from sensitivity_equations import GetSensitivityEquations, CreateSymbols
 from common import *
 
 class PintsWrapper(pints.LogPDF):
-
+    # A class used by pints to compute the log likelihood of the model
     def __init__(self, data, settings, args, times_to_use):
         par = Params()
         self.data = data
@@ -61,7 +61,15 @@ class PintsWrapper(pints.LogPDF):
         p_vec[4] = p[0]
         p_vec[6] = p[1]
         pred = self.funcs.SimulateForwardModel(p_vec)
-        return sum(np.log((pred - self.data)**2))
+
+        # compute sample variance
+        errors = pred - self.data
+        s_var = errors.var()
+
+        # Compute the log likelihood (assuming i.i.d Gaussian noise)
+        n = pred.shape[0]
+        ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(s_var) -1/(2*s_var)*sum(errors)**2
+        return ll
 
     def n_parameters(self):
         return 2

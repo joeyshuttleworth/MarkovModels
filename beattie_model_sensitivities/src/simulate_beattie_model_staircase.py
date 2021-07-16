@@ -10,9 +10,17 @@ import matplotlib.pyplot as plt
 import argparse
 import os
 
+import pints
+import pints.plot
+
+import scipy.optimize
+
 from settings import Params
 from sensitivity_equations import GetSensitivityEquations, CreateSymbols
 from common import *
+
+# Set noise level
+sigma2 = 0.1
 
 def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output_dir=None):
     """
@@ -26,14 +34,17 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     labels = ["p{}".format(p+1) for p in params_to_change]
 
     def llxy(x,y):
-        p = paras
+        p = np.copy(paras)
         p[params_to_change[0]] = x
         p[params_to_change[1]] = y
 
         y = funcs.SimulateForwardModel(p)
         sample_var = (y - data).var()
-        ll = lambda p: -n*0.5*np.log(2*np.pi) - n*0.5*np.log(sample_var**2) -1/(2*sample_var**2)*sum(y - data)**2
-        return ll(p)
+        ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(sample_var) -1/(2*sample_var)*sum(y - data)**2
+        return ll
+
+    # log likelihood of true parameters values
+    print("log likelihood of true values {}".format(llxy(*paras[params_to_change])))
 
     xs = np.linspace(ranges[0][0], ranges[0][1], 25)
     ys = np.linspace(ranges[1][0], ranges[1][1], 25)
@@ -52,30 +63,119 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     axes.set_title('Log Likelihood Surface')
     axes.axis([l_a, r_a, l_b, r_b])
 
-    mle = fit_model(funcs, funcs.times, data, paras, Params(), max_iterations=20)[params_to_change]
+    fix_params = [i for i in range(len(paras)) if i not in params_to_change]
+    print(fix_params)
+
+    # mle = fit_model(funcs, funcs.times, data, paras, Params(), fix_parameters=fix_params, method=pints.NelderMead)[0]
+    res = scipy.optimize.minimize(lambda p : llxy(*p), true_vals)
+    mle = res.x
+
+    print("mle is {}".format(mle))
+
+    # log likelihood of true parameters values
+    print("log likelihood of true values {}".format(llxy(*mle)))
+
+    xs = np.linspace(ranges[0][0], ranges[0][1], 10)
+    ys = np.linspace(ranges[1][0], ranges[1][1], 10)
+
+    zs = np.array([[llxy(x,y) for x in xs] for y in ys])
+
+    l_a=xs.min()
+    r_a=xs.max()
+    l_b=ys.min()
+    r_b=ys.max()
+    l_z,r_z  = zs.min(), zs.max()
+
+    figure, axes = plt.subplots()
+
+    c = axes.pcolormesh(xs, ys, zs, vmin=l_z, vmax=r_z, label="Unnormalised log likelihood")
+    axes.set_title('Log Likelihood Surface')
+    axes.axis([l_a, r_a, l_b, r_b])
+
+    fix_params = [i for i in range(len(paras)) if i not in params_to_change]
+    print(fix_params)
 
     plt.plot(mle[0], mle[1], "x", label="Maximum likelihood estimator", color="red")
 
-    # Not normalised so the legend doesn't really mean anything
-    # figure.colorbar(c)
+    figure.colorbar(c)
 
     plt.xlabel(labels[0])
     plt.ylabel(labels[1])
 
-    print(true_vals)
-    plt.plot(true_vals[0], true_vals[1], marker="x", label="true value of parameters")
+    # Draw confidence region
+    confidence_levels = [0.5, 0.95]
+    mle_paras = paras
+
+    for i,j in enumerate(params_to_change):
+        mle_paras[j] = mle[i]
+
+    pred, S1n = funcs.SimulateForwardModelSensitivities(mle_paras)
+    # S1n = S1n * mle_paras[None,:]
+    sample_var = (pred - data).var()
+
+    # Discard rows that are fixed
+    S1n = S1n[:,params_to_change]
+    H   = S1n.T @ S1n
+
+    cov = sample_var*np.linalg.inv(H)
+    cov_ellipse(cov, q=confidence_levels, offset=mle, new_figure=False) # Parameters have been normalised to 1
+
+    eigvals, eigvecs = np.linalg.eigh(H)
+    max(eigvals)
+
+    if np.abs(eigvals[0]) > np.abs(eigvals[1]):
+        eigvec = eigvecs[0]
+    else:
+        eigvec = eigvecs[1]
+
+    # normalise vector
+    eigvec = eigvec / math.sqrt((eigvec**2).sum())
+
+    start_point = [0,0]
+    end_point = eigvec * 20
+
+    class likelihood(pints.LogPDF):
+        def __call__(self, p):
+            llxy(*p)
+        def n_parameters(self):
+            return 2
+
+    pints.plot.function_between_points(likelihood, start_point, end_point, evaluations=500)
+
+    if output_dir is not None:
+        plt.savefig(os.path.join(output_dir, "likelihood_1d_plot.pdf"))
+        plt.clf()
+    else:
+        plt.show()
+
+    # Plot the true values
+    plt.plot(true_vals[0], true_vals[1], "x", label="true value of parameters", color="black")
     plt.legend()
 
     if output_dir is None:
         plt.show()
     else:
-        plt.savefig(os.path.join(output_dir, "heatmap_{}_{}".format(*(np.array(params_to_change)+1))))
+        plt.savefig(os.path.join(output_dir, "heatmap_{}_{}.pdf".format(*(np.array(params_to_change)+1))))
+        plt.clf()
+
+    plt.plot(funcs.times, data, "x", label="synthetic data")
+    plt.plot(funcs.times, funcs.SimulateForwardModel(paras), label="True model response")
+    # plt.plot(funcs.times, funcs.SimulateForwardModel(mle_paras), label="Fitted model response")
+    plt.legend()
+
+    if output_dir is None:
+        plt.show()
+    else:
+        plt.savefig(os.path.join(output_dir, "synthetic_data_generation.pdf"))
+
+
+
     return
 
 def generate_synthetic_data(funcs, para, sigma2):
     nobs = len(funcs.times)
     y = funcs.SimulateForwardModel(para)
-    z = np.random.normal(0, sigma2, size=len(y))
+    z = np.random.normal(0, sigma2, size=nobs)
     obs = y + z
     return obs
 
@@ -93,11 +193,13 @@ def main():
         os.makedirs(plot_dir)
 
     # Choose parameters (make sure conductance is the last parameter)
-    para = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2, 4.75E-2, 2.51E-2, 3.33E-2])
+    # para = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2, 4.75E-2, 2.51E-2, 3.33E-2])
+    para = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 20, 2.58E-2, 2, 2.51E-2, 3.33E-2])
 
     # Compute resting potential for 37 degrees C
-    reversal_potential = calculate_reversal_potential(temp=37)
-    par.Erev = reversal_potential
+    # reversal_potential = calculate_reversal_potential(temp=37)
+    # par.Erev = reversal_potential
+    reversal_potential = par.Erev
     print("reversal potential is {}".format(reversal_potential))
 
     # Create symbols for symbolic functions
@@ -184,9 +286,6 @@ def main():
     H = np.dot(S1n.T, S1n)
     print(H)
     eigvals = np.linalg.eigvals(H)
-    #Sigma2 - the observed variance. 1885 is the value taken from a fit
-    sigma2 = 50/(len(funcs.times) - 1)
-    print(sigma2)
     print('Eigenvalues of H:\n{}'.format(eigvals.real))
 
     # Plot the eigenvalues of H, shows the condition of H
@@ -219,10 +318,13 @@ def main():
     draw_cov_ellipses(para, par, S1n=S1n, plot_dir=plot_dir, sigma2=sigma2)
 
     # Draw log-likelihood surface using synthetic data
+    para = np.array([2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524])
     synthetic_data = generate_synthetic_data(funcs, para, sigma2)
 
     if args.heatmap:
-        draw_likelihood_surface(funcs, para, [4,6], [[0.25,0.75],[0,0.1]], synthetic_data, output_dir=plot_dir)
+        draw_likelihood_surface(funcs, para, [4,6], [[0, 20],[0, 2]], synthetic_data, output_dir=plot_dir)
 
 if __name__=="__main__":
+    # Seed numpy
+    np.random.seed(20211507)
     main()

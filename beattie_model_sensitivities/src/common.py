@@ -58,7 +58,7 @@ def calculate_reversal_potential(temp = 20):
     return E
 
 
-def cov_ellipse(cov, offset=[0,0], q=None, nsig=None, **kwargs):
+def cov_ellipse(cov, offset=[0,0], q=None, nsig=None, new_figure=True, **kwargs):
     """
     Parameters
     ----------
@@ -89,8 +89,13 @@ def cov_ellipse(cov, offset=[0,0], q=None, nsig=None, **kwargs):
 
     qs = np.sort(q)
 
-    fig = plt.figure(0)
-    ax = fig.add_subplot(111)
+    if not new_figure:
+        fig = plt.gcf()
+        ax  = plt.gca()
+    else:
+        fig = plt.figure(0)
+        ax = fig.add_subplot(111)
+
     for q in qs:
         r2 = scipy.stats.chi2.ppf(q, 2)
 
@@ -108,8 +113,9 @@ def cov_ellipse(cov, offset=[0,0], q=None, nsig=None, **kwargs):
         window_height= np.abs(height[0]*np.sin(rotation)*1.5)
         max_dim = max(window_width, window_height)
 
-    ax.set_xlim(offset[0]-max_dim, offset[0]+max_dim)
-    ax.set_ylim(offset[1]-max_dim, offset[1]+max_dim)
+    if new_figure:
+        ax.set_xlim(offset[0]-max_dim, offset[0]+max_dim)
+        ax.set_ylim(offset[1]-max_dim, offset[1]+max_dim)
     return fig, ax
 
 # TODO Add some processing so it outputs the system in AX + B form
@@ -239,15 +245,27 @@ def draw_cov_ellipses(para, settings, S1n=None, sigma2=None, cov=None, plot_dir=
             else:
                 print("COV_{},{} : negative eigenvalue: {}".format(i,j, eigen_val))
 
-def fit_model(funcs, times, values, starting_parameters, par, max_iterations=None):
+def fit_model(funcs, times, data, starting_parameters, par, fix_parameters=None, max_iterations=None, method=pints.CMAES):
     class Boundaries(pints.Boundaries):
+        def __init__(self, parameters, fix_parameters = None):
+            self.fix_parameters = fix_parameters
+            self.parameters = parameters
+
         def check(self, parameters):
             '''Check that each rate constant lies in the range 1.67E-5 < A*exp(B*V) < 1E3
             '''
-
+            return True
+            sim_params = np.copy(self.parameters)
+            c=0
+            for i, parameter in enumerate(self.parameters):
+                if i not in self.fix_parameters:
+                    sim_params[i] = parameters[c]
+                    c+=1
+                if c==len(parameters):
+                    break
             for i in range(0, 4):
-                alpha = parameters[2*i]
-                beta  = parameters[2*i + 1]
+                alpha = sim_params[2*i]
+                beta  = sim_params[2*i + 1]
 
                 vals = [0,0]
                 vals[0] = alpha * np.exp(beta * -90 * 1E-3)
@@ -257,39 +275,68 @@ def fit_model(funcs, times, values, starting_parameters, par, max_iterations=Non
                     if val < 1E-7 or val > 1E3:
                         return False
             # Check maximal conductance
-            if parameters[8] > 0 and parameters[8] < 2:
+            if sim_params[8] > 0 and sim_params[8] < 2:
                 return True
             else:
                 return False
 
         def n_parameters(self):
-            return 9
+            return 9 - len(self.fix_parameters)
 
     class PintsWrapper(pints.ForwardModelS1):
-
-        def __init__(self, settings, funcs):
+        def __init__(self, settings, funcs, parameters, fix_parameters=None):
             self.funcs = funcs
             self.settings = settings
+            self.parameters = parameters
+            self.fix_parameters = fix_parameters
 
         def n_parameters(self):
-            return self.settings.n_params
+            if self.fix_parameters is not None:
+                return len(self.parameters) - len(self.fix_parameters)
+            else:
+                return len(self.parameters)
 
         def simulate(self, parameters, times):
-            ret = self.funcs.SimulateForwardModel(parameters)
-            # print(ret.shape)
-            return ret
+            if self.fix_parameters is None:
+                return self.funcs.SimulateForwardModel(parameters)
+            else:
+                sim_params = np.copy(self.parameters)
+                c=0
+                for i, parameter in enumerate(self.parameters):
+                    if i not in self.fix_parameters:
+                        sim_params[i] = parameters[c]
+                        c+=1
+                    if c==len(parameters):
+                        break
+                return self.funcs.SimulateForwardModel(sim_params)
 
         def simulateS1(self, parameters, times):
-            return self.funcs.SimulateForwardModelSensitivites(parameters, data), self.times_to_use, 1
+            if fix_parameters is None:
+                return self.funcs.SimulateForwardModelSensitivites(parameters)
+            else:
+                sim_params = np.copy(self.parameters)
+                c=0
+                for i, parameter in enumerate(self.parameters):
+                    if i not in fix_parameters:
+                        sim_params[i] = parameters[c]
+                        c+=1
+                    if c==len(parameters):
+                        break
+                return self.funcs.SimulateForwardModelSensitivities(sim_params)
 
-    model = PintsWrapper(par, funcs)
-    problem = pints.SingleOutputProblem(model, times, values)
+    model = PintsWrapper(par, funcs, starting_parameters, fix_parameters=fix_parameters)
+    problem = pints.SingleOutputProblem(model, times, data)
     error = pints.SumOfSquaresError(problem)
-    boundaries  = Boundaries()
-    controller=pints.OptimisationController(error, starting_parameters, boundaries=boundaries)
+    boundaries  = Boundaries(starting_parameters, fix_parameters)
+
+    if fix_parameters is not None:
+        params_not_fixed = [i for i in range(len(starting_parameters)) if i not in fix_parameters]
+    else:
+        params_not_fixed = starting_parameters
+    print(params_not_fixed)
+    controller=pints.OptimisationController(error, params_not_fixed, boundaries=boundaries, method=method)
     if max_iterations is not None:
         print("Setting max iterations = {}".format(max_iterations))
         controller.set_max_iterations(max_iterations)
     found_parameters, found_value = controller.run()
     return found_parameters, found_value
-
