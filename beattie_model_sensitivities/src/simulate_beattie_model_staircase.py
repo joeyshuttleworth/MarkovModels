@@ -20,7 +20,7 @@ from sensitivity_equations import GetSensitivityEquations, CreateSymbols
 from common import *
 
 # Set noise level
-sigma2 = 0.1
+sigma2 = 0.01
 
 def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output_dir=None):
     """
