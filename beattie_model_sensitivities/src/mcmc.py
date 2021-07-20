@@ -68,7 +68,7 @@ class PintsWrapper(pints.LogPDF):
 
         # Compute the log likelihood (assuming i.i.d Gaussian noise)
         n = pred.shape[0]
-        ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(s_var) -1/(2*s_var)*sum(errors)**2
+        ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(s_var) -1/(2*s_var)*(errors**2).sum()
         return ll
 
     def n_parameters(self):
