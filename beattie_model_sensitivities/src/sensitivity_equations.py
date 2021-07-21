@@ -136,10 +136,14 @@ class GetSensitivityEquations(object):
         return self.jfunc_rhs((*y, *p, self.voltage(t)))
 
     # Returns the open state
-    def solve_rhs(self, p):
+    def solve_rhs(self, p, times=None):
         """ Solve the RHS of the system and return the open state probability at each timestep
         """
-        return odeint(self.rhs, self.rhs0, self.times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1], Dfun=self.jrhs, \
+
+        if times is None:
+            times=self.times
+
+        return odeint(self.rhs, self.rhs0, times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1], Dfun=self.jrhs, \
             args=(p, ))
 
     def drhs(self, y, t, p):
@@ -159,23 +163,31 @@ class GetSensitivityEquations(object):
         return self.jfunc_S1((*y[:self.par.n_state_vars], *p, self.voltage(t), *y[self.par.n_state_vars:]))
 
     # Returns the open state 1st order sensitivities
-    def solve_drhs(self, p):
+    def solve_drhs(self, p, times=None):
         """Solve the RHS of the system and return the open state sensitivities at each
         timestep
 
         Returns only the sensitivities, not the state variables
         """
+
+        if times is None:
+           times = self.times
+
        # Chop off RHS
-        drhs = odeint(self.drhs, self.drhs0, self.times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1]
+
+        drhs = odeint(self.drhs, self.drhs0, times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1]
         , Dfun=self.jdrhs, args=(p, ))[:, self.par.n_state_vars:]
         # Return only open state sensitivites
         return drhs[:, self.par.open_state::self.par.n_state_vars]
 
-    def solve_drhs_full(self, p):
+    def solve_drhs_full(self, p, times=None):
         """ Solve the system numerically for every time in self.times
 
         """
-        return odeint(self.drhs, self.drhs0, self.times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1], Dfun=self.jdrhs,
+        if times is None:
+            times = self.times
+
+        return odeint(self.drhs, self.drhs0, times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1], Dfun=self.jdrhs,
             args=(p, ))
 
     def voltage(self, t):
@@ -194,8 +206,8 @@ class GetSensitivityEquations(object):
         # Convert to volts
         return V
 
-    def SimulateForwardModel(self, p):
-        o = self.solve_rhs(p)[:, self.par.open_state]
+    def SimulateForwardModel(self, p, times=None):
+        o = self.solve_rhs(p, times)[:, self.par.open_state]
         voltages = self.GetVoltage()
         return p[8] * o * (voltages - self.par.Erev)
 
@@ -216,7 +228,7 @@ class GetSensitivityEquations(object):
         v = np.array([self.voltage(t) for t in self.times])
         return v
 
-    def SimulateForwardModelSensitivities(self, p):
+    def SimulateForwardModelSensitivities(self, p, times=None):
         """
         Solve the model for a given set of parameters
 
@@ -224,7 +236,8 @@ class GetSensitivityEquations(object):
 
         Used by pints
         """
-        solution = self.solve_drhs_full(p)
+
+        solution = self.solve_drhs_full(p, times)
 
         # Get the open state sensitivities for each parameter
         index_sensitivities = self.par.n_state_vars + self.par.open_state + self.par.n_state_vars*np.array(range(self.par.n_params))

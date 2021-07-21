@@ -254,6 +254,7 @@ def fit_model(funcs, data, starting_parameters, par, fix_parameters=None, max_it
         def check(self, parameters):
             '''Check that each rate constant lies in the range 1.67E-5 < A*exp(B*V) < 1E3
             '''
+            # TODO Reimplement checks
             return True
             sim_params = np.copy(self.parameters)
             c=0
@@ -289,6 +290,7 @@ def fit_model(funcs, data, starting_parameters, par, fix_parameters=None, max_it
             self.settings = settings
             self.parameters = parameters
             self.fix_parameters = fix_parameters
+            self.free_parameters= [i  for i in range(0,len(starting_parameters)) if i not in fix_parameters]
 
         def n_parameters(self):
             if self.fix_parameters is not None:
@@ -297,8 +299,9 @@ def fit_model(funcs, data, starting_parameters, par, fix_parameters=None, max_it
                 return len(self.parameters)
 
         def simulate(self, parameters, times):
+            self.funcs.times = times
             if self.fix_parameters is None:
-                return self.funcs.SimulateForwardModel(parameters)
+                return self.funcs.SimulateForwardModel(parameters, times)
             else:
                 sim_params = np.copy(self.parameters)
                 c=0
@@ -308,7 +311,7 @@ def fit_model(funcs, data, starting_parameters, par, fix_parameters=None, max_it
                         c+=1
                     if c==len(parameters):
                         break
-                return self.funcs.SimulateForwardModel(sim_params)
+                return self.funcs.SimulateForwardModel(sim_params, times)
 
         def simulateS1(self, parameters, times):
             if fix_parameters is None:
@@ -322,12 +325,17 @@ def fit_model(funcs, data, starting_parameters, par, fix_parameters=None, max_it
                         c+=1
                     if c==len(parameters):
                         break
-                return self.funcs.SimulateForwardModelSensitivities(sim_params)
+                current, sens = self.funcs.SimulateForwardModelSensitivities(sim_params, times)
+                print(sim_params)
+                sens = sens[:, self.free_parameters]
+                return current, sens
 
     model = PintsWrapper(par, funcs, starting_parameters, fix_parameters=fix_parameters)
     problem = pints.SingleOutputProblem(model, funcs.times, data)
     error = pints.SumOfSquaresError(problem)
     boundaries  = Boundaries(starting_parameters, fix_parameters)
+
+    print("data size is {}".format(data.shape))
 
     if fix_parameters is not None:
         params_not_fixed = [i for i in range(len(starting_parameters)) if i not in fix_parameters]
@@ -340,4 +348,12 @@ def fit_model(funcs, data, starting_parameters, par, fix_parameters=None, max_it
         controller.set_max_iterations(max_iterations)
 
     found_parameters, found_value = controller.run()
+
+
+    # Debug: Plot the first simulation
+
+    # plt.plot(funcs.times, funcs.SimulateForwardModel(starting_parameters), label="true")
+    # plt.plot(funcs.times, data, "x")
+    # plt.plot(funcs.times, model.simulate(found_parameters), label="Optimised")
+    # plt.show()
     return found_parameters, found_value

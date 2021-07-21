@@ -28,6 +28,7 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     The likeihood is assumed to be based of i.i.d Gaussian error
     """
     true_vals = paras[params_to_change[0]], paras[params_to_change[1]]
+    print("True values of parameters are {}".format(true_vals))
     n = len(funcs.times)
     if data is None:
         data = np.linspace(0, 0, n)
@@ -41,8 +42,8 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
         y = funcs.SimulateForwardModel(p)
         # sample_var = (y - data).var()
         sample_var = sigma2
-        ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(sample_var) -1/(2*sample_var)*sum(y - data)**2
-        return max(ll, -10000)
+        ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(sample_var) -((y - data)**2).sum()/(2*sample_var)
+        return ll
 
     # log likelihood of true parameters values
     print("log likelihood of true values {}".format(llxy(*paras[params_to_change])))
@@ -53,16 +54,30 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     fix_params = [i for i in range(len(paras)) if i not in params_to_change]
     print(fix_params)
 
-    # mle = fit_model(funcs, data, paras, Params(), fix_parameters=fix_params)[0]
-    res = scipy.optimize.minimize(lambda p : -llxy(*p), true_vals)
+    res = scipy.optimize.minimize(lambda p : min(10000, -llxy(*p)), true_vals)
     mle = res.x
 
+    # Compute SSE
+    p = np.copy(paras)
+    p[params_to_change[0]] = mle[0]
+    p[params_to_change[1]] = mle[1]
+    pred=funcs.SimulateForwardModel(p)
+    print("sum square errors for mle is {}".format(((pred - data)**2).sum()))
+
+    # mle2 = fit_model(funcs, data, paras, Params(), fix_parameters=fix_params)[0]
+    # p[params_to_change[0]] = mle[0]
+    # p[params_to_change[1]] = mle[1]
+    # pred=funcs.SimulateForwardModel(p)
+    # print("sum square errors for mle2 is {}".format(((pred - data)**2).sum()))
+
     print("mle is {}".format(mle))
+    # print("mle2 is {}".format(mle2))
 
-    # log likelihood of true parameters values
+    # log likelihood of tru parameters values
     print("log likelihood of mle values {}".format(llxy(*mle)))
+    # print("log likelihood of mle2 values {}".format(llxy(*mle2)))
 
-    zs = np.array([[llxy(x,y) for x in xs] for y in ys])
+    zs = np.array([[max(-1000, llxy(x,y)) for x in xs] for y in ys])
 
     l_a=xs.min()
     r_a=xs.max()
@@ -76,7 +91,7 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     axes.set_title('Log Likelihood Surface')
     axes.axis([l_a, r_a, l_b, r_b])
 
-    plt.plot(mle[0], mle[1], "x", label="Maximum likelihood estimator", color="red")
+    plt.plot(mle[0], mle[1], "o", label="maximum likelihood estimator", color="red")
 
     figure.colorbar(c)
 
@@ -135,10 +150,9 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     elif eigvec [0] < 0 or eigvec[1] < 0:
         assert(False)
 
-    scale_factor = (20 - mle[0])/eigvec[0]
-    start_point = mle
-    end_point = mle + eigvec*scale_factor
-    print("start and end points for plot: {}, {}".format(start_point, end_point))
+    start_point = np.array([0,0])
+    end_point = mle
+    print("start and end points for plot: {}, {}".format(start_point, end_point, padding=0.1))
 
     class likelihood(pints.LogPDF):
         def __call__(self, p):
@@ -146,7 +160,9 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
         def n_parameters(self):
             return 2
 
-    pints.plot.function_between_points(likelihood(), start_point, end_point, evaluations=500, padding=0.01)
+    pints.plot.function_between_points(likelihood(), start_point, end_point, evaluations=500, padding=0.25)
+    # plt.axhline(llxy(*mle2), label="scipy max likelihood")
+    plt.legend()
 
     if output_dir is not None:
         plt.savefig(os.path.join(output_dir, "likelihood_1d_plot.pdf"))
@@ -177,7 +193,6 @@ def main():
         os.makedirs(plot_dir)
 
     # Choose parameters (make sure conductance is the last parameter)
-    # para = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2, 4.75E-2, 2.51E-2, 3.33E-2])
     para = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 20, 2.58E-2, 2, 2.51E-2, 3.33E-2])
 
     # Compute resting potential for 37 degrees C

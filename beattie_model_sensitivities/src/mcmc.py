@@ -71,17 +71,14 @@ class PintsWrapper(pints.LogPDF):
 
     def __call__(self, p):
         # Fix all parameters except p_5 and p_7
-        p_vec = self.starting_parameters
+        p_vec = np.copy(self.starting_parameters)
         p_vec[4] = p[0]
         p_vec[6] = p[1]
         pred = self.funcs.SimulateForwardModel(p_vec)
 
         # compute sample variance
         errors = pred - self.data
-
-        # Compute the log likelihood (assuming i.i.d Gaussian noise)
-        n = pred.shape[0]
-        ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(self.noise_level) -1/(2*self.noise_level)*sum(errors)**2
+        s_var = 1
         return ll
 
     def n_parameters(self):
