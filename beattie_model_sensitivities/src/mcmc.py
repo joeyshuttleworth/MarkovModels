@@ -67,7 +67,7 @@ class PintsWrapper(pints.LogPDF):
         self.data=data[:,1]
         self.funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times_to_use, voltage=voltage)
         self.starting_parameters, sse = fit_model(self.funcs, self.data, self.starting_parameters, par)
-        self.noise_level = (funcs.SimulateForwardModel(self.starting_parameters) - data[:,1]).var()
+        self.noise_level = (self.funcs.SimulateForwardModel(self.starting_parameters) - data[:,1]).var()
 
     def __call__(self, p):
         # Fix all parameters except p_5 and p_7
@@ -78,7 +78,9 @@ class PintsWrapper(pints.LogPDF):
 
         # compute sample variance
         errors = pred - self.data
-        s_var = 1
+        n = len(pred)
+        ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(self.noise_level) -(errors**2).sum()/(2*self.noise_level)
+
         return ll
 
     def n_parameters(self):

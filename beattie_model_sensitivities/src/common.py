@@ -290,7 +290,10 @@ def fit_model(funcs, data, starting_parameters, par, fix_parameters=None, max_it
             self.settings = settings
             self.parameters = parameters
             self.fix_parameters = fix_parameters
-            self.free_parameters= [i  for i in range(0,len(starting_parameters)) if i not in fix_parameters]
+            if fix_parameters is not None:
+                self.free_parameters= [i  for i in range(0,len(starting_parameters)) if i not in fix_parameters]
+            else:
+                self.free_parameters = range(0,len(starting_parameters))
 
         def n_parameters(self):
             if self.fix_parameters is not None:
@@ -338,7 +341,7 @@ def fit_model(funcs, data, starting_parameters, par, fix_parameters=None, max_it
     print("data size is {}".format(data.shape))
 
     if fix_parameters is not None:
-        params_not_fixed = [i for i in range(len(starting_parameters)) if i not in fix_parameters]
+        params_not_fixed = [starting_parameters[i] for i in range(len(starting_parameters)) if i not in fix_parameters]
     else:
         params_not_fixed = starting_parameters
     print(params_not_fixed)

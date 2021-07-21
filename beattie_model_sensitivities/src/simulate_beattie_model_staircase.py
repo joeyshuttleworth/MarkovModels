@@ -14,13 +14,14 @@ import pints
 import pints.plot
 
 import scipy.optimize
+import plotly.graph_objects as go
 
 from settings import Params
 from sensitivity_equations import GetSensitivityEquations, CreateSymbols
 from common import *
 
-# Set noise level
-sigma2 = 0.01
+# Set noise level - based on results from fitting the sine_wave model
+sigma2 = 0.006
 
 def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output_dir=None):
     """
@@ -40,16 +41,12 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
         p[params_to_change[1]] = y
 
         y = funcs.SimulateForwardModel(p)
-        # sample_var = (y - data).var()
-        sample_var = sigma2
-        ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(sample_var) -((y - data)**2).sum()/(2*sample_var)
+
+        ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(sigma2) -((y - data)**2).sum()/(2*sigma2)
         return ll
 
     # log likelihood of true parameters values
     print("log likelihood of true values {}".format(llxy(*paras[params_to_change])))
-
-    xs = np.linspace(ranges[0][0], ranges[0][1], 75)
-    ys = np.linspace(ranges[1][0], ranges[1][1], 75)
 
     fix_params = [i for i in range(len(paras)) if i not in params_to_change]
     print(fix_params)
@@ -61,23 +58,40 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     p = np.copy(paras)
     p[params_to_change[0]] = mle[0]
     p[params_to_change[1]] = mle[1]
-    pred=funcs.SimulateForwardModel(p)
+    pred, S1 = funcs.SimulateForwardModelSensitivities(p)
+    noise_level = (pred - data).var()
+    print("sigma2 = {}".format(noise_level))
     print("sum square errors for mle is {}".format(((pred - data)**2).sum()))
 
-    # mle2 = fit_model(funcs, data, paras, Params(), fix_parameters=fix_params)[0]
+    mle2=mle
     # p[params_to_change[0]] = mle[0]
     # p[params_to_change[1]] = mle[1]
     # pred=funcs.SimulateForwardModel(p)
     # print("sum square errors for mle2 is {}".format(((pred - data)**2).sum()))
 
     print("mle is {}".format(mle))
-    # print("mle2 is {}".format(mle2))
+    print("mle2 is {}".format(mle2))
 
-    # log likelihood of tru parameters values
-    print("log likelihood of mle values {}".format(llxy(*mle)))
-    # print("log likelihood of mle2 values {}".format(llxy(*mle2)))
+    ll_of_mle=llxy(*mle)
+    print("log likelihood of mle values {}".format(ll_of_mle))
+    print("log likelihood of mle2 values {}".format(llxy(*mle2)))
 
+    # Discard columns that are fixed
+    S1 = S1[:, params_to_change]
+    H = np.dot(S1.T, S1)
+    eigvals, eigvecs = np.linalg.eigh(np.linalg.inv(H))
+    window_size = 3*(max(np.abs(eigvals)), min(np.abs(eigvals)))
+
+    xs = np.linspace(mle[0]-window_size[0]/2, mle[0]+window_size[0]/2, 50)
+    ys = np.linspace(0.00508, 0.0052, 50)
     zs = np.array([[max(-1000, llxy(x,y)) for x in xs] for y in ys])
+
+    parabola = lambda x,y : max((ll_of_mle-(0.5*H[0,0]*x**2 + H[1,0]*x*y + 0.5*H[1,1]*y**2)/noise_level, ll_of_mle-100))
+    approximate_zs = np.array([[parabola(x,y) for x in xs - mle[0]] for y in ys-mle[1]])
+
+    # Plot surface
+    fig = go.Figure(data=[go.Surface(z=zs,x=xs,y=ys, opacity=0.5), go.Surface(z=approximate_zs,x=xs,y=ys, opacity=0.5, showscale=False)])
+    fig.show()
 
     l_a=xs.min()
     r_a=xs.max()
@@ -91,7 +105,7 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     axes.set_title('Log Likelihood Surface')
     axes.axis([l_a, r_a, l_b, r_b])
 
-    plt.plot(mle[0], mle[1], "o", label="maximum likelihood estimator", color="red")
+    plt.plot(mle[0], mle[1], "o", label="maximum likelihood estimator", color="red", fillstyle="none")
 
     figure.colorbar(c)
 
@@ -105,16 +119,7 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     for i,j in enumerate(params_to_change):
         mle_paras[j] = mle[i]
 
-    pred, S1n = funcs.SimulateForwardModelSensitivities(mle_paras)
-    # S1n = S1n * mle_paras[None,:]
-    sample_var = sigma2
-
-    # Discard rows that are fixed
-    S1n = S1n[:,params_to_change]
-    H   = np.dot(S1n.T, S1n)
-    print(H)
-
-    cov = sample_var*np.linalg.inv(H)
+    cov = noise_level*np.linalg.inv(H)
     cov_ellipse(cov, q=confidence_levels, offset=mle, new_figure=False) # Parameters have been normalised to 1
 
     plt.plot(true_vals[0], true_vals[1], "x", label="true value of parameters", color="black")
@@ -150,18 +155,18 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     elif eigvec [0] < 0 or eigvec[1] < 0:
         assert(False)
 
-    start_point = np.array([0,0])
-    end_point = mle
-    print("start and end points for plot: {}, {}".format(start_point, end_point, padding=0.1))
-
     class likelihood(pints.LogPDF):
         def __call__(self, p):
             return max(llxy(*p), -100)
         def n_parameters(self):
             return 2
 
-    pints.plot.function_between_points(likelihood(), start_point, end_point, evaluations=500, padding=0.25)
-    # plt.axhline(llxy(*mle2), label="scipy max likelihood")
+    start_point =  mle
+    end_point   =  mle + eigvec*5
+    print("start and end points for plot: {}, {}".format(start_point, end_point, padding=0.1))
+
+    pints.plot.function_between_points(likelihood(), start_point, end_point, evaluations=1000, padding=0.25)
+    plt.axhline(llxy(*mle2), label="scipy max likelihood")
     plt.legend()
 
     if output_dir is not None:
@@ -174,8 +179,9 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
 
 def generate_synthetic_data(funcs, para, sigma2):
     nobs = len(funcs.times)
+    rng = np.random.default_rnga()
+    z = rng.standard_normal(nobs)
     y = funcs.SimulateForwardModel(para)
-    z = np.random.normal(0, sigma2, size=nobs)
     obs = y + z
     return obs
 
