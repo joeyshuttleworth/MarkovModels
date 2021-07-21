@@ -46,7 +46,6 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
     nobs = times.shape[0]
     print("Number of observations is {}".format(nobs))
 
-
     output_dir = os.path.join(args.output, output_dir)
     p, y, v = CreateSymbols(par)
 
@@ -63,7 +62,7 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
     rhs = np.array(A * y + B)
 
     voltage=None
-    if args.sine_wave:
+    if args.protocol=="sine_wave":
         voltage = beattie_sine_wave
 
     funcs = GetSensitivityEquations(par, p, y, v, A, B, starting_parameters, times, voltage=voltage)
@@ -74,17 +73,16 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
 
     plt.rcParams['axes.axisbelow'] = True
 
-    # plot fit
-    current = funcs.SimulateForwardModel(starting_parameters)
-
-    found_parameters, found_value = fit_model(funcs, times, values, starting_parameters, par)
+    found_parameters, found_value = fit_model(funcs, values, starting_parameters, par)
 
     print("finished! found parameters : {} ".format(found_parameters, found_value))
     s_variance = found_value/(nobs-1)
     print("Sample variance of residues is {}".format(s_variance))
 
+    # plot fit
+    current = funcs.SimulateForwardModel(starting_parameters)
     plt.plot(times, values)
-    plt.plot(model.times_to_use, current)
+    plt.plot(funcs.times, current)
 
     if args.plot:
        plt.show()
@@ -127,6 +125,8 @@ if __name__ == "__main__":
     spike_removal_durations=[0,50,100,150,200,1000]
     parser = get_parser(data_reqd=True)
     parser.add_argument("-r", "--remove", default=spike_removal_durations, help="ms of data to ignore after each capacitive spike", nargs='+', type=int)
+    parser.add_argument("-v", "--protocol", default=None, help="name of the protocol to use")
+
     args = parser.parse_args ()
     data  = pd.read_csv(args.data_file_path, delim_whitespace=True)
     for val in args.remove:

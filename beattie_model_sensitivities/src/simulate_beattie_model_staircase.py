@@ -47,15 +47,15 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     # log likelihood of true parameters values
     print("log likelihood of true values {}".format(llxy(*paras[params_to_change])))
 
-    xs = np.linspace(ranges[0][0], ranges[0][1], 25)
-    ys = np.linspace(ranges[1][0], ranges[1][1], 25)
+    xs = np.linspace(ranges[0][0], ranges[0][1], 75)
+    ys = np.linspace(ranges[1][0], ranges[1][1], 75)
 
     fix_params = [i for i in range(len(paras)) if i not in params_to_change]
     print(fix_params)
 
-    mle = fit_model(funcs, data, paras, Params(), fix_parameters=fix_params)[0]
-    # res = scipy.optimize.minimize(lambda p : -llxy(*p), true_vals)
-    # mle = res.x
+    # mle = fit_model(funcs, data, paras, Params(), fix_parameters=fix_params)[0]
+    res = scipy.optimize.minimize(lambda p : -llxy(*p), true_vals)
+    mle = res.x
 
     print("mle is {}".format(mle))
 

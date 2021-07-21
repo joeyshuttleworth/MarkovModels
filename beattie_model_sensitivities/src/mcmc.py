@@ -20,10 +20,8 @@ from common import *
 
 class PintsWrapper(pints.LogPDF):
     # A class used by pints to compute the log likelihood of the model
-    def __init__(self, data, settings, args, times_to_use):
+    def __init__(self, data, settings, args):
         par = Params()
-        self.data = data
-        self.times_to_use = times_to_use
         self.starting_parameters = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
         # Create symbols for symbolic functions
         p, y, v = CreateSymbols(settings)
@@ -46,14 +44,30 @@ class PintsWrapper(pints.LogPDF):
 
         voltage = None
         protocol = args.protocol
+        spikes=None
         if protocol == "sine_wave":
+            # TODO Check data columns
+            data=data.values
             voltage = beattie_sine_wave
+            spikes = [2500, 3000, 5000, 15000, 20000, 30000, 65000, 70000]
+            ms_to_remove_after_spike = args.remove
+            indices_to_remove = [[spike, spike + ms_to_remove_after_spike*10] for spike in spikes]
+            indices_to_use = remove_indices(list(range(data.shape[0])), indices_to_remove)
+            data = data[indices_to_use]
+            times_to_use=data[:,0]
+
         elif protocol == "staircase":
             voltage = get_staircase_protocol()
+            #TODO Calculate spikes
+            assert(False)
         else:
             assert(False)
 
+        self.times_to_use = times_to_use
+        self.data=data[:,1]
         self.funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times_to_use, voltage=voltage)
+        self.starting_parameters, sse = fit_model(self.funcs, self.data, self.starting_parameters, par)
+        self.noise_level = (funcs.SimulateForwardModel(self.starting_parameters) - data[:,1]).var()
 
     def __call__(self, p):
         # Fix all parameters except p_5 and p_7
@@ -64,11 +78,10 @@ class PintsWrapper(pints.LogPDF):
 
         # compute sample variance
         errors = pred - self.data
-        s_var = errors.var()
 
         # Compute the log likelihood (assuming i.i.d Gaussian noise)
         n = pred.shape[0]
-        ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(s_var) -1/(2*s_var)*sum(errors)**2
+        ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(self.noise_level) -1/(2*self.noise_level)*sum(errors)**2
         return ll
 
     def n_parameters(self):
@@ -103,6 +116,7 @@ def main():
     parser.add_argument("-l", "--chain_length", type=int, default=1000, help="length of chain to use")
     parser.add_argument("-v", "--protocol", default=None, help="name of the protocol to use")
     parser.add_argument("-b", "--burn_in", type=int, default=None, help="amount of burn in to use")
+    parser.add_argument("-r", "--remove", default=50, help="ms of data to ignore after each capacitive spike", type=int)
 
     args = parser.parse_args()
 
@@ -113,8 +127,6 @@ def main():
 
 
     data = pd.read_csv(args.data_file_path, delim_whitespace=True)
-    times = data["time"]
-    data = data["current"].values
 
     print("outputting to {}".format(args.output))
 
@@ -128,11 +140,7 @@ def main():
 
     par = Params()
 
-    skip = int(par.timestep/0.1)
-
-    dat = extract_times(data, indices_to_use, skip)
-
-    ll = PintsWrapper(data, par, args, times)
+    ll = PintsWrapper(data, par, args)
     prior = pints.UniformLogPrior([0,0], [1,1])
     posterior = pints.LogPosterior(ll, prior)
     mcmc = pints.MCMCController(posterior, args.no_chains, np.tile(starting_parameters[[4,6]], [args.no_chains,1]), method=pints.HaarioBardenetACMC)

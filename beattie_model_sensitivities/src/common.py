@@ -281,7 +281,7 @@ def fit_model(funcs, data, starting_parameters, par, fix_parameters=None, max_it
                 return False
 
         def n_parameters(self):
-            return 9 - len(self.fix_parameters)
+            return 9 - len(self.fix_parameters) if self.fix_parameters is not None else 9
 
     class PintsWrapper(pints.ForwardModelS1):
         def __init__(self, settings, funcs, parameters, fix_parameters=None):
@@ -312,7 +312,7 @@ def fit_model(funcs, data, starting_parameters, par, fix_parameters=None, max_it
 
         def simulateS1(self, parameters, times):
             if fix_parameters is None:
-                return self.funcs.SimulateForwardModelSensitivites(parameters)
+                return self.funcs.SimulateForwardModelSensitivities(parameters)
             else:
                 sim_params = np.copy(self.parameters)
                 c=0

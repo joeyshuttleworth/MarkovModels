@@ -14,10 +14,6 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     # Capacitive spikes
     spikes = [250, 300, 500, 1500, 2000, 3000, 6500, 7000]
 
-    print(args.sine_wave)
-    if not args.sine_wave:
-        spikes = []
-
     # Check input arguments
     par = Params()
 
@@ -30,7 +26,7 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
         para = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
 
     # Sigma copied from output of fit_model
-    sigma2 = 0.00025
+    sigma2 = 0.0006
 
     # Create symbols for symbolic functions
     p, y, v = CreateSymbols(par)
@@ -50,9 +46,7 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     if times == []:
         times = np.linspace(0, par.tmax, par.tmax + 1)
 
-    voltage=None
-    if args.sine_wave:
-        voltage = beattie_sine_wave
+    voltage = beattie_sine_wave
 
     funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times, voltage=voltage)
 
