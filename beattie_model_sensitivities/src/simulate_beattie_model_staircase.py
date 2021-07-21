@@ -55,27 +55,27 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     print(fix_params)
 
     res = scipy.optimize.minimize(lambda p : min(10000, -llxy(*p)), true_vals)
-    mle2 = res.x
+    mle = res.x
 
     # Compute SSE
     p = np.copy(paras)
-    p[params_to_change[0]] = mle2[0]
-    p[params_to_change[1]] = mle2[1]
-    pred=funcs.SimulateForwardModel(p)
-    print("sum square errors for mle2 is {}".format(((pred - data)**2).sum()))
-
-    mle = fit_model(funcs, data, paras, Params(), fix_parameters=fix_params, max_iterations=25)[0]
     p[params_to_change[0]] = mle[0]
     p[params_to_change[1]] = mle[1]
     pred=funcs.SimulateForwardModel(p)
     print("sum square errors for mle is {}".format(((pred - data)**2).sum()))
 
+    # mle2 = fit_model(funcs, data, paras, Params(), fix_parameters=fix_params)[0]
+    # p[params_to_change[0]] = mle[0]
+    # p[params_to_change[1]] = mle[1]
+    # pred=funcs.SimulateForwardModel(p)
+    # print("sum square errors for mle2 is {}".format(((pred - data)**2).sum()))
+
     print("mle is {}".format(mle))
-    print("mle2 is {}".format(mle2))
+    # print("mle2 is {}".format(mle2))
 
     # log likelihood of tru parameters values
-    print("log likelihood o mle values {}".format(llxy(*mle)))
-    print("log likelihood of mle2 values {}".format(llxy(*mle2)))
+    print("log likelihood of mle values {}".format(llxy(*mle)))
+    # print("log likelihood of mle2 values {}".format(llxy(*mle2)))
 
     zs = np.array([[max(-1000, llxy(x,y)) for x in xs] for y in ys])
 
@@ -91,7 +91,7 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     axes.set_title('Log Likelihood Surface')
     axes.axis([l_a, r_a, l_b, r_b])
 
-    plt.plot(mle[0], mle[1], "x", label="Maximum likelihood estimator", color="red")
+    plt.plot(mle[0], mle[1], "o", label="maximum likelihood estimator", color="red")
 
     figure.colorbar(c)
 
@@ -160,8 +160,8 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
         def n_parameters(self):
             return 2
 
-    pints.plot.function_between_points(likelihood(), start_point, end_point, evaluations=500, padding=0.01)
-    plt.axhline(llxy(*mle2), label="scipy max likelihood")
+    pints.plot.function_between_points(likelihood(), start_point, end_point, evaluations=500, padding=0.25)
+    # plt.axhline(llxy(*mle2), label="scipy max likelihood")
     plt.legend()
 
     if output_dir is not None:
