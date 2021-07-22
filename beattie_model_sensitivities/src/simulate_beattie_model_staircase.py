@@ -53,7 +53,7 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
 
     # res = scipy.optimize.minimize(lambda p : min(10000, -llxy(*p)), true_vals)
     # mle = res.x
-    mle = fit_model(funcs, data, paras, Params(), fix_parameters=fix_params)
+    mle, val = fit_model(funcs, data, paras, Params(), fix_parameters=fix_params)
 
     # Compute SSE
     p = np.copy(paras)
