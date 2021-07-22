@@ -22,7 +22,9 @@ class PintsWrapper(pints.LogPDF):
     # A class used by pints to compute the log likelihood of the model
     def __init__(self, data, settings, args):
         par = Params()
-        self.starting_parameters = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
+        # self.starting_parameters = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
+        self.starting_parameters = [9.81590659e-05, 6.98545007e-02, 4.13768231e-05, 5.45350444e-02, 8.73426397e-02, 8.92375528e-03, 5.12623396e-03, 3.16181966e-02, 1.52223030e-01]
+
         # Create symbols for symbolic functions
         p, y, v = CreateSymbols(settings)
 
@@ -68,6 +70,8 @@ class PintsWrapper(pints.LogPDF):
         self.funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times_to_use, voltage=voltage)
         self.starting_parameters, sse = fit_model(self.funcs, self.data, self.starting_parameters, par)
         self.noise_level = (self.funcs.SimulateForwardModel(self.starting_parameters) - data[:,1]).var()
+        print("Using starting parameters {} and noise_level = {}".format(self.starting_parameters, self.noise_level))
+        print("Likelihood at starting parameters = {}".format(self.__call__(self.starting_parameters[[4,6]])))
 
     def __call__(self, p):
         # Fix all parameters except p_5 and p_7
@@ -142,7 +146,7 @@ def main():
     ll = PintsWrapper(data, par, args)
     prior = pints.UniformLogPrior([0,0], [1,1])
     posterior = pints.LogPosterior(ll, prior)
-    mcmc = pints.MCMCController(posterior, args.no_chains, np.tile(starting_parameters[[4,6]], [args.no_chains,1]), method=pints.HaarioBardenetACMC)
+    mcmc = pints.MCMCController(posterior, args.no_chains, np.tile(ll.starting_parameters[[4,6]], [args.no_chains,1]), method=pints.HaarioBardenetACMC)
     mcmc.set_max_iterations(args.chain_length)
 
     chains = mcmc.run()

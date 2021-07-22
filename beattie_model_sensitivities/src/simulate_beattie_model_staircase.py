@@ -51,8 +51,9 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     fix_params = [i for i in range(len(paras)) if i not in params_to_change]
     print(fix_params)
 
-    res = scipy.optimize.minimize(lambda p : min(10000, -llxy(*p)), true_vals)
-    mle = res.x
+    # res = scipy.optimize.minimize(lambda p : min(10000, -llxy(*p)), true_vals)
+    # mle = res.x
+    mle = fit_model(funcs, data, paras, Params(), fix_parameters=fix_params)
 
     # Compute SSE
     p = np.copy(paras)
@@ -80,14 +81,19 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     S1 = S1[:, params_to_change]
     H = np.dot(S1.T, S1)
     eigvals, eigvecs = np.linalg.eigh(np.linalg.inv(H))
-    window_size = 3*(max(np.abs(eigvals)), min(np.abs(eigvals)))
+
+    assert(np.all(eigvals>0))
+
+    # TODO Make this work in general
+    major_axis_angle = np.arctan(min(eigvals)/max(eigvals))
+    window_size = [10*math.cos(major_axis_angle)*np.max(eigvals), 0.002]
 
     xs = np.linspace(mle[0]-window_size[0]/2, mle[0]+window_size[0]/2, 50)
-    ys = np.linspace(0.00508, 0.0052, 50)
-    zs = np.array([[max(-1000, llxy(x,y)) for x in xs] for y in ys])
+    ys = np.linspace(mle[1]-window_size[1]/2, mle[1]+window_size[1]/2, 50)
+    zs = np.array([[max(ll_of_mle-100, llxy(x,y)) for x in xs] for y in ys])
 
-    parabola = lambda x,y : max((ll_of_mle-(0.5*H[0,0]*x**2 + H[1,0]*x*y + 0.5*H[1,1]*y**2)/noise_level, ll_of_mle-100))
-    approximate_zs = np.array([[parabola(x,y) for x in xs - mle[0]] for y in ys-mle[1]])
+    paraboloid = lambda x,y : max((ll_of_mle-(0.5*H[0,0]*x**2 + H[1,0]*x*y + 0.5*H[1,1]*y**2)/noise_level, ll_of_mle-100))
+    approximate_zs = np.array([[paraboloid(x,y) for x in xs - mle[0]] for y in ys-mle[1]])
 
     # Plot surface
     fig = go.Figure(data=[go.Surface(z=zs,x=xs,y=ys, opacity=0.5), go.Surface(z=approximate_zs,x=xs,y=ys, opacity=0.5, showscale=False)])
@@ -144,16 +150,20 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     eigvals, eigvecs = np.linalg.eigh(H)
     max(eigvals)
 
+    eigvec = []
     if np.abs(eigvals[0]) < np.abs(eigvals[1]):
-        eigvec = eigvecs[0]
+        eigvec.append(eigvecs[0])
+        eigvec.append(eigvecs[1])
     else:
-        eigvec = eigvecs[1]
+        eigvec.append(eigvecs[1])
+        eigvec.append(eigvecs[0])
     # Plot the true values
 
-    if eigvec[0] < 0 and eigvec[1] < 0:
-        eigvec = -eigvec
-    elif eigvec [0] < 0 or eigvec[1] < 0:
-        assert(False)
+    for e in eigvec:
+        if e[0] < 0 and e[1] < 0:
+            eigvec = -eigvec
+        elif e[0] < 0 or e[1] < 0:
+            assert(False)
 
     class likelihood(pints.LogPDF):
         def __call__(self, p):
@@ -161,26 +171,26 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
         def n_parameters(self):
             return 2
 
-    start_point =  mle
-    end_point   =  mle + eigvec*5
-    print("start and end points for plot: {}, {}".format(start_point, end_point, padding=0.1))
+    for i, e in enumerate(eigvec):
+        start_point =  mle
+        end_point   =  mle + e*5
+        print("start and end points for plot: {}, {}".format(start_point, end_point, padding=0.1))
+        pints.plot.function_between_points(likelihood(), start_point, end_point, evaluations=1000, padding=0.25)
+        plt.axhline(llxy(*mle2), label="scipy max likelihood")
+        plt.legend()
 
-    pints.plot.function_between_points(likelihood(), start_point, end_point, evaluations=1000, padding=0.25)
-    plt.axhline(llxy(*mle2), label="scipy max likelihood")
-    plt.legend()
-
-    if output_dir is not None:
-        plt.savefig(os.path.join(output_dir, "likelihood_1d_plot.pdf"))
-        plt.clf()
-    else:
-        plt.show()
+        if output_dir is not None:
+            plt.savefig(os.path.join(output_dir, "likelihood_1d_plot_{}.pdf".format(i)))
+            plt.clf()
+        else:
+            plt.show()
 
     return
 
 def generate_synthetic_data(funcs, para, sigma2):
     nobs = len(funcs.times)
-    rng = np.random.default_rnga()
-    z = rng.standard_normal(nobs)
+    rng = np.random.default_rng(2021)
+    z = np.sqrt(sigma2)*rng.standard_normal(nobs)
     y = funcs.SimulateForwardModel(para)
     obs = y + z
     return obs
@@ -330,6 +340,4 @@ def main():
         draw_likelihood_surface(funcs, para, [4,6], [[0, 0.2],[0, 0.02]], synthetic_data, output_dir=plot_dir)
 
 if __name__=="__main__":
-    # Seed numpy
-    np.random.seed(20211507)
     main()
