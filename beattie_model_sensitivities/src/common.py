@@ -98,7 +98,6 @@ def cov_ellipse(cov, offset=[0,0], q=None, nsig=None, new_figure=True, **kwargs)
 
     for q in qs:
         r2 = scipy.stats.chi2.ppf(q, 2)
-
         val, vec = np.linalg.eigh(cov)
         width, height = 2 * np.sqrt(val[:, None] * r2)
         rotation = np.arctan2(*vec[::-1, 0])

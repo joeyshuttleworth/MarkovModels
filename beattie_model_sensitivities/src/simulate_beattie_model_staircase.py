@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+import scipy
 import scipy.interpolate
 import symengine as se
 import sympy
@@ -53,7 +54,7 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
 
     # res = scipy.optimize.minimize(lambda p : min(10000, -llxy(*p)), true_vals)
     # mle = res.x
-    mle, val = fit_model(funcs, data, paras, Params(), fix_parameters=fix_params)
+    mle, val = fit_model(funcs, data, paras, Params(), fix_parameters=fix_params, max_iterations=10)
 
     # Compute SSE
     p = np.copy(paras)
@@ -65,10 +66,6 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     print("sum square errors for mle is {}".format(((pred - data)**2).sum()))
 
     mle2=mle
-    # p[params_to_change[0]] = mle[0]
-    # p[params_to_change[1]] = mle[1]
-    # pred=funcs.SimulateForwardModel(p)
-    # print("sum square errors for mle2 is {}".format(((pred - data)**2).sum()))
 
     print("mle is {}".format(mle))
     print("mle2 is {}".format(mle2))
@@ -88,8 +85,8 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     major_axis_angle = np.arctan(min(eigvals)/max(eigvals))
     window_size = [10*math.cos(major_axis_angle)*np.max(eigvals), 0.002]
 
-    xs = np.linspace(mle[0]-window_size[0]/2, mle[0]+window_size[0]/2, 50)
-    ys = np.linspace(mle[1]-window_size[1]/2, mle[1]+window_size[1]/2, 50)
+    xs = np.linspace(mle[0]-window_size[0]/2, mle[0]+window_size[0]/2, 1)
+    ys = np.linspace(mle[1]-window_size[1]/2, mle[1]+window_size[1]/2, 1)
     zs = np.array([[max(ll_of_mle-100, llxy(x,y)) for x in xs] for y in ys])
 
     paraboloid = lambda x,y : max((ll_of_mle-(0.5*H[0,0]*x**2 + H[1,0]*x*y + 0.5*H[1,1]*y**2)/noise_level, ll_of_mle-100))
@@ -108,7 +105,6 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     figure, axes = plt.subplots()
 
     c = axes.pcolormesh(xs, ys, zs, vmin=l_z, vmax=r_z, label="Unnormalised log likelihood", shading="auto")
-    axes.set_title('Log Likelihood Surface')
     axes.axis([l_a, r_a, l_b, r_b])
 
     plt.plot(mle[0], mle[1], "o", label="maximum likelihood estimator", color="red", fillstyle="none")
@@ -147,23 +143,12 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     else:
         plt.savefig(os.path.join(output_dir, "synthetic_data_generation.pdf"))
 
-    eigvals, eigvecs = np.linalg.eigh(H)
     max(eigvals)
 
-    eigvec = []
+    # Assuming two eigvals
     if np.abs(eigvals[0]) < np.abs(eigvals[1]):
-        eigvec.append(eigvecs[0])
-        eigvec.append(eigvecs[1])
-    else:
-        eigvec.append(eigvecs[1])
-        eigvec.append(eigvecs[0])
-    # Plot the true values
-
-    for e in eigvec:
-        if e[0] < 0 and e[1] < 0:
-            eigvec = -eigvec
-        elif e[0] < 0 or e[1] < 0:
-            assert(False)
+        eigvecs = eigvecs[::-1,:]
+        eigvals = eigvals[::-1]
 
     class likelihood(pints.LogPDF):
         def __call__(self, p):
@@ -171,14 +156,27 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
         def n_parameters(self):
             return 2
 
-    for i, e in enumerate(eigvec):
-        start_point =  mle
-        end_point   =  mle + e*5
-        print("start and end points for plot: {}, {}".format(start_point, end_point, padding=0.1))
-        pints.plot.function_between_points(likelihood(), start_point, end_point, evaluations=1000, padding=0.25)
-        plt.axhline(llxy(*mle2), label="scipy max likelihood")
-        plt.legend()
+    for i, [e, l] in enumerate(zip(eigvecs, eigvals)):
+        print(e, l)
+        # Orientate nicely
+        if e[0]<0:
+            e=-e
+        # Plot across a 99 percent confidence interval
+        r2 = scipy.stats.chi2.ppf(0.95, 2)
+        radius = np.sqrt(l*r2)
+        start_point =  mle - radius*e
+        end_point   =  mle + radius*e
 
+        parabola = lambda x : np.maximum(ll_of_mle - ((x-0.5)*radius/l)**2, 1100)
+
+        pints.plot.function_between_points(likelihood(), start_point, end_point, evaluations=125, padding=0.25)
+        xs = np.linspace(0,1,500)
+        plt.plot(xs, parabola(xs), "--", color="grey", label="parabola approximation")
+
+        print("start and end points for plot: {}, {}".format(start_point, end_point))
+
+        plt.axvline(0.5, linestyle="--", label="mle")
+        plt.legend()
         if output_dir is not None:
             plt.savefig(os.path.join(output_dir, "likelihood_1d_plot_{}.pdf".format(i)))
             plt.clf()
@@ -340,4 +338,5 @@ def main():
         draw_likelihood_surface(funcs, para, [4,6], [[0, 0.2],[0, 0.02]], synthetic_data, output_dir=plot_dir)
 
 if __name__=="__main__":
+    plt.rcParams["figure.figsize"] = (15,15)
     main()
