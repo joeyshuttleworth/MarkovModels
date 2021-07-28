@@ -23,7 +23,8 @@ from common import *
 
 # Set noise level - based on results from fitting the sine_wave model
 sigma2 = 0.006
-def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output_dir=None):
+
+def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, args, output_dir=None):
     """
     Draw a heatmap of the log-likelihood surface when two parameters are changed
     The likeihood is assumed to be based of i.i.d Gaussian error
@@ -70,72 +71,72 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
     # Discard columns that are fixed
     S1 = S1[:, params_to_change]
     H = np.dot(S1.T, S1)
-    eigvals, eigvecs = np.linalg.eigh(np.linalg.inv(H))
-
+    cov = noise_level*np.linalg.inv(H)
+    eigvals, eigves = np.linalg.eigh(cov)
     assert(np.all(eigvals>0))
 
     # TODO Make this work in general
     major_axis_angle = np.arctan(min(eigvals)/max(eigvals))
     window_size = [10*math.cos(major_axis_angle)*np.max(eigvals), 0.002]
-
-    xs = np.linspace(mle[0]-window_size[0]/2, mle[0]+window_size[0]/2, 100)
-    ys = np.linspace(mle[1]-window_size[1]/2, mle[1]+window_size[1]/2, 100)
-    zs = np.array([[max(ll_of_mle-100, llxy(x,y)) for x in xs] for y in ys])
-
     paraboloid = lambda x,y : ll_of_mle-(0.5*H[0,0]*x**2 + H[1,0]*x*y + 0.5*H[1,1]*y**2)/noise_level
-    approximate_zs = np.array([[paraboloid(x,y) for x in xs - mle[0]] for y in ys-mle[1]])
 
-    # Plot surface
-    # fig = go.Figure(data=[go.Surface(z=zs,x=xs,y=ys, opacity=0.5), go.Surface(z=approximate_zs,x=xs,y=ys, opacity=0.5, showscale=False)])
-    # fig.show()
+    if args.heatmap:
+        xs = np.linspace(mle[0]-window_size[0]/2, mle[0]+window_size[0]/2, 100)
+        ys = np.linspace(mle[1]-window_size[1]/2, mle[1]+window_size[1]/2, 100)
+        zs = np.array([[max(ll_of_mle-100, llxy(x,y)) for x in xs] for y in ys])
 
-    l_a=xs.min()
-    r_a=xs.max()
-    l_b=ys.min()
-    r_b=ys.max()
-    l_z,r_z  = ll_of_mle-50, ll_of_mle
+        approximate_zs = np.array([[paraboloid(x,y) for x in xs - mle[0]] for y in ys-mle[1]])
 
-    figure, axes = plt.subplots()
+        # Plot surface
+        # fig = go.Figure(data=[go.Surface(z=zs,x=xs,y=ys, opacity=0.5), go.Surface(z=approximate_zs,x=xs,y=ys, opacity=0.5, showscale=False)])
+        # fig.show()
 
-    c = axes.pcolormesh(xs, ys, zs, vmin=l_z, vmax=r_z, label="Unnormalised log likelihood", shading="auto")
-    axes.axis([l_a, r_a, l_b, r_b])
+        l_a=xs.min()
+        r_a=xs.max()
+        l_b=ys.min()
+        r_b=ys.max()
+        l_z,r_z  = ll_of_mle-50, ll_of_mle
 
-    plt.plot(mle[0], mle[1], "o", label="maximum likelihood estimator", color="red", fillstyle="none")
+        figure, axes = plt.subplots()
 
-    figure.colorbar(c)
+        c = axes.pcolormesh(xs, ys, zs, vmin=l_z, vmax=r_z, label="Unnormalised log likelihood", shading="auto")
+        axes.axis([l_a, r_a, l_b, r_b])
 
-    plt.xlabel(labels[0])
-    plt.ylabel(labels[1])
+        plt.plot(mle[0], mle[1], "o", label="maximum likelihood estimator", color="red", fillstyle="none")
 
-    # Draw confidence region
-    confidence_levels = [0.5, 0.95]
-    mle_paras = np.copy(paras)
+        figure.colorbar(c)
 
-    for i,j in enumerate(params_to_change):
-        mle_paras[j] = mle[i]
+        plt.xlabel(labels[0])
+        plt.ylabel(labels[1])
 
-    cov = noise_level*np.linalg.inv(H)
-    cov_ellipse(cov, q=confidence_levels, offset=mle, new_figure=False) # Parameters have been normalised to 1
+        # Draw confidence region
+        confidence_levels = [0.5, 0.95]
+        mle_paras = np.copy(paras)
 
-    plt.plot(true_vals[0], true_vals[1], "x", label="true value of parameters", color="black")
-    plt.legend()
+        for i,j in enumerate(params_to_change):
+            mle_paras[j] = mle[i]
 
-    if output_dir is None:
-        plt.show()
-    else:
-        plt.savefig(os.path.join(output_dir, "heatmap_{}_{}.pdf".format(*(np.array(params_to_change)+1))))
-        plt.clf()
+        cov_ellipse(cov, q=confidence_levels, offset=mle, new_figure=False) # Parameters have been normalised to 1
 
-    plt.plot(funcs.times, data, "x", label="synthetic data")
-    plt.plot(funcs.times, funcs.SimulateForwardModel(paras), label="True model response")
-    plt.plot(funcs.times, funcs.SimulateForwardModel(mle_paras), label="Fitted model response")
-    plt.legend()
+        plt.plot(true_vals[0], true_vals[1], "x", label="true value of parameters", color="black")
+        plt.legend()
 
-    if output_dir is None:
-        plt.show()
-    else:
-        plt.savefig(os.path.join(output_dir, "synthetic_data_generation.pdf"))
-        plt.clf()
+        if output_dir is None:
+            plt.show()
+        else:
+            plt.savefig(os.path.join(output_dir, "heatmap_{}_{}.pdf".format(*(np.array(params_to_change)+1))))
+            plt.clf()
+
+        plt.plot(funcs.times, data, "x", label="synthetic data")
+        plt.plot(funcs.times, funcs.SimulateForwardModel(paras), label="True model response")
+        plt.plot(funcs.times, funcs.SimulateForwardModel(mle_paras), label="Fitted model response")
+        plt.legend()
+
+        if output_dir is None:
+            plt.show()
+        else:
+            plt.savefig(os.path.join(output_dir, "synthetic_data_generation.pdf"))
+            plt.clf()
 
     class likelihood(pints.LogPDF):
         def __call__(self, p):
@@ -143,8 +144,35 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
         def n_parameters(self):
             return 2
 
+    if args.heatmap:
+        plot_likelihood_cross_sections(llxy, paraboloid, cov, mle)
+
+    if args.mcmc:
+        do_mcmc(likelihood, mle, args)
+    return likelihood(), mle
+
+def do_mcmc(likelihood, starting_pos, args):
+    mcmc = pints.MCMCController(likelihood, args.no_chains, np.tile(starting_pos, [args.no_chains,1]), method=pints.HaarioBardenetACMC)
+    chains = mcmc.run()
+    if args.burn_in is not None:
+        chains = chains[:, args.burn_in:, :]
+    for i, chain in enumerate(chains):
+        np.savetxt(os.path.join(output_dir, "chain_{}.csv".format(i)), chain, delimiter=",")
+
+    # Plot histograms
+    pints.plot.histogram(chains, parameter_names=["p5","p7"], kde=True)
+    if args.plot:
+        plt.show()
+    else:
+        plt.savefig(os.path.join(output_dir, "histogram.pdf"))
+    return
+
+
+def plot_likelihood_cross_sections(likelihood, paraboloid, cov, mle):
+    assert(cov.shape==(2,2))
     eigvals, eigvecs = np.linalg.eigh(cov)
-    print(eigvecs)
+    ll_of_mle = likelihood(*mle)
+    paraboloid = lambda x,y : ll_of_mle-(0.5*H[0,0]*x**2 + H[1,0]*x*y + 0.5*H[1,1]*y**2)/noise_level
     for i, [e, l] in enumerate(zip(eigvecs, eigvals.T)):
         print(e, l)
         # Orientate nicely
@@ -162,7 +190,7 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
 
         vecs = np.linspace(start_point, end_point, 100)
         plt.plot(vecs[:,0], [paraboloid(*(vec-mle)) for vec in vecs], "--", color="grey", label="parabola approximation")
-        plt.plot(vecs[:,0], [val if val > 0 else np.nan for val in [llxy(*vec) for vec in vecs]], label="likelihood")
+        plt.plot(vecs[:,0], [val if val > 0 else np.nan for val in [likelihood(*vec) for vec in vecs]], label="likelihood")
         plt.axvline(mle[0], linestyle="--", label="mle")
 
         # Plot confidence region lines
@@ -171,18 +199,21 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, output
         for q, colour in zip(q_vals, colours):
             r2 = scipy.stats.chi2.ppf(q ,2)
             radius = np.sqrt(l*r2)
-            plt.axvline(mle[0] + radius*e[0], linestyle="--", color=colour, label="{}% confidence region boundary".format(int(q*100)))
-            plt.axvline(mle[0] - radius*e[0], linestyle="--", color=colour, label="{}% confidence region boundary".format(int(q*100)))
+            plt.axvline(mle[0] + radius*e[0], linestyle="--", color=colour, label="Approximate {}% confidence region boundary".format(int(q*100)))
+            plt.axvline(mle[0] - radius*e[0], linestyle="--", color=colour, label="Approximate {}% confidence region boundary".format(int(q*100)))
             plt.xlabel("p5")
         plt.legend()
-
+        plt.tick_params(
+            axis='x',          # changes apply to the x-axis
+            which='both',      # both major and minor ticks are affected
+            bottom=False,      # ticks along the bottom edge are off
+            top=False,         # ticks along the top edge are off
+            labelbottom=False) # labels along the bottom edge are off
         if output_dir is not None:
             plt.savefig(os.path.join(output_dir, "likelihood_1d_plot_{}.pdf".format(i)))
             plt.clf()
         else:
             plt.show()
-
-    # Do MCMC
     return
 
 def generate_synthetic_data(funcs, para, sigma2):
@@ -197,6 +228,12 @@ def main():
     # Check input arguments
     parser = get_parser()
     parser.add_argument("-m", "--heatmap", action='store_true')
+    parser.add_argument("-n", "--no_chains",type=int, default=3, help="number of chains to use")
+    parser.add_argument("-l", "--chain_length", type=int, default=1000, help="length of chain to use")
+    parser.add_argument("-v", "--protocol", default=None, help="name of the protocol to use")
+    parser.add_argument("-b", "--burn_in", type=int, default=None, help="amount of burn in to use")
+    parser.add_argument("-r", "--remove", default=50, help="ms of data to ignore after each capacitive spike", type=int)
+    parser.add_argument("-M", "--mcmc", default=50, help="Whether or not to perform mcmc on the synthetic data example.", action='store_true')
     args = parser.parse_args()
 
     par = Params()
@@ -334,8 +371,10 @@ def main():
     para = np.array([2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524])
     synthetic_data = generate_synthetic_data(funcs, para, sigma2)
 
-    if args.heatmap:
-        draw_likelihood_surface(funcs, para, [4,6], [[0, 0.2],[0, 0.02]], synthetic_data, output_dir=plot_dir)
+    if args.heatmap or args.mcmc:
+        likelihood, mle = draw_likelihood_surface(funcs, para, [4,6], [[0, 0.2],[0, 0.02]], synthetic_data, args, output_dir=plot_dir)
+    elif args.mcmc:
+        assert(false)
 
 if __name__=="__main__":
     plt.rcParams["figure.figsize"] = (8,8)
