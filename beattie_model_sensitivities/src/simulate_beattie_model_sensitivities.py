@@ -11,9 +11,6 @@ from sensitivity_equations import GetSensitivityEquations, CreateSymbols
 from common import *
 
 def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=None):
-    # Capacitive spikes
-    spikes = [250, 300, 500, 1500, 2000, 3000, 6500, 7000]
-
     # Check input arguments
     par = Params()
 
@@ -46,7 +43,13 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     if times == []:
         times = np.linspace(0, par.tmax, par.tmax + 1)
 
-    voltage = beattie_sine_wave
+    spikes=None
+    if args.sine_wave:
+        voltage = beattie_sine_wave
+        # Capacitive spikes
+        # spikes = [250, 300, 500, 1500, 2000, 3000, 6500, 7000]
+    else:
+        voltage = None
 
     funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times, voltage=voltage)
 
@@ -67,7 +70,8 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     ax1.grid(True)
     ax1.set_xticklabels([])
     ax1.set_ylabel('Voltage (mV)')
-    [ax1.axvline(spike, linestyle="--", color="red", alpha=0.25) for spike in spikes]
+    if spikes is not None:
+        [ax1.axvline(spike, linestyle="--", color="red", alpha=0.25) for spike in spikes]
     ax2 = fig.add_subplot(412)
     ax2.plot(funcs.times, funcs.SimulateForwardModel(para), label="model fit")
     if data is not None:
