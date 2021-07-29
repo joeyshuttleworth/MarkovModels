@@ -52,7 +52,7 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, args, 
     fix_params = [i for i in range(len(paras)) if i not in params_to_change]
     print(fix_params)
 
-    mle, val = fit_model(funcs, data, paras, Params(), fix_parameters=fix_params)#, max_iterations=10)
+    mle, val = fit_model(funcs, data, paras, Params(), fix_parameters=fix_params)#, max_iterations=1)
 
     # Compute SSE
     p = np.copy(paras)
@@ -138,21 +138,23 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, args, 
             plt.savefig(os.path.join(output_dir, "synthetic_data_generation.pdf"))
             plt.clf()
 
-    class likelihood(pints.LogPDF):
-        def __call__(self, p):
-            return llxy(*p)
-        def n_parameters(self):
-            return 2
-
     if args.heatmap:
         plot_likelihood_cross_sections(llxy, paraboloid, cov, mle)
 
     if args.mcmc:
-        do_mcmc(likelihood, mle, args)
-    return likelihood(), mle
+        do_mcmc(llxy, mle, args, output_dir)
+    return mle
 
-def do_mcmc(likelihood, starting_pos, args):
-    mcmc = pints.MCMCController(likelihood, args.no_chains, np.tile(starting_pos, [args.no_chains,1]), method=pints.HaarioBardenetACMC)
+def do_mcmc(llxy, starting_pos, args, output_dir=None):
+    class pints_likelihood(pints.LogPDF):
+        def __call__(self, p):
+            return llxy(*p)
+        def n_parameters(self):
+            return 2
+    prior = pints.UniformLogPrior([0,0], [1,1])
+    posterior = pints.LogPosterior(pints_likelihood(), prior)
+    mcmc = pints.MCMCController(posterior, args.no_chains, np.tile(starting_pos, [args.no_chains,1]), method=pints.HaarioBardenetACMC)
+    mcmc.set_max_iterations(args.chain_length)
     chains = mcmc.run()
     if args.burn_in is not None:
         chains = chains[:, args.burn_in:, :]
@@ -172,7 +174,6 @@ def plot_likelihood_cross_sections(likelihood, paraboloid, cov, mle):
     assert(cov.shape==(2,2))
     eigvals, eigvecs = np.linalg.eigh(cov)
     ll_of_mle = likelihood(*mle)
-    paraboloid = lambda x,y : ll_of_mle-(0.5*H[0,0]*x**2 + H[1,0]*x*y + 0.5*H[1,1]*y**2)/noise_level
     for i, [e, l] in enumerate(zip(eigvecs, eigvals.T)):
         print(e, l)
         # Orientate nicely
