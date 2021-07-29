@@ -72,12 +72,12 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, args, 
     S1 = S1[:, params_to_change]
     H = np.dot(S1.T, S1)
     cov = noise_level*np.linalg.inv(H)
-    eigvals, eigves = np.linalg.eigh(cov)
+    eigvals, eigvecs = np.linalg.eigh(cov)
     assert(np.all(eigvals>0))
 
     # TODO Make this work in general
-    major_axis_angle = np.arctan(min(eigvals)/max(eigvals))
-    window_size = [10*math.cos(major_axis_angle)*np.max(eigvals), 0.002]
+    major_axis_angle = np.arctan2(min(eigvals), max(eigvals))
+    window_size = [10*eigvecs[0,1]*np.max(eigvals), 0.002]
     paraboloid = lambda x,y : ll_of_mle-(0.5*H[0,0]*x**2 + H[1,0]*x*y + 0.5*H[1,1]*y**2)/noise_level
 
     if args.heatmap:
@@ -139,7 +139,7 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, args, 
             plt.clf()
 
     if args.heatmap:
-        plot_likelihood_cross_sections(llxy, paraboloid, cov, mle)
+        plot_likelihood_cross_sections(llxy, paraboloid, cov, mle, output_dir)
 
     if args.mcmc:
         do_mcmc(llxy, mle, args, output_dir)
@@ -170,7 +170,7 @@ def do_mcmc(llxy, starting_pos, args, output_dir=None):
     return
 
 
-def plot_likelihood_cross_sections(likelihood, paraboloid, cov, mle):
+def plot_likelihood_cross_sections(likelihood, paraboloid, cov, mle, output_dir=None):
     assert(cov.shape==(2,2))
     eigvals, eigvecs = np.linalg.eigh(cov)
     ll_of_mle = likelihood(*mle)
