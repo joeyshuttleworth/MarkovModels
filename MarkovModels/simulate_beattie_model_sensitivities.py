@@ -10,6 +10,7 @@ from settings import Params
 from sensitivity_equations import GetSensitivityEquations, CreateSymbols
 from common import *
 
+
 def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=None):
     # Check input arguments
     par = Params()
@@ -20,7 +21,8 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
 
     # Choose parameters (from J Physiol paper)
     if para == []:
-        para = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
+        para = [2.26E-04, 0.0699, 3.45E-05, 0.05462,
+                0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
 
     # Sigma copied from output of fit_model
     sigma2 = 0.0006
@@ -35,7 +37,8 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     k4 = p[6] * se.exp(-p[7] * v)
 
     # Write in matrix form taking y = ([C], [O], [I])^T
-    A = se.Matrix([[-k1 - k3 - k4, k2 -  k4, -k4], [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
+    A = se.Matrix([[-k1 - k3 - k4, k2 - k4, -k4],
+                   [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
     B = se.Matrix([k4, 0, k1])
 
     rhs = np.array(A * y + B)
@@ -43,7 +46,7 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     if times == []:
         times = np.linspace(0, par.tmax, par.tmax + 1)
 
-    spikes=None
+    spikes = None
     if args.sine_wave:
         voltage = beattie_sine_wave
         # Capacitive spikes
@@ -51,7 +54,8 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     else:
         voltage = None
 
-    funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times, voltage=voltage)
+    funcs = GetSensitivityEquations(
+        par, p, y, v, A, B, para, times, voltage=voltage)
 
     ret = funcs.SimulateForwardModelSensitivities(para),
     current = ret[0][0]
@@ -71,7 +75,8 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     ax1.set_xticklabels([])
     ax1.set_ylabel('Voltage (mV)')
     if spikes is not None:
-        [ax1.axvline(spike, linestyle="--", color="red", alpha=0.25) for spike in spikes]
+        [ax1.axvline(spike, linestyle="--", color="red", alpha=0.25)
+         for spike in spikes]
     ax2 = fig.add_subplot(412)
     ax2.plot(funcs.times, funcs.SimulateForwardModel(para), label="model fit")
     if data is not None:
@@ -97,7 +102,8 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     plt.tight_layout()
 
     if not args.plot:
-        plt.savefig(os.path.join(dirname, 'ForwardModel_SW_' + str(args.sine_wave) + '.png'))
+        plt.savefig(os.path.join(dirname, 'ForwardModel_SW_' +
+                                 str(args.sine_wave) + '.png'))
 
     H = np.dot(S1n.T, S1n)
     eigvals = np.linalg.eigvals(H)
@@ -112,14 +118,16 @@ def simulate_sine_wave_sensitivities(args, times=[], dirname="", para=[], data=N
     ax.grid(True)
 
     if not args.plot:
-        plt.savefig(os.path.join(dirname, 'Eigenvalues_SW_' + str(args.sine_wave) + '.png'))
+        plt.savefig(os.path.join(dirname, 'Eigenvalues_SW_' +
+                                 str(args.sine_wave) + '.png'))
 
     if args.plot:
         plt.show()
 
     draw_cov_ellipses(para, par, S1n=S1n, sigma2=sigma2, plot_dir=dirname)
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     parser = get_parser(data_reqd=False)
     args = parser.parse_args()
     simulate_sine_wave_sensitivities(args, dirname="sine_wave")

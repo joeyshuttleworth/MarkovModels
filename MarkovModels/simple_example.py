@@ -10,6 +10,7 @@ from common import get_args, cov_ellipse
 # 1-dimensional linear model, y = alpha * t + beta with i.i.d Gaussian noise,
 # sigma
 
+
 def main():
 
     args = get_args()
@@ -18,13 +19,14 @@ def main():
 
     # [alpha, beta, sigma]
     true_parameters = [2, 3, 0.25]
-    forward_model   = lambda t : true_parameters[0] + t * true_parameters[1]
+    def forward_model(t): return true_parameters[0] + t * true_parameters[1]
 
     # Generate data
     # Use a lot of data points - the approximations used only hold asymptotically
     n_points = 1000
-    times = np.linspace(0,1,n_points)
-    data  = forward_model(times) + np.random.normal(0, true_parameters[2], len(times))
+    times = np.linspace(0, 1, n_points)
+    data = forward_model(times) + np.random.normal(0,
+                                                   true_parameters[2], len(times))
 
     # Sensitivities are easy to write down (use pen and paper)
     sens1 = np.ones(n_points)
@@ -35,8 +37,10 @@ def main():
     inferred_params = np.array((inferred_params[1], inferred_params[0]))
 
     # Estimate sigma
-    sigma2 = sum((inferred_params[0] + inferred_params[1]*times - data)**2)/(n_points-1)
-    print("observed sigma^2 vs true value\t{}, {}".format(sigma2, true_parameters[2]**2))
+    sigma2 = sum(
+        (inferred_params[0] + inferred_params[1]*times - data)**2)/(n_points-1)
+    print("observed sigma^2 vs true value\t{}, {}".format(
+        sigma2, true_parameters[2]**2))
 
     sens = np.matrix(np.stack((sens1, sens2)))
 
@@ -66,11 +70,13 @@ def main():
     if args.plot:
         plt.show()
     else:
-        plt.savefig(os.path.join(args.output, "simple_example", "synthetic_data"))
+        plt.savefig(os.path.join(
+            args.output, "simple_example", "synthetic_data"))
 
     # Plot 1 s.d ellipse
     # Does this plot make sense? What does it mean?
-    fig, ax = cov_ellipse(cov, offset=inferred_params, q=[0.75, 0.9, 0.95, 0.99])
+    fig, ax = cov_ellipse(cov, offset=inferred_params,
+                          q=[0.75, 0.9, 0.95, 0.99])
     plt.xlabel("intercept")
     plt.ylabel("gradient")
 
@@ -79,7 +85,9 @@ def main():
     if args.plot:
         plt.show()
     else:
-        plt.savefig(os.path.join(args.output, "simple_example", "1sd_ellipse_parameter_dist"))
+        plt.savefig(os.path.join(args.output, "simple_example",
+                                 "1sd_ellipse_parameter_dist"))
+
 
 if __name__ == "__main__":
     main()

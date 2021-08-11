@@ -18,18 +18,21 @@ from settings import Params
 from sensitivity_equations import GetSensitivityEquations, CreateSymbols
 from common import *
 
+
 class PintsWrapper(pints.LogPDF):
     # A class used by pints to compute the log likelihood of the model
     def __init__(self, data, settings, args):
         par = Params()
         # self.starting_parameters = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
-        self.starting_parameters = [9.81590659e-05, 6.98545007e-02, 4.13768231e-05, 5.45350444e-02, 8.73426397e-02, 8.92375528e-03, 5.12623396e-03, 3.16181966e-02, 1.52223030e-01]
+        self.starting_parameters = [9.81590659e-05, 6.98545007e-02, 4.13768231e-05, 5.45350444e-02,
+                                    8.73426397e-02, 8.92375528e-03, 5.12623396e-03, 3.16181966e-02, 1.52223030e-01]
 
         # Create symbols for symbolic functions
         p, y, v = CreateSymbols(settings)
 
         # Choose starting parameters (from J Physiol paper)
-        para = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
+        para = [2.26E-04, 0.0699, 3.45E-05, 0.05462,
+                0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
 
         # Define system equations and initial conditions
         k1 = p[0] * se.exp(p[1] * v)
@@ -39,39 +42,47 @@ class PintsWrapper(pints.LogPDF):
 
         # Write in matrix form taking y = ([C], [O], [I])^T
 
-        A = se.Matrix([[-k1 - k3 - k4, k2 -  k4, -k4], [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
+        A = se.Matrix([[-k1 - k3 - k4, k2 - k4, -k4],
+                       [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
         B = se.Matrix([k4, 0, k1])
 
         rhs = np.array(A * y + B)
 
         voltage = None
         protocol = args.protocol
-        spikes=None
+        spikes = None
         if protocol == "sine_wave":
             # TODO Check data columns
-            data=data.values
+            data = data.values
             voltage = beattie_sine_wave
             spikes = [2500, 3000, 5000, 15000, 20000, 30000, 65000, 70000]
             ms_to_remove_after_spike = args.remove
-            indices_to_remove = [[spike, spike + ms_to_remove_after_spike*10] for spike in spikes]
-            indices_to_use = remove_indices(list(range(data.shape[0])), indices_to_remove)
+            indices_to_remove = [
+                [spike, spike + ms_to_remove_after_spike*10] for spike in spikes]
+            indices_to_use = remove_indices(
+                list(range(data.shape[0])), indices_to_remove)
             data = data[indices_to_use]
-            times_to_use=data[:,0]
+            times_to_use = data[:, 0]
 
         elif protocol == "staircase":
             voltage = get_staircase_protocol()
-            #TODO Calculate spikes
+            # TODO Calculate spikes
             assert(False)
         else:
             assert(False)
 
         self.times_to_use = times_to_use
-        self.data=data[:,1]
-        self.funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times_to_use, voltage=voltage)
-        self.starting_parameters, sse = fit_model(self.funcs, self.data, self.starting_parameters, par)
-        self.noise_level = (self.funcs.SimulateForwardModel(self.starting_parameters) - data[:,1]).var()
-        print("Using starting parameters {} and noise_level = {}".format(self.starting_parameters, self.noise_level))
-        print("Likelihood at starting parameters = {}".format(self.__call__(self.starting_parameters[[4,6]])))
+        self.data = data[:, 1]
+        self.funcs = GetSensitivityEquations(
+            par, p, y, v, A, B, para, times_to_use, voltage=voltage)
+        self.starting_parameters, sse = fit_model(
+            self.funcs, self.data, self.starting_parameters, par)
+        self.noise_level = (self.funcs.SimulateForwardModel(
+            self.starting_parameters) - data[:, 1]).var()
+        print("Using starting parameters {} and noise_level = {}".format(
+            self.starting_parameters, self.noise_level))
+        print("Likelihood at starting parameters = {}".format(
+            self.__call__(self.starting_parameters[[4, 6]])))
 
     def __call__(self, p):
         # Fix all parameters except p_5 and p_7
@@ -83,12 +94,14 @@ class PintsWrapper(pints.LogPDF):
         # compute sample variance
         errors = pred - self.data
         n = len(pred)
-        ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(self.noise_level) -(errors**2).sum()/(2*self.noise_level)
+        ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(self.noise_level) - \
+            (errors**2).sum()/(2*self.noise_level)
 
         return ll
 
     def n_parameters(self):
         return 2
+
 
 def extract_times(lst, time_ranges, step):
     """
@@ -103,11 +116,14 @@ def extract_times(lst, time_ranges, step):
         ret_lst.extend(lst[time_range[0]:time_range[1]:step].tolist())
     return np.array(ret_lst)
 
-def main():
-    #constants
-    indices_to_use = [[1,2499], [2549,2999], [3049,4999], [5049,14999], [15049,19999], [20049,29999], [30049,64999], [65049,69999], [70049,-1]]
 
-    starting_parameters = np.array([2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524])
+def main():
+    # constants
+    indices_to_use = [[1, 2499], [2549, 2999], [3049, 4999], [5049, 14999], [
+        15049, 19999], [20049, 29999], [30049, 64999], [65049, 69999], [70049, -1]]
+
+    starting_parameters = np.array(
+        [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524])
 
     plt.rcParams['axes.axisbelow'] = True
 
@@ -115,11 +131,16 @@ def main():
     parser = argparse.ArgumentParser(
         description='Plot sensitivities of the Beattie model')
     parser = get_parser(data_reqd=True)
-    parser.add_argument("-n", "--no_chains",type=int, default=3, help="number of chains to use")
-    parser.add_argument("-l", "--chain_length", type=int, default=1000, help="length of chain to use")
-    parser.add_argument("-v", "--protocol", default=None, help="name of the protocol to use")
-    parser.add_argument("-b", "--burn_in", type=int, default=None, help="amount of burn in to use")
-    parser.add_argument("-r", "--remove", default=50, help="ms of data to ignore after each capacitive spike", type=int)
+    parser.add_argument("-n", "--no_chains", type=int,
+                        default=3, help="number of chains to use")
+    parser.add_argument("-l", "--chain_length", type=int,
+                        default=1000, help="length of chain to use")
+    parser.add_argument("-v", "--protocol", default=None,
+                        help="name of the protocol to use")
+    parser.add_argument("-b", "--burn_in", type=int,
+                        default=None, help="amount of burn in to use")
+    parser.add_argument("-r", "--remove", default=50,
+                        help="ms of data to ignore after each capacitive spike", type=int)
 
     args = parser.parse_args()
 
@@ -127,7 +148,6 @@ def main():
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-
 
     data = pd.read_csv(args.data_file_path, delim_whitespace=True)
 
@@ -144,23 +164,26 @@ def main():
     par = Params()
 
     ll = PintsWrapper(data, par, args)
-    prior = pints.UniformLogPrior([0,0], [1,1])
+    prior = pints.UniformLogPrior([0, 0], [1, 1])
     posterior = pints.LogPosterior(ll, prior)
-    mcmc = pints.MCMCController(posterior, args.no_chains, np.tile(ll.starting_parameters[[4,6]], [args.no_chains,1]), method=pints.HaarioBardenetACMC)
+    mcmc = pints.MCMCController(posterior, args.no_chains, np.tile(
+        ll.starting_parameters[[4, 6]], [args.no_chains, 1]), method=pints.HaarioBardenetACMC)
     mcmc.set_max_iterations(args.chain_length)
 
     chains = mcmc.run()
     if args.burn_in is not None:
         chains = chains[:, args.burn_in:, :]
     for i, chain in enumerate(chains):
-        np.savetxt(os.path.join(output_dir, "chain_{}.csv".format(i)), chain, delimiter=",")
+        np.savetxt(os.path.join(output_dir, "chain_{}.csv".format(i)),
+                   chain, delimiter=",")
 
     # Plot histograms
-    pints.plot.histogram(chains, parameter_names=["p5","p7"], kde=True)
+    pints.plot.histogram(chains, parameter_names=["p5", "p7"], kde=True)
     if args.plot:
         plt.show()
     else:
         plt.savefig(os.path.join(output_dir, "histogram.pdf"))
+
 
 if __name__ == "__main__":
     main()

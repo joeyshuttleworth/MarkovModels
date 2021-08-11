@@ -14,10 +14,11 @@ import symengine as se
 import matplotlib.pyplot as plt
 import matplotlib
 
-from  settings import Params
-from  sensitivity_equations import GetSensitivityEquations, CreateSymbols
-from  common import *
-from  simulate_beattie_model_sensitivities import simulate_sine_wave_sensitivities
+from settings import Params
+from sensitivity_equations import GetSensitivityEquations, CreateSymbols
+from common import *
+from simulate_beattie_model_sensitivities import simulate_sine_wave_sensitivities
+
 
 def main(args, output_dir="", ms_to_remove_after_spike=50):
     # Load defaults
@@ -30,19 +31,21 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
     data = pd.read_csv(args.data_file_path, delim_whitespace=True)
     skip = int(par.timestep/0.1)
 
-    starting_parameters = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
+    starting_parameters = [2.26E-04, 0.0699, 3.45E-05,
+                           0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
 
     # Process data
     if ms_to_remove_after_spike == 0:
         indices_to_remove = None
     else:
         spikes = [2500, 3000, 5000, 15000, 20000, 30000, 65000, 70000]
-        indices_to_remove = [[spike, spike + ms_to_remove_after_spike*10] for spike in spikes]
+        indices_to_remove = [
+            [spike, spike + ms_to_remove_after_spike*10] for spike in spikes]
     indices_to_use = remove_indices(list(range(80000)), indices_to_remove)
 
     dat = data.values[indices_to_use]
-    times=dat[:,0]
-    values=dat[:,1]
+    times = dat[:, 0]
+    values = dat[:, 1]
     nobs = times.shape[0]
     print("Number of observations is {}".format(nobs))
 
@@ -56,16 +59,18 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
     k4 = p[6] * se.exp(-p[7] * v)
 
     # Write in matrix form taking y = ([C], [O], [I])^T
-    A = se.Matrix([[-k1 - k3 - k4, k2 -  k4, -k4], [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
+    A = se.Matrix([[-k1 - k3 - k4, k2 - k4, -k4],
+                   [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
     B = se.Matrix([k4, 0, k1])
 
     rhs = np.array(A * y + B)
 
-    voltage=None
-    if args.protocol=="sine_wave":
+    voltage = None
+    if args.protocol == "sine_wave":
         voltage = beattie_sine_wave
 
-    funcs = GetSensitivityEquations(par, p, y, v, A, B, starting_parameters, times, voltage=voltage)
+    funcs = GetSensitivityEquations(
+        par, p, y, v, A, B, starting_parameters, times, voltage=voltage)
 
     # Ensure directory exists
     if not os.path.exists(output_dir):
@@ -73,9 +78,11 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
 
     plt.rcParams['axes.axisbelow'] = True
 
-    found_parameters, found_value = fit_model(funcs, values, starting_parameters, par)
+    found_parameters, found_value = fit_model(
+        funcs, values, starting_parameters, par)
 
-    print("finished! found parameters : {} ".format(found_parameters, found_value))
+    print("finished! found parameters : {} ".format(
+        found_parameters, found_value))
     s_variance = found_value/(nobs-1)
     print("Sample variance of residues is {}".format(s_variance))
 
@@ -85,15 +92,14 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
     plt.plot(funcs.times, current)
 
     if args.plot:
-       plt.show()
+        plt.show()
 
     else:
         plt.savefig(os.path.join(output_dir, "original_plot"))
 
-
     # Find error sensitivities
     current, sens = funcs.SimulateForwardModelSensitivities(found_parameters)
-    sens = (sens * found_parameters[None,:]).T
+    sens = (sens * found_parameters[None, :]).T
 
     for i, vec in enumerate(sens):
         plt.plot(times, vec, label="state_variable".format(i))
@@ -121,16 +127,20 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
 
     return times, found_parameters
 
-if __name__ == "__main__":
-    spike_removal_durations=[0,50,100,150,200,1000]
-    parser = get_parser(data_reqd=True)
-    parser.add_argument("-r", "--remove", default=spike_removal_durations, help="ms of data to ignore after each capacitive spike", nargs='+', type=int)
-    parser.add_argument("-v", "--protocol", default=None, help="name of the protocol to use")
 
-    args = parser.parse_args ()
-    data  = pd.read_csv(args.data_file_path, delim_whitespace=True)
+if __name__ == "__main__":
+    spike_removal_durations = [0, 50, 100, 150, 200, 1000]
+    parser = get_parser(data_reqd=True)
+    parser.add_argument("-r", "--remove", default=spike_removal_durations,
+                        help="ms of data to ignore after each capacitive spike", nargs='+', type=int)
+    parser.add_argument("-v", "--protocol", default=None,
+                        help="name of the protocol to use")
+
+    args = parser.parse_args()
+    data = pd.read_csv(args.data_file_path, delim_whitespace=True)
     for val in args.remove:
         output_dir = os.path.join("{}ms_removed".format(val))
         times, params = main(args, output_dir, val)
-        simulate_sine_wave_sensitivities(args, times, dirname=output_dir, para=params, data=data)
+        simulate_sine_wave_sensitivities(
+            args, times, dirname=output_dir, para=params, data=data)
     print("done")

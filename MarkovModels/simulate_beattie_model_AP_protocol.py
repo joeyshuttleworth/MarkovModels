@@ -13,6 +13,7 @@ from settings import Params
 from MarkovModel import MarkovModel, CreateSymbols
 from common import calculate_reversal_potential, get_parser
 
+
 def main():
     # Check input arguments
     parser = get_parser()
@@ -26,7 +27,8 @@ def main():
         os.makedirs(plot_dir)
 
     # Choose parameters (make sure conductance is the last parameter)
-    para = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2, 4.75E-2, 2.51E-2, 3.33E-2])
+    para = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2,
+                     4.18E-1, 2.58E-2, 4.75E-2, 2.51E-2, 3.33E-2])
 
     # Create symbols for symbolic functions
     p, y, v = CreateSymbols(par)
@@ -40,20 +42,26 @@ def main():
     k4 = p[6] * se.exp(-p[7] * v)
 
     # Notation is consistent between the two papers
-    A = se.Matrix([[-k1 - k3 - k4, k2 -  k4, -k4], [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
+    A = se.Matrix([[-k1 - k3 - k4, k2 - k4, -k4],
+                   [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
     B = se.Matrix([k4, 0, k1])
 
     rhs = np.array(A * y + B)
 
-    protocol = pd.read_csv(os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "protocols", "AP-protocol.txt"))
+    protocol = pd.read_csv(os.path.join(os.path.dirname(os.path.dirname(
+        os.path.realpath(__file__))), "protocols", "AP-protocol.txt"))
     times = 1E3*protocol["time"].values
     voltages = protocol["voltage"].values
 
     # 10*times to correct units
-    staircase_protocol = scipy.interpolate.interp1d(times, voltages, kind="linear")
-    staircase_protocol_safe = lambda t : staircase_protocol(t) if t < times[-1] else par.holding_potential
+    staircase_protocol = scipy.interpolate.interp1d(
+        times, voltages, kind="linear")
 
-    funcs = GetSensitivityEquations(par, p, y, v, A, B, para, times, voltage=staircase_protocol_safe)
+    def staircase_protocol_safe(t): return staircase_protocol(
+        t) if t < times[-1] else par.holding_potential
+
+    funcs = GetSensitivityEquations(
+        par, p, y, v, A, B, para, times, voltage=staircase_protocol_safe)
     ret = funcs.SimulateForwardModelSensitivities(para),
     current = ret[0][0]
     S1 = ret[0][1]
@@ -93,7 +101,8 @@ def main():
     plt.tight_layout()
 
     if not args.plot:
-        plt.savefig(os.path.join(plot_dir, 'ForwardModel_SW_{}.png'.format(args.sine_wave)))
+        plt.savefig(os.path.join(
+            plot_dir, 'ForwardModel_SW_{}.png'.format(args.sine_wave)))
 
     H = np.dot(S1n.T, S1n)
     print(H)
@@ -110,13 +119,16 @@ def main():
     ax.grid(True)
 
     if not args.plot:
-        plt.savefig(os.path.join(plot_dir, 'Eigenvalues_SW_{}.png'.format(args.sine_wave)))
+        plt.savefig(os.path.join(
+            plot_dir, 'Eigenvalues_SW_{}.png'.format(args.sine_wave)))
 
     if args.plot:
         plt.show()
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     main()
+
 
 def CreateSymbols(par):
     """

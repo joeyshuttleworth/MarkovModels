@@ -1,6 +1,5 @@
 class Params(object):
     def __init__(self):
-
         '''Fixed parameter settings used for simulations'''
         # Define number of parameters and variables
         self.n_state_vars = 3
