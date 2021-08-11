@@ -2,7 +2,7 @@ import numpy as np
 import symengine as se
 from scipy.integrate import odeint
 
-class GetSensitivityEquations(object):
+class GetSensitivityEquations:
     # A class to generate and solve sensitivity equations for the four state, nine parameter Hodgkin-Huxley model of the hERG channel
 
     # Arguments are provided using the Params class
