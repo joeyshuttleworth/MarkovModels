@@ -12,7 +12,6 @@ import os
 import pints
 import symengine as se
 
-
 def get_args(data_reqd=False, description=None):
     """
     Get command line arguments from using get_parser
@@ -280,8 +279,7 @@ def get_staircase_protocol(holding_potential=-80):
     protocol = pd.read_csv(
         os.path.join(
             os.path.dirname(
-                os.path.dirname(
-                    os.path.realpath(__file__))),
+                    os.path.realpath(__file__)),
             "protocols",
             "protocol-staircaseramp.csv"))
 
