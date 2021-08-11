@@ -10,6 +10,7 @@ import pandas as pd
 import math
 import os
 import pints
+import symengine as se
 
 
 def get_args(data_reqd=False, description=None):
@@ -471,3 +472,17 @@ def fit_model(funcs, data, starting_parameters, fix_parameters=None, max_iterati
 
     found_parameters, found_value = controller.run()
     return found_parameters, found_value
+
+def CreateSymbols(par):
+    """
+    Create SymEngine symbols to contain the parameters, state variables and the voltage.
+    These are used to generate functions for the right hand side and Jacobian
+    """
+
+    # Create parameter symbols
+    p = se.Matrix([se.symbols('p%d' % j) for j in range(par.n_params)])
+    # Create state variable symbols
+    y = se.Matrix([se.symbols('y%d' % i) for i in range(par.n_state_vars)])
+    # Create voltage symbol
+    v = se.symbols('v')
+    return p, y, v
