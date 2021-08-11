@@ -4,7 +4,8 @@ from scipy.integrate import odeint
 
 
 class MarkovModel:
-    # A class to generate and solve sensitivity equations for the four state, nine parameter Hodgkin-Huxley model of the hERG channel
+    # A class to generate and solve sensitivity equations for the four state,
+    # nine parameter Hodgkin-Huxley model of the hERG channel
 
     # Arguments are provided using the Params class
 
@@ -20,7 +21,7 @@ class MarkovModel:
         self.B = B
         rhs = A * y + B
 
-        if voltage != None:
+        if voltage is not None:
             self.voltage = voltage
 
         self.compute_sensitivity_equations_rhs(p, y, v, rhs, para)
@@ -44,8 +45,14 @@ class MarkovModel:
         print('Creating 1st order sensitivities function...')
 
         # Create symbols for 1st order sensitivities
-        dydp = [[se.symbols('dy%d' % i + 'dp%d' % j) for j in range(self.par.n_params)]
-                for i in range(self.par.n_state_vars)]
+        dydp = [
+            [
+                se.symbols(
+                    'dy%d' %
+                    i + 'dp%d' %
+                    j) for j in range(
+                    self.par.n_params)] for i in range(
+                self.par.n_state_vars)]
 
         # Append 1st order sensitivities to inputs
         for i in range(self.par.n_params):
@@ -73,7 +80,7 @@ class MarkovModel:
          for j in range(self.par.n_params)]
 
         self.auxillary_expression = p[self.par.GKr_index] * \
-            y[self.par.open_state]*(v - self.par.Erev)
+            y[self.par.open_state] * (v - self.par.Erev)
 
         # dI/do
         self.dIdo = se.diff(self.auxillary_expression, y[self.par.open_state])
@@ -100,7 +107,8 @@ class MarkovModel:
         # by finding the steady state of the model
 
         # RHS
-        # First check that a steady state exists for this system at this holding voltage
+        # First check that a steady state exists for this system at this
+        # holding voltage
         npmatrix = np.matrix([float(el.evalf()) for el in self.A.subs(
             v, self.par.holding_potential).subs(p, para)]).reshape(self.A.rows, self.A.cols)
         eigvals, eigvectors = np.linalg.eig(npmatrix)
@@ -115,20 +123,31 @@ class MarkovModel:
         current_inf = float(current_inf_expr.subs(
             v, self.par.holding_potential).subs(p, para).evalf())
 
-        # The limit of the current when voltage is held at the holding potential
+        # The limit of the current when voltage is held at the holding
+        # potential
         print("Current limit computed as {}".format(current_inf))
 
         self.rhs0 = rhs_inf_eval
 
         # Find sensitivity steady states
-        S1_inf = np.array([float(se.diff(rhs_inf[i], p[j]).subs(p, para).evalf()) for j in range(
-            0, self.par.n_params) for i in range(0, self.par.n_state_vars)])
+        S1_inf = np.array(
+            [
+                float(
+                    se.diff(
+                        rhs_inf[i],
+                        p[j]).subs(
+                        p,
+                        para).evalf()) for j in range(
+                    0,
+                    self.par.n_params) for i in range(
+                            0,
+                    self.par.n_state_vars)])
 
         self.drhs0 = np.concatenate((self.rhs0, S1_inf))
         index_sensitivities = self.par.n_state_vars + self.par.open_state + \
-            self.par.n_state_vars*np.array(range(self.par.n_params))
+            self.par.n_state_vars * np.array(range(self.par.n_params))
         sens_inf = self.drhs0[index_sensitivities] * \
-            (self.par.holding_potential - self.par.Erev)*para[-1]
+            (self.par.holding_potential - self.par.Erev) * para[-1]
         sens_inf[-1] += (self.par.holding_potential -
                          self.par.Erev) * rhs_inf_eval[self.par.open_state]
         print("sens_inf calculated as {}".format(sens_inf))
@@ -156,8 +175,16 @@ class MarkovModel:
         if times is None:
             times = self.times
 
-        return odeint(self.rhs, self.rhs0, times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1], Dfun=self.jrhs,
-                      args=(p, ))
+        return odeint(
+            self.rhs,
+            self.rhs0,
+            times,
+            atol=self.par.solver_tolerances[0],
+            rtol=self.par.solver_tolerances[1],
+            Dfun=self.jrhs,
+            args=(
+                p,
+            ))
 
     def drhs(self, y, t, p):
         """ Evaluate RHS analytically
@@ -165,8 +192,10 @@ class MarkovModel:
         """
         outputs = self.func_rhs(
             (*y[:self.par.n_state_vars], *p, self.voltage(t)))
-        outputs.extend(self.func_S1(
-            (*y[:self.par.n_state_vars], *p, self.voltage(t), *y[self.par.n_state_vars:])))
+        outputs.extend(self.func_S1((*
+                                     y[:self.par.n_state_vars], *
+                                     p, self.voltage(t), *
+                                     y[self.par.n_state_vars:])))
         return outputs
 
     def jdrhs(self, y, t, p):
@@ -175,7 +204,10 @@ class MarkovModel:
         This allows the system to be solved faster
 
         """
-        return self.jfunc_S1((*y[:self.par.n_state_vars], *p, self.voltage(t), *y[self.par.n_state_vars:]))
+        return self.jfunc_S1((*
+                              y[:self.par.n_state_vars], *
+                              p, self.voltage(t), *
+                              y[self.par.n_state_vars:]))
 
     # Returns the open state 1st order sensitivities
     def solve_drhs(self, p, times=None):
@@ -190,8 +222,15 @@ class MarkovModel:
 
         # Chop off RHS
 
-        drhs = odeint(self.drhs, self.drhs0, times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1], Dfun=self.jdrhs, args=(
-            p, ))[:, self.par.n_state_vars:]
+        drhs = odeint(self.drhs,
+                      self.drhs0,
+                      times,
+                      atol=self.par.solver_tolerances[0],
+                      rtol=self.par.solver_tolerances[1],
+                      Dfun=self.jdrhs,
+                      args=(p,
+                            ))[:,
+                               self.par.n_state_vars:]
         # Return only open state sensitivites
         return drhs[:, self.par.open_state::self.par.n_state_vars]
 
@@ -202,8 +241,16 @@ class MarkovModel:
         if times is None:
             times = self.times
 
-        return odeint(self.drhs, self.drhs0, times, atol=self.par.solver_tolerances[0], rtol=self.par.solver_tolerances[1], Dfun=self.jdrhs,
-                      args=(p, ))
+        return odeint(
+            self.drhs,
+            self.drhs0,
+            times,
+            atol=self.par.solver_tolerances[0],
+            rtol=self.par.solver_tolerances[1],
+            Dfun=self.jdrhs,
+            args=(
+                p,
+            ))
 
     def voltage(self, t):
         """Returns the voltage in volts of the chosen protocol after t milliseconds has passed
@@ -256,16 +303,16 @@ class MarkovModel:
 
         # Get the open state sensitivities for each parameter
         index_sensitivities = self.par.n_state_vars + self.par.open_state + \
-            self.par.n_state_vars*np.array(range(self.par.n_params))
+            self.par.n_state_vars * np.array(range(self.par.n_params))
         sensitivities = solution[:, index_sensitivities]
         # sensitivities = solution[:, self.par.n_state_vars:]
         o = solution[:, self.par.open_state]
         voltages = self.GetVoltage()
         current = p[-1] * o * (voltages - self.par.Erev)
         # values = np.stack(np.array([p[8] * (voltages - self.par.Erev) * sensitivity for sensitivity in sensitivities.T[:-1]]), axis=0)
-        dIdo = (voltages - self.par.Erev)*p[-1]
+        dIdo = (voltages - self.par.Erev) * p[-1]
         values = sensitivities * dIdo[:, None]
-        values[:, -1] += o*(voltages - self.par.Erev)
+        values[:, -1] += o * (voltages - self.par.Erev)
 
         ret_vals = (current, values)
         return ret_vals
@@ -279,7 +326,7 @@ class MarkovModel:
         """
         solution = self.solve_drhs_full(p)
         index_sensitivities = self.par.open_state + \
-            self.par.n_state_vars*np.array(range(self.par.n_params))
+            self.par.n_state_vars * np.array(range(self.par.n_params))
 
         # Get the open state sensitivities for each parameter
         sensitivites = solution[:, index_sensitivities]
@@ -289,6 +336,6 @@ class MarkovModel:
 
         # Compute the sensitivities of the error measure (chain rule)
         error_sensitivity = np.stack(
-            [2*(current - data) * current * sensitivity for sensitivity in sensitivites.T])
+            [2 * (current - data) * current * sensitivity for sensitivity in sensitivites.T])
 
         return current, current_sensitivies

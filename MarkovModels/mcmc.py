@@ -24,8 +24,16 @@ class PintsWrapper(pints.LogPDF):
     def __init__(self, data, settings, args):
         par = Params()
         # self.starting_parameters = [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
-        self.starting_parameters = [9.81590659e-05, 6.98545007e-02, 4.13768231e-05, 5.45350444e-02,
-                                    8.73426397e-02, 8.92375528e-03, 5.12623396e-03, 3.16181966e-02, 1.52223030e-01]
+        self.starting_parameters = [
+            9.81590659e-05,
+            6.98545007e-02,
+            4.13768231e-05,
+            5.45350444e-02,
+            8.73426397e-02,
+            8.92375528e-03,
+            5.12623396e-03,
+            3.16181966e-02,
+            1.52223030e-01]
 
         # Create symbols for symbolic functions
         p, y, v = CreateSymbols(settings)
@@ -58,7 +66,7 @@ class PintsWrapper(pints.LogPDF):
             spikes = [2500, 3000, 5000, 15000, 20000, 30000, 65000, 70000]
             ms_to_remove_after_spike = args.remove
             indices_to_remove = [
-                [spike, spike + ms_to_remove_after_spike*10] for spike in spikes]
+                [spike, spike + ms_to_remove_after_spike * 10] for spike in spikes]
             indices_to_use = remove_indices(
                 list(range(data.shape[0])), indices_to_remove)
             data = data[indices_to_use]
@@ -94,8 +102,8 @@ class PintsWrapper(pints.LogPDF):
         # compute sample variance
         errors = pred - self.data
         n = len(pred)
-        ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(self.noise_level) - \
-            (errors**2).sum()/(2*self.noise_level)
+        ll = -n * 0.5 * np.log(2 * np.pi) - n * 0.5 * np.log(
+            self.noise_level) - (errors**2).sum() / (2 * self.noise_level)
 
         return ll
 
@@ -119,11 +127,27 @@ def extract_times(lst, time_ranges, step):
 
 def main():
     # constants
-    indices_to_use = [[1, 2499], [2549, 2999], [3049, 4999], [5049, 14999], [
-        15049, 19999], [20049, 29999], [30049, 64999], [65049, 69999], [70049, -1]]
+    indices_to_use = [
+        [
+            1, 2499], [
+            2549, 2999], [
+                3049, 4999], [
+                    5049, 14999], [
+                        15049, 19999], [
+                            20049, 29999], [
+                                30049, 64999], [
+                                    65049, 69999], [
+                                        70049, -1]]
 
-    starting_parameters = np.array(
-        [2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524])
+    starting_parameters = np.array([2.26E-04,
+                                    0.0699,
+                                    3.45E-05,
+                                    0.05462,
+                                    0.0873,
+                                    8.92E-03,
+                                    5.150E-3,
+                                    0.03158,
+                                    0.1524])
 
     plt.rcParams['axes.axisbelow'] = True
 
@@ -139,8 +163,12 @@ def main():
                         help="name of the protocol to use")
     parser.add_argument("-b", "--burn_in", type=int,
                         default=None, help="amount of burn in to use")
-    parser.add_argument("-r", "--remove", default=50,
-                        help="ms of data to ignore after each capacitive spike", type=int)
+    parser.add_argument(
+        "-r",
+        "--remove",
+        default=50,
+        help="ms of data to ignore after each capacitive spike",
+        type=int)
 
     args = parser.parse_args()
 

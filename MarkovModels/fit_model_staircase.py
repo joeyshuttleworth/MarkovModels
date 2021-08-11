@@ -24,7 +24,15 @@ class PintsWrapper(pints.ForwardModelS1):
         par = Params()
         self.times_to_use = times_to_use
         self.starting_parameters = [
-            2.26E-04, 0.0699, 3.45E-05, 0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
+            2.26E-04,
+            0.0699,
+            3.45E-05,
+            0.05462,
+            0.0873,
+            8.92E-03,
+            5.150E-3,
+            0.03158,
+            0.1524]
         # Create symbols for symbolic functions
         p, y, v = CreateSymbols(settings)
 
@@ -45,9 +53,14 @@ class PintsWrapper(pints.ForwardModelS1):
         B = se.Matrix([k4, 0, k1])
 
         rhs = np.array(A * y + B)
-        protocol = pd.read_csv(os.path.join(os.path.dirname(os.path.dirname(
-            os.path.realpath(__file__))), "protocols", "protocol-staircaseramp.csv"))
-        times = 10000*protocol["time"].values
+        protocol = pd.read_csv(
+            os.path.join(
+                os.path.dirname(
+                    os.path.dirname(
+                        os.path.realpath(__file__))),
+                "protocols",
+                "protocol-staircaseramp.csv"))
+        times = 10000 * protocol["time"].values
         voltages = protocol["voltage"].values
 
         staircase_protocol = scipy.interpolate.interp1d(
@@ -68,7 +81,8 @@ class PintsWrapper(pints.ForwardModelS1):
         return ret
 
     def simulateS1(self, parameters, times):
-        return self.funcs.SimulateForwardModelSensitivites(parameters, data), self.times_to_use, 1
+        return self.funcs.SimulateForwardModelSensitivites(
+            parameters, data), self.times_to_use, 1
 
 
 class Boundaries(pints.Boundaries):
@@ -77,8 +91,8 @@ class Boundaries(pints.Boundaries):
         '''
 
         for i in range(0, 4):
-            alpha = parameters[2*i]
-            beta = parameters[2*i + 1]
+            alpha = parameters[2 * i]
+            beta = parameters[2 * i + 1]
 
             vals = [0, 0]
             vals[0] = alpha * np.exp(beta * -90 * 1E-3)
@@ -107,12 +121,20 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
     else:
         spikes = [2500, 3000, 5000, 15000, 20000, 30000, 65000, 70000]
         indices_to_remove = [
-            [spike, spike + ms_to_remove_after_spike*10] for spike in spikes]
+            [spike, spike + ms_to_remove_after_spike * 10] for spike in spikes]
 
     indices_to_use = remove_indices(list(range(80000)), indices_to_remove)
     # indices_to_use = [[1,2499], [2549,2999], [3049,4999], [5049,14999], [15049,19999], [20049,29999], [30049,64999], [65049,69999], [70049,-1]]
-    starting_parameters = [3.87068845e-04, 5.88028759e-02, 6.46971727e-05, 4.87408447e-02,
-                           8.03073893e-02, 7.36295506e-03, 5.32908518e-03, 3.32254316e-02, 6.56614672e-02]
+    starting_parameters = [
+        3.87068845e-04,
+        5.88028759e-02,
+        6.46971727e-05,
+        4.87408447e-02,
+        8.03073893e-02,
+        7.36295506e-03,
+        5.32908518e-03,
+        3.32254316e-02,
+        6.56614672e-02]
 
     plt.rcParams['axes.axisbelow'] = True
 
@@ -126,7 +148,7 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
 
     par = Params()
 
-    skip = int(par.timestep/0.1)
+    skip = int(par.timestep / 0.1)
     dat = data.values[indices_to_use]
 
     times = dat[:, 0]
@@ -171,14 +193,14 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
 
     # Estimate the various of the i.i.d Gaussian noise
     nobs = len(times)
-    sigma2 = sum((current - values)**2)/(nobs-1)
+    sigma2 = sum((current - values)**2) / (nobs - 1)
 
     # Compute the Fischer information matrix
-    FIM = sens @ sens.T/sigma2
+    FIM = sens @ sens.T / sigma2
     cov = FIM**-1
     eigvals = np.linalg.eigvals(FIM)
     for i in range(0, par.n_params):
-        for j in range(i+1, par.n_params):
+        for j in range(i + 1, par.n_params):
             parameters_to_view = np.array([i, j])
             sub_cov = cov[parameters_to_view[:, None], parameters_to_view]
             eigen_val, eigen_vec = np.linalg.eigh(sub_cov)
@@ -191,8 +213,12 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
                 if args.plot:
                     plt.show()
                 else:
-                    plt.savefig(os.path.join(
-                        output_dir, "covariance_for_parameters_{}_{}".format(i, j)))
+                    plt.savefig(
+                        os.path.join(
+                            output_dir,
+                            "covariance_for_parameters_{}_{}".format(
+                                i,
+                                j)))
                 plt.clf()
             else:
                 print("COV_{},{} : negative eigenvalue".format(i, j))
@@ -215,8 +241,13 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
 if __name__ == "__main__":
     spike_removal_durations = [0, 50, 100, 150, 200, 1000]
     parser = get_parser(data_reqd=True)
-    parser.add_argument("-r", "--remove", default=spike_removal_durations,
-                        help="ms of data to ignore after each capacitive spike", nargs='+', type=int)
+    parser.add_argument(
+        "-r",
+        "--remove",
+        default=spike_removal_durations,
+        help="ms of data to ignore after each capacitive spike",
+        nargs='+',
+        type=int)
     args = parser.parse_args()
     data = pd.read_csv(args.data_file_path, delim_whitespace=True)
     for val in args.remove:

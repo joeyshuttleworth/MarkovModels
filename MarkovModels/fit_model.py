@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-# Found optimal parameters [2.73318378e+07 3.44828704e+06 8.02615766e+05 2.52224782e+05 9.42360426e+04 2.67322394e+04 1.53260080e+03 6.84216241e+03 4.49633961e+03]
+# Found optimal parameters [2.73318378e+07 3.44828704e+06 8.02615766e+05
+# 2.52224782e+05 9.42360426e+04 2.67322394e+04 1.53260080e+03
+# 6.84216241e+03 4.49633961e+03]
 
 import os
 import math
@@ -29,10 +31,18 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
         print("Input file not provided. Doing nothing.")
         return
     data = pd.read_csv(args.data_file_path, delim_whitespace=True)
-    skip = int(par.timestep/0.1)
+    skip = int(par.timestep / 0.1)
 
-    starting_parameters = [2.26E-04, 0.0699, 3.45E-05,
-                           0.05462, 0.0873, 8.92E-03, 5.150E-3, 0.03158, 0.1524]
+    starting_parameters = [
+        2.26E-04,
+        0.0699,
+        3.45E-05,
+        0.05462,
+        0.0873,
+        8.92E-03,
+        5.150E-3,
+        0.03158,
+        0.1524]
 
     # Process data
     if ms_to_remove_after_spike == 0:
@@ -40,7 +50,7 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
     else:
         spikes = [2500, 3000, 5000, 15000, 20000, 30000, 65000, 70000]
         indices_to_remove = [
-            [spike, spike + ms_to_remove_after_spike*10] for spike in spikes]
+            [spike, spike + ms_to_remove_after_spike * 10] for spike in spikes]
     indices_to_use = remove_indices(list(range(80000)), indices_to_remove)
 
     dat = data.values[indices_to_use]
@@ -83,7 +93,7 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
 
     print("finished! found parameters : {} ".format(
         found_parameters, found_value))
-    s_variance = found_value/(nobs-1)
+    s_variance = found_value / (nobs - 1)
     print("Sample variance of residues is {}".format(s_variance))
 
     # plot fit
@@ -113,7 +123,7 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
 
     # Estimate the various of the i.i.d Gaussian noise
     nobs = len(times)
-    sigma2 = sum((current - values)**2)/(nobs-1)
+    sigma2 = sum((current - values)**2) / (nobs - 1)
     print("sigma2 = {}".format(sigma2))
 
     plt.plot(data["time"], data["current"], label="averaged data")
@@ -131,8 +141,13 @@ def main(args, output_dir="", ms_to_remove_after_spike=50):
 if __name__ == "__main__":
     spike_removal_durations = [0, 50, 100, 150, 200, 1000]
     parser = get_parser(data_reqd=True)
-    parser.add_argument("-r", "--remove", default=spike_removal_durations,
-                        help="ms of data to ignore after each capacitive spike", nargs='+', type=int)
+    parser.add_argument(
+        "-r",
+        "--remove",
+        default=spike_removal_durations,
+        help="ms of data to ignore after each capacitive spike",
+        nargs='+',
+        type=int)
     parser.add_argument("-v", "--protocol", default=None,
                         help="name of the protocol to use")
 

@@ -22,7 +22,8 @@ def main():
     def forward_model(t): return true_parameters[0] + t * true_parameters[1]
 
     # Generate data
-    # Use a lot of data points - the approximations used only hold asymptotically
+    # Use a lot of data points - the approximations used only hold
+    # asymptotically
     n_points = 1000
     times = np.linspace(0, 1, n_points)
     data = forward_model(times) + np.random.normal(0,
@@ -38,7 +39,7 @@ def main():
 
     # Estimate sigma
     sigma2 = sum(
-        (inferred_params[0] + inferred_params[1]*times - data)**2)/(n_points-1)
+        (inferred_params[0] + inferred_params[1] * times - data)**2) / (n_points - 1)
     print("observed sigma^2 vs true value\t{}, {}".format(
         sigma2, true_parameters[2]**2))
 
@@ -47,7 +48,7 @@ def main():
     H = sens @ sens.T
 
     # Compute FIM
-    FIM = H/(sigma2)
+    FIM = H / (sigma2)
 
     # Compute observed covariance matrix
     cov = np.linalg.inv(FIM)
@@ -65,7 +66,7 @@ def main():
 
     # plot the output from the sampled parameters
     for sample in samples:
-        plt.plot(times, sample[0] + sample[1]*times, color="grey", alpha=0.1)
+        plt.plot(times, sample[0] + sample[1] * times, color="grey", alpha=0.1)
 
     if args.plot:
         plt.show()

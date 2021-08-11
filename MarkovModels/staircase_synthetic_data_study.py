@@ -25,7 +25,8 @@ from common import *
 sigma2 = 0.006
 
 
-def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, args, output_dir=None):
+def draw_likelihood_surface(
+        funcs, paras, params_to_change, ranges, data, args, output_dir=None):
     """
     Draw a heatmap of the log-likelihood surface when two parameters are changed
     The likeihood is assumed to be based of i.i.d Gaussian error
@@ -35,7 +36,7 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, args, 
     n = len(funcs.times)
     if data is None:
         data = np.linspace(0, 0, n)
-    labels = ["p{}".format(p+1) for p in params_to_change]
+    labels = ["p{}".format(p + 1) for p in params_to_change]
 
     def llxy(x, y):
         p = np.copy(paras)
@@ -44,8 +45,8 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, args, 
 
         y = funcs.SimulateForwardModel(p)
 
-        ll = -n*0.5*np.log(2*np.pi) - n*0.5*np.log(sigma2) - \
-            ((y - data)**2).sum()/(2*sigma2)
+        ll = -n * 0.5 * np.log(2 * np.pi) - n * 0.5 * np.log(sigma2) - \
+            ((y - data)**2).sum() / (2 * sigma2)
         return ll
 
     # log likelihood of true parameters values
@@ -75,24 +76,42 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, args, 
     # Discard columns that are fixed
     S1 = S1[:, params_to_change]
     H = np.dot(S1.T, S1)
-    cov = noise_level*np.linalg.inv(H)
+    cov = noise_level * np.linalg.inv(H)
     eigvals, eigvecs = np.linalg.eigh(cov)
     assert(np.all(eigvals > 0))
 
     # TODO Make this work in general
     major_axis_angle = np.arctan2(min(eigvals), max(eigvals))
-    window_size = [10*eigvecs[0, 1]*np.max(eigvals), 0.002]
-    def paraboloid(x, y): return ll_of_mle-(0.5 *
-                                            H[0, 0]*x**2 + H[1, 0]*x*y + 0.5*H[1, 1]*y**2)/noise_level
+    window_size = [10 * eigvecs[0, 1] * np.max(eigvals), 0.002]
+
+    def paraboloid(x,
+                   y): return ll_of_mle - (0.5 * H[0,
+                                                   0] * x**2 + H[1,
+                                                                 0] * x * y + 0.5 * H[1,
+                                                                                      1] * y**2) / noise_level
 
     if args.heatmap:
-        xs = np.linspace(mle[0]-window_size[0]/2, mle[0]+window_size[0]/2, 100)
-        ys = np.linspace(mle[1]-window_size[1]/2, mle[1]+window_size[1]/2, 100)
-        zs = np.array([[max(ll_of_mle-100, llxy(x, y))
+        xs = np.linspace(
+            mle[0] -
+            window_size[0] /
+            2,
+            mle[0] +
+            window_size[0] /
+            2,
+            100)
+        ys = np.linspace(
+            mle[1] -
+            window_size[1] /
+            2,
+            mle[1] +
+            window_size[1] /
+            2,
+            100)
+        zs = np.array([[max(ll_of_mle - 100, llxy(x, y))
                         for x in xs] for y in ys])
 
         approximate_zs = np.array([[paraboloid(x, y)
-                                    for x in xs - mle[0]] for y in ys-mle[1]])
+                                    for x in xs - mle[0]] for y in ys - mle[1]])
 
         # Plot surface
         # fig = go.Figure(data=[go.Surface(z=zs,x=xs,y=ys, opacity=0.5), go.Surface(z=approximate_zs,x=xs,y=ys, opacity=0.5, showscale=False)])
@@ -102,12 +121,18 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, args, 
         r_a = xs.max()
         l_b = ys.min()
         r_b = ys.max()
-        l_z, r_z = ll_of_mle-50, ll_of_mle
+        l_z, r_z = ll_of_mle - 50, ll_of_mle
 
         figure, axes = plt.subplots()
 
-        c = axes.pcolormesh(xs, ys, zs, vmin=l_z, vmax=r_z,
-                            label="Unnormalised log likelihood", shading="auto")
+        c = axes.pcolormesh(
+            xs,
+            ys,
+            zs,
+            vmin=l_z,
+            vmax=r_z,
+            label="Unnormalised log likelihood",
+            shading="auto")
         axes.axis([l_a, r_a, l_b, r_b])
 
         plt.plot(mle[0], mle[1], "o", label="maximum likelihood estimator",
@@ -136,7 +161,7 @@ def draw_likelihood_surface(funcs, paras, params_to_change, ranges, data, args, 
             plt.show()
         else:
             plt.savefig(os.path.join(output_dir, "heatmap_{}_{}.pdf".format(
-                *(np.array(params_to_change)+1))))
+                *(np.array(params_to_change) + 1))))
             plt.clf()
 
         plt.plot(funcs.times, data, "x", label="synthetic data")
@@ -192,7 +217,8 @@ def do_mcmc(llxy, starting_pos, args, output_dir=None):
     return
 
 
-def plot_likelihood_cross_sections(likelihood, paraboloid, cov, mle, output_dir=None):
+def plot_likelihood_cross_sections(
+        likelihood, paraboloid, cov, mle, output_dir=None):
     assert(cov.shape == (2, 2))
     eigvals, eigvecs = np.linalg.eigh(cov)
     ll_of_mle = likelihood(*mle)
@@ -204,16 +230,16 @@ def plot_likelihood_cross_sections(likelihood, paraboloid, cov, mle, output_dir=
         # Plot across a 99 percent confidence interval
         q_val = 0.975
         r2 = scipy.stats.chi2.ppf(q_val, 2)
-        radius = np.sqrt(l*r2)
+        radius = np.sqrt(l * r2)
         angle = np.arctan2(*e)
         print(e, [np.cos(angle), np.sin(angle)])
-        start_point = mle - radius*e
-        end_point = mle + radius*e
+        start_point = mle - radius * e
+        end_point = mle + radius * e
         print("start and end points for plot: {}, {}".format(
             start_point, end_point))
 
         vecs = np.linspace(start_point, end_point, 100)
-        plt.plot(vecs[:, 0], [paraboloid(*(vec-mle)) for vec in vecs],
+        plt.plot(vecs[:, 0], [paraboloid(*(vec - mle)) for vec in vecs],
                  "--", color="grey", label="parabola approximation")
         plt.plot(vecs[:, 0], [val if val > 0 else np.nan for val in [
                  likelihood(*vec) for vec in vecs]], label="likelihood")
@@ -224,11 +250,11 @@ def plot_likelihood_cross_sections(likelihood, paraboloid, cov, mle, output_dir=
         colours = ["pink", "red"]
         for q, colour in zip(q_vals, colours):
             r2 = scipy.stats.chi2.ppf(q, 2)
-            radius = np.sqrt(l*r2)
-            plt.axvline(mle[0] + radius*e[0], linestyle="--", color=colour,
-                        label="Approximate {}% confidence region boundary".format(int(q*100)))
-            plt.axvline(mle[0] - radius*e[0], linestyle="--", color=colour,
-                        label="Approximate {}% confidence region boundary".format(int(q*100)))
+            radius = np.sqrt(l * r2)
+            plt.axvline(mle[0] + radius * e[0], linestyle="--", color=colour,
+                        label="Approximate {}% confidence region boundary".format(int(q * 100)))
+            plt.axvline(mle[0] - radius * e[0], linestyle="--", color=colour,
+                        label="Approximate {}% confidence region boundary".format(int(q * 100)))
             plt.xlabel("p5")
         plt.legend()
         plt.tick_params(
@@ -249,7 +275,7 @@ def plot_likelihood_cross_sections(likelihood, paraboloid, cov, mle, output_dir=
 def generate_synthetic_data(funcs, para, sigma2):
     nobs = len(funcs.times)
     rng = np.random.default_rng(2021)
-    z = np.sqrt(sigma2)*rng.standard_normal(nobs)
+    z = np.sqrt(sigma2) * rng.standard_normal(nobs)
     y = funcs.SimulateForwardModel(para)
     obs = y + z
     return obs
@@ -267,12 +293,23 @@ def main():
                         help="name of the protocol to use")
     parser.add_argument("-b", "--burn_in", type=int,
                         default=None, help="amount of burn in to use")
-    parser.add_argument("-r", "--remove", default=50,
-                        help="ms of data to ignore after each capacitive spike", type=int)
-    parser.add_argument("-M", "--mcmc", default=50,
-                        help="Whether or not to perform mcmc on the synthetic data example.", action='store_true')
-    parser.add_argument("--max_iterations", default=None,
-                        help="The maximum number of iterations to use when performing the optimisation", type=int)
+    parser.add_argument(
+        "-r",
+        "--remove",
+        default=50,
+        help="ms of data to ignore after each capacitive spike",
+        type=int)
+    parser.add_argument(
+        "-M",
+        "--mcmc",
+        default=50,
+        help="Whether or not to perform mcmc on the synthetic data example.",
+        action='store_true')
+    parser.add_argument(
+        "--max_iterations",
+        default=None,
+        help="The maximum number of iterations to use when performing the optimisation",
+        type=int)
     args = parser.parse_args()
 
     par = Params()
@@ -308,8 +345,8 @@ def main():
                    [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
     B = se.Matrix([k4, 0, k1])
 
-    current_limit = (p[-1]*(par.holding_potential - reversal_potential)
-                     * k1/(k1+k2) * k4/(k3+k4)).subs(v, par.holding_potential)
+    current_limit = (p[-1] * (par.holding_potential - reversal_potential)
+                     * k1 / (k1 + k2) * k4 / (k3 + k4)).subs(v, par.holding_potential)
     print("{} Current limit computed as {}".format(
         __file__, current_limit.subs(p, para).evalf()))
 
@@ -399,11 +436,11 @@ def main():
     if args.plot:
         plt.show()
 
-    cov = np.linalg.inv(H/sigma2)
+    cov = np.linalg.inv(H / sigma2)
     print("Covariance matrix is {}".format(cov))
 
     # Output covariance matrix to file
-    cols = ["\hat q_{}".format(i + 1) for i in range(0, cov.shape[0])]
+    cols = [r"\hat q_{}".format(i + 1) for i in range(0, cov.shape[0])]
     df_cov = pd.DataFrame(data=cov, columns=cols, index=cols)
     print(df_cov)
     print(df_cov.to_latex())

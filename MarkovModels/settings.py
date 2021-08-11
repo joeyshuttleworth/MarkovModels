@@ -13,7 +13,8 @@ class Params(object):
 
         self.conductance_index = 8
 
-        # Relative and absolute tolerances to solve the system with, [rtol, atol]
+        # Relative and absolute tolerances to solve the system with, [rtol,
+        # atol]
         self.solver_tolerances = [1e-5, 1e-7]
 
         # The value that the membrane potential is clamped too before the
