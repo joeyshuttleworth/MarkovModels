@@ -11,9 +11,17 @@ import math
 import os
 import pints
 
-def get_args(data_reqd=False):
+def get_args(data_reqd=False, description=None):
+    """
+    Get command line arguments from using get_parser
+
+
+    Params:
+    data_reqd is a flag which is set to True when a positional argument giving a path to some input data is needed
+    description is a string describing what the program should be used for. If this is none, get_parser uses a default description
+    """
     # Check input arguments
-    parser = get_parser(data_reqd)
+    parser = get_parser(data_reqd, description=description)
     args = parser.parse_args()
 
     # Create output directory
@@ -22,17 +30,23 @@ def get_args(data_reqd=False):
 
     return args
 
-def get_parser(data_reqd=False):
-    # Check input arguments
-    parser = argparse.ArgumentParser(
-        description='Plot sensitivities of the Beattie model')
-    if data_reqd:
-        parser.add_argument("data_file_path", help="path to csv data for the model to be fit to")
+def get_parser(data_reqd=False, description=None):
+    """
+    Create an ArgumentParser object with common command line arguments already included
 
-    parser.add_argument("-s", "--sine_wave", action='store_true', help="whether or not to use sine wave protocol",
-        default=False)
-    parser.add_argument("-p", "--plot", action='store_true', help="whether to plot figures or just save",
-        default=False)
+    Params:
+    data_reqd is a flag which is set to True when a positional argument giving a path to some input data is needed
+    description is a string describing what the program should be used for. If this is none, get_parser uses a default description
+    """
+
+    if description is not None:
+        description='Plot sensitivities of a Markov model'
+
+    # Check input arguments
+    parser = argparse.ArgumentParser(description=description)
+    if data_reqd:
+        parser.add_argument("data_file_path", help="path to csv data for the model to be fit to", default=False)
+    parser.add_argument("-p", "--plot", action='store_true', help="whether to plot figures or just save", default=False)
     parser.add_argument("--dpi", type=int, default=100, help="what DPI to use for figures")
     parser.add_argument("-o", "--output", type=str, default="output", help="The directory to output figures and data to")
     return parser
@@ -40,6 +54,14 @@ def get_parser(data_reqd=False):
 
 
 def calculate_reversal_potential(temp = 20):
+    """
+    Compute the Nernst potential of a potassium channel.
+
+    Params:
+
+    temp : temperature in degrees celcius, this defaults to 20
+
+    """
     # E is the Nernst potential for potassium ions across the membrane
     # Gas constant R, temperature T, Faradays constat F
     R = 8314.55
@@ -60,9 +82,9 @@ def calculate_reversal_potential(temp = 20):
 
 def cov_ellipse(cov, offset=[0,0], q=None, nsig=None, new_figure=True, **kwargs):
     """
+    copied from stackoverflow
     Parameters
     ----------
-    copied from stackoverflow
 
 
     cov : (2, 2) array
@@ -117,28 +139,6 @@ def cov_ellipse(cov, offset=[0,0], q=None, nsig=None, new_figure=True, **kwargs)
         ax.set_ylim(offset[1]-max_dim, offset[1]+max_dim)
     return fig, ax
 
-# TODO Add some processing so it outputs the system in AX + B form
-def equations_from_adjacency_matrix(A, index_to_elim):
-    # TODO Check that the graph is connected using a library such as py_graph
-    # TODO Check types
-    A = np.array(A)
-    y = se.Matrix([[se.symbols("y%d" % i)] for i in range(0, A.shape[0])])
-
-    eqns = []
-    for row in A:
-        element = -sum([el*v for el, v in zip(row, y)])
-        for el, x in zip(A,y):
-            element += x * el
-        eqns.append(element)
-    eqns = np.array(eqns).T.tolist()[0]
-    del eqns[index_to_elim]
-    eqns = se.Matrix([row.simplify() for row in eqns])
-    eqns=eqns.subs(y[index_to_elim], 1 - sum([x for x in y if x != y[index_to_elim]]))
-
-    # Output as a list of equations
-    print(eqns)
-    return eqns
-
 def extract_times(lst, time_ranges, step):
     """
     Take values from a list, lst which are indexes between the upper and lower
@@ -155,6 +155,17 @@ def extract_times(lst, time_ranges, step):
     return np.array(ret_lst)
 
 def remove_indices(lst, indices_to_remove):
+    """
+    Remove a list of indices from some list-like object
+
+    Params:
+
+    lst: a list-like object
+    indices_to_remove:  A list of pairs of indices (a,b) with a<b such that we remove indices strictly between a and b
+
+
+    returns a new list
+    """
     if indices_to_remove == None:
         return lst
 
@@ -170,6 +181,14 @@ def remove_indices(lst, indices_to_remove):
     return lst
 
 def detect_spikes(x, y):
+    """
+    Find the points where time-series 'jumps' suddenly. This is useful in order to find 'capacitive spikes' in protocols.
+
+    Params:
+    x : the independent variable (usually time)
+    y : the dependent variable (usually voltage)
+
+    """
     dx = np.diff(x)
     dy = np.diff(y)
 
@@ -179,26 +198,52 @@ def detect_spikes(x, y):
     return x[spike_indices]
 
 def beattie_sine_wave(t):
-        # This shift is needed for simulated protocol to match the protocol recorded in experiment, which is shifted by 0.1ms compared to the original input protocol. Consequently, each step is held for 0.1ms longer in this version of the protocol as compared to the input.
-        shift = 0.1
-        C = [54.0, 26.0, 10.0, 0.007/(2*np.pi), 0.037/(2*np.pi), 0.19/(2*np.pi)]
+    """
+    The sine-wave protocol from https://doi.org/10.1113/JP276068.
 
-        if t >= 250+shift and t < 300+shift:
-            V = -120
-        elif t >= 500+shift and t < 1500+shift:
-            V = 40
-        elif t >= 1500+shift and t < 2000+shift:
-            V = -120
-        elif t >= 3000+shift and t < 6500+shift:
-            V = -30 + C[0] * (np.sin(2*np.pi*C[3]*(t-2500-shift))) + C[1] * \
-            (np.sin(2*np.pi*C[4]*(t-2500-shift))) + C[2] * (np.sin(2*np.pi*C[5]*(t-2500-shift)))
-        elif t >= 6500+shift and t < 7000+shift:
-            V = -120
-        else:
-            V = -80
-        return V
+    Params:
 
-def get_staircase_protocol(par):
+    t: The time at which to compute the voltage
+
+
+    Returns:
+    V: the voltage at time t
+    """
+
+    # This shift is needed for simulated protocol to match the protocol recorded in experiment, which is shifted by 0.1ms compared to the original input protocol. Consequently, each step is held for 0.1ms longer in this version of the protocol as compared to the input.
+    shift = 0.1
+    C = [54.0, 26.0, 10.0, 0.007/(2*np.pi), 0.037/(2*np.pi), 0.19/(2*np.pi)]
+
+    if t >= 250+shift and t < 300+shift:
+        V = -120
+    elif t >= 500+shift and t < 1500+shift:
+        V = 40
+    elif t >= 1500+shift and t < 2000+shift:
+        V = -120
+    elif t >= 3000+shift and t < 6500+shift:
+        V = -30 + C[0] * (np.sin(2*np.pi*C[3]*(t-2500-shift))) + C[1] * \
+        (np.sin(2*np.pi*C[4]*(t-2500-shift))) + C[2] * (np.sin(2*np.pi*C[5]*(t-2500-shift)))
+    elif t >= 6500+shift and t < 7000+shift:
+        V = -120
+    else:
+        V = -80
+    return V
+
+def get_staircase_protocol(holding_potential=-80):
+    """Generate a function correpsonding to the staircase protcol from
+    https://doi.org/10.1016/j.bpj.2019.07.029. This is done by interpolating
+    time-series data.
+
+    Params:
+    Holding potential: the value to return for times outside of the
+    range
+
+    Returns:
+    Returns a function float->float which returns the voltage (in mV)
+    at any given time t (in ms)
+
+    """
+
     protocol = pd.read_csv(os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "protocols", "protocol-staircaseramp.csv"))
 
     times = 1000*protocol["time"].values
@@ -207,24 +252,56 @@ def get_staircase_protocol(par):
     spikes = 1000*detect_spikes(protocol["time"], protocol["voltage"])
 
     staircase_protocol = scipy.interpolate.interp1d(times, voltages, kind="linear")
-    staircase_protocol_safe = lambda t : staircase_protocol(t) if t < times[-1] else par.holding_potential
+    staircase_protocol_safe = lambda t : staircase_protocol(t) if t < times[-1] else holding_potential
     return staircase_protocol_safe
 
 
 
-def draw_cov_ellipses(para, settings, S1n=None, sigma2=None, cov=None, plot_dir=None):
-    if S1n is None and cov is None:
-        raise
-    elif S1n is not None and cov is not None:
-        raise
+def draw_cov_ellipses(S1=None, sigma2=None, cov=None, plot_dir=None):
+    """Plot confidence intervals using a sensitivity matrix or covariance matrix.
 
-    for j in range(0, settings.n_params):
-        for i in range(j+1, settings.n_params):
-            parameters_to_view = np.array([i,j])
-            if S1n is not None:
+    In the case of a sensitivity matrix, i.i.d Guassian additive errors are
+    assumed with variance sigma2. Exactly one of cov and S1 must not be None.
+    In the case that S1 is provided, the confidence regions are calculated
+    under the assumption that all other variables are fixed. However, if cov is
+    provided, the confidence regions correspond a marginal distribution.
+
+    Params:
+
+    S1: A sensitivity matrix where S_i,j corresponds to the derivative
+    of the (scalar) observation at the ith timepoint with respect to the jth
+    parameter.
+
+    sigma2: The variance of the Gaussian additive noise - only required if S1
+    is provided
+
+    cov: A covariance matrix
+
+    plot_dir: The directory to store the plots in. When this defaults to None, the
+    plots will be displayed using plt.show()
+
+    """
+
+    # TODO improve exception handling
+    if S1 is not None:
+        if cov is not None:
+            Raise()
+        else:
+            n_params = S1.shape[1]
+    else:
+        if cov is None:
+            Raise()
+        if sigma2 is not None:
+            Raise()
+        else:
+            n_params=cov.shape[0]
+
+    for j in range(0, n_params-1):
+        for i in range(j+1, n_params):
+            if S1 is not None:
                 if sigma2 is None:
                     raise
-                sub_sens = S1n[:,[i,j]]
+                sub_sens = S1[:,[i,j]]
                 sub_cov = sigma2*np.linalg.inv(np.dot(sub_sens.T, sub_sens))
             # Else use cov
             else:
@@ -244,7 +321,28 @@ def draw_cov_ellipses(para, settings, S1n=None, sigma2=None, cov=None, plot_dir=
             else:
                 print("COV_{},{} : negative eigenvalue: {}".format(i,j, eigen_val))
 
-def fit_model(funcs, data, starting_parameters, par, fix_parameters=None, max_iterations=None, method=pints.CMAES):
+def fit_model(funcs, data, starting_parameters, fix_parameters=None, max_iterations=None, method=pints.CMAES):
+    """
+    Fit a MarkovModel to some dataset using pints.
+
+    Params:
+
+    funcs: A MarkovModel
+
+    data: The data set to fit to: a (1,n) numpy array
+    consiting of observations corresponding to the times in funcs.times.
+
+    starting_parameters: An initial guess for the optimal parameters
+
+    fix_parameters: Which parameters (if any) should be ignored and set to fixed values
+
+    max_iterations: An optional upper bound on the number of evaluations PINTS should perform
+
+    method: Which optimisation method should be used
+
+    returns: A pair containing the optimal parameters and the corresponding sum of square errors.
+
+    """
     class Boundaries(pints.Boundaries):
         def __init__(self, parameters, fix_parameters = None):
             self.fix_parameters = fix_parameters
@@ -284,9 +382,8 @@ def fit_model(funcs, data, starting_parameters, par, fix_parameters=None, max_it
             return 9 - len(self.fix_parameters) if self.fix_parameters is not None else 9
 
     class PintsWrapper(pints.ForwardModelS1):
-        def __init__(self, settings, funcs, parameters, fix_parameters=None):
+        def __init__(self, funcs, parameters, fix_parameters=None):
             self.funcs = funcs
-            self.settings = settings
             self.parameters = parameters
             self.fix_parameters = fix_parameters
             if fix_parameters is not None:
@@ -332,7 +429,7 @@ def fit_model(funcs, data, starting_parameters, par, fix_parameters=None, max_it
                 sens = sens[:, self.free_parameters]
                 return current, sens
 
-    model = PintsWrapper(par, funcs, starting_parameters, fix_parameters=fix_parameters)
+    model = PintsWrapper(funcs, starting_parameters, fix_parameters=fix_parameters)
     problem = pints.SingleOutputProblem(model, funcs.times, data)
     error = pints.SumOfSquaresError(problem)
     boundaries  = Boundaries(starting_parameters, fix_parameters)
@@ -350,12 +447,4 @@ def fit_model(funcs, data, starting_parameters, par, fix_parameters=None, max_it
         controller.set_max_iterations(max_iterations)
 
     found_parameters, found_value = controller.run()
-
-
-    # Debug: Plot the first simulation
-
-    # plt.plot(funcs.times, funcs.SimulateForwardModel(starting_parameters), label="true")
-    # plt.plot(funcs.times, data, "x")
-    # plt.plot(funcs.times, model.simulate(found_parameters), label="Optimised")
-    # plt.show()
     return found_parameters, found_value

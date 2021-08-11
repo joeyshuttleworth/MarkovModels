@@ -2,7 +2,7 @@ import numpy as np
 import symengine as se
 from scipy.integrate import odeint
 
-class GetSensitivityEquations:
+class MarkovModel:
     # A class to generate and solve sensitivity equations for the four state, nine parameter Hodgkin-Huxley model of the hERG channel
 
     # Arguments are provided using the Params class
@@ -275,17 +275,3 @@ class GetSensitivityEquations:
 
         return current, current_sensitivies
 
-def CreateSymbols(par):
-    """
-    Create SymEngine symbols to contain the parameters, state variables and the voltage.
-    These are used to generate functions for the right hand side and Jacobian
-
-    """
-
-    # Create parameter symbols
-    p = se.Matrix([se.symbols('p%d' % j) for j in range(par.n_params)])
-    # Create state variable symbols
-    y = se.Matrix([se.symbols('y%d' % i) for i in range(par.n_state_vars)])
-    # Create voltage symbol
-    v = se.symbols('v')
-    return p, y, v

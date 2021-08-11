@@ -10,7 +10,7 @@ import argparse
 import os
 
 from settings import Params
-from sensitivity_equations import GetSensitivityEquations, CreateSymbols
+from MarkovModel import MarkovModel, CreateSymbols
 from common import calculate_reversal_potential, get_parser
 
 def main():
@@ -117,3 +117,18 @@ def main():
 
 if __name__=="__main__":
     main()
+
+def CreateSymbols(par):
+    """
+    Create SymEngine symbols to contain the parameters, state variables and the voltage.
+    These are used to generate functions for the right hand side and Jacobian
+
+    """
+
+    # Create parameter symbols
+    p = se.Matrix([se.symbols('p%d' % j) for j in range(par.n_params)])
+    # Create state variable symbols
+    y = se.Matrix([se.symbols('y%d' % i) for i in range(par.n_state_vars)])
+    # Create voltage symbol
+    v = se.symbols('v')
+    return p, y, v
