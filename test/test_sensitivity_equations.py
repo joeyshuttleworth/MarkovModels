@@ -17,7 +17,6 @@ import MarkovModels
 
 
 # TODO Rewrite these tests using methods from code
-
 class Test(unittest.TestCase):
     def test_run_functions(self):
         # Check input arguments
