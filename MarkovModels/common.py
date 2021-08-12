@@ -12,14 +12,21 @@ import os
 import pints
 import symengine as se
 
+def get_protocol_directory():
+    return os.path.join(os.path.dirname( os.path.realpath(__file__)), "protocols")
+
 def get_args(data_reqd=False, description=None):
-    """
-    Get command line arguments from using get_parser
+    """Get command line arguments from using get_parser
 
 
     Params:
-    data_reqd is a flag which is set to True when a positional argument giving a path to some input data is needed
-    description is a string describing what the program should be used for. If this is none, get_parser uses a default description
+
+    data_reqd: is a flag which is set to True when a positional argument
+    giving a path to some input data is needed
+
+    description: is a string describing what the program should be used for. If
+    this is none, get_parser uses a default description
+
     """
     # Check input arguments
     parser = get_parser(data_reqd, description=description)
@@ -33,12 +40,16 @@ def get_args(data_reqd=False, description=None):
 
 
 def get_parser(data_reqd=False, description=None):
-    """
-    Create an ArgumentParser object with common command line arguments already included
+    """Create an ArgumentParser object with common command line arguments already included
 
     Params:
-    data_reqd is a flag which is set to True when a positional argument giving a path to some input data is needed
-    description is a string describing what the program should be used for. If this is none, get_parser uses a default description
+
+    data_reqd: a flag which is set to True when a positional argument
+    giving a path to some input data is needed
+
+    description: is a string describing what the program should be used for. If
+    this is none, get_parser uses a default description
+
     """
 
     if description is not None:
@@ -92,7 +103,7 @@ def calculate_reversal_potential(temp=20):
 
 
 def cov_ellipse(cov, offset=[0, 0], q=None,
-                nsig=None, new_figure=True, **kwargs):
+                nsig=None, new_figure=True):
     """
     copied from stackoverflow
     Parameters
@@ -175,16 +186,18 @@ def extract_times(lst, time_ranges, step):
 
 
 def remove_indices(lst, indices_to_remove):
-    """
-    Remove a list of indices from some list-like object
+    """Remove a list of indices from some list-like object
 
     Params:
 
     lst: a list-like object
-    indices_to_remove:  A list of pairs of indices (a,b) with a<b such that we remove indices strictly between a and b
+
+    indices_to_remove: A list of pairs of indices (a,b) with a<b such that we
+    remove indices strictly between a and b
 
 
     returns a new list
+
     """
     if indices_to_remove is None:
         return lst
@@ -193,7 +206,7 @@ def remove_indices(lst, indices_to_remove):
 
     lsts = []
     for i in range(1, len(indices_to_remove)):
-        lsts.append(lst[indices_to_remove[i - 1][1]                        : indices_to_remove[i][0] + 1])
+        lsts.append(lst[indices_to_remove[i - 1][1]: indices_to_remove[i][0] + 1])
 
     lsts.append(lst[indices_to_remove[-1][1]:-1])
 
@@ -203,7 +216,8 @@ def remove_indices(lst, indices_to_remove):
 
 def detect_spikes(x, y):
     """
-    Find the points where time-series 'jumps' suddenly. This is useful in order to find 'capacitive spikes' in protocols.
+    Find the points where time-series 'jumps' suddenly. This is useful in order
+    to find 'capacitive spikes' in protocols.
 
     Params:
     x : the independent variable (usually time)
@@ -261,9 +275,8 @@ def beattie_sine_wave(t):
     return V
 
 
-def get_staircase_protocol(holding_potential=-80):
-    """Generate a function correpsonding to the staircase protcol from
-    https://doi.org/10.1016/j.bpj.2019.07.029. This is done by interpolating
+def get_protocol_from_csv(protocol_name : str, directory=None, holding_potential=-80):
+    """Generate a function by interpolating
     time-series data.
 
     Params:
@@ -276,12 +289,10 @@ def get_staircase_protocol(holding_potential=-80):
 
     """
 
-    protocol = pd.read_csv(
-        os.path.join(
-            os.path.dirname(
-                    os.path.realpath(__file__)),
-            "protocols",
-            "protocol-staircaseramp.csv"))
+    if directory is None:
+        directory = get_protocol_directory()
+
+    protocol = pd.read_csv(os.path.join(directory, protocol_name+".csv"))
 
     times = 1000 * protocol["time"].values
     voltages = protocol["voltage"].values
@@ -344,7 +355,7 @@ def draw_cov_ellipses(S1=None, sigma2=None, cov=None, plot_dir=None):
                 sub_cov = sigma2 * np.linalg.inv(np.dot(sub_sens.T, sub_sens))
             # Else use cov
             else:
-                sub_cov = cov[parameters_to_view[:, None], parameters_to_view]
+                sub_cov = cov[parameters_to_view[:, None], np.array((i,j))]
             eigen_val, eigen_vec = np.linalg.eigh(sub_cov)
             eigen_val = eigen_val.real
             if eigen_val[0] > 0 and eigen_val[1] > 0:
@@ -505,16 +516,32 @@ def fit_model(funcs, data, starting_parameters, fix_parameters=None,
     return found_parameters, found_value
 
 
-def CreateSymbols(par):
-    """
-    Create SymEngine symbols to contain the parameters, state variables and the voltage.
-    These are used to generate functions for the right hand side and Jacobian
-    """
+def get_protocol(protocol_name : str):
+    """Returns a function describing the voltage trace.
 
-    # Create parameter symbols
-    p = se.Matrix([se.symbols('p%d' % j) for j in range(par.n_params)])
-    # Create state variable symbols
-    y = se.Matrix([se.symbols('y%d' % i) for i in range(par.n_state_vars)])
-    # Create voltage symbol
-    v = se.symbols('v')
-    return p, y, v
+    params:
+
+    protocol_name: A string used to select the protocol
+
+    returns: A function, v(t), which returns the voltage (mV)
+    at a time t (ms).
+
+    """
+    v = None
+    if protocol_name == "sine-wave":
+        v = beattie_sine_wave
+    else:
+        # Check the protocol folders for a protocol with the same name
+        protocol_dir = get_protocol_directory()
+        possible_protocol_path = os.path.join(protocol_dir, protocol_name+".csv")
+        if os.path.exists(possible_protocol_path):
+            try:
+                v = get_protocol_from_csv(protocol_name)
+            except:
+                # TODO
+                raise
+        else:
+            # Protocol not found
+            raise Exception("Protocol not found at " + possible_protocol_path)
+
+    return v

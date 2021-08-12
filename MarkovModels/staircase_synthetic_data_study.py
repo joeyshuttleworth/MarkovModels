@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 
+import math
 import numpy as np
 import pandas as pd
+
 import scipy
 import scipy.interpolate
+import scipy.optimize
+
 import symengine as se
 import sympy
-import math
+
 import matplotlib.pyplot as plt
 import argparse
 import os
@@ -14,12 +18,10 @@ import os
 import pints
 import pints.plot
 
-import scipy.optimize
 import plotly.graph_objects as go
 
 from settings import Params
 from common import *
-
 from MarkovModel import MarkovModel
 
 # Set noise level - based on results from fitting the sine_wave model
@@ -85,8 +87,10 @@ def draw_likelihood_surface(
     major_axis_angle = np.arctan2(min(eigvals), max(eigvals))
     window_size = [10 * eigvecs[0, 1] * np.max(eigvals), 0.002]
 
-    def paraboloid(x,y):
-        return ll_of_mle - (0.5 * H[0, 0] * x**2 + H[1, 0] * x * y + 0.5 * H[1, 1] * y**2) / noise_level
+    def paraboloid(x, y):
+        return ll_of_mle - \
+            (0.5 * H[0, 0] * x**2 + H[1, 0] * x *
+             y + 0.5 * H[1, 1] * y**2) / noise_level
 
     if args.heatmap:
         xs = np.linspace(
