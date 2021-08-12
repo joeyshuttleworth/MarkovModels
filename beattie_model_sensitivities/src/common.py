@@ -22,10 +22,10 @@ def get_args(data_reqd=False):
 
     return args
 
-def get_parser(data_reqd=False):
+def get_parser(description="Plot sensitivities of a markov model", data_reqd=False):
     # Check input arguments
     parser = argparse.ArgumentParser(
-        description='Plot sensitivities of the Beattie model')
+        description=description)
     if data_reqd:
         parser.add_argument("data_file_path", help="path to csv data for the model to be fit to")
 
