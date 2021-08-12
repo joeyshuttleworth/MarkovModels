@@ -254,26 +254,14 @@ class MarkovModel:
             ))
 
     def voltage(self, t):
-        """Returns the voltage in volts of the chosen protocol after t milliseconds has passed
-
-        The voltage protocol used to produce the Sine Wave data in
-        https://github.com/mirams/sine-wave. This code is translated from the
-        function, static int f in
-        https://github.com/mirams/sine-wave/blob/master/Code/MexAslanidi.c.
-        """
-        # Default to a simple protocol
-        if t >= 1000 and t < 5000:
-            V = 20
-        else:
-            V = -80
-        # Convert to volts
+        raise NotImplementedError
         return V
 
     def SimulateForwardModel(self, p=None, times=None):
         if p is None:
             p = self.get_default_parameters()
         o = self.solve_rhs(p, times)[:, self.open_state_index]
-        voltages = self.GetVoltage()
+        voltages = self.GetVoltage(times=times)
         return p[8] * o * (voltages - self.Erev)
 
     def GetStateVariables(self, p):
@@ -284,13 +272,15 @@ class MarkovModel:
         states = np.concatenate((states, state1), axis=1)
         return states
 
-    def GetVoltage(self):
+    def GetVoltage(self, times=None):
         """
         Returns the voltage at every timepoint
 
         By default, there is a timestep every millisecond up to self.tmax
         """
-        v = np.array([self.voltage(t) for t in self.times])
+        if times is None:
+            times = self.times
+        v = np.array([self.voltage(t) for t in times])
         return v
 
     def SimulateForwardModelSensitivities(self, p=None, times=None):
@@ -305,15 +295,19 @@ class MarkovModel:
         if p is None:
             p = self.get_default_parameters()
 
-        solution = self.solve_drhs_full(p, times)
+        solution = self.solve_drhs_full(p, times=times)
 
         # Get the open state sensitivities for each parameter
         index_sensitivities = self.n_state_vars + self.open_state_index + \
             self.n_state_vars * np.array(range(self.n_params))
         sensitivities = solution[:, index_sensitivities]
         o = solution[:, self.open_state_index]
-        voltages = self.GetVoltage()
+
+        voltages = self.GetVoltage(times=times)
+
         current = p[-1] * o * (voltages - self.Erev)
+
+
         dIdo = (voltages - self.Erev) * p[-1]
         values = sensitivities * dIdo[:, None]
         values[:, -1] += o * (voltages - self.Erev)

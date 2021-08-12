@@ -24,7 +24,7 @@ class BeattieModel(MarkovModel):
         return np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2,
                          20, 2.58E-2, 2, 2.51E-2, 3.33E-2])
 
-    def __init__(self, protocol_name : str):
+    def __init__(self, protocol):
         # Create symbols for symbolic functions
         p, y, v = self.CreateSymbols()
         # Two params for each rate constant, one for the maximal conductance
@@ -41,7 +41,6 @@ class BeattieModel(MarkovModel):
                     [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
         B = se.Matrix([k4, 0, k1])
 
-        protocol = get_protocol(protocol_name)
         times = np.linspace(0, 15000, 1000)
 
         # Call the constructor of the parent class, MarkovModel
