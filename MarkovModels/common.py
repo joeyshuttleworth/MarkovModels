@@ -303,7 +303,7 @@ def get_protocol_from_csv(protocol_name : str, directory=None, holding_potential
         times, voltages, kind="linear")
 
     def staircase_protocol_safe(t): return staircase_protocol(
-        t) if t < times[-1] else holding_potential
+    t) if t < times[-1] and t > times[0] else holding_potential
     return staircase_protocol_safe
 
 
@@ -543,5 +543,4 @@ def get_protocol(protocol_name : str):
         else:
             # Protocol not found
             raise Exception("Protocol not found at " + possible_protocol_path)
-
     return v
