@@ -24,27 +24,29 @@ class BeattieModel(MarkovModel):
         return np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2,
                          20, 2.58E-2, 2, 2.51E-2, 3.33E-2])
 
-    def __init__(self, protocol):
+    def __init__(self, protocol, times=None):
         # Create symbols for symbolic functions
-        p, y, v = self.CreateSymbols()
+        symbols = self.CreateSymbols()
+
         # Two params for each rate constant, one for the maximal conductance
         k = se.symbols('k1, k2, k3, k4')
 
         # Define system equations and initial conditions
-        k1 = p[0] * se.exp(p[1] * v)
-        k2 = p[2] * se.exp(-p[3] * v)
-        k3 = p[4] * se.exp(p[5] * v)
-        k4 = p[6] * se.exp(-p[7] * v)
+        k1 = symbols['p'][0] * se.exp(symbols['p'][1] * symbols['v'])
+        k2 = symbols['p'][2] * se.exp(-symbols['p'][3] * symbols['v'])
+        k3 = symbols['p'][4] * se.exp(symbols['p'][5] * symbols['v'])
+        k4 = symbols['p'][6] * se.exp(-symbols['p'][7] * symbols['v'])
 
         # Notation is consistent between the two papers
         A = se.Matrix([[-k1 - k3 - k4, k2 - k4, -k4],
                     [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
         B = se.Matrix([k4, 0, k1])
 
-        times = np.linspace(0, 15000, 1000)
+        if times is None:
+            times = np.linspace(0, 15000, 1000)
 
         # Call the constructor of the parent class, MarkovModel
-        super().__init__(p, y, v, A, B, times,
+        super().__init__(symbols, A, B, times,
                             voltage=protocol)
 
     def CreateSymbols(self):
@@ -58,4 +60,4 @@ class BeattieModel(MarkovModel):
         y = se.Matrix([se.symbols('y%d' % i) for i in range(self.n_state_vars)])
         # Create voltage symbol
         v = se.symbols('v')
-        return p, y, v
+        return {'p' : p, 'y' : y, 'v' : v}
