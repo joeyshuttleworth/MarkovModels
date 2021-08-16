@@ -16,9 +16,18 @@ class MarkovModel:
     def get_default_parameters():
         raise NotImplementedError
 
-    def __init__(self, p, y, v, A, B, times, voltage=None):
+    def __init__(self, symbols, A, B, times, voltage=None):
 
+        try:
+            y = symbols['y']
+            p = symbols['p']
+            v = symbols['v']
+        except:
+            raise Exception()
+
+        self.symbols = symbols
         # The timesteps we want to output at
+
         self.times = times
         self.A = A
         self.B = B
@@ -28,24 +37,17 @@ class MarkovModel:
             self.voltage = voltage
 
         para = self.get_default_parameters()
-        self.compute_sensitivity_equations_rhs(p, y, v, rhs, para)
-
-    def compute_sensitivity_equations_rhs(self, p, y, v, rhs, para):
-        print('Creating RHS function...')
 
         # Inputs for RHS ODEs
         inputs = list(y) + list(p) +[v]
 
         # Create RHS function
         frhs = [rhs[i] for i in range(self.n_state_vars)]
-        print(inputs)
         self.func_rhs = se.lambdify(inputs, frhs)
 
         # Create Jacobian of the RHS function
         jrhs = [se.Matrix(rhs).jacobian(se.Matrix(y))]
         self.jfunc_rhs = se.lambdify(inputs, jrhs)
-
-        print('Creating 1st order sensitivities function...')
 
         # Create symbols for 1st order sensitivities
         dydp = [
@@ -101,8 +103,6 @@ class MarkovModel:
         jS1 = [se.Matrix(fS1).jacobian(se.Matrix(Ss))]
         self.jfunc_S1 = se.lambdify(inputs, jS1)
 
-        print('Getting {}mV steady state initial conditions...'.format(
-            self.holding_potential))
         # Set the initial conditions of the model and the initial sensitivities
         # by finding the steady state of the model
 
@@ -110,14 +110,15 @@ class MarkovModel:
         # First check that a steady state exists for this system at this
         # holding voltage
         # dx/dt = Ax+B
-        A_matrix = np.array([float(el.evalf()) for el in self.A.subs(
-            v, self.holding_potential).subs(p, para)]).reshape(self.A.rows, self.A.cols)
+        A_matrix, _ = self.get_linear_system()
+
         eigvals = np.linalg.eig(A_matrix)[0]
         assert(np.all(eigvals < 0))
 
         # Can be found analytically
         rhs_inf = (-(self.A.inv()) * self.B).subs(v,
                                                   self.holding_potential)
+
         rhs_inf_eval = np.array([float(row) for row in rhs_inf.subs(p, para)])
 
         current_inf_expr = self.auxillary_expression.subs(y, rhs_inf_eval)
@@ -126,8 +127,6 @@ class MarkovModel:
 
         # The limit of the current when voltage is held at the holding
         # potential
-        print("Current limit computed as {}".format(current_inf))
-
         self.rhs0 = rhs_inf_eval
 
         # Find sensitivity steady states
@@ -151,9 +150,6 @@ class MarkovModel:
             (self.holding_potential - self.Erev) * para[-1]
         sens_inf[-1] += (self.holding_potential -
                          self.Erev) * rhs_inf_eval[self.open_state_index]
-        print("sens_inf calculated as {}".format(sens_inf))
-
-        print('Done')
 
     def rhs(self, y, t, p):
         """ Evaluates the RHS of the model (including sensitivities)
@@ -167,6 +163,67 @@ class MarkovModel:
             Having this function can speed up solving the system
         """
         return self.jfunc_rhs((*y, *p, self.voltage(t)))
+
+    def get_linear_system(self, voltage=None, parameters=None):
+        if voltage is None:
+            voltage = self.holding_potential
+        if parameters is None:
+            parameters = self.get_default_parameters()
+        A_matrix = np.array([float(el.evalf()) for el in self.A.subs(
+            self.symbols['v'], self.holding_potential).subs(self.symbols['p'], parameters)]).reshape(self.A.rows, self.A.cols)
+
+        B_vector = np.array([float(el.evalf()) for el in self.B.subs(
+            self.symbols['v'], self.holding_potential).subs(self.symbols['p'], parameters)])
+        return A_matrix, B_vector
+
+
+
+
+    def get_analytic_solution(self, voltage=None, times=None, parameters=None):
+        """get_analytic_solution
+
+        For any fixed voltage, we can easily compute an analytic solution for
+        the system (not including sensitivities).
+
+        TODO: Check that the matrix is well conditioned
+        """
+
+        if times is None:
+            times = self.times
+
+        times = np.array(times)
+        if type(times) is not np.ndarray:
+            raise TypeError("times is type {}".format(type(times)))
+
+        if voltage is None:
+            voltage=self.holding_potential
+
+        if parameters is None:
+            parameters = self.get_default_parameters()
+
+        #Solve non-homogeneous part
+        A_matrix, B_vector = self.get_linear_system(voltage=voltage, parameters=parameters)
+
+        X2 = -np.linalg.solve(A_matrix, B_vector)
+
+        # Solve the homogenous part via diagonalisation
+        eigenvalues, C = np.linalg.eig(A_matrix)
+        D = np.diag(eigenvalues)
+
+        # Consider the system dZ/dt = D Z
+        # where X = CKZ, K is a diagonal matrix of constants and D is a diagonal matrix
+        # with elements in the order given by linalg.eig(A) such that A = CDC^-1
+        # Then Z = (e^{-D_i,i})_i and X=CKZ is the general homogenous solution to the system
+        # dX/dt = AX because dX/dt = CKdZ/dt = CKDZ = KCC^-1ACZ = KACZ = AKX
+
+        IC = np.array([1,0,0]).T
+        KZ = np.linalg.inv(C)*(IC - X2)
+        K =  np.diag([KZ[i,0] / 1 for i in range(0,3)])
+        solution = (C@K@np.exp(times*eigenvalues[:,None]) + X2[:, None]).T
+
+        # Apply auxiliary function to solution
+        return solution[:, self.open_state_index]*parameters[self.GKr_index]*(voltage - self.Erev)
+
 
     # Returns the open state
     def solve_rhs(self, p, times=None):
