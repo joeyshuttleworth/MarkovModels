@@ -1,5 +1,6 @@
 import numpy as np
 import symengine as se
+import logging
 from scipy.integrate import odeint
 
 
@@ -110,6 +111,7 @@ class MarkovModel:
         # First check that a steady state exists for this system at this
         # holding voltage
         # dx/dt = Ax+B
+
         A_matrix, _ = self.get_linear_system()
 
         eigvals = np.linalg.eig(A_matrix)[0]
@@ -125,8 +127,8 @@ class MarkovModel:
         current_inf = float(current_inf_expr.subs(
             v, self.holding_potential).subs(p, para).evalf())
 
-        # The limit of the current when voltage is held at the holding
-        # potential
+        # The limit of the rhs when voltage is held at the holding potential.
+        # This is chosen to be equal to the initial conditions.
         self.rhs0 = rhs_inf_eval
 
         # Find sensitivity steady states
@@ -169,15 +171,19 @@ class MarkovModel:
             voltage = self.holding_potential
         if parameters is None:
             parameters = self.get_default_parameters()
+
         A_matrix = np.array([float(el.evalf()) for el in self.A.subs(
-            self.symbols['v'], self.holding_potential).subs(self.symbols['p'], parameters)]).reshape(self.A.rows, self.A.cols)
+            self.symbols['v'], voltage).subs(self.symbols['p'], parameters)]).reshape(self.A.rows, self.A.cols)
 
         B_vector = np.array([float(el.evalf()) for el in self.B.subs(
-            self.symbols['v'], self.holding_potential).subs(self.symbols['p'], parameters)])
+            self.symbols['v'], voltage).subs(self.symbols['p'], parameters)])
+
+
+        cond = np.linalg.cond(A_matrix)
+        logging.info("A matrix condition number is {} for voltage = {}".format(cond, voltage))
+        assert(cond < 1e6)
+
         return A_matrix, B_vector
-
-
-
 
     def get_analytic_solution(self, voltage=None, times=None, parameters=None):
         """get_analytic_solution
@@ -216,9 +222,9 @@ class MarkovModel:
         # Then Z = (e^{-D_i,i})_i and X=CKZ is the general homogenous solution to the system
         # dX/dt = AX because dX/dt = CKdZ/dt = CKDZ = KCC^-1ACZ = KACZ = AKX
 
-        IC = np.array([1,0,0]).T
-        KZ = np.linalg.inv(C)*(IC - X2)
-        K =  np.diag([KZ[i,0] / 1 for i in range(0,3)])
+        IC = self.rhs0.T
+        IC_KZ = np.linalg.solve(C, IC - X2)
+        K =  np.diag(IC_KZ)
         solution = (C@K@np.exp(times*eigenvalues[:,None]) + X2[:, None]).T
 
         # Apply auxiliary function to solution

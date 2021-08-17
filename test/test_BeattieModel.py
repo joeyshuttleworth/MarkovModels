@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 import unittest
 import pints
 import matplotlib.pyplot as plt
@@ -39,37 +40,43 @@ class TestBeattieModel(unittest.TestCase):
             model.SimulateForwardModel()
             model.SimulateForwardModelSensitivities()
 
-            times = np.linspace(-0.1, 20000, 200)
+            times = np.linspace(-0.1, 30000, 1000)
             full_solution = model.SimulateForwardModelSensitivities(times=times)
             solution_without_sensitivities = model.SimulateForwardModel(times=times)
 
             difference = full_solution[0] - solution_without_sensitivities
 
             # Assert that solutions are similar
-            assert(sum(difference**2) < 1e-5)
 
             # Assert that initial and final sensitivities are similar (should be
             # true by definition)
 
             sens_difference = full_solution[1][0,:] - full_solution[1][-1,:]
             sse=sum(sens_difference**2)
-            self.assertLess(sse, 1e-2)
+            logging.info("errors are {}".format(sens_difference))
+            self.assertLess(max(sens_difference), 1e-5)
 
     def test_analytic_solution(self):
         """Compute an analytic solution and check that it matches the numerical solution
         """
-        times = np.linspace(0, 8000,1000)
-        voltage = lambda t : 40
+        voltages = [-70, -40, 0, 20, 40, 180]
 
-        model=MarkovModels.BeattieModel(voltage, times=times)
-        analytic_solution=model.get_analytic_solution(times=times, voltage=voltage(0))
-        numerical_solution=model.SimulateForwardModel(times=times)
-        errors = analytic_solution - numerical_solution
-        sse = max(errors)
+        for v in voltages:
+            times = np.linspace(0, 100, 250)
+            voltage = lambda t : 20
 
-        logging.info("analytic_solution is {}".format(analytic_solution))
-        logging.info("numerical_solution is {}".format(numerical_solution))
-        logging.info("errors are {}".format(errors))
+            model=MarkovModels.BeattieModel(voltage)
+            analytic_solution=model.get_analytic_solution(times=times, voltage=voltage(times[-1]))
+            numerical_solution=model.SimulateForwardModel(times=times)
+            errors = analytic_solution - numerical_solution
+
+            logging.info("analytic_solution is {}".format(analytic_solution))
+            logging.info("numerical_solution is {}".format(numerical_solution))
+            logging.info("errors are {}".format(errors))
 
 
-        self.assertLess(sse, 1e-2)
+            self.assertLess(max(errors), 1e-5)
+
+if __name__ == "__main__":
+    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+    unittest.main()
