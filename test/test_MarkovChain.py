@@ -13,15 +13,15 @@ import matplotlib.pyplot as plt
 class TestMarkovChain(unittest.TestCase):
     def test_construct_chain(self):
         mc = MarkovChain()
-        parameters = ['k{}'.format(i) for i in [0,1,2,3]]
+        parameters = ['k{}'.format(i) for i in [1,2,3,4]]
         mc.add_symbols(parameters)
         states = [('O', True) , ('C', False), ('I', False), ('IC', False)]
         mc.add_states(states)
 
-        rates = [('O', 'C', 'k1'), ('C', 'O', 'k2')]
+        rates = [('O', 'C', 'k2', 'k1'), ('I', 'IC', 'k1', 'k2'), ('IC', 'I', 'k1', 'k2'), ('O', 'I', 'k3', 'k4'), ('C', 'IC', 'k3', 'k4')]
 
-        for rate in rates:
-            mc.add_rate(*rate)
+        for r in rates:
+            mc.add_both_rates(*r)
 
         pos=nx.spring_layout(mc.graph)
 
@@ -29,7 +29,7 @@ class TestMarkovChain(unittest.TestCase):
         # nx.draw_networkx_edge_labels(mc.graph, pos, edge_labels = nx.get_edge_attributes(mc.graph, 'rate'))
         # Output file
 
-        nx.drawing.nx_agraph.write_dot(mc.graph, "dotfile")
+        nx.drawing.nx_agraph.write_dot(mc.graph, "dotfile.dot")
         print(mc.graph)
         print(mc.get_transition_matrix())
 

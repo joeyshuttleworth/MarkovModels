@@ -34,6 +34,10 @@ class MarkovChain():
         for symbol in symbols:
             self.add_symbol(symbol)
 
+    def add_both_rates(self, frm: str, to : str, fwd_rate : Union[str, sp.Expr, None], bwd_rate : Union[str, sp.Expr, None]):
+        self.add_rate(frm, to, fwd_rate)
+        self.add_rate(to, frm, bwd_rate)
+
     def add_rate(self, from_node : str, to_node : str, transition_rate : Union[str, sp.Expr, None]):
         # self.graph is of type nx.DiGraph not nx.multigraph so nx won't
         # let us add two edges between the same node
