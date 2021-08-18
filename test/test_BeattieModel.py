@@ -11,9 +11,6 @@ import scipy.integrate as integrate
 import symengine as se
 import argparse
 
-import argparse
-import matplotlib.pyplot as plt
-
 import logging
 
 import MarkovModels
