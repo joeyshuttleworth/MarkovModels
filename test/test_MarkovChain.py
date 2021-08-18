@@ -35,7 +35,17 @@ class TestMarkovChain(unittest.TestCase):
         labels, Q = mc.get_transition_matrix()
         logging.debug("Q^T matrix is {}, labels are {}".format(Q.T, labels))
 
-        print(mc.eliminate_state_from_transition_matrix(Q.T, ['C', 'O', 'I']))
+        system = mc.eliminate_state_from_transition_matrix(['C', 'O', 'I'])
+        print(system)
+
+        pen_and_paper_A = sp.Matrix([['-k1 - k3 - k4', 'k2 - k4', '-k4'],
+                    ['k1', '-k2 - k3', 'k4'], ['-k1', 'k3 - k1', '-k2 - k4 - k1']])
+
+        pen_and_paper_B = sp.Matrix(['k4', 0, 'k1'])
+
+        self.assertEqual(pen_and_paper_A, system[0])
+        self.assertEqual(pen_and_paper_B, system[1])
+
 
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)

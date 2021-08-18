@@ -85,8 +85,27 @@ class MarkovChain():
 
         return self.graph.nodes, matrix
 
-    def eliminate_state_from_transition_matrix(self, matrix : sp.Matrix, labels : Union[list, None] = None):
-        # For now, assume WLOG that the row to be eliminated is the last one
+    def eliminate_state_from_transition_matrix(self, labels : Union[list, None] = None):
+        """eliminate_state_from_transition_matrix
+
+        Because the state occupancy probabilities must add up to zero, the
+        transition matrix is always singular. We can use this fact to remove
+        one state variable from the system of equations. The labels parameter
+        allows you to choose which variable is eliminated and also the ordering
+        of the states.
+
+        params:
+
+        labels: A list of labels. This must be one less than the number of
+        states in the model. The order of this list determines the ordering of
+        the state variable in the outputted dynamical system.
+
+        returns:
+
+        Returns a pair of symbolic matrices, A & B, defining a system of ODEs of the format dX/dt = AX + B.
+        """
+        _, matrix = self.get_transition_matrix()
+        matrix=matrix.T
         shape = sp.shape(matrix)
         assert(shape[0] == shape[1])
 
