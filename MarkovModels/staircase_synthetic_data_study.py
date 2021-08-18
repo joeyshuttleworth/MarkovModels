@@ -27,7 +27,6 @@ from MarkovModel import MarkovModel
 # Set noise level - based on results from fitting the sine_wave model
 sigma2 = 0.006
 
-
 def draw_likelihood_surface(
         funcs, paras, params_to_change, ranges, data, args, output_dir=None):
     """

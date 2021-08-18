@@ -1,9 +1,9 @@
 from typing import Union
-import networkx as nx
 import sympy as sp
 import logging
-from scipy.integrate import odeint
 
+import networkx as nx
+import numpy as np
 
 class MarkovChain():
     def __init__(self, states : Union[list, None] = None):
@@ -11,7 +11,7 @@ class MarkovChain():
         self.graph = nx.DiGraph()
         if states is not None:
             self.graph.add_nodes_from(states)
-        self.symbols = []
+        self.rates = []
 
     def add_state(self, label : Union[str, None], open : bool = False):
         if label is None:
@@ -23,25 +23,22 @@ class MarkovChain():
         for state in states:
             self.add_state(*state)
 
-    def add_symbol(self, symbol : str):
-        if symbol in self.symbols:
+    def add_rate(self, rate : str):
+        if rate in self.rates:
             # TODO
             raise Exception()
         else:
-            self.symbols = self.symbols + [symbol]
+            self.rates = self.rates + [rate]
 
-    def add_symbols(self, symbols : list):
-        for symbol in symbols:
-            self.add_symbol(symbol)
+    def add_rates(self, rates : list):
+        for rate in rates:
+            self.add_rate(rate)
 
-    def add_both_rates(self, frm: str, to : str, fwd_rate : Union[str, sp.Expr, None], bwd_rate : Union[str, sp.Expr, None]):
-        self.add_rate(frm, to, fwd_rate)
-        self.add_rate(to, frm, bwd_rate)
+    def add_both_transitions(self, frm: str, to : str, fwd_rate : Union[str, sp.Expr, None], bwd_rate : Union[str, sp.Expr, None]):
+        self.add_transition(frm, to, fwd_rate)
+        self.add_transition(to, frm, bwd_rate)
 
-    def add_rate(self, from_node : str, to_node : str, transition_rate : Union[str, sp.Expr, None]):
-        # self.graph is of type nx.DiGraph not nx.multigraph so nx won't
-        # let us add two edges between the same node
-
+    def add_transition(self, from_node : str, to_node : str, transition_rate : Union[str, sp.Expr, None]):
         # TODO: Nice exceptions
 
         if from_node not in self.graph.nodes or to_node not in self.graph.nodes:
@@ -54,7 +51,7 @@ class MarkovChain():
         print(transition_rate)
         if transition_rate is not None:
             for expr in transition_rate.free_symbols:
-                if str(expr) not in self.symbols:
+                if str(expr) not in self.rates:
                     raise Exception("symbol {} is not in the symbols list".format(expr))
 
         self.graph.add_edge(from_node, to_node, rate=transition_rate)
@@ -79,4 +76,47 @@ class MarkovChain():
                     else:
                         row.append(0)
             matrix.append(row)
-        return sp.Matrix(matrix)
+
+        matrix = sp.Matrix(matrix)
+        # Compute diagonals
+        n = matrix.shape[0]
+        for i in range(n):
+            matrix[i, i] = -sum(matrix[i,:])
+
+        return self.graph.nodes, matrix
+
+    def eliminate_state_from_transition_matrix(self, matrix : sp.Matrix, labels : Union[list, None] = None):
+        # For now, assume WLOG that the row to be eliminated is the last one
+        shape = sp.shape(matrix)
+        assert(shape[0] == shape[1])
+
+        if labels is None:
+            labels = self.graph.nodes[:-1]
+
+        # List describing the mapping from self.graph.nodes to labels.
+        # permutation[i] = j corresponds to a mapping which takes
+        # graph.nodes[i] to graph.nodes[j]. Map the row to be eliminated to the
+        # end.
+        permutation = [labels.index(n) if n in labels else shape[0]-1 for n in self.graph.nodes]
+
+        matrix = matrix[permutation,permutation]
+
+        M = sp.eye(shape[0])
+        replacement_row = np.array([-1 for i in range(shape[0])])[None,:]
+
+        print(M, replacement_row)
+        M[-1,:] = replacement_row
+
+        matrix = M @ matrix
+        print(matrix)
+
+        # Construct vector
+        vec = sp.Matrix([0 for i in range(shape[0])])
+        for j, el in enumerate(matrix[:,-1]):
+            if el != 0:
+                vec[j,0] = el
+                for i in range(shape[0]):
+                    matrix[j, i] -= el
+
+
+        return matrix[0:-1,0:-1], vec[0:-1,:]
