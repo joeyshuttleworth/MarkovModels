@@ -1,17 +1,20 @@
-from typing import Union
+from typing import Union, Tuple
 import sympy as sp
 import logging
 
 import networkx as nx
 import numpy as np
 
+from numpy.random import default_rng
+
 class MarkovChain():
-    def __init__(self, states : Union[list, None] = None):
+    def __init__(self, states : Union[list, None] = None, seed : Union[int, None] = None):
         # Needs to be a MultiDiGraph to visualise properly (??)
         self.graph = nx.DiGraph()
         if states is not None:
             self.graph.add_nodes_from(states)
         self.rates = []
+        self.rng = default_rng(seed)
 
     def add_state(self, label : Union[str, None], open : bool = False):
         if label is None:
@@ -136,6 +139,32 @@ class MarkovChain():
                 vec[j,0] = el
                 for i in range(shape[0]):
                     matrix[j, i] -= el
-
-
         return matrix[0:-1,0:-1], vec[0:-1,:]
+
+    def get_embedded_chain(self,  rate_values : dict):
+        _, Q = self.get_transition_matrix()
+        params = [rate_values[rate] for rate in self.rates]
+
+
+        print(Q, self.rates, Q)
+        Q_evaled = sp.lambdify(self.rates, Q)(*params)
+
+        waiting_times = np.array([self.rng.exponential(val) for val in -Q_evaled.diagonal()])
+        embedded_markov_chain = np.zeros(Q_evaled.shape)
+
+        for i, row in enumerate(Q_evaled):
+            s_row = sum(row) - row[i]
+            for j, val in enumerate(row):
+                if i == j:
+                    embedded_markov_chain[i,j] = 0
+                else:
+                    embedded_markov_chain[i,j] = val/s_row
+        logging.debug("Embedded markov chain is: {}".format(embedded_markov_chain))
+        logging.debug("Waiting times are {}".format(waiting_times))
+
+        return waiting_times, embedded_markov_chain
+
+
+    def sample_trajectories(self, no_trajectories : int, rate_values : dict):
+        waiting_times, e_chain = get_embedded_chain(rate_values)
+

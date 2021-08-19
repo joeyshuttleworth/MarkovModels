@@ -46,6 +46,14 @@ class TestMarkovChain(unittest.TestCase):
         self.assertEqual(pen_and_paper_A, system[0])
         self.assertEqual(pen_and_paper_B, system[1])
 
+        # Now get the waiting times and embedded MC
+        rate_vals = {"k1" : 5,
+                     "k2" : 2,
+                     "k3" : 3,
+                     "k4" : 1
+        }
+        mc.get_embedded_chain(rate_vals)
+
 
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
