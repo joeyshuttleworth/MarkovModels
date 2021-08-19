@@ -8,6 +8,8 @@ import sympy as sp
 import networkx as nx
 from MarkovModels import MarkovChain
 
+import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
 class TestMarkovChain(unittest.TestCase):
@@ -52,9 +54,17 @@ class TestMarkovChain(unittest.TestCase):
                      "k3" : 3,
                      "k4" : 1
         }
+
         mc.get_embedded_chain(rate_vals)
+        no_trajectories = 20000
+        data = mc.sample_trajectories(no_trajectories, rate_vals, [0, 1]).set_index('time')
+
+        print(data)
+
+        data.plot()
+        # plt.show()
 
 
 if __name__ == "__main__":
-    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+    # logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
     unittest.main()

@@ -3,6 +3,7 @@ import sympy as sp
 import logging
 
 import networkx as nx
+import pandas as pd
 import numpy as np
 
 from numpy.random import default_rng
@@ -149,7 +150,7 @@ class MarkovChain():
         print(Q, self.rates, Q)
         Q_evaled = sp.lambdify(self.rates, Q)(*params)
 
-        waiting_times = np.array([self.rng.exponential(val) for val in -Q_evaled.diagonal()])
+        mean_waiting_times = np.array([self.rng.exponential(1/val) for val in -Q_evaled.diagonal()])
         embedded_markov_chain = np.zeros(Q_evaled.shape)
 
         for i, row in enumerate(Q_evaled):
@@ -160,11 +161,58 @@ class MarkovChain():
                 else:
                     embedded_markov_chain[i,j] = val/s_row
         logging.debug("Embedded markov chain is: {}".format(embedded_markov_chain))
-        logging.debug("Waiting times are {}".format(waiting_times))
+        logging.debug("Waiting times are {}".format(mean_waiting_times))
 
-        return waiting_times, embedded_markov_chain
+        return mean_waiting_times, embedded_markov_chain
 
 
-    def sample_trajectories(self, no_trajectories : int, rate_values : dict):
-        waiting_times, e_chain = get_embedded_chain(rate_values)
+    def sample_trajectories(self, no_trajectories : int, rate_values : dict, time_range : list=[0,1], starting_distribution : Union[list, None] = None):
+        no_nodes = len(self.graph.nodes)
+        logging.debug("There are {} nodes".format(no_nodes))
+
+        if starting_distribution is None:
+            starting_distribution = np.around(np.array([no_trajectories]*no_nodes)/no_nodes)
+            starting_distribution[0] += no_trajectories - starting_distribution.sum()
+
+        print("starting distribution is {}".format(starting_distribution))
+        distribution = starting_distribution
+
+        mean_waiting_times, e_chain = self.get_embedded_chain(rate_values)
+
+        data = [(0, *distribution)]
+        culm_rows = np.zeros(e_chain.shape)
+        for i in range(e_chain.shape[0]):
+            sum = 0
+            for j in range(e_chain.shape[1]):
+                culm_rows[i,j] = e_chain[i,j] + sum
+                sum += e_chain[i,j]
+        t=0
+        while True:
+            waiting_times = np.zeros(mean_waiting_times.shape)
+            for state_index, s_i in enumerate(distribution):
+                waiting_times[state_index] = self.rng.exponential(1/(mean_waiting_times[i]*s_i)) if s_i != 0 else np.inf
+
+            if t+min(waiting_times) > time_range[1]:
+                break
+
+            new_t= t+min(waiting_times)
+            if new_t == t:
+                logging.warning("Underflow warning: timestep too small")
+            t = new_t
+
+            state_to_jump = list(waiting_times).index(min(waiting_times))
+
+            # Find what state we will jump to
+            rand = self.rng.uniform()
+            jump_to = next(i for i, x in enumerate(culm_rows[state_to_jump,:]) if rand < x)
+
+            distribution[state_to_jump] -= 1
+            distribution[jump_to] += 1
+
+            data.append((t, *distribution))
+
+            df =  pd.DataFrame(data, columns=['time', *self.graph.nodes])
+        return df
+
+
 
