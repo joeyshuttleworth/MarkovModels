@@ -33,8 +33,8 @@ class DynamicMarkovChain(MarkovChain):
         print("starting distribution is {}".format(starting_distribution))
         distribution = starting_distribution
         _, Q = self.get_transition_matrix()
-        Q_evaled = sp.lambdify(self.rates, Q)
 
+        Q_eval = sp.lambdify(self.rates, Q)
         def eval_Q(t : float):
             params = [rate_functions[rate](t) for rate in self.rates]
             return sp.lambdify(self.rates, Q)(*params)
@@ -52,37 +52,47 @@ class DynamicMarkovChain(MarkovChain):
                 def lmda(t : float):
                     params = [rate_functions[rate](t) for rate in self.rates]
                     return -sp.lambdify(self.rates, Q[state_index, state_index])(*params)
-                f = lambda t, x : lmda(t) * ( 1 - x)
+                f = lambda t, x : lmda(t) * (1 - x)
                 event = lambda t,x : rand_u - (1-x[0])**s_i
                 event.terminal=True
-                sol=scipy.integrate.solve_ivp(f, [0,1000], [0], events=event, atol=1e-1, rtol=1e-3)
+                sol=scipy.integrate.solve_ivp(f, [0,5], [0], events=event, atol=1e-1, rtol=1e-3)
                 waiting_times[state_index]=sol.t[-1]
 
             if t+min(waiting_times) > time_range[1]:
                 break
 
-            new_t= t+min(waiting_times)
+            new_t = t+min(waiting_times)
             if new_t == t:
                 logging.warning("Underflow warning: timestep too small {}".format(min(waiting_times)))
             t = new_t
 
             state_to_jump = list(waiting_times).index(min(waiting_times))
 
-            # Find what state we will jump to
-            rand = self.rng.uniform()
-
             sum=0
-            culm_row = eval_Q(new_t)[state_index,:]
-            for i,val in enumerate(culm_row):
+            Q_evaled = eval_Q(t)
+            row = np.zeros([1,Q_evaled.shape[0]])[0,:]
+            Q_row = Q_evaled[state_to_jump,:]
+            s_row = Q_row.sum() - Q_row[state_to_jump]
+            for i, val in enumerate(Q_row):
+                if i == state_to_jump:
+                    row[i] = 0
+                else:
+                    row[i] = val/s_row
+
+            culm_row = np.zeros(row.shape)
+            for i,val in enumerate(row):
                 culm_row[i]=val+sum
                 sum+=val
 
+            # Find what state we will jump to
+            rand = self.rng.uniform()
             jump_to = next(i for i, x in enumerate(culm_row) if rand < x)
 
+            # print("jumping from {} to {}".format(state_to_jump, jump_to))
             distribution[state_to_jump] -= 1
             distribution[jump_to] += 1
 
-            data.append((t, *distribution))
+            data.append((t[0], *distribution))
 
             df =  pd.DataFrame(data, columns=['time', *self.graph.nodes])
         return df

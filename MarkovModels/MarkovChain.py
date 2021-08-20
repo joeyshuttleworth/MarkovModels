@@ -178,6 +178,7 @@ class MarkovChain():
         distribution = starting_distribution
 
         mean_waiting_times, e_chain = self.get_embedded_chain(rate_values)
+        print("mean waiting times", mean_waiting_times)
 
         data = [(0, *distribution)]
         culm_rows = np.zeros(e_chain.shape)
@@ -190,7 +191,7 @@ class MarkovChain():
         while True:
             waiting_times = np.zeros(mean_waiting_times.shape)
             for state_index, s_i in enumerate(distribution):
-                waiting_times[state_index] = self.rng.exponential(1/(mean_waiting_times[i]*s_i)) if s_i != 0 else np.inf
+                waiting_times[state_index] = self.rng.exponential(mean_waiting_times[state_index]/(s_i))
 
             if t+min(waiting_times) > time_range[1]:
                 break
@@ -211,7 +212,7 @@ class MarkovChain():
 
             data.append((t, *distribution))
 
-            df =  pd.DataFrame(data, columns=['time', *self.graph.nodes])
+        df =  pd.DataFrame(data, columns=['time', *self.graph.nodes])
         return df
 
 

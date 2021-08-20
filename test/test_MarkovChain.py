@@ -56,13 +56,13 @@ class TestMarkovChain(unittest.TestCase):
         }
 
         mc.get_embedded_chain(rate_vals)
-        no_trajectories = 20000
+        no_trajectories = 10
         data = mc.sample_trajectories(no_trajectories, rate_vals, [0, 1]).set_index('time')
 
         print(data)
 
         data.plot()
-        # plt.show()
+        plt.show()
 
 
 if __name__ == "__main__":

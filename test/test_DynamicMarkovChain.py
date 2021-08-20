@@ -52,7 +52,7 @@ class TestMarkovChain(unittest.TestCase):
         rate_vals = {"k1" : lambda t : 5,
                      "k2" : lambda t : 2,
                      "k3" : lambda t : 3,
-                     "k4" : lambda t: 1
+                     "k4" : lambda t:  1
         }
 
         no_trajectories = 10
@@ -61,7 +61,7 @@ class TestMarkovChain(unittest.TestCase):
         print(data)
 
         data.plot()
-        # plt.show()
+        plt.show()
 
 
 if __name__ == "__main__":
