@@ -52,7 +52,6 @@ class MarkovChain():
             transition_rate = sp.sympify(transition_rate)
 
         # First check that all of the symbols in sp.expr are defined (if it exists)
-        print(transition_rate)
         if transition_rate is not None:
             for expr in transition_rate.free_symbols:
                 if str(expr) not in self.rates:
@@ -88,6 +87,13 @@ class MarkovChain():
             matrix[i, i] = -sum(matrix[i,:])
 
         return self.graph.nodes, matrix
+
+    def eval_transition_matrix(self, rates : dict):
+        l, Q = self.get_transition_matrix()
+        rates_list = [rates[rate] for rate in self.rates]
+        Q_evaled = sp.lambdify(self.rates, Q)(*rates_list)
+        return l, Q_evaled
+
 
     def eliminate_state_from_transition_matrix(self, labels : Union[list, None] = None):
         """eliminate_state_from_transition_matrix
@@ -127,11 +133,9 @@ class MarkovChain():
         M = sp.eye(shape[0])
         replacement_row = np.array([-1 for i in range(shape[0])])[None,:]
 
-        print(M, replacement_row)
         M[-1,:] = replacement_row
 
         matrix = M @ matrix
-        print(matrix)
 
         # Construct vector
         vec = sp.Matrix([0 for i in range(shape[0])])
@@ -144,22 +148,23 @@ class MarkovChain():
 
     def get_embedded_chain(self,  rate_values : dict):
         _, Q = self.get_transition_matrix()
-        params = [rate_values[rate] for rate in self.rates]
+        _, Q_evaled = self.eval_transition_matrix(rate_values)
 
+        n = Q.shape[0]
 
-        print(Q, self.rates, Q)
-        Q_evaled = sp.lambdify(self.rates, Q)(*params)
+        logging.debug("Q is {}".format(Q_evaled))
 
-        mean_waiting_times = np.array([self.rng.exponential(1/val) for val in -Q_evaled.diagonal()])
+        mean_waiting_times = -1/np.diagonal(Q_evaled)
+
         embedded_markov_chain = np.zeros(Q_evaled.shape)
-
         for i, row in enumerate(Q_evaled):
-            s_row = sum(row) - row[i]
+            s_row = sum(row) - Q_evaled[i,i]
             for j, val in enumerate(row):
                 if i == j:
                     embedded_markov_chain[i,j] = 0
                 else:
                     embedded_markov_chain[i,j] = val/s_row
+
         logging.debug("Embedded markov chain is: {}".format(embedded_markov_chain))
         logging.debug("Waiting times are {}".format(mean_waiting_times))
 
@@ -174,13 +179,11 @@ class MarkovChain():
             starting_distribution = np.around(np.array([no_trajectories]*no_nodes)/no_nodes)
             starting_distribution[0] += no_trajectories - starting_distribution.sum()
 
-        print("starting distribution is {}".format(starting_distribution))
         distribution = starting_distribution
 
         mean_waiting_times, e_chain = self.get_embedded_chain(rate_values)
-        print("mean waiting times", mean_waiting_times)
 
-        data = [(0, *distribution)]
+        data = [(time_range[0], *distribution)]
         culm_rows = np.zeros(e_chain.shape)
         for i in range(e_chain.shape[0]):
             sum = 0
@@ -191,12 +194,15 @@ class MarkovChain():
         while True:
             waiting_times = np.zeros(mean_waiting_times.shape)
             for state_index, s_i in enumerate(distribution):
-                waiting_times[state_index] = self.rng.exponential(mean_waiting_times[state_index]/(s_i))
+                if s_i == 0:
+                    waiting_times[state_index] = np.inf
+                else:
+                    waiting_times[state_index] = self.rng.exponential(mean_waiting_times[state_index]/(s_i))
 
-            if t+min(waiting_times) > time_range[1]:
+            if t+min(waiting_times) > time_range[1]-time_range[0]:
                 break
 
-            new_t= t+min(waiting_times)
+            new_t = t+min(waiting_times)
             if new_t == t:
                 logging.warning("Underflow warning: timestep too small")
             t = new_t
@@ -210,10 +216,29 @@ class MarkovChain():
             distribution[state_to_jump] -= 1
             distribution[jump_to] += 1
 
-            data.append((t, *distribution))
+            # print('jump from {} to {}'.format(state_to_jump, jump_to))
+
+            data.append((t+time_range[0], *distribution))
 
         df =  pd.DataFrame(data, columns=['time', *self.graph.nodes])
         return df
 
+    def get_equilibrium_distribution(self, rates):
+        _, M = self.get_embedded_chain(rates)
+        print("embedded chain is", M)
+        M=M.T
 
+        eigval, eigvec = np.linalg.eig(M)
+
+        print(eigval, eigvec)
+
+        principle_eigvals = list(filter(lambda x : np.abs(x[0]-1)<1e-3 and np.all(x[1])>0, zip(eigval,eigvec.T)))
+        print("principle_eigvals is ", principle_eigvals)
+        assert(len(principle_eigvals)==1)
+        eqm_dist = principle_eigvals[0][1]
+        eqm_dist = eqm_dist/eqm_dist.sum()
+        print(eqm_dist)
+        assert(np.all(eqm_dist)>0)
+        assert(principle_eigvals[0])
+        return principle_eigvals[0][1]
 

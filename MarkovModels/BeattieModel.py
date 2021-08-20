@@ -24,7 +24,7 @@ class BeattieModel(MarkovModel):
         return np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2,
                          20, 2.58E-2, 2, 2.51E-2, 3.33E-2])
 
-    def __init__(self, protocol, times=None):
+    def __init__(self, protocol=None, times=None):
         # Create symbols for symbolic functions
         symbols = self.CreateSymbols()
 

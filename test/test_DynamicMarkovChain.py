@@ -7,6 +7,7 @@ import MarkovModels
 import sympy as sp
 import networkx as nx
 from MarkovModels import DynamicMarkovChain
+from MarkovModels import BeattieModel
 
 import numpy as np
 import pandas as pd

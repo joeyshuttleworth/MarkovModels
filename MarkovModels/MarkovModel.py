@@ -185,6 +185,11 @@ class MarkovModel:
 
         return A_matrix, B_vector
 
+    def get_steady_state(self, voltage=None, parameters=None):
+        A,B = self.get_linear_system(voltage,parameters)
+        steady_state = -np.linalg.solve(A,B)
+        return steady_state
+
     def get_analytic_solution(self, voltage=None, times=None, parameters=None):
         """get_analytic_solution
 
