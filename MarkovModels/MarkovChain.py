@@ -38,22 +38,22 @@ class MarkovChain():
         for rate in rates:
             self.add_rate(rate)
 
-    def add_both_transitions(self, frm: str, to : str, fwd_rate : Union[str, sp.Expr, None], bwd_rate : Union[str, sp.Expr, None]):
+    def add_both_transitions(self, frm: str, to : str, fwd_rate : Union[str, sp.Expr, None], bwd_rate : Union[str, None]):
         self.add_transition(frm, to, fwd_rate)
         self.add_transition(to, frm, bwd_rate)
 
-    def add_transition(self, from_node : str, to_node : str, transition_rate : Union[str, sp.Expr, None]):
+    def add_transition(self, from_node : str, to_node : str, transition_rate : Union[str, None]):
         # TODO: Nice exceptions
 
         if from_node not in self.graph.nodes or to_node not in self.graph.nodes:
             raise Exception("A node wasn't present in the graph ({} or {})".format(from_node, to_nodes))
 
-        if not isinstance(transition_rate, sp.Expr):
-            transition_rate = sp.sympify(transition_rate)
+        if not isinstance(transition_rate, str):
+            transition_rate = str(transition_rate)
 
         # First check that all of the symbols in sp.expr are defined (if it exists)
         if transition_rate is not None:
-            for expr in transition_rate.free_symbols:
+            for expr in sp.parse_expr(transition_rate).free_symbols:
                 if str(expr) not in self.rates:
                     raise Exception("symbol {} is not in the symbols list".format(expr))
 
@@ -114,13 +114,14 @@ class MarkovChain():
 
         Returns a pair of symbolic matrices, A & B, defining a system of ODEs of the format dX/dt = AX + B.
         """
+
         _, matrix = self.get_transition_matrix()
         matrix=matrix.T
         shape = sp.shape(matrix)
         assert(shape[0] == shape[1])
 
         if labels is None:
-            labels = self.graph.nodes[:-1]
+            labels = list(self.graph.nodes)[:-1]
 
         # List describing the mapping from self.graph.nodes to labels.
         # permutation[i] = j corresponds to a mapping which takes
@@ -223,22 +224,10 @@ class MarkovChain():
         df =  pd.DataFrame(data, columns=['time', *self.graph.nodes])
         return df
 
-    def get_equilibrium_distribution(self, rates):
-        _, M = self.get_embedded_chain(rates)
-        print("embedded chain is", M)
-        M=M.T
-
-        eigval, eigvec = np.linalg.eig(M)
-
-        print(eigval, eigvec)
-
-        principle_eigvals = list(filter(lambda x : np.abs(x[0]-1)<1e-3 and np.all(x[1])>0, zip(eigval,eigvec.T)))
-        print("principle_eigvals is ", principle_eigvals)
-        assert(len(principle_eigvals)==1)
-        eqm_dist = principle_eigvals[0][1]
-        eqm_dist = eqm_dist/eqm_dist.sum()
-        print(eqm_dist)
-        assert(np.all(eqm_dist)>0)
-        assert(principle_eigvals[0])
-        return principle_eigvals[0][1]
+    def get_equilibrium_distribution(self, rates : dict):
+        A,B = self.eliminate_state_from_transition_matrix()
+        labels = self.graph
+        ss = -np.array(A.LUsolve(B).subs(rates)).astype(np.float64)
+        ss = np.append(ss, 1-ss.sum())
+        return labels, ss
 

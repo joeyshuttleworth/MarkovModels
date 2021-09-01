@@ -81,9 +81,8 @@ class TestMarkovChain(unittest.TestCase):
             }
             return rate_vals
 
-        # protocol = ((0, 100), (10, 200), (20, 300))
-        protocol=((-80,1000),)
-
+        protocol = ((-80, 100), (20, 200))
+        # protocol=((-80,1000),)
 
         fig = plt.figure(figsize=(8,8))
         ax1 = fig.add_subplot(211)
@@ -91,21 +90,25 @@ class TestMarkovChain(unittest.TestCase):
         dist=None
         data = [pd.DataFrame(columns=("time", *mc.graph.nodes))]
         last_time=0
+        eqm_data = []
         for voltage, time_to in protocol:
             data.append(mc.sample_trajectories(no_trajectories, get_rates(voltage, params), (last_time, time_to), starting_distribution=dist))
             dist = data[-1].values[-1,1:]
             _,A = mc.eval_transition_matrix(get_rates(voltage,params))
             model=BeattieModel()
             # compute steady states
-            ss = mc.get_equilibrium_distribution(get_rates(voltage, params))
-            ss =ss*no_trajectories
-            ax1.plot([last_time, time_to], np.stack([ss, ss]), "--", color="grey")
+            labels, ss = mc.get_equilibrium_distribution(get_rates(voltage, params))
+            ss = ss*no_trajectories
+            eqm_data=eqm_data + [[last_time, *ss]] + [[time_to, *ss]]
             print("Transition rates should be {}".format(A))
             last_time = time_to
 
+        eqm_data = pd.DataFrame(eqm_data, columns = ['time'] + [l + ' eqm distribution' for l in labels]).set_index("time")
         data=pd.concat(data).set_index("time").sort_index()
 
         data.plot(ax=ax1)
+        eqm_data.plot(style="--", ax=ax1)
+
         ax2= fig.add_subplot(212)
 
         model = BeattieModel()
