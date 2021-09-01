@@ -1,8 +1,9 @@
 import numpy as np
-import symengine as se
+import sympy as sp
 from scipy.integrate import odeint
 
 from . MarkovModel import MarkovModel
+from . MarkovChain import MarkovChain
 from . common import *
 from . settings import settings
 
@@ -28,26 +29,46 @@ class BeattieModel(MarkovModel):
         # Create symbols for symbolic functions
         symbols = self.CreateSymbols()
 
-        # Two params for each rate constant, one for the maximal conductance
-        k = se.symbols('k1, k2, k3, k4')
-
-        # Define system equations and initial conditions
-        k1 = symbols['p'][0] * se.exp(symbols['p'][1] * symbols['v'])
-        k2 = symbols['p'][2] * se.exp(-symbols['p'][3] * symbols['v'])
-        k3 = symbols['p'][4] * se.exp(symbols['p'][5] * symbols['v'])
-        k4 = symbols['p'][6] * se.exp(-symbols['p'][7] * symbols['v'])
-
-        # Notation is consistent between the two papers
-        A = se.Matrix([[-k1 - k3 - k4, k2 - k4, -k4],
-                    [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
-        B = se.Matrix([k4, 0, k1])
-
         if times is None:
             times = np.linspace(0, 15000, 1000)
+
+        # # Two params for each rate constant, one for the maximal conductance
+        # k = se.symbols('k1, k2, k3, k4')
+
+        # # Define system equations and initial conditions
+        # k1 = symbols['p'][0] * se.exp(symbols['p'][1] * symbols['v'])
+        # k2 = symbols['p'][2] * se.exp(-symbols['p'][3] * symbols['v'])
+        # k3 = symbols['p'][4] * se.exp(symbols['p'][5] * symbols['v'])
+        # k4 = symbols['p'][6] * se.exp(-symbols['p'][7] * symbols['v'])
+
+        # # Notation is consistent between the two papers
+        # A = se.Matrix([[-k1 - k3 - k4, k2 - k4, -k4],
+        #             [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
+        # B = se.Matrix([k4, 0, k1])
+
+        mc = MarkovChain()
+        rates = ['k{}'.format(i) for i in [1,2,3,4]]
+        mc.add_rates(rates)
+        states = [('O', True) , ('C', False), ('I', False), ('IC', False)]
+        mc.add_states(states)
+
+        rates = [('O', 'C', 'k2', 'k1'), ('I', 'IC', 'k1', 'k2'), ('IC', 'I', 'k1', 'k2'), ('O', 'I', 'k3', 'k4'), ('C', 'IC', 'k3', 'k4')]
+
+        for r in rates:
+            mc.add_both_transitions(*r)
+
+        A, B = mc.eliminate_state_from_transition_matrix(['C','O','I'])
+
+        rates=dict([("k{}".format(i+1), symbols['p'][2*i]+sp.exp(symbols['p'][2*i+1]*symbols['v'])) for i in range(int(self.n_params/2))])
+
+        A = A.subs(rates)
+        B = B.subs(rates)
 
         # Call the constructor of the parent class, MarkovModel
         super().__init__(symbols, A, B, times,
                             voltage=protocol)
+
+
 
     def CreateSymbols(self):
         """
@@ -55,9 +76,9 @@ class BeattieModel(MarkovModel):
         These are used to generate functions for the right hand side and Jacobian
         """
         # Create parameter symbols
-        p = se.Matrix([se.symbols('p%d' % j) for j in range(self.n_params)])
+        p = [sp.symbols('p%d' % j) for j in range(self.n_params)]
         # Create state variable symbols
-        y = se.Matrix([se.symbols('y%d' % i) for i in range(self.n_state_vars)])
+        y = sp.Matrix([sp.symbols('y%d' % i) for i in range(self.n_state_vars)])
         # Create voltage symbol
-        v = se.symbols('v')
+        v = sp.symbols('v')
         return {'p' : p, 'y' : y, 'v' : v}

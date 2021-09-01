@@ -50,7 +50,7 @@ class TestBeattieModel(unittest.TestCase):
 
             sens_difference = full_solution[1][0,:] - full_solution[1][-1,:]
             sse=sum(sens_difference**2)
-            logging.info("errors are {}".format(sens_difference))
+            # logging.info("errors are {}".format(sens_difference))
             self.assertLess(max(sens_difference), 1e-5)
 
     def test_analytic_solution(self):
@@ -67,9 +67,9 @@ class TestBeattieModel(unittest.TestCase):
             numerical_solution=model.SimulateForwardModel(times=times)
             errors = analytic_solution - numerical_solution
 
-            logging.info("analytic_solution is {}".format(analytic_solution))
-            logging.info("numerical_solution is {}".format(numerical_solution))
-            logging.info("errors are {}".format(errors))
+            # logging.info("analytic_solution is {}".format(analytic_solution))
+            # logging.info("numerical_solution is {}".format(numerical_solution))
+            # logging.info("errors are {}".format(errors))
 
 
             self.assertLess(max(errors), 1e-5)

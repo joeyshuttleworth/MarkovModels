@@ -1,5 +1,5 @@
 import numpy as np
-import symengine as se
+import sympy as sp
 import logging
 from scipy.integrate import odeint
 
@@ -20,9 +20,9 @@ class MarkovModel:
     def __init__(self, symbols, A, B, times, voltage=None):
 
         try:
-            y = symbols['y']
-            p = symbols['p']
-            v = symbols['v']
+            self.y = symbols['y']
+            self.p = symbols['p']
+            self.v = symbols['v']
         except:
             raise Exception()
 
@@ -32,7 +32,8 @@ class MarkovModel:
         self.times = times
         self.A = A
         self.B = B
-        rhs = A * y + B
+
+        rhs = A @ self.y + B
 
         if voltage is not None:
             self.voltage = voltage
@@ -40,20 +41,20 @@ class MarkovModel:
         para = self.get_default_parameters()
 
         # Inputs for RHS ODEs
-        inputs = list(y) + list(p) +[v]
+        inputs = list(self.y) + list(self.p) + [self.v]
 
         # Create RHS function
         frhs = [rhs[i] for i in range(self.n_state_vars)]
-        self.func_rhs = se.lambdify(inputs, frhs)
+        self.func_rhs = sp.lambdify(inputs, frhs)
 
         # Create Jacobian of the RHS function
-        jrhs = [se.Matrix(rhs).jacobian(se.Matrix(y))]
-        self.jfunc_rhs = se.lambdify(inputs, jrhs)
+        jrhs = sp.Matrix(rhs).jacobian(sp.Matrix(self.y))
+        self.jfunc_rhs = sp.lambdify(inputs, jrhs)
 
         # Create symbols for 1st order sensitivities
         dydp = [
             [
-                se.symbols(
+                sp.symbols(
                     'dy%d' %
                     i + 'dp%d' %
                     j) for j in range(
@@ -75,9 +76,9 @@ class MarkovModel:
         fS1, Ss = [], []
         for i in range(self.n_state_vars):
             for j in range(self.n_params):
-                dS[i][j] = se.diff(rhs[i], p[j])
+                dS[i][j] = sp.diff(rhs[i], self.p[j])
                 for l in range(self.n_state_vars):
-                    dS[i][j] = dS[i][j] + se.diff(rhs[i], y[l]) * S[l][j]
+                    dS[i][j] = dS[i][j] + sp.diff(rhs[i], self.y[l]) * S[l][j]
 
         # Flatten 1st order sensitivities for function
         [[fS1.append(dS[i][j]) for i in range(self.n_state_vars)]
@@ -85,32 +86,33 @@ class MarkovModel:
         [[Ss.append(S[i][j]) for i in range(self.n_state_vars)]
          for j in range(self.n_params)]
 
-        self.auxillary_expression = p[self.GKr_index] * \
-            y[self.open_state_index] * (v - self.Erev)
+        self.auxillary_expression = self.p[self.GKr_index] * \
+            self.y[self.open_state_index] * (self.v - self.Erev)
 
         # dI/do
-        self.dIdo = se.diff(self.auxillary_expression, y[self.open_state_index])
+        self.dIdo = sp.diff(self.auxillary_expression, self.y[self.open_state_index])
 
-        self.func_S1 = se.lambdify(inputs, fS1)
+        self.func_S1 = sp.lambdify(inputs, fS1)
 
         # Define number of 1st order sensitivities
         self.n_state_var_sensitivities = self.n_params * self.n_state_vars
 
         # Concatenate RHS and 1st order sensitivities
-        Ss = np.concatenate((list(y), Ss))
+        Ss = np.concatenate((list(self.y), Ss))
         fS1 = np.concatenate((frhs, fS1))
 
         # Create Jacobian of the 1st order sensitivities function
-        jS1 = [se.Matrix(fS1).jacobian(se.Matrix(Ss))]
-        self.jfunc_S1 = se.lambdify(inputs, jS1)
+        jS1 = sp.Matrix(fS1).jacobian(sp.Matrix(Ss))
+        self.jfunc_S1 = sp.lambdify(inputs, jS1)
 
         # Set the initial conditions of the model and the initial sensitivities
         # by finding the steady state of the model
 
-        # RHS
-        # First check that a steady state exists for this system at this
+        # TODO:
+        # Check that a steady state exists for this system at this
         # holding voltage
         # dx/dt = Ax+B
+
 
         A_matrix, _ = self.get_linear_system()
 
@@ -118,65 +120,45 @@ class MarkovModel:
         assert(np.all(eigvals < 0))
 
         # Can be found analytically
-        rhs_inf = (-(self.A.inv()) * self.B).subs(v,
-                                                  self.holding_potential)
+        self.rhs_inf_expr = -self.A.LUsolve(self.B).subs(self.v, self.holding_potential)
+        self.rhs_inf = lambda p : self.rhs_inf_expr.subs(dict(zip(self.p, p))).evalf()
 
-        rhs_inf_eval = np.array([float(row) for row in rhs_inf.subs(p, para)])
+        param_dict = dict([('p{}'.format(i), para[i]) for i in range(self.n_params)])
 
-        current_inf_expr = self.auxillary_expression.subs(y, rhs_inf_eval)
-        current_inf = float(current_inf_expr.subs(
-            v, self.holding_potential).subs(p, para).evalf())
-
-        # The limit of the rhs when voltage is held at the holding potential.
-        # This is chosen to be equal to the initial conditions.
-        self.rhs0 = rhs_inf_eval
+        self.current_inf_expr = self.auxillary_expression.subs(self.y, self.rhs_inf)
+        self.current_inf = lambda p : np.array(self.current_inf_expr.subs(dict(zip(self.p, p))).evalf()).astype(np.float64)
 
         # Find sensitivity steady states
-        S1_inf = np.array(
-            [
-                float(
-                    se.diff(
-                        rhs_inf[i],
-                        p[j]).subs(
-                        p,
-                        para).evalf()) for j in range(
-                    0,
-                    self.n_params) for i in range(
-                            0,
-                    self.n_state_vars)])
-
-        self.drhs0 = np.concatenate((self.rhs0, S1_inf))
-        index_sensitivities = self.n_state_vars + self.open_state_index + \
-            self.n_state_vars * np.array(range(self.n_params))
-        sens_inf = self.drhs0[index_sensitivities] * \
-            (self.holding_potential - self.Erev) * para[-1]
-        sens_inf[-1] += (self.holding_potential -
-                         self.Erev) * rhs_inf_eval[self.open_state_index]
+        self.sensitivity_ics_expr = sp.Matrix( [ sp.diff(
+            self.rhs_inf_expr[i], self.p[j]) for j in range( 0, self.n_params)
+                                                        for i in range( 0, self.n_state_vars)])
+        self.sensitivity_ics = lambda p : np.array(self.sensitivity_ics_expr.subs(dict(zip(self.p, p))).evalf()).astype(np.float64)
 
     def rhs(self, y, t, p):
         """ Evaluates the RHS of the model (including sensitivities)
 
         """
-        return self.func_rhs((*y, *p, self.voltage(t)))
+        return self.func_rhs(*(*y, *p, self.voltage(t)))
 
     def jrhs(self, y, t, p):
         """ Evaluates the jacobian of the RHS
 
             Having this function can speed up solving the system
         """
-        return self.jfunc_rhs((*y, *p, self.voltage(t)))
+        return self.jfunc_rhs(*(*y, *p, self.voltage(t)))
 
     def get_linear_system(self, voltage=None, parameters=None):
         if voltage is None:
             voltage = self.holding_potential
         if parameters is None:
             parameters = self.get_default_parameters()
+        param_dict = dict([('p{}'.format(i), parameters[i]) for i in range(self.n_params)])
 
         A_matrix = np.array([float(el.evalf()) for el in self.A.subs(
-            self.symbols['v'], voltage).subs(self.symbols['p'], parameters)]).reshape(self.A.rows, self.A.cols)
+            self.symbols['v'], voltage).subs(param_dict)]).reshape(self.A.rows, self.A.cols)
 
         B_vector = np.array([float(el.evalf()) for el in self.B.subs(
-            self.symbols['v'], voltage).subs(self.symbols['p'], parameters)])
+            self.symbols['v'], voltage).subs(param_dict)])
 
 
         cond = np.linalg.cond(A_matrix)
@@ -190,7 +172,7 @@ class MarkovModel:
         steady_state = -np.linalg.solve(A,B)
         return steady_state
 
-    def get_analytic_solution(self, voltage=None, times=None, parameters=None):
+    def get_analytic_solution(self, voltage=None, times=None, parameters=None, rhs0 = None):
         """get_analytic_solution
 
         For any fixed voltage, we can easily compute an analytic solution for
@@ -201,8 +183,8 @@ class MarkovModel:
 
         if times is None:
             times = self.times
-
         times = np.array(times)
+
         if type(times) is not np.ndarray:
             raise TypeError("times is type {}".format(type(times)))
 
@@ -211,6 +193,9 @@ class MarkovModel:
 
         if parameters is None:
             parameters = self.get_default_parameters()
+
+        if rhs0 is None:
+            rhs0 = self.rhs_inf(parameters)
 
         #Solve non-homogeneous part
         A_matrix, B_vector = self.get_linear_system(voltage=voltage, parameters=parameters)
@@ -227,7 +212,7 @@ class MarkovModel:
         # Then Z = (e^{-D_i,i})_i and X=CKZ is the general homogenous solution to the system
         # dX/dt = AX because dX/dt = CKdZ/dt = CKDZ = KCC^-1ACZ = KACZ = AKX
 
-        IC = self.rhs0.T
+        IC = np.array(rhs0).astype(np.float64)
         IC_KZ = np.linalg.solve(C, IC - X2)
         K =  np.diag(IC_KZ)
         solution = (C@K@np.exp(times*eigenvalues[:,None]) + X2[:, None]).T
@@ -240,13 +225,14 @@ class MarkovModel:
     def solve_rhs(self, p, times=None):
         """ Solve the RHS of the system and return the open state probability at each timestep
         """
+        rhs0 = np.array(self.rhs_inf(p)).astype(np.float64)[:,0]
 
         if times is None:
             times = self.times
 
         return odeint(
             self.rhs,
-            self.rhs0,
+            rhs0,
             times,
             atol=self.solver_tolerances[0],
             rtol=self.solver_tolerances[1],
@@ -260,8 +246,8 @@ class MarkovModel:
 
         """
         outputs = self.func_rhs(
-            (*y[:self.n_state_vars], *p, self.voltage(t)))
-        outputs.extend(self.func_S1((*
+            *y[:self.n_state_vars], *p, self.voltage(t))
+        outputs.extend(self.func_S1(*(*
                                      y[:self.n_state_vars], *
                                      p, self.voltage(t), *
                                      y[self.n_state_vars:])))
@@ -273,7 +259,7 @@ class MarkovModel:
         This allows the system to be solved faster
 
         """
-        return self.jfunc_S1((*
+        return self.jfunc_S1(*(*
                               y[:self.n_state_vars], *
                               p, self.voltage(t), *
                               y[self.n_state_vars:]))
@@ -289,10 +275,14 @@ class MarkovModel:
         if times is None:
             times = self.times
 
-        # Chop off RHS
+        rhs0 = self.rhs_inf(p)
+        drhs0 = self.sensitivity_ics(p)
 
+        ics = np.concatenate(rhs0, drhs0, axis=None).astype(np.float64)
+
+        # Chop off RHS
         drhs = odeint(self.drhs,
-                      self.drhs0,
+                      self.ics,
                       times,
                       atol=self.solver_tolerances[0],
                       rtol=self.solver_tolerances[1],
@@ -310,9 +300,12 @@ class MarkovModel:
         if times is None:
             times = self.times
 
+        rhs0 = np.array(self.rhs_inf(p)).astype(np.float64)
+        drhs0 = np.array(self.sensitivity_ics(p)).astype(np.float64)
+
         return odeint(
             self.drhs,
-            self.drhs0,
+            np.concatenate((rhs0, drhs0), axis=None).astype(np.float64),
             times,
             atol=self.solver_tolerances[0],
             rtol=self.solver_tolerances[1],
