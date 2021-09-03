@@ -17,13 +17,13 @@ class BeattieModel(MarkovModel):
     n_states = 4
     n_state_vars = n_states-1
     GKr_index = 8
-    open_state_index = 1
+    open_state_index = 0
     Erev = calculate_reversal_potential()
     holding_potential = -80
 
     def get_default_parameters(self):
-        return np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2,
-                         20, 2.58E-2, 2, 2.51E-2, 3.33E-2])
+        return np.array([2.07E-3, 7.17E-2, 3.44E-5, -6.18E-2, 20, 2.58E-2, 2,
+                         2.51E-2, 3.33E-2])
 
     def __init__(self, protocol=None, times=None):
         # Create symbols for symbolic functions
@@ -31,20 +31,6 @@ class BeattieModel(MarkovModel):
 
         if times is None:
             times = np.linspace(0, 15000, 1000)
-
-        # # Two params for each rate constant, one for the maximal conductance
-        # k = se.symbols('k1, k2, k3, k4')
-
-        # # Define system equations and initial conditions
-        # k1 = symbols['p'][0] * se.exp(symbols['p'][1] * symbols['v'])
-        # k2 = symbols['p'][2] * se.exp(-symbols['p'][3] * symbols['v'])
-        # k3 = symbols['p'][4] * se.exp(symbols['p'][5] * symbols['v'])
-        # k4 = symbols['p'][6] * se.exp(-symbols['p'][7] * symbols['v'])
-
-        # # Notation is consistent between the two papers
-        # A = se.Matrix([[-k1 - k3 - k4, k2 - k4, -k4],
-        #             [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
-        # B = se.Matrix([k4, 0, k1])
 
         mc = MarkovChain()
         rates = ['k{}'.format(i) for i in [1,2,3,4]]
@@ -57,16 +43,15 @@ class BeattieModel(MarkovModel):
         for r in rates:
             mc.add_both_transitions(*r)
 
-        A, B = mc.eliminate_state_from_transition_matrix(['C','O','I'])
+        A, B = mc.eliminate_state_from_transition_matrix(['C', 'O', 'I'])
 
-        rates=dict([("k{}".format(i+1), symbols['p'][2*i]+sp.exp(symbols['p'][2*i+1]*symbols['v'])) for i in range(int(self.n_params/2))])
+        rates=dict([("k{}".format(i+1), symbols['p'][2*i]*sp.exp(symbols['p'][2*i+1]*symbols['v'])) for i in range(int(self.n_params/2))])
 
         A = A.subs(rates)
         B = B.subs(rates)
 
         # Call the constructor of the parent class, MarkovModel
-        super().__init__(symbols, A, B, times,
-                            voltage=protocol)
+        super().__init__(symbols, A, B, times, rates, voltage=protocol)
 
 
 

@@ -25,7 +25,10 @@ class MarkovChain():
 
     def add_states(self, states : list):
         for state in states:
-            self.add_state(*state)
+            if isinstance(state, str):
+                self.add_state(state)
+            else:
+                self.add_state(*state)
 
     def add_rate(self, rate : str):
         if rate in self.rates:
@@ -44,9 +47,8 @@ class MarkovChain():
 
     def add_transition(self, from_node : str, to_node : str, transition_rate : Union[str, None]):
         # TODO: Nice exceptions
-
         if from_node not in self.graph.nodes or to_node not in self.graph.nodes:
-            raise Exception("A node wasn't present in the graph ({} or {})".format(from_node, to_nodes))
+            raise Exception("A node wasn't present in the graph ({} or {})".format(from_node, to_node))
 
         if not isinstance(transition_rate, str):
             transition_rate = str(transition_rate)
@@ -55,7 +57,7 @@ class MarkovChain():
         if transition_rate is not None:
             for expr in sp.parse_expr(transition_rate).free_symbols:
                 if str(expr) not in self.rates:
-                    raise Exception("symbol {} is not in the symbols list".format(expr))
+                    self.add_rate(str(expr))
 
         self.graph.add_edge(from_node, to_node, rate=transition_rate)
 
@@ -216,8 +218,6 @@ class MarkovChain():
 
             distribution[state_to_jump] -= 1
             distribution[jump_to] += 1
-
-            # print('jump from {} to {}'.format(state_to_jump, jump_to))
 
             data.append((t+time_range[0], *distribution))
 

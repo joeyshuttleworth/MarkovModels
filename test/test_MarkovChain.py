@@ -23,7 +23,6 @@ class TestMarkovChain(unittest.TestCase):
         logging.info("outputting to " + test_output_dir)
 
     def test_construct_chain(self):
-
         logging.info("Constructing four-state Beattie model")
         mc = MarkovChain()
         rates = ['k{}'.format(i) for i in [1,2,3,4]]
@@ -39,7 +38,7 @@ class TestMarkovChain(unittest.TestCase):
         pos=nx.spring_layout(mc.graph)
 
         # Output DOT file
-        nx.drawing.nx_agraph.write_dot(mc.graph, "dotfile.dot")
+        nx.drawing.nx_agraph.write_dot(mc.graph, "Beattie_dotfile.dot")
 
         logging.debug(mc.graph)
 
@@ -56,8 +55,24 @@ class TestMarkovChain(unittest.TestCase):
         self.assertEqual(pen_and_paper_A, system[0])
         self.assertEqual(pen_and_paper_B, system[1])
 
+        # Construct M10 model
+        m10 = MarkovModels.M10Model()
+        nx.drawing.nx_agraph.write_dot(m10.mc.graph, "m10_dotfile.dot")
+
 
     def test_SimulateStepProtocol(self):
+        # First test the Beattie model
+        def beattie_get_rates(voltage : float, parameters : list):
+            # Now get the waiting times and embedded MC
+            rates=[parameters[2*i]+np.exp(parameters[2*i+1]*voltage) for i in range(int((len(parameters)-1)/2))]
+
+            rate_vals = {"k1" : rates[0],
+                    "k2" : rates[1],
+                    "k3" : rates[2],
+                    "k4" : rates[3]
+            }
+            return rate_vals
+
         mc = MarkovChain()
         rates = ['k{}'.format(i) for i in [1,2,3,4]]
         mc.add_rates(rates)
@@ -69,21 +84,29 @@ class TestMarkovChain(unittest.TestCase):
         for r in rates:
             mc.add_both_transitions(*r)
 
-        params = BeattieModel().get_default_parameters()
-        def get_rates(voltage : float, parameters : list):
-            # Now get the waiting times and embedded MC
-            rates=[params[2*i]+np.exp(params[2*i+1]*voltage) for i in range(int((len(params)-1)/2))]
+        protocol = ((-80, 100), (20, 200))
+        self.SimulateStepProtocol(mc, beattie_get_rates, protocol, BeattieModel().get_default_parameters(), name="Beattie")
 
-            rate_vals = {"k1" : rates[0],
-                    "k2" : rates[1],
-                    "k3" : rates[2],
-                    "k4" : rates[3]
-            }
+        # M10-IKr model
+        mc = MarkovChain()
+        mc.add_states(('O','IC1','IC2','IO','C1','C2'))
+        rates = (('IC2', 'IC1', 'a1', 'b1'), ('IC1', 'IO', 'a2', 'b2'), ('IO', 'O', 'ah', 'bh'), ('O', 'C1', 'b2', 'a2'), ('C1', 'C2', 'b1', 'a1'), ('C2', 'IC2', 'bh', 'ah'), ('C1', 'IC1', 'bh', 'ah'))
+
+        for r in rates:
+            mc.add_both_transitions(*r)
+
+
+        def M10_get_rates(voltage : float, params : list):
+            # Now get the waiting times and embedded MC
+            rates=[params[2*i]+np.exp(params[2*i+1]*voltage) for i in range(int((len(params))/2))]
+            rate_vals = dict(zip(('a1', 'b1', 'bh', 'ah', 'a2', 'b2'), rates))
             return rate_vals
 
-        protocol = ((-80, 100), (20, 200))
-        # protocol=((-80,1000),)
+        params = (8.53183002138620944e-03, 8.31760044455376601e-02, 1.26287052202195688e-02, 1.03628499834739776e-07, 2.70276339808042609e-01,1.58000446046794897e-02, 7.66699486356391818e-02, 2.24575000694940963e-02, 1.49033896782688496e-01, 2.43156986537036227e-02, 5.58072076984100361e-04, 4.06619125485430874e-02)
+        self.SimulateStepProtocol(mc, M10_get_rates, protocol, params, name="M10")
 
+
+    def SimulateStepProtocol(self, mc, rates_func, protocol, params, name : str =""):
         fig = plt.figure(figsize=(8,8))
         ax1 = fig.add_subplot(211)
         no_trajectories = 1000
@@ -92,15 +115,14 @@ class TestMarkovChain(unittest.TestCase):
         last_time=0
         eqm_data = []
         for voltage, time_to in protocol:
-            data.append(mc.sample_trajectories(no_trajectories, get_rates(voltage, params), (last_time, time_to), starting_distribution=dist))
+            data.append(mc.sample_trajectories(no_trajectories, rates_func(voltage, params), (last_time, time_to), starting_distribution=dist))
             dist = data[-1].values[-1,1:]
-            _,A = mc.eval_transition_matrix(get_rates(voltage,params))
+            _,A = mc.eval_transition_matrix(rates_func(voltage, params))
             model=BeattieModel()
             # compute steady states
-            labels, ss = mc.get_equilibrium_distribution(get_rates(voltage, params))
+            labels, ss = mc.get_equilibrium_distribution(rates_func(voltage, params))
             ss = ss*no_trajectories
             eqm_data=eqm_data + [[last_time, *ss]] + [[time_to, *ss]]
-            print("Transition rates should be {}".format(A))
             last_time = time_to
 
         eqm_data = pd.DataFrame(eqm_data, columns = ['time'] + [l + ' eqm distribution' for l in labels]).set_index("time")
@@ -121,7 +143,7 @@ class TestMarkovChain(unittest.TestCase):
             times=times+[time_to]*2
         times=times[0:-1]
         ax2.plot(times,voltages)
-        plt.savefig(os.path.join(self.output_dir, "SimulateStepProtocol.pdf"))
+        plt.savefig(os.path.join(self.output_dir, "SimulateStepProtocol_{}.pdf".format(name)))
 
 
 if __name__ == "__main__":

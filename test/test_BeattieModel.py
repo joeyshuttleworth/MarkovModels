@@ -34,8 +34,6 @@ class TestBeattieModel(unittest.TestCase):
         for protocol_name in self.protocol_names:
             protocol = MarkovModels.get_protocol(protocol_name)
             model=MarkovModels.BeattieModel(protocol)
-            model.SimulateForwardModel()
-            model.SimulateForwardModelSensitivities()
 
             times = np.linspace(-0.1, 30000, 1000)
             full_solution = model.SimulateForwardModelSensitivities(times=times)
