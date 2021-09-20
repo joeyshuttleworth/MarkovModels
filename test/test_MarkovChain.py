@@ -22,6 +22,24 @@ class TestMarkovChain(unittest.TestCase):
         self.output_dir = test_output_dir
         logging.info("outputting to " + test_output_dir)
 
+    def test_construct_open_trapping_model(self):
+        mc = MarkovChain()
+        rates = ['k{}'.format(i) for i in [1,2,3,4]]
+        mc.add_rates(rates)
+        states = [('O', True) , ('C', False), ('I', False), ('IC', False)]
+        mc.add_states(states)
+
+        rates = [('O', 'C', 'k2', 'k1'), ('I', 'IC', 'k1', 'k2'), ('IC', 'I', 'k1', 'k2'), ('O', 'I', 'k3', 'k4'), ('C', 'IC', 'k3', 'k4')]
+
+        for r in rates:
+            mc.add_both_transitions(*r)
+
+        mc.add_open_trapping()
+
+        labels = ('O', 'C', 'I', 'd_O', 'd_C', 'd_I', 'd_O', 'd_IC')
+        eqns = mc.eliminate_state_from_transition_matrix(labels)
+        logging.debug("System of equations for open trapping model is {}".format(eqns))
+
     def test_construct_chain(self):
         logging.info("Constructing four-state Beattie model")
         mc = MarkovChain()
