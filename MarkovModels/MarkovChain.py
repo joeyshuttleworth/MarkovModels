@@ -17,17 +17,27 @@ class MarkovChain():
         self.rates = []
         self.rng = default_rng(seed)
 
-    def mirror_model(self, prefix : str):
+    def mirror_model(self, prefix : str, new_rates : bool = False):
         trapped_graph = nx.relabel_nodes(self.graph, dict([(n, "{}{}".format(prefix, n)) for n in self.graph.nodes]))
         nx.set_node_attributes(trapped_graph, False, 'open')
+
+        if new_rates:
+            for frm, to, attr in self.graph.edges(data=True):
+                new_rate = prefix + attr['rate']
+                if new_rate not in self.rates:
+                    self.rates.append(new_rate)
+                attr['rate'] = new_rate
+
         new_graph     = nx.compose(trapped_graph, self.graph)
         # Get open state name
         open_nodes = [n for n, d in new_graph.nodes(data=True) if d['open']]
         assert(len(open_nodes) == 1)
+
+
         self.graph = new_graph
 
-    def add_open_trapping(self):
-        self.mirror_model(prefix="d_")
+    def add_open_trapping(self, prefix : str = "d_", new_rates : bool = False):
+        self.mirror_model(prefix, new_rates)
         self.add_rates(("drug_on", "drug_off"))
         open_nodes = [n for n, d in self.graph.nodes(data=True) if d['open']]
         self.add_both_transitions(open_nodes[0], "d_{}".format(open_nodes[0]), 'drug_on', 'drug_off')

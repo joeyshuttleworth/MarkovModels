@@ -34,11 +34,16 @@ class TestMarkovChain(unittest.TestCase):
         for r in rates:
             mc.add_both_transitions(*r)
 
-        mc.add_open_trapping()
+        mc.add_open_trapping(prefix="d_", new_rates=True)
 
         labels = ('O', 'C', 'I', 'd_O', 'd_C', 'd_I', 'd_O', 'd_IC')
         eqns = mc.eliminate_state_from_transition_matrix(labels)
         logging.debug("System of equations for open trapping model is {}".format(eqns))
+
+        nx.drawing.nx_agraph.write_dot(mc.graph, os.path.join(self.output_dir, "open_trapping.dot"))
+        logging.debug(mc.graph)
+
+
 
     def test_construct_chain(self):
         logging.info("Constructing four-state Beattie model")
