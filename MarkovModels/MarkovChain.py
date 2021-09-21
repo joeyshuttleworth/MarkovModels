@@ -281,5 +281,3 @@ class MarkovChain():
             if(forward_rate_product - backward_rate_product).evalf() != 0:
                 return False
         return True
-
-
