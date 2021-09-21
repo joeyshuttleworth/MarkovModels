@@ -15,12 +15,35 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+def construct_M10_chain():
+    mc = MarkovChain()
+
+    mc.add_states(('IC1','IC2','IO','C1','C2'))
+    mc.add_state('O', open=True)
+    rates = (('IC2', 'IC1', 'a1', 'b1'), ('IC1', 'IO', 'a2', 'b2'), ('IO', 'O', 'ah', 'bh'), ('O', 'C1', 'b2', 'a2'), ('C1', 'C2', 'b1', 'a1'), ('C2', 'IC2', 'bh', 'ah'), ('C1', 'IC1', 'bh', 'ah'))
+
+    for r in rates:
+        mc.add_both_transitions(*r)
+    return mc
+
+def construct_non_reversible_chain():
+    mc = MarkovChain()
+
+    mc.add_states(('A', 'D'))
+    mc.add_state('B', open=True)
+    rates = (('B', 'A', 'k1', 'k2'), ('A', 'D', 'k3', 'k4'), ('B', 'D', 'k5', 'k6'))
+
+    for r in rates:
+        mc.add_both_transitions(*r)
+    return mc
+
 def construct_four_state_chain():
     mc = MarkovChain()
     rates = ['k{}'.format(i) for i in [1,2,3,4]]
     mc.add_rates(rates)
-    states = [('O', True) , ('C', False), ('I', False), ('IC', False)]
+    states = [('O', True), ('C', False), ('I', False), ('IC', False)]
     mc.add_states(states)
+    mc.add_state('O', open=True)
 
     rates = [('O', 'C', 'k2', 'k1'), ('I', 'IC', 'k1', 'k2'), ('IC', 'I', 'k1', 'k2'), ('O', 'I', 'k3', 'k4'), ('C', 'IC', 'k3', 'k4')]
 
@@ -78,87 +101,92 @@ class TestMarkovChain(unittest.TestCase):
         nx.drawing.nx_agraph.write_dot(m10.mc.graph, "m10_dotfile.dot")
 
     def test_assert_reversibility_using_cycles(self):
-        logging.info("Checking reversibility for four state example")
-        mc = construct_four_state_chain()
-        assert(mc.is_reversible())
-        logging.info("Checking reversibility for four state example with open trapping")
-        mc.add_open_trapping(new_rates=True)
-        assert(mc.is_reversible())
+        models = [construct_four_state_chain(), construct_M10_chain()]
 
-    def test_SimulateStepProtocol(self):
-        # First test the Beattie model
-        def beattie_get_rates(voltage : float, parameters : list):
-            # Now get the waiting times and embedded MC
-            rates=[parameters[2*i]+np.exp(parameters[2*i+1]*voltage) for i in range(int((len(parameters)-1)/2))]
+        for mc in models:
+            logging.info("Checking reversibility")
+            assert(mc.is_reversible())
+            logging.info("Checking reversibility with open trapping")
+            mc.add_open_trapping(new_rates=True)
+            assert(mc.is_reversible())
 
-            rate_vals = {"k1" : rates[0],
-                    "k2" : rates[1],
-                    "k3" : rates[2],
-                    "k4" : rates[3]
-            }
-            return rate_vals
+        logging.info("Checking reversibility of non-reversible chain")
+        mc = construct_non_reversible_chain()
+        logging.debug("graph is %s", mc.graph)
 
-        mc = self.construct_four_state_chain()
-        protocol = ((-80, 100), (20, 200))
-        self.SimulateStepProtocol(mc, beattie_get_rates, protocol, BeattieModel().get_default_parameters(), name="Beattie")
+        assert(not mc.is_reversible())
+        logging.info("Checking reversibility of non-reversible chain")
+        mc.add_open_trapping()
+        logging.debug("graph is %s", mc.graph)
+        assert(not mc.is_reversible())
 
-        # M10-IKr model
-        mc = MarkovChain()
-        mc.add_states(('O','IC1','IC2','IO','C1','C2'))
-        rates = (('IC2', 'IC1', 'a1', 'b1'), ('IC1', 'IO', 'a2', 'b2'), ('IO', 'O', 'ah', 'bh'), ('O', 'C1', 'b2', 'a2'), ('C1', 'C2', 'b1', 'a1'), ('C2', 'IC2', 'bh', 'ah'), ('C1', 'IC1', 'bh', 'ah'))
+    # def test_SimulateStepProtocol(self):
+    #     # First test the Beattie model
+    #     def beattie_get_rates(voltage : float, parameters : list):
+    #         # Now get the waiting times and embedded MC
+    #         rates=[parameters[2*i]+np.exp(parameters[2*i+1]*voltage) for i in range(int((len(parameters)-1)/2))]
 
-        for r in rates:
-            mc.add_both_transitions(*r)
+    #         rate_vals = {"k1" : rates[0],
+    #                 "k2" : rates[1],
+    #                 "k3" : rates[2],
+    #                 "k4" : rates[3]
+    #         }
+    #         return rate_vals
+
+    #     mc = construct_four_state_chain()
+    #     protocol = ((-80, 100), (20, 200))
+    #     self.SimulateStepProtocol(mc, beattie_get_rates, protocol, BeattieModel().get_default_parameters(), name="Beattie")
+
+    #     # M10-IKr model
+    #     mc = construct_M10_chain()
+    #     def M10_get_rates(voltage : float, params : list):
+    #         # Now get the waiting times and embedded MC
+    #         rates=[params[2*i]+np.exp(params[2*i+1]*voltage) for i in range(int((len(params))/2))]
+    #         rate_vals = dict(zip(('a1', 'b1', 'bh', 'ah', 'a2', 'b2'), rates))
+    #         return rate_vals
+
+    #     params = (8.53183002138620944e-03, 8.31760044455376601e-02, 1.26287052202195688e-02, 1.03628499834739776e-07, 2.70276339808042609e-01,1.58000446046794897e-02, 7.66699486356391818e-02, 2.24575000694940963e-02, 1.49033896782688496e-01, 2.43156986537036227e-02, 5.58072076984100361e-04, 4.06619125485430874e-02)
+    #     self.SimulateStepProtocol(mc, M10_get_rates, protocol, params, name="M10")
 
 
-        def M10_get_rates(voltage : float, params : list):
-            # Now get the waiting times and embedded MC
-            rates=[params[2*i]+np.exp(params[2*i+1]*voltage) for i in range(int((len(params))/2))]
-            rate_vals = dict(zip(('a1', 'b1', 'bh', 'ah', 'a2', 'b2'), rates))
-            return rate_vals
+    # def SimulateStepProtocol(self, mc, rates_func, protocol, params, name : str =""):
+    #     fig = plt.figure(figsize=(8,8))
+    #     ax1 = fig.add_subplot(211)
+    #     no_trajectories = 10
+    #     dist=None
+    #     data = [pd.DataFrame(columns=("time", *mc.graph.nodes))]
+    #     last_time=0
+    #     eqm_data = []
+    #     for voltage, time_to in protocol:
+    #         data.append(mc.sample_trajectories(no_trajectories, rates_func(voltage, params), (last_time, time_to), starting_distribution=dist))
+    #         dist = data[-1].values[-1,1:]
+    #         _,A = mc.eval_transition_matrix(rates_func(voltage, params))
+    #         model=BeattieModel()
+    #         # compute steady states
+    #         labels, ss = mc.get_equilibrium_distribution(rates_func(voltage, params))
+    #         ss = ss*no_trajectories
+    #         eqm_data=eqm_data + [[last_time, *ss]] + [[time_to, *ss]]
+    #         last_time = time_to
 
-        params = (8.53183002138620944e-03, 8.31760044455376601e-02, 1.26287052202195688e-02, 1.03628499834739776e-07, 2.70276339808042609e-01,1.58000446046794897e-02, 7.66699486356391818e-02, 2.24575000694940963e-02, 1.49033896782688496e-01, 2.43156986537036227e-02, 5.58072076984100361e-04, 4.06619125485430874e-02)
-        self.SimulateStepProtocol(mc, M10_get_rates, protocol, params, name="M10")
+    #     eqm_data = pd.DataFrame(eqm_data, columns = ['time'] + [l + ' eqm distribution' for l in labels]).set_index("time")
+    #     data=pd.concat(data).set_index("time").sort_index()
 
+    #     data.plot(ax=ax1)
+    #     eqm_data.plot(style="--", ax=ax1)
 
-    def SimulateStepProtocol(self, mc, rates_func, protocol, params, name : str =""):
-        fig = plt.figure(figsize=(8,8))
-        ax1 = fig.add_subplot(211)
-        no_trajectories = 1000
-        dist=None
-        data = [pd.DataFrame(columns=("time", *mc.graph.nodes))]
-        last_time=0
-        eqm_data = []
-        for voltage, time_to in protocol:
-            data.append(mc.sample_trajectories(no_trajectories, rates_func(voltage, params), (last_time, time_to), starting_distribution=dist))
-            dist = data[-1].values[-1,1:]
-            _,A = mc.eval_transition_matrix(rates_func(voltage, params))
-            model=BeattieModel()
-            # compute steady states
-            labels, ss = mc.get_equilibrium_distribution(rates_func(voltage, params))
-            ss = ss*no_trajectories
-            eqm_data=eqm_data + [[last_time, *ss]] + [[time_to, *ss]]
-            last_time = time_to
+    #     ax2= fig.add_subplot(212)
 
-        eqm_data = pd.DataFrame(eqm_data, columns = ['time'] + [l + ' eqm distribution' for l in labels]).set_index("time")
-        data=pd.concat(data).set_index("time").sort_index()
+    #     model = BeattieModel()
 
-        data.plot(ax=ax1)
-        eqm_data.plot(style="--", ax=ax1)
-
-        ax2= fig.add_subplot(212)
-
-        model = BeattieModel()
-
-        # Need each voltage twice - at the beginning and end of each step
-        voltages = [[v, v] for v,_ in protocol]
-        voltages = [v for voltage in voltages for v in voltage]
-        times=[0]
-        for _, time_to in protocol:
-            times=times+[time_to]*2
-        times=times[0:-1]
-        ax2.plot(times,voltages)
-        plt.savefig(os.path.join(self.output_dir, "SimulateStepProtocol_{}.pdf".format(name)))
+    #     # Need each voltage twice - at the beginning and end of each step
+    #     voltages = [[v, v] for v,_ in protocol]
+    #     voltages = [v for voltage in voltages for v in voltage]
+    #     times=[0]
+    #     for _, time_to in protocol:
+    #         times=times+[time_to]*2
+    #     times=times[0:-1]
+    #     ax2.plot(times,voltages)
+    #     plt.savefig(os.path.join(self.output_dir, "SimulateStepProtocol_{}.pdf".format(name)))
 
 
 if __name__ == "__main__":
