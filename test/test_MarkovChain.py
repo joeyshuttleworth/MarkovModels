@@ -15,6 +15,19 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+def construct_four_state_chain():
+    mc = MarkovChain()
+    rates = ['k{}'.format(i) for i in [1,2,3,4]]
+    mc.add_rates(rates)
+    states = [('O', True) , ('C', False), ('I', False), ('IC', False)]
+    mc.add_states(states)
+
+    rates = [('O', 'C', 'k2', 'k1'), ('I', 'IC', 'k1', 'k2'), ('IC', 'I', 'k1', 'k2'), ('O', 'I', 'k3', 'k4'), ('C', 'IC', 'k3', 'k4')]
+
+    for r in rates:
+        mc.add_both_transitions(*r)
+    return mc
+
 class TestMarkovChain(unittest.TestCase):
     def setUp(self):
         test_output_dir = os.environ.get('MARKOVMODELS_TEST_OUTPUT', os.path.join(os.path.dirname(os.path.realpath(__file__)), self.__class__.__name__))
@@ -24,17 +37,7 @@ class TestMarkovChain(unittest.TestCase):
         logging.info("outputting to " + test_output_dir)
 
     def test_construct_open_trapping_model(self):
-        mc = MarkovChain()
-        rates = ['k{}'.format(i) for i in [1,2,3,4]]
-        mc.add_rates(rates)
-        states = [('O', True) , ('C', False), ('I', False), ('IC', False)]
-        mc.add_states(states)
-
-        rates = [('O', 'C', 'k2', 'k1'), ('I', 'IC', 'k1', 'k2'), ('IC', 'I', 'k1', 'k2'), ('O', 'I', 'k3', 'k4'), ('C', 'IC', 'k3', 'k4')]
-
-        for r in rates:
-            mc.add_both_transitions(*r)
-
+        mc = construct_four_state_chain()
         mc.add_open_trapping(prefix="d_", new_rates=True)
 
         labels = ('O', 'C', 'I', 'd_O', 'd_C', 'd_I', 'd_O', 'd_IC')
@@ -48,17 +51,8 @@ class TestMarkovChain(unittest.TestCase):
 
     def test_construct_chain(self):
         logging.info("Constructing four-state Beattie model")
-        mc = MarkovChain()
-        rates = ['k{}'.format(i) for i in [1,2,3,4]]
-        mc.add_rates(rates)
-        states = [('O', True) , ('C', False), ('I', False), ('IC', False)]
-        mc.add_states(states)
 
-        rates = [('O', 'C', 'k2', 'k1'), ('I', 'IC', 'k1', 'k2'), ('IC', 'I', 'k1', 'k2'), ('O', 'I', 'k3', 'k4'), ('C', 'IC', 'k3', 'k4')]
-
-        for r in rates:
-            mc.add_both_transitions(*r)
-
+        mc = construct_four_state_chain()
         pos=nx.spring_layout(mc.graph)
 
         # Output DOT file
@@ -84,17 +78,7 @@ class TestMarkovChain(unittest.TestCase):
         nx.drawing.nx_agraph.write_dot(m10.mc.graph, "m10_dotfile.dot")
 
     def test_assert_reversibility_using_cycles(self):
-        mc = MarkovChain()
-        rates = ['k{}'.format(i) for i in [1,2,3,4]]
-        mc.add_rates(rates)
-        states = [('O', True) , ('C', False), ('I', False), ('IC', False)]
-        mc.add_states(states)
-
-        rates = [('O', 'C', 'k2', 'k1'), ('I', 'IC', 'k1', 'k2'), ('IC', 'I', 'k1', 'k2'), ('O', 'I', 'k3', 'k4'), ('C', 'IC', 'k3', 'k4')]
-
-        for r in rates:
-            mc.add_both_transitions(*r)
-
+        mc = construct_four_state_chain()
         assert(mc.is_reversible())
 
 
@@ -111,17 +95,7 @@ class TestMarkovChain(unittest.TestCase):
             }
             return rate_vals
 
-        mc = MarkovChain()
-        rates = ['k{}'.format(i) for i in [1,2,3,4]]
-        mc.add_rates(rates)
-        states = [('O', True) , ('C', False), ('I', False), ('IC', False)]
-        mc.add_states(states)
-
-        rates = [('O', 'C', 'k2', 'k1'), ('I', 'IC', 'k1', 'k2'), ('IC', 'I', 'k1', 'k2'), ('O', 'I', 'k3', 'k4'), ('C', 'IC', 'k3', 'k4')]
-
-        for r in rates:
-            mc.add_both_transitions(*r)
-
+        mc = construct_four_state_chain()
         protocol = ((-80, 100), (20, 200))
         self.SimulateStepProtocol(mc, beattie_get_rates, protocol, BeattieModel().get_default_parameters(), name="Beattie")
 

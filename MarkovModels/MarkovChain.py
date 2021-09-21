@@ -272,6 +272,6 @@ class MarkovChain():
             logging.debug("Rates moving forwards around the cycle are: {}".format(forward_rate_product))
             logging.debug("Rates moving backwards around the cycle are: {}".format(backward_rate_product))
 
-            return (forward_rate_product - backward_rate_product).evalf() == 0
+        return (forward_rate_product - backward_rate_product).evalf() == 0
 
 
