@@ -1,6 +1,7 @@
 from typing import Union, Tuple
 import sympy as sp
 import logging
+import itertools
 
 import networkx as nx
 import pandas as pd
@@ -255,4 +256,22 @@ class MarkovChain():
         ss = -np.array(A.LUsolve(B).subs(rates)).astype(np.float64)
         ss = np.append(ss, 1-ss.sum())
         return labels, ss
+
+    def is_reversible(self):
+        undirected_graph = self.graph.to_undirected(reciprocal=False, as_view=True)
+        cycle_basis=nx.cycle_basis(undirected_graph)
+        logging.debug(cycle_basis)
+
+        for cycle in cycle_basis:
+            cycle.append(cycle[0])
+            logging.debug(cycle)
+            iter   = list(zip(cycle, itertools.islice(cycle, 1, None)))
+            forward_rate_product = sp.prod([sp.sympify(self.graph.get_edge_data(frm, to)['rate']) for frm, to in  iter])
+            backward_rate_product = sp.prod([sp.sympify(self.graph.get_edge_data(frm, to)['rate']) for to, frm in  iter])
+
+            logging.debug(forward_rate_product)
+            logging.debug(backward_rate_product)
+
+            return (forward_rate_product - backward_rate_product).evalf() == 0
+
 
