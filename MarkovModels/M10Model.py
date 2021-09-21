@@ -8,22 +8,23 @@ from . common import *
 from . settings import settings
 
 
-class BeattieModel(MarkovModel):
+class M10Model(MarkovModel):
     """
     A four state Hodgkin-Huxley model with k=e^{av+b} parameters
     """
 
-    n_params = 9
-    n_states = 4
+    n_params = 13
+    n_states = 6
     n_state_vars = n_states-1
-    GKr_index = 8
+    GKr_index = 12
     open_state_index = 0
-    Erev = calculate_reversal_potential()
+    Erev = -88
     holding_potential = -80
 
+    state_labels=('O', 'IC1', 'IC2', 'IO', 'C2', 'C1')
+
     def get_default_parameters(self):
-        return np.array([2.07E-3, 7.17E-2, 3.44E-5, -6.18E-2, 20, 2.58E-2, 2,
-                         2.51E-2, 3.33E-2])
+        return np.array((8.53183002138620944e-03, 8.31760044455376601e-02, 1.26287052202195688e-02, -1.03628499834739776e-07, 2.70276339808042609e-01,1.58000446046794897e-02, 7.66699486356391818e-02, -2.24575000694940963e-02, 1.49033896782688496e-01, 2.43156986537036227e-02, 5.58072076984100361e-04, -4.06619125485430874e-02, 0.1524))
 
     def __init__(self, protocol=None, times=None):
         # Create symbols for symbolic functions
@@ -33,25 +34,28 @@ class BeattieModel(MarkovModel):
             times = np.linspace(0, 15000, 1000)
 
         mc = MarkovChain()
-        rates = ['k{}'.format(i) for i in [1,2,3,4]]
-        mc.add_rates(rates)
-        states = [('O', True) , ('C', False), ('I', False), ('IC', False)]
-        mc.add_states(states)
 
-        rates = [('O', 'C', 'k2', 'k1'), ('I', 'IC', 'k1', 'k2'), ('IC', 'I', 'k1', 'k2'), ('O', 'I', 'k3', 'k4'), ('C', 'IC', 'k3', 'k4')]
+        states = ('O','IC1','IC2','IO','C1','C2')
+        mc.add_states(states)
+        rates = (('IC2', 'IC1', 'a1', 'b1'), ('IC1', 'IO', 'a2', 'b2'), ('IO', 'O', 'ah', 'bh'), ('O', 'C1', 'b2', 'a2'), ('C1', 'C2', 'b1', 'a1'), ('C2', 'IC2', 'bh', 'ah'), ('C1', 'IC1', 'bh', 'ah'))
 
         for r in rates:
             mc.add_both_transitions(*r)
 
-        A, B = mc.eliminate_state_from_transition_matrix(['C', 'O', 'I'])
+        A, B = mc.eliminate_state_from_transition_matrix(('O', 'IC1', 'IC2', 'IO', 'C2'))
 
-        rates=dict([("k{}".format(i+1), symbols['p'][2*i]*sp.exp(symbols['p'][2*i+1]*symbols['v'])) for i in range(int(self.n_params/2))])
+        p = symbols['p']
+        rate_vals=[p[2*i]*sp.exp(p[2*i+1]*symbols['v']) for i in range(int((len(p))/2))]
+        rate_labels = ('a1', 'b1', 'bh', 'ah', 'a2', 'b2')
 
-        A = A.subs(rates)
-        B = B.subs(rates)
+        rates_dict=dict(zip(rate_labels, rate_vals))
 
+        A = A.subs(rates_dict)
+        B = B.subs(rates_dict)
+
+        self.mc = mc
         # Call the constructor of the parent class, MarkovModel
-        super().__init__(symbols, A, B, times, rates, voltage=protocol)
+        super().__init__(symbols, A, B, times, rate_labels, voltage=protocol)
 
 
 
