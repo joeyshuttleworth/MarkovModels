@@ -266,12 +266,13 @@ class MarkovChain():
             logging.debug("Checking cycle {}".format(cycle))
 
             iter   = list(zip(cycle, itertools.islice(cycle, 1, None)))
-            forward_rate_product = sp.prod([sp.sympify(self.graph.get_edge_data(frm, to)['rate']) for frm, to in  iter])
-            backward_rate_product = sp.prod([sp.sympify(self.graph.get_edge_data(frm, to)['rate']) for to, frm in  iter])
+            forward_rate_list = [sp.sympify(self.graph.get_edge_data(frm, to)['rate']) for frm, to in  iter]
+            backward_rate_list = [sp.sympify(self.graph.get_edge_data(frm, to)['rate']) for to, frm in  iter]
+            forward_rate_product = sp.prod(forward_rate_list)
+            backward_rate_product = sp.prod(backward_rate_list)
 
-            logging.debug("Rates moving forwards around the cycle are: {}".format(forward_rate_product))
-            logging.debug("Rates moving backwards around the cycle are: {}".format(backward_rate_product))
-
+            logging.debug("Rates moving forwards around the cycle are: {}".format(forward_rate_list))
+            logging.debug("Rates moving backwards around the cycle are: {}".format(backward_rate_list))
         return (forward_rate_product - backward_rate_product).evalf() == 0
 
 

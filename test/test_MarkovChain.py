@@ -78,9 +78,12 @@ class TestMarkovChain(unittest.TestCase):
         nx.drawing.nx_agraph.write_dot(m10.mc.graph, "m10_dotfile.dot")
 
     def test_assert_reversibility_using_cycles(self):
+        logging.info("Checking reversibility for four state example")
         mc = construct_four_state_chain()
         assert(mc.is_reversible())
-
+        logging.info("Checking reversibility for four state example with open trapping")
+        mc.add_open_trapping(new_rates=True)
+        assert(mc.is_reversible())
 
     def test_SimulateStepProtocol(self):
         # First test the Beattie model
@@ -95,7 +98,7 @@ class TestMarkovChain(unittest.TestCase):
             }
             return rate_vals
 
-        mc = construct_four_state_chain()
+        mc = self.construct_four_state_chain()
         protocol = ((-80, 100), (20, 200))
         self.SimulateStepProtocol(mc, beattie_get_rates, protocol, BeattieModel().get_default_parameters(), name="Beattie")
 
