@@ -2,9 +2,9 @@ import numpy as np
 import symengine as se
 from scipy.integrate import odeint
 
-from . MarkovModel import MarkovModel
-from . common import *
-from . settings import settings
+from MarkovModel import MarkovModel
+from common import *
+from settings import settings
 
 
 class BeattieModel(MarkovModel):

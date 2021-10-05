@@ -168,22 +168,22 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
         ax.set_ylim(offset[1] - max_dim, offset[1] + max_dim)
     return fig, ax
 
+def remove_spikes(times, voltages, spike_times, time_to_remove):
+    lst = np.column_stack((times, voltages))
 
-def extract_times(lst, time_ranges, step):
-    """
-    Take values from a list, lst which are indexes between the upper and lower
-    bounds provided by time_ranges. Each element of time_ranges specifies an
-    upper and lower bound.
+    indices_to_remove = []
+    for spike in spike_times:
+        spike_index = next(filter(lambda v: v[1] > spike, enumerate(lst[:, 0])))[0]
+        lst = lst[spike_index:]
+        end_index = next(filter(lambda v: v[1] > spike + time_to_remove, enumerate(lst[:, 0])))[0]
+        if spike_index > len(lst) or end_index > len(lst):
+            break
+        lst = lst[end_index:]
+        indices_to_remove.append((spike_index, end_index))
 
-    Returns a 2d numpy array containing all of the relevant data points
-    """
-    if time_ranges is None:
-        return lst
-    ret_lst = []
-    for time_range in time_ranges:
-        ret_lst.extend(lst[time_range[0]:time_range[1]:step].tolist())
-    return np.array(ret_lst)
-
+    print(indices_to_remove)
+    lst = remove_indices(np.column_stack((times, voltages)), indices_to_remove)
+    return list(zip(*lst))
 
 def remove_indices(lst, indices_to_remove):
     """Remove a list of indices from some list-like object
@@ -210,7 +210,7 @@ def remove_indices(lst, indices_to_remove):
 
     lsts.append(lst[indices_to_remove[-1][1]:-1])
 
-    lst = first_lst + [index for lst in lsts for index in lst]
+    lst = list(first_lst) + [index for lst in lsts for index in lst]
     return lst
 
 
@@ -228,9 +228,9 @@ def detect_spikes(x, y):
     dy = np.diff(y)
 
     deriv = dy / dx
-    spike_indices = np.argwhere(np.abs(deriv) > 10000)[:, 0]
+    spike_indices = np.argwhere(np.abs(deriv) > 100)[:, 0]
 
-    return x[spike_indices]
+    return x[spike_indices], spike_indices
 
 
 def beattie_sine_wave(t):
@@ -297,15 +297,12 @@ def get_protocol_from_csv(protocol_name : str, directory=None, holding_potential
     times = 1000 * protocol["time"].values
     voltages = protocol["voltage"].values
 
-    spikes = 1000 * detect_spikes(protocol["time"], protocol["voltage"])
-
     staircase_protocol = scipy.interpolate.interp1d(
         times, voltages, kind="linear")
 
     def staircase_protocol_safe(t): return staircase_protocol(
-    t) if t < times[-1] and t > times[0] else holding_potential
+            t) if t < times[-1] and t > times[0] else holding_potential
     return staircase_protocol_safe
-
 
 def draw_cov_ellipses(S1=None, sigma2=None, cov=None, plot_dir=None):
     """Plot confidence intervals using a sensitivity matrix or covariance matrix.

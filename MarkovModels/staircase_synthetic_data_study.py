@@ -3,13 +3,13 @@
 import math
 import numpy as np
 import pandas as pd
+import sympy as sp
 
 import scipy
 import scipy.interpolate
 import scipy.optimize
 
 import symengine as se
-import sympy
 
 import matplotlib.pyplot as plt
 import argparse
@@ -20,12 +20,14 @@ import pints.plot
 
 import plotly.graph_objects as go
 
-from settings import Params
+from settings import settings
 from common import *
 from MarkovModel import MarkovModel
+from BeattieModel import BeattieModel
 
 # Set noise level - based on results from fitting the sine_wave model
 sigma2 = 0.006
+n_params = 9
 
 
 def draw_likelihood_surface(
@@ -314,7 +316,7 @@ def main():
         type=int)
     args = parser.parse_args()
 
-    par = Params()
+    par = settings()
 
     plot_dir = os.path.join(args.output, "staircase")
 
@@ -326,13 +328,15 @@ def main():
                      20, 2.58E-2, 2, 2.51E-2, 3.33E-2])
 
     # Compute resting potential for 37 degrees C
-    # reversal_potential = calculate_reversal_potential(temp=37)
-    # par.Erev = reversal_potential
-    reversal_potential = par.Erev
+    reversal_potential = calculate_reversal_potential(temp=37)
+    par.Erev = reversal_potential
     print("reversal potential is {}".format(reversal_potential))
 
     # Create symbols for symbolic functions
-    p, y, v = CreateSymbols(par)
+    symbols = create_symbols()
+    p = symbols['p']
+    y = symbols['y']
+    v = symbols['v']
 
     k = se.symbols('k1, k2, k3, k4')
 
@@ -353,13 +357,17 @@ def main():
         __file__, current_limit.subs(p, para).evalf()))
 
     sens_inf = [float(se.diff(current_limit, p[j]).subs(p, para).evalf())
-                for j in range(0, par.n_params)]
+                for j in range(0, n_params)]
     print("{} sens_inf calculated as {}".format(__file__, sens_inf))
 
-    staircase_protocol = get_staircase_protocol(par)
-    times = np.linspace(0, 15000, 1000)
-    funcs = MarkovModel(par, p, y, v, A, B, para, times,
-                        voltage=staircase_protocol)
+    staircase_protocol = get_protocol_from_csv("staircase")
+    times = np.linspace(0, 15000, 10000)
+    voltages = [staircase_protocol(t) for t in times]
+    spikes, spike_indices = detect_spikes(times, voltages)
+    times, voltages = remove_spikes(times, voltages, spikes, args.remove)
+
+    funcs = BeattieModel(staircase_protocol)
+
     ret = funcs.SimulateForwardModelSensitivities(para),
     current = ret[0][0]
     S1 = ret[0][1]
@@ -367,7 +375,7 @@ def main():
     S1n = S1 * np.array(para)[None, :]
     sens_inf_N = sens_inf * np.array(para)[None, :]
 
-    param_labels = ['S(p' + str(i + 1) + ',t)' for i in range(par.n_params)]
+    param_labels = ['S(p' + str(i + 1) + ',t)' for i in range(n_params)]
     [plt.plot(funcs.times, sens, label=param_labels[i])
      for i, sens in enumerate(S1n.T)]
     [plt.axhline(s) for s in sens_inf_N[0, :]]
@@ -381,8 +389,9 @@ def main():
 
     state_variables = funcs.GetStateVariables(para)
     state_labels = ['C', 'O', 'I', 'IC']
+    n_state_vars = 3
 
-    param_labels = ['S(p' + str(i + 1) + ',t)' for i in range(par.n_params)]
+    param_labels = ['S(p' + str(i + 1) + ',t)' for i in range(n_params)]
 
     fig = plt.figure(figsize=(8, 8), dpi=args.dpi)
     ax1 = fig.add_subplot(411)
@@ -390,22 +399,21 @@ def main():
     ax1.grid(True)
     ax1.set_xticklabels([])
     ax1.set_ylabel('Voltage (mV)')
-    spikes = detect_spikes(funcs.times, funcs.GetVoltage())
-    [ax1.axvline(spike, "--", color='red', alpha=0.3) for spike in spikes]
+    [ax1.axvline(spike, linestyle="--", color='red', alpha=0.3) for spike in spikes]
     ax2 = fig.add_subplot(412)
     ax2.plot(funcs.times, funcs.SimulateForwardModel(para))
     ax2.grid(True)
     ax2.set_xticklabels([])
     ax2.set_ylabel('Current (nA)')
     ax3 = fig.add_subplot(413)
-    for i in range(par.n_state_vars + 1):
+    for i in range(n_state_vars + 1):
         ax3.plot(funcs.times, state_variables[:, i], label=state_labels[i])
     ax3.legend(ncol=4)
     ax3.grid(True)
     ax3.set_xticklabels([])
     ax3.set_ylabel('State occupancy')
     ax4 = fig.add_subplot(414)
-    for i in range(par.n_params):
+    for i in range(n_params):
         ax4.plot(funcs.times, S1n[:, i], label=param_labels[i])
     ax4.legend(ncol=3)
     ax4.grid(True)
@@ -438,19 +446,23 @@ def main():
     if args.plot:
         plt.show()
 
-    cov = np.linalg.inv(H / sigma2)
-    print("Covariance matrix is {}".format(cov))
+    try:
+        cov = np.linalg.inv(H / sigma2)
+        print("Covariance matrix is {}".format(cov))
 
-    # Output covariance matrix to file
-    cols = [r"\hat q_{}".format(i + 1) for i in range(0, cov.shape[0])]
-    df_cov = pd.DataFrame(data=cov, columns=cols, index=cols)
-    print(df_cov)
-    print(df_cov.to_latex())
+        # Output covariance matrix to file
+        cols = [r"\hat q_{}".format(i + 1) for i in range(0, cov.shape[0])]
+        df_cov = pd.DataFrame(data=cov, columns=cols, index=cols)
+        print(df_cov)
+        print(df_cov.to_latex())
 
-    evals, evecs = np.linalg.eig(cov)
-    print(evals, evecs)
+        evals, evecs = np.linalg.eig(cov)
+        print(evals, evecs)
 
-    draw_cov_ellipses(S1=S1n, plot_dir=plot_dir, sigma2=sigma2)
+        draw_cov_ellipses(S1=S1n, plot_dir=plot_dir, sigma2=sigma2)
+
+    except np.linalg.LinAlgError:
+        print("Couldn't invert H - no covariance matrix")
 
     # Draw log-likelihood surface using synthetic data
     para = np.array([2.26E-04, 0.0699, 3.45E-05, 0.05462,
@@ -461,9 +473,14 @@ def main():
         likelihood, mle = draw_likelihood_surface(funcs, para, [4, 6], [[0, 0.2], [
                                                   0, 0.02]], synthetic_data, args, output_dir=plot_dir)
     elif args.mcmc:
-        assert(false)
+        assert(False)
 
+def create_symbols():
+    y = sp.Matrix([sp.sympify("y%i" % i) for i in range(1,4)])
+    p = sp.Matrix([sp.sympify("p%i" % (i+1)) for i in range(n_params)])
+    v = sp.sympify('v')
+    dict = {'y': y, 'p': p, 'v': v}
+    return dict
 
 if __name__ == "__main__":
-    plt.rcParams["figure.figsize"] = (8, 8)
     main()

@@ -1,5 +1,5 @@
 import numpy as np
-import symengine as se
+import sympy as sp
 import logging
 from scipy.integrate import odeint
 
@@ -14,7 +14,7 @@ class MarkovModel:
 
     solver_tolerances = (1e-5, 1e-7)
 
-    def get_default_parameters():
+    def get_default_parameters(self):
         raise NotImplementedError
 
     def __init__(self, symbols, A, B, times, voltage=None):
@@ -44,16 +44,16 @@ class MarkovModel:
 
         # Create RHS function
         frhs = [rhs[i] for i in range(self.n_state_vars)]
-        self.func_rhs = se.lambdify(inputs, frhs)
+        self.func_rhs = sp.lambdify(inputs, frhs)
 
         # Create Jacobian of the RHS function
-        jrhs = [se.Matrix(rhs).jacobian(se.Matrix(y))]
-        self.jfunc_rhs = se.lambdify(inputs, jrhs)
+        jrhs = sp.Matrix(rhs).jacobian(y)
+        self.jfunc_rhs = sp.lambdify(inputs, jrhs)
 
         # Create symbols for 1st order sensitivities
         dydp = [
             [
-                se.symbols(
+                sp.symbols(
                     'dy%d' %
                     i + 'dp%d' %
                     j) for j in range(
@@ -75,9 +75,9 @@ class MarkovModel:
         fS1, Ss = [], []
         for i in range(self.n_state_vars):
             for j in range(self.n_params):
-                dS[i][j] = se.diff(rhs[i], p[j])
+                dS[i][j] = sp.diff(rhs[i], p[j])
                 for l in range(self.n_state_vars):
-                    dS[i][j] = dS[i][j] + se.diff(rhs[i], y[l]) * S[l][j]
+                    dS[i][j] = dS[i][j] + sp.diff(rhs[i], y[l]) * S[l][j]
 
         # Flatten 1st order sensitivities for function
         [[fS1.append(dS[i][j]) for i in range(self.n_state_vars)]
@@ -89,9 +89,7 @@ class MarkovModel:
             y[self.open_state_index] * (v - self.Erev)
 
         # dI/do
-        self.dIdo = se.diff(self.auxillary_expression, y[self.open_state_index])
-
-        self.func_S1 = se.lambdify(inputs, fS1)
+        self.dIdo = sp.diff(self.auxillary_expression, y[self.open_state_index])
 
         # Define number of 1st order sensitivities
         self.n_state_var_sensitivities = self.n_params * self.n_state_vars
@@ -100,9 +98,11 @@ class MarkovModel:
         Ss = np.concatenate((list(y), Ss))
         fS1 = np.concatenate((frhs, fS1))
 
+        self.func_S1 = sp.lambdify(inputs, fS1)
+
         # Create Jacobian of the 1st order sensitivities function
-        jS1 = [se.Matrix(fS1).jacobian(se.Matrix(Ss))]
-        self.jfunc_S1 = se.lambdify(inputs, jS1)
+        jS1 = sp.Matrix(fS1).jacobian(Ss)
+        self.jfunc_S1 = sp.lambdify(inputs, jS1)
 
         # Set the initial conditions of the model and the initial sensitivities
         # by finding the steady state of the model
@@ -135,7 +135,7 @@ class MarkovModel:
         S1_inf = np.array(
             [
                 float(
-                    se.diff(
+                    sp.diff(
                         rhs_inf[i],
                         p[j]).subs(
                         p,
@@ -157,14 +157,14 @@ class MarkovModel:
         """ Evaluates the RHS of the model (including sensitivities)
 
         """
-        return self.func_rhs((*y, *p, self.voltage(t)))
+        return self.func_rhs(*(*y, *p, self.voltage(t)))
 
     def jrhs(self, y, t, p):
         """ Evaluates the jacobian of the RHS
 
             Having this function can speed up solving the system
         """
-        return self.jfunc_rhs((*y, *p, self.voltage(t)))
+        return self.jfunc_rhs(*(*y, *p, self.voltage(t)))
 
     def get_linear_system(self, voltage=None, parameters=None):
         if voltage is None:
@@ -254,13 +254,7 @@ class MarkovModel:
         """ Evaluate RHS analytically
 
         """
-        outputs = self.func_rhs(
-            (*y[:self.n_state_vars], *p, self.voltage(t)))
-        outputs.extend(self.func_S1((*
-                                     y[:self.n_state_vars], *
-                                     p, self.voltage(t), *
-                                     y[self.n_state_vars:])))
-        return outputs
+        return self.func_S1(*(*y, *p, self.voltage(t)))
 
     def jdrhs(self, y, t, p):
         """  Evaluates the jacobian of the RHS (analytically)
@@ -268,10 +262,8 @@ class MarkovModel:
         This allows the system to be solved faster
 
         """
-        return self.jfunc_S1((*
-                              y[:self.n_state_vars], *
-                              p, self.voltage(t), *
-                              y[self.n_state_vars:]))
+        vals = self.jfunc_S1(*(*y[:self.n_state_vars], *p, self.voltage(t), *y[self.n_state_vars:]))
+        return vals
 
     # Returns the open state 1st order sensitivities
     def solve_drhs(self, p, times=None):
@@ -318,7 +310,6 @@ class MarkovModel:
 
     def voltage(self, t):
         raise NotImplementedError
-        return V
 
     def SimulateForwardModel(self, p=None, times=None):
         if p is None:
