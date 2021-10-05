@@ -369,8 +369,7 @@ def main():
     ax2.set_xticklabels([])
     ax2.set_ylabel('Current (nA)')
     ax3 = fig.add_subplot(413)
-    for i in range(funcs.n_state_vars + 1):
-        ax3.plot(funcs.times, state_occupancies, label=funcs.state_labels + ['IC'])
+    ax3.plot(funcs.times, state_occupancies, label=funcs.state_labels + ['IC'])
     ax3.legend(ncol=4)
     ax3.grid(True)
     ax3.set_xticklabels([])

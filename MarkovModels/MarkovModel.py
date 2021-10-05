@@ -125,16 +125,13 @@ class MarkovModel:
         self.rhs_inf_expr = -self.A.LUsolve(self.B)
         self.rhs_inf = lambda p, v: np.array(self.rhs_inf_expr.subs(dict(zip(self.p, p))).subs('v', v)).astype(np.float64)
 
-        param_dict = dict([('p{}'.format(i), para[i]) for i in range(self.n_params)])
-
         self.current_inf_expr = self.auxillary_expression.subs(self.y, self.rhs_inf)
-        self.current_inf = lambda p : np.array(self.current_inf_expr.subs(dict(zip(self.p, p))).evalf()).astype(np.float64)
+        self.current_inf = lambda p: np.array(self.current_inf_expr.subs(dict(zip(self.p, p))).evalf()).astype(np.float64)
 
         # Find sensitivity steady states at holding potential
-        self.sensitivity_ics_expr = sp.Matrix( [ sp.diff(
-            self.rhs_inf_expr[i].subs('v', self.holding_potential), self.p[j]) for j in range( 0, self.n_params)
-                                                        for i in range( 0, self.n_state_vars)])
-        self.sensitivity_ics = lambda p : np.array(self.sensitivity_ics_expr.subs(dict(zip(self.p, p))).evalf()).astype(np.float64)
+        self.sensitivity_ics_expr = sp.Matrix([sp.diff(self.rhs_inf_expr[i].subs('v', self.holding_potential), self.p[j]) for j in range(self.n_params) for i in range(self.n_state_vars)])
+
+        self.sensitivity_ics = sp.lambdify(self.p, self.sensitivity_ics_expr)
 
     def rhs(self, y, t, p):
         """ Evaluates the RHS of the model (including sensitivities)
@@ -246,7 +243,7 @@ class MarkovModel:
         """ Evaluate RHS analytically
 
         """
-        return self.func_S1(*(*y, *p, self.voltage(t)))
+        return self.func_S1(*(*y[:self.n_state_vars], *p, self.voltage(t), *y[self.n_state_vars:]))
 
     def jdrhs(self, y, t, p):
         """  Evaluates the jacobian of the RHS (analytically)
@@ -271,7 +268,7 @@ class MarkovModel:
             times = self.times
 
         rhs0 = self.rhs_inf(p, self.holding_potential)
-        drhs0 = self.sensitivity_ics(p)
+        drhs0 = np.zeros(self.n_params*self.n_state_vars)# self.sensitivity_ics(*p)
 
         ics = np.concatenate(rhs0, drhs0, axis=None)
 
@@ -296,7 +293,8 @@ class MarkovModel:
             times = self.times
 
         rhs0 = np.array(self.rhs_inf(p, self.holding_potential)).astype(np.float64)
-        drhs0 = np.array(self.sensitivity_ics(p)).astype(np.float64)
+        drhs0 = np.array(self.sensitivity_ics(*p)).astype(np.float64)
+        drhs0 = np.zeros(self.n_state_vars*self.n_params)
 
         return odeint(
             self.drhs,
@@ -364,7 +362,7 @@ class MarkovModel:
 
         dIdo = (voltages - self.Erev) * p[-1]
         values = sensitivities * dIdo[:, None]
-        values[:, -1] += o * (voltages - self.Erev)
+        values[:, self.GKr_index] += o * (voltages - self.Erev)
 
         ret_vals = (current, values)
         return ret_vals
