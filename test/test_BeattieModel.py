@@ -11,9 +11,6 @@ import scipy.integrate as integrate
 import symengine as se
 import argparse
 
-import argparse
-import matplotlib.pyplot as plt
-
 import logging
 
 import MarkovModels
@@ -37,8 +34,6 @@ class TestBeattieModel(unittest.TestCase):
         for protocol_name in self.protocol_names:
             protocol = MarkovModels.get_protocol(protocol_name)
             model=MarkovModels.BeattieModel(protocol)
-            model.SimulateForwardModel()
-            model.SimulateForwardModelSensitivities()
 
             times = np.linspace(-0.1, 30000, 1000)
             full_solution = model.SimulateForwardModelSensitivities(times=times)
@@ -53,7 +48,7 @@ class TestBeattieModel(unittest.TestCase):
 
             sens_difference = full_solution[1][0,:] - full_solution[1][-1,:]
             sse=sum(sens_difference**2)
-            logging.info("errors are {}".format(sens_difference))
+            # logging.info("errors are {}".format(sens_difference))
             self.assertLess(max(sens_difference), 1e-5)
 
     def test_analytic_solution(self):
@@ -70,9 +65,9 @@ class TestBeattieModel(unittest.TestCase):
             numerical_solution=model.SimulateForwardModel(times=times)
             errors = analytic_solution - numerical_solution
 
-            logging.info("analytic_solution is {}".format(analytic_solution))
-            logging.info("numerical_solution is {}".format(numerical_solution))
-            logging.info("errors are {}".format(errors))
+            # logging.info("analytic_solution is {}".format(analytic_solution))
+            # logging.info("numerical_solution is {}".format(numerical_solution))
+            # logging.info("errors are {}".format(errors))
 
 
             self.assertLess(max(errors), 1e-5)

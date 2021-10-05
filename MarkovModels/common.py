@@ -174,16 +174,14 @@ def remove_spikes(times, voltages, spike_times, time_to_remove):
     indices_to_remove = []
     for spike in spike_times:
         spike_index = next(filter(lambda v: v[1] > spike, enumerate(lst[:, 0])))[0]
-        lst = lst[spike_index:]
         end_index = next(filter(lambda v: v[1] > spike + time_to_remove, enumerate(lst[:, 0])))[0]
         if spike_index > len(lst) or end_index > len(lst):
             break
-        lst = lst[end_index:]
         indices_to_remove.append((spike_index, end_index))
 
     print(indices_to_remove)
-    lst = remove_indices(np.column_stack((times, voltages)), indices_to_remove)
-    return list(zip(*lst))
+    lst = np.array(remove_indices(np.column_stack((times, voltages)), indices_to_remove))
+    return lst[:,0], lst[:,1]
 
 def remove_indices(lst, indices_to_remove):
     """Remove a list of indices from some list-like object
@@ -199,6 +197,8 @@ def remove_indices(lst, indices_to_remove):
     returns a new list
 
     """
+    if len(indices_to_remove) == 0:
+        return lst
     if indices_to_remove is None:
         return lst
 
@@ -214,7 +214,7 @@ def remove_indices(lst, indices_to_remove):
     return lst
 
 
-def detect_spikes(x, y):
+def detect_spikes(x, y, threshold = 1000):
     """
     Find the points where time-series 'jumps' suddenly. This is useful in order
     to find 'capacitive spikes' in protocols.
