@@ -15,7 +15,6 @@ import pints
 import pints.plot
 
 
-from settings import settings
 import common
 from BeattieModel import BeattieModel
 
@@ -327,10 +326,10 @@ def main():
     voltages = np.array([staircase_protocol(t) for t in times])
     spikes, _ = common.detect_spikes(times, voltages, 1000)
     print(spikes)
-    # times, voltages = remove_spikes(times, voltages, spikes, args.remove)
+    times, voltages = common.remove_spikes(times, voltages, spikes, args.remove)
 
     funcs = BeattieModel(times=times,
-                        protocol=staircase_protocol)
+                         protocol=staircase_protocol)
 
     para = funcs.get_default_parameters()
 
@@ -441,12 +440,14 @@ def main():
     elif args.mcmc:
         assert(False)
 
+
 def create_symbols():
-    y = sp.Matrix([sp.sympify("y%i" % i) for i in range(1,4)])
+    y = sp.Matrix([sp.sympify("y%i" % i) for i in range(1, 4)])
     p = sp.Matrix([sp.sympify("p%i" % (i+1)) for i in range(n_params)])
     v = sp.sympify('v')
     dict = {'y': y, 'p': p, 'v': v}
     return dict
+
 
 if __name__ == "__main__":
     main()

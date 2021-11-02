@@ -34,7 +34,7 @@ class MarkovModel:
         self.B = B
         self.rate_labels = rate_labels
 
-        self.rhs_expr = A @ self.y + B
+        self.rhs_expr = A * self.y + B
 
         if voltage is not None:
             self.voltage = voltage
@@ -363,8 +363,7 @@ class MarkovModel:
         values = sensitivities * dIdo[:, None]
         values[:, self.GKr_index] += o * (voltages - self.Erev)
 
-        ret_vals = (current, values)
-        return ret_vals
+        return current, values
 
     def GetErrorSensitivities(self, params, data):
         """Solve the model for a given set of parameters
