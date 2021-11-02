@@ -103,7 +103,9 @@ def calculate_reversal_potential(temp=20):
 
 
 def cov_ellipse(cov, offset=[0, 0], q=None,
-                nsig=None, new_figure=True):
+                nsig=None, new_figure=True,
+                label_arg: str = None,
+                rotate: bool = False):
     """
     copied from stackoverflow
     Parameters
@@ -127,12 +129,12 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
 
     if q is not None:
         q = np.asarray(q)
+        qs = np.sort(q)
     elif nsig is not None:
         q = 2 * scipy.stats.norm.cdf(nsig) - 1
+        qs = [q]
     else:
         raise ValueError('One of `q` and `nsig` should be specified.')
-
-    qs = np.sort(q)
 
     if not new_figure:
         fig = plt.gcf()
@@ -145,9 +147,11 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
         r2 = scipy.stats.chi2.ppf(q, 2)
         val, vec = np.linalg.eigh(cov)
         width, height = 2 * np.sqrt(val[:, None] * r2)
-        rotation = np.arctan2(*vec[::-1, 0])
-
-        # print("width, height, rotation = {}, {}, {}".format(width, height, math.degrees(rotation)))
+        rotation = np.arctan2(*vec[::-1, 0]) if rotate else 0
+        if label_arg is None:
+            label = "{}% confidence region".format(int(q * 100))
+        else:
+            label = label_arg
 
         e = matplotlib.patches.Ellipse(offset,
                                        width[0],
@@ -155,32 +159,44 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
                                        math.degrees(rotation),
                                        color=np.random.rand(3),
                                        fill=False,
-                                       label="{}% confidence region".format(int(q * 100)))
+                                       label=label)
         ax.add_patch(e)
         e.set_clip_box(ax.bbox)
 
-        window_width = np.abs(width[0] * np.cos(rotation) * 1.5)
-        window_height = np.abs(height[0] * np.sin(rotation) * 1.5)
+        window_width = np.abs(width[0] * np.cos(rotation))
+        window_height = np.abs(height[0] * np.sin(rotation))
         max_dim = max(window_width, window_height)
 
     if new_figure:
-        ax.set_xlim(offset[0] - max_dim, offset[0] + max_dim)
-        ax.set_ylim(offset[1] - max_dim, offset[1] + max_dim)
+        if rotation:
+            ax.set_xlim(offset[0] - max_dim, offset[0] + max_dim)
+            ax.set_ylim(offset[1] - max_dim, offset[1] + max_dim)
+        else:
+            ax.set_xlim(-width/2, width/2)
+            ax.set_ylim(-height/2, height/2)
+
     return fig, ax
 
 def remove_spikes(times, voltages, spike_times, time_to_remove):
     lst = np.column_stack((times, voltages))
-
     indices_to_remove = []
     for spike in spike_times:
-        spike_index = next(filter(lambda v: v[1] > spike, enumerate(lst[:, 0])))[0]
-        end_index = next(filter(lambda v: v[1] > spike + time_to_remove, enumerate(lst[:, 0])))[0]
+
+        spike_iter = list(filter(lambda v: v[1] > spike, enumerate(lst[:, 0])))
+        end_iter = list(filter(lambda v: v[1] > spike + time_to_remove, enumerate(lst[:, 0])))
+
+        if len(spike_iter) == 0 or len(end_iter) == 0:
+            break
+
+        spike_index = spike_iter[0][0]
+        end_index = end_iter[0][0]
+
         if spike_index > len(lst) or end_index > len(lst):
             break
         indices_to_remove.append((spike_index, end_index))
 
-    print(indices_to_remove)
-    lst = np.array(remove_indices(np.column_stack((times, voltages)), indices_to_remove))
+    lst = np.array(remove_indices(np.column_stack((times, voltages)),
+                                  indices_to_remove))
     return lst[:,0], lst[:,1]
 
 def remove_indices(lst, indices_to_remove):
@@ -214,7 +230,7 @@ def remove_indices(lst, indices_to_remove):
     return lst
 
 
-def detect_spikes(x, y, threshold = 1000):
+def detect_spikes(x, y, threshold=1000):
     """
     Find the points where time-series 'jumps' suddenly. This is useful in order
     to find 'capacitive spikes' in protocols.
@@ -485,7 +501,6 @@ def fit_model(funcs, data, starting_parameters, fix_parameters=None,
                         break
                 current, sens = self.funcs.SimulateForwardModelSensitivities(
                     sim_params, times)
-                print(sim_params)
                 sens = sens[:, self.free_parameters]
                 return current, sens
 
@@ -502,7 +517,6 @@ def fit_model(funcs, data, starting_parameters, fix_parameters=None,
             len(starting_parameters)) if i not in fix_parameters]
     else:
         params_not_fixed = starting_parameters
-    print(params_not_fixed)
     controller = pints.OptimisationController(
         error, params_not_fixed, boundaries=boundaries, method=method)
     if max_iterations is not None:
