@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import math
 import numpy as np
 import pandas as pd
 import sympy as sp
@@ -9,20 +8,15 @@ import scipy
 import scipy.interpolate
 import scipy.optimize
 
-import symengine as se
-
 import matplotlib.pyplot as plt
-import argparse
 import os
 
 import pints
 import pints.plot
 
-import plotly.graph_objects as go
 
 from settings import settings
-from common import *
-from MarkovModel import MarkovModel
+import common
 from BeattieModel import BeattieModel
 
 # Set noise level - based on results from fitting the sine_wave model
@@ -60,8 +54,11 @@ def draw_likelihood_surface(
     fix_params = [i for i in range(len(paras)) if i not in params_to_change]
     print(fix_params)
 
-    mle, val = fit_model(
-        funcs, data, paras, fix_parameters=fix_params, max_iterations=args.max_iterations)
+    mle, val = common.fit_model(funcs,
+                                data,
+                                paras,
+                                fix_parameters=fix_params,
+                                max_iterations=args.max_iterations)
 
     # Compute SSE
     p = np.copy(paras)
@@ -113,8 +110,8 @@ def draw_likelihood_surface(
         zs = np.array([[max(ll_of_mle - 100, llxy(x, y))
                         for x in xs] for y in ys])
 
-        approximate_zs = np.array([[paraboloid(x, y)
-                                    for x in xs - mle[0]] for y in ys - mle[1]])
+        # approximate_zs = np.array([[paraboloid(x, y)
+        #                             for x in xs - mle[0]] for y in ys - mle[1]])
 
         # Plot surface
         # fig = go.Figure(data=[go.Surface(z=zs,x=xs,y=ys, opacity=0.5), go.Surface(z=approximate_zs,x=xs,y=ys, opacity=0.5, showscale=False)])
@@ -154,7 +151,7 @@ def draw_likelihood_surface(
             mle_paras[j] = mle[i]
 
         # Parameters have been normalised to 1
-        cov_ellipse(cov, q=confidence_levels, offset=mle, new_figure=False)
+        common.cov_ellipse(cov, q=confidence_levels, offset=mle, new_figure=False)
 
         plt.plot(true_vals[0], true_vals[1], "x",
                  label="true value of parameters", color="black")
@@ -224,7 +221,7 @@ def plot_likelihood_cross_sections(
         likelihood, paraboloid, cov, mle, output_dir=None):
     assert(cov.shape == (2, 2))
     eigvals, eigvecs = np.linalg.eigh(cov)
-    ll_of_mle = likelihood(*mle)
+    # ll_of_mle = likelihood(*mle)
     for i, [e, l] in enumerate(zip(eigvecs, eigvals.T)):
         print(e, l)
         # Orientate nicely
@@ -255,9 +252,9 @@ def plot_likelihood_cross_sections(
             r2 = scipy.stats.chi2.ppf(q, 2)
             radius = np.sqrt(l * r2)
             plt.axvline(mle[0] + radius * e[0], linestyle="--", color=colour,
-                        label="Approximate {}% confidence region boundary".format(int(q * 100)))
+                        label=f"Approximate {int(q * 100)}% confidence region boundary")
             plt.axvline(mle[0] - radius * e[0], linestyle="--", color=colour,
-                        label="Approximate {}% confidence region boundary".format(int(q * 100)))
+                        label=f"Approximate {int(q * 100)}% confidence region boundary")
             plt.xlabel("p5")
         plt.legend()
         plt.tick_params(
@@ -286,7 +283,7 @@ def generate_synthetic_data(funcs, para, sigma2):
 
 def main():
     # Check input arguments
-    parser = get_parser()
+    parser = common.get_parser()
     parser.add_argument("-m", "--heatmap", action='store_true')
     parser.add_argument("-n", "--no_chains", type=int,
                         default=3, help="number of chains to use")
@@ -311,32 +308,37 @@ def main():
     parser.add_argument(
         "--max_iterations",
         default=None,
-        help="The maximum number of iterations to use when performing the optimisation",
+        help="The maximum number of iterations to use when\
+        performing the optimisation",
         type=int)
     args = parser.parse_args()
 
-    par = settings()
+    dirname = "staircase"
+    if args.remove != 0:
+        dirname = dirname + "_%s_ms_removed" % args.remove
 
-    plot_dir = os.path.join(args.output, "staircase")
+    plot_dir = os.path.join(args.output, dirname)
 
     if not os.path.exists(plot_dir):
         os.makedirs(plot_dir)
 
-    staircase_protocol = get_protocol("staircase")
-    times = np.linspace(0, 15000, 1000)
+    staircase_protocol = common.get_protocol("staircase")
+    times = np.linspace(0, 15000, 150000)
     voltages = np.array([staircase_protocol(t) for t in times])
-    spikes, _ = detect_spikes(times, voltages, 10)
+    spikes, _ = common.detect_spikes(times, voltages, 1000)
+    print(spikes)
     # times, voltages = remove_spikes(times, voltages, spikes, args.remove)
 
     funcs = BeattieModel(times=times,
                         protocol=staircase_protocol)
+
+    para = funcs.get_default_parameters()
+
     # Compute resting potential for 37 degrees C
-    reversal_potential = calculate_reversal_potential(temp=37)
+    reversal_potential = common.calculate_reversal_potential(temp=37)
     funcs.Erev = reversal_potential
 
-    para = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 20, 2.58E-2, 2, 2.51E-2, 3.33E-2])
     ret = funcs.SimulateForwardModelSensitivities(para),
-    current = ret[0][0]
     S1 = ret[0][1]
     S1n = S1 * np.array(para)[None, :]
 
@@ -362,7 +364,12 @@ def main():
     ax1.grid(True)
     ax1.set_xticklabels([])
     ax1.set_ylabel('Voltage (mV)')
-    [ax1.axvline(spike, linestyle="--", color='red', alpha=0.3) for spike in spikes]
+
+    [ax1.axvline(spike, linestyle="--", color='red', alpha=0.3)
+     for spike in spikes]
+    [ax1.axvline(spike, linestyle="--", color='orange', alpha=0.3)
+     for spike in spikes+args.remove]
+
     ax2 = fig.add_subplot(412)
     ax2.plot(funcs.times, funcs.SimulateForwardModel(para))
     ax2.grid(True)
@@ -419,7 +426,7 @@ def main():
         evals, evecs = np.linalg.eig(cov)
         print(evals, evecs)
 
-        draw_cov_ellipses(S1=S1n, plot_dir=plot_dir, sigma2=sigma2)
+        common.draw_cov_ellipses(S1=S1n, plot_dir=plot_dir, sigma2=sigma2)
 
     except np.linalg.LinAlgError:
         print("Couldn't invert H - no covariance matrix")

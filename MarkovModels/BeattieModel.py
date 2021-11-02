@@ -20,6 +20,7 @@ class BeattieModel(MarkovModel):
     Erev = calculate_reversal_potential()
     holding_potential = -80
 
+    @classmethod
     def get_default_parameters(self):
         return np.array([2.07E-3, 7.17E-2, 3.44E-5, -6.18E-2, 20, 2.58E-2, 2,
                          2.51E-2, 3.33E-2])
