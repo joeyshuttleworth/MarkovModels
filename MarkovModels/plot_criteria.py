@@ -122,12 +122,13 @@ def main():
                                      new_figure=new_figure,
                                      label_arg="{:.2f}ms".format(
                                         spike_removal_durations[-i-1]))
-        ax.title = f"params {p_of_interest} rotated confidence regions"
+        ax.set_title(f"p{p_of_interest[0]} and p{p_of_interest[1]} rotated confidence regions")
         ax.axes.xaxis.set_ticks([])
         ax.axes.yaxis.set_ticks([])
     plt.legend()
     plt.savefig(os.path.join(output_dir,
-                             f"covariance_ellipses_params_{p_of_interest}.pdf"))
+                             f"p{p_of_interest[0]} and p{p_of_interest[1]}\
+                             rotated confidence regions"))
 
 if __name__ == "__main__":
     main()
