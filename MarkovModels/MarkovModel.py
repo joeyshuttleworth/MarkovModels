@@ -34,7 +34,7 @@ class MarkovModel:
         self.B = B
         self.rate_labels = rate_labels
 
-        self.rhs_expr = A * self.y + B
+        self.rhs_expr = A @ self.y + B
 
         if voltage is not None:
             self.voltage = voltage
@@ -45,7 +45,7 @@ class MarkovModel:
         inputs = list(self.y) + list(self.p) + [self.v]
 
         # Create RHS function
-        frhs = [self.rhs_expr[i] for i in range(self.n_state_vars)]
+        frhs = [e for e in self.rhs_expr]
         self.func_rhs = sp.lambdify(inputs, frhs)
 
         # Create Jacobian of the RHS function
@@ -274,14 +274,13 @@ class MarkovModel:
 
         # Chop off RHS
         drhs = odeint(self.drhs,
-                      self.ics,
+                      ics,
                       times,
                       atol=self.solver_tolerances[0],
                       rtol=self.solver_tolerances[1],
                       Dfun=self.jdrhs,
                       args=(p,
-                            ))[:,
-                               self.n_state_vars:]
+                            ))[:, self.n_state_vars:]
         # Return only open state sensitivites
         return drhs[:, self.open_state_index::self.n_state_vars]
 

@@ -103,9 +103,11 @@ def calculate_reversal_potential(temp=20):
 
 
 def cov_ellipse(cov, offset=[0, 0], q=None,
-                nsig=None, new_figure=True,
+                nsig=None, ax: plt.axes = None,
                 label_arg: str = None,
-                rotate: bool = False):
+                rotate: float = None,
+                resize_axes: bool=False,
+                color: str = None):
     """
     copied from stackoverflow
     Parameters
@@ -136,18 +138,17 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
     else:
         raise ValueError('One of `q` and `nsig` should be specified.')
 
-    if not new_figure:
-        fig = plt.gcf()
+    if ax is None:
         ax = plt.gca()
-    else:
-        fig = plt.figure(0)
-        ax = fig.add_subplot(111)
 
+    if color is None:
+        color = np.random.rand(3)
+
+    val, vec = np.linalg.eigh(cov)
     for q in qs:
         r2 = scipy.stats.chi2.ppf(q, 2)
-        val, vec = np.linalg.eigh(cov)
         width, height = 2 * np.sqrt(val[:, None] * r2)
-        rotation = np.arctan2(*vec[::-1, 0]) if rotate else 0
+        rotate = np.arctan2(*vec[::-1, 0]) if rotate is None else rotate
         if label_arg is None:
             label = "{}% confidence region".format(int(q * 100))
         else:
@@ -156,26 +157,28 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
         e = matplotlib.patches.Ellipse(offset,
                                        width[0],
                                        height[0],
-                                       math.degrees(rotation),
-                                       color=np.random.rand(3),
+                                       math.degrees(rotate),
                                        fill=False,
-                                       label=label)
+                                       label=label,
+                                       color=color)
         ax.add_patch(e)
         e.set_clip_box(ax.bbox)
 
-        window_width = np.abs(width[0] * np.cos(rotation))
-        window_height = np.abs(height[0] * np.sin(rotation))
-        max_dim = max(window_width, window_height)
+        window_width  = max(np.abs(width[0] * math.cos(rotate)), np.abs(height[0] * math.sin(rotate)))
+        window_height = max(np.abs(width[0] * math.sin(rotate)), np.abs(height[0] * math.cos(rotate)))
+        # window_height = np.abs(height[0] * np.sin(rotate))
+        # max_dim = max(window_width, window_height)
 
-    if new_figure:
-        if rotation:
-            ax.set_xlim(offset[0] - max_dim, offset[0] + max_dim)
-            ax.set_ylim(offset[1] - max_dim, offset[1] + max_dim)
+    # Change plot extents
+    if resize_axes:
+        if rotate != 0:
+            ax.set_xlim(offset[0] - window_width, offset[0] + window_width)
+            ax.set_ylim(offset[1] - window_height, offset[1] + window_height)
         else:
-            ax.set_xlim(-width/2, width/2)
-            ax.set_ylim(-height/2, height/2)
+            ax.set_xlim(offset[0] - width/2, offset[0] + width/2)
+            ax.set_ylim(offset[1] - height/2, offset[1] + height/2)
 
-    return fig, ax
+    return ax
 
 def remove_spikes(times, voltages, spike_times, time_to_remove):
     lst = np.column_stack((times, voltages))
@@ -527,7 +530,7 @@ def fit_model(funcs, data, starting_parameters, fix_parameters=None,
     return found_parameters, found_value
 
 
-def get_protocol(protocol_name : str):
+def get_protocol(protocol_name: str):
     """Returns a function describing the voltage trace.
 
     params:

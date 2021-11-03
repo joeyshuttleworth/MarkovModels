@@ -281,6 +281,9 @@ def generate_synthetic_data(funcs, para, sigma2):
 
 
 def main():
+
+    para = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2, 4.75E-2, 2.51E-2, 3.33E-2])
+
     # Check input arguments
     parser = common.get_parser()
     parser.add_argument("-m", "--heatmap", action='store_true')
@@ -331,14 +334,12 @@ def main():
     funcs = BeattieModel(times=times,
                          protocol=staircase_protocol)
 
-    para = funcs.get_default_parameters()
-
     # Compute resting potential for 37 degrees C
     reversal_potential = common.calculate_reversal_potential(temp=37)
     funcs.Erev = reversal_potential
 
-    ret = funcs.SimulateForwardModelSensitivities(para),
-    S1 = ret[0][1]
+    ret = funcs.SimulateForwardModelSensitivities(para)
+    S1 = ret[1]
     S1n = S1 * np.array(para)[None, :]
 
     param_labels = ['S(p' + str(i + 1) + ',t)' for i in range(funcs.n_params)]

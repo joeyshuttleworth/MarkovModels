@@ -22,8 +22,11 @@ class BeattieModel(MarkovModel):
 
     @classmethod
     def get_default_parameters(self):
-        return np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 20, 2.58E-2, 2,
-                         2.51E-2, 3.33E-2])
+        # Parameters from Temp dependence
+        return np.array((2.26E-4, 6.99E-2, 3.44E-5, 5.460E-2, 0.0873,
+                         8.91E-3, 5.15E-3, 0.003158, 0.1524))
+
+
 
     def __init__(self, protocol=None, times=None, Erev: float = None):
         # Create symbols for symbolic functions
@@ -68,7 +71,7 @@ class BeattieModel(MarkovModel):
 
 
         # Notation is consistent between the two papers
-        A = sp.Matrix([[-k1 - k3 - k4, k2 -  k4, -k4], [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
+        A = sp.Matrix([[-k1 - k3 - k4, k2 - k4, -k4], [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
         B = sp.Matrix([k4, 0, k1])
 
         # Call the constructor of the parent class, MarkovModel

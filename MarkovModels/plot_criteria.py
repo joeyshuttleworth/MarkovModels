@@ -40,9 +40,11 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.linspace(0, 25, 10)
+    spike_removal_durations = np.linspace(0, 100, 50)
 
-    params = BeattieModel.get_default_parameters()
+    params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
+                       4.75E-2, 2.51E-2, 3.33E-2])
+    # params = BeattieModel.get_default_parameters()
 
     t_end = 15000
     t_step = 0.1
@@ -52,7 +54,7 @@ def main():
     model = BeattieModel(times=times,
                          protocol=common.get_protocol('staircase'),
                          Erev=common.calculate_reversal_potential(37))
-    times = model.times
+
     voltages = model.GetVoltage()
 
     D_optimalities = []
@@ -71,7 +73,7 @@ def main():
                                           int(spike + time_to_remove/t_step))
                                          for spike in spike_indices])
 
-        H = np.dot(S1n[indices, :].T, S1n[indices, :])
+        H = np.dot(S1[indices, :].T, S1[indices, :])
         cov = np.linalg.inv(H)
 
         D_optimalities.append(np.linalg.det(H))
@@ -85,15 +87,17 @@ def main():
     A_optimalities = A_optimalities / A_optimalities.max()
 
     df = pd.DataFrame(np.column_stack((spike_removal_durations, np.log(D_optimalities), np.log(A_optimalities))),
-                      columns=('time removed', "normalised log D-optimality", "normalised log A-optimality"))
+                      columns=('time removed after spikes /ms', "normalised log D-optimality", "normalised log A-optimality"))
 
-    fig, axs = plt.subplots(3)
-    df.set_index('time removed', inplace=True)
+    fig = plt.figure(figsize=(24, 20))
+    axs = fig.subplots(3)
+    df.set_index('time removed after spikes /ms', inplace=True)
     df.plot(legend=True, subplots=True)
     plt.savefig(os.path.join(output_dir, "criteria.pdf"))
 
-    axs[0].plot(times, model.SimulateForwardModel(), label='Current /nA')
+    axs[0].plot(times, model.SimulateForwardModel(params), label='Current /nA')
     axs[1].plot(times, voltages, label='voltage / mV')
+    axs[1].set_ylim(-150, 50)
     axs[0].legend()
     axs[1].legend()
 
@@ -101,6 +105,7 @@ def main():
 
     for i in range(model.n_params):
         axs[2].plot(times, S1n[:, i], label=param_labels[i])
+    axs[2].legend()
 
     fig.savefig(os.path.join(output_dir, 'sensitivities_plot.pdf'))
 
@@ -108,27 +113,60 @@ def main():
     plt.clf()
     plt.figure()
 
-    # Plot ellipses
-    for i, cov in enumerate(reversed(covs)):
+    fig = plt.figure(figsize=(19, 14))
+    axs = fig.subplots(2)
+
+    offset = [params[p_of_interest[0]], params[p_of_interest[1]]]
+
+    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    cov = covs[-1][p_of_interest, :]
+    cov = cov[:, p_of_interest]
+    sigma2 = 0.006
+    cov = sigma2 * cov
+    eigvals, eigvecs = np.linalg.eigh(cov)
+    rotation = np.arctan2(*eigvecs[::-1, 0])
+
+    # Plot biggest region on top plot
+    common.cov_ellipse(cov, nsig=1,
+                       ax=axs[0],
+                       resize_axes=True,
+                       color=colors[i % len(colors)],
+                       offset=offset,
+                       label_arg="{:.2f}ms".format(
+                           spike_removal_durations[i]))
+    eigvals, eigvecs = np.linalg.eigh(cov)
+    first_rotation = np.arctan2(*eigvecs[::-1, 0])
+
+    # Plot confidence regions starting with the largest (most observations removed)
+    for i, cov in list(enumerate(covs))[::-10] + [(len(covs), covs[0])]:
         cov = cov[p_of_interest, :]
         cov = cov[:, p_of_interest]
         sigma2 = 0.006
         cov = sigma2 * cov
-        if i == 0:
-            new_figure = True
-        else:
-            new_figure = False
-        fig, ax = common.cov_ellipse(cov, nsig=1,
-                                     new_figure=new_figure,
-                                     label_arg="{:.2f}ms".format(
-                                        spike_removal_durations[-i-1]))
-        ax.set_title(f"p{p_of_interest[0]} and p{p_of_interest[1]} rotated confidence regions")
-        ax.axes.xaxis.set_ticks([])
-        ax.axes.yaxis.set_ticks([])
+        eigvals, eigvecs = np.linalg.eigh(cov)
+        rotation = np.arctan2(*eigvecs[::-1, 0])
+
+        common.cov_ellipse(cov, q=[0.95],
+                           ax=axs[1],
+                           offset=offset,
+                           color=colors[i % len(colors)],
+                           rotate=rotation-first_rotation,
+                           resize_axes=(i == 0),
+                           label_arg="{:.2f}ms".format(
+                               spike_removal_durations[i % len(spike_removal_durations)]))
+
+    axs[0].set_title(f"95\% confidence regions after spike removal")
+    axs[0].plot(*offset, 'x', color='red', label=f"p{p_of_interest[0]+1} = {offset[0]}, p{p_of_interest[1]+1} = {offset[1]}")
+    axs[1].plot(*offset, 'x', color='red', label=f"p{p_of_interest[0]+1} = {offset[0]}, p{p_of_interest[1]+1} = {offset[1]}")
+    axs[0].set_xlabel(f"p{p_of_interest[0]+1} / ms^-1")
+    axs[0].set_ylabel(f"p{p_of_interest[1]+1} / ms^-1")
+    axs[1].xaxis.set_ticks([])
+    axs[1].yaxis.set_ticks([])
+    axs[1].set_xlabel('rotated and scaled view')
+
     plt.legend()
-    plt.savefig(os.path.join(output_dir,
-                             f"p{p_of_interest[0]} and p{p_of_interest[1]}\
-                             rotated confidence regions"))
+    fig.savefig(os.path.join(output_dir,
+                             f"p{p_of_interest[0]+1} and p{p_of_interest[1]+1} rotated confidence regions.pdf"))
 
 if __name__ == "__main__":
     main()
