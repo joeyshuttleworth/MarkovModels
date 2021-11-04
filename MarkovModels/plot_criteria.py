@@ -40,7 +40,7 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.linspace(0, 100, 50)
+    spike_removal_durations = np.linspace(0, 35, 100)
 
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
@@ -119,7 +119,7 @@ def main():
     offset = [params[p_of_interest[0]], params[p_of_interest[1]]]
 
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-    cov = covs[-1][p_of_interest, :]
+    cov = covs[0][p_of_interest, :]
     cov = cov[:, p_of_interest]
     sigma2 = 0.006
     cov = sigma2 * cov
@@ -130,32 +130,34 @@ def main():
     common.cov_ellipse(cov, nsig=1,
                        ax=axs[0],
                        resize_axes=True,
-                       color=colors[i % len(colors)],
+                       color=colors[len(covs) % len(colors)],
                        offset=offset,
                        label_arg="{:.2f}ms".format(
                            spike_removal_durations[i]))
     eigvals, eigvecs = np.linalg.eigh(cov)
-    first_rotation = np.arctan2(*eigvecs[::-1, 0])
+    first_rotation = rotation
 
     # Plot confidence regions starting with the largest (most observations removed)
     for i, cov in list(enumerate(covs))[::-10] + [(len(covs), covs[0])]:
         cov = cov[p_of_interest, :]
         cov = cov[:, p_of_interest]
+        print("covariance is ", cov)
         sigma2 = 0.006
         cov = sigma2 * cov
         eigvals, eigvecs = np.linalg.eigh(cov)
+        print('eigvals are ', eigvals)
         rotation = np.arctan2(*eigvecs[::-1, 0])
 
         common.cov_ellipse(cov, q=[0.95],
                            ax=axs[1],
                            offset=offset,
                            color=colors[i % len(colors)],
-                           rotate=rotation-first_rotation,
+                           rotate=rotation - first_rotation,
                            resize_axes=(i == 0),
                            label_arg="{:.2f}ms".format(
                                spike_removal_durations[i % len(spike_removal_durations)]))
 
-    axs[0].set_title(f"95\% confidence regions after spike removal")
+    axs[0].set_title(f"95% confidence regions after spike removal")
     axs[0].plot(*offset, 'x', color='red', label=f"p{p_of_interest[0]+1} = {offset[0]}, p{p_of_interest[1]+1} = {offset[1]}")
     axs[1].plot(*offset, 'x', color='red', label=f"p{p_of_interest[0]+1} = {offset[0]}, p{p_of_interest[1]+1} = {offset[1]}")
     axs[0].set_xlabel(f"p{p_of_interest[0]+1} / ms^-1")

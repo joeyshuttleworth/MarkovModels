@@ -323,7 +323,7 @@ def get_protocol_from_csv(protocol_name : str, directory=None, holding_potential
             t) if t < times[-1] and t > times[0] else holding_potential
     return staircase_protocol_safe
 
-def draw_cov_ellipses(S1=None, sigma2=None, cov=None, plot_dir=None):
+def draw_cov_ellipses(mean=[0, 0], S1=None, sigma2=None, cov=None, plot_dir=None):
     """Plot confidence intervals using a sensitivity matrix or covariance matrix.
 
     In the case of a sensitivity matrix, i.i.d Guassian additive errors are
@@ -356,9 +356,9 @@ def draw_cov_ellipses(S1=None, sigma2=None, cov=None, plot_dir=None):
             n_params = S1.shape[1]
     else:
         if cov is None:
-            Raise()
+            raise ValueError()
         if sigma2 is not None:
-            Raise()
+            raise ValueError()
         else:
             n_params = cov.shape[0]
 
@@ -376,7 +376,8 @@ def draw_cov_ellipses(S1=None, sigma2=None, cov=None, plot_dir=None):
             eigen_val = eigen_val.real
             if eigen_val[0] > 0 and eigen_val[1] > 0:
                 # Parameters have been normalised to 1
-                cov_ellipse(sub_cov, q=[0.5, 0.95], offset=[1, 1])
+                cov_ellipse(sub_cov, offset=mean, q=[0.5, 0.95],
+                            resize_axes=True)
                 plt.ylabel("parameter {}".format(i + 1))
                 plt.xlabel("parameter {}".format(j + 1))
                 plt.legend()

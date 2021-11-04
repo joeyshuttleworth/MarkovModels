@@ -150,7 +150,8 @@ def draw_likelihood_surface(
             mle_paras[j] = mle[i]
 
         # Parameters have been normalised to 1
-        common.cov_ellipse(cov, q=confidence_levels, offset=mle, new_figure=False)
+        common.cov_ellipse(cov, q=confidence_levels, offset=mle,
+                           resize_axes=True)
 
         plt.plot(true_vals[0], true_vals[1], "x",
                  label="true value of parameters", color="black")
@@ -426,7 +427,7 @@ def main():
         evals, evecs = np.linalg.eig(cov)
         print(evals, evecs)
 
-        common.draw_cov_ellipses(S1=S1n, plot_dir=plot_dir, sigma2=sigma2)
+        common.draw_cov_ellipses(mean=para, S1=S1n, plot_dir=plot_dir, sigma2=sigma2)
 
     except np.linalg.LinAlgError:
         print("Couldn't invert H - no covariance matrix")
