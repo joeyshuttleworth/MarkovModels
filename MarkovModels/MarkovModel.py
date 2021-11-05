@@ -11,12 +11,11 @@ class MarkovModel:
 
     """
 
-    solver_tolerances = (1e-3, 1e-5)
-
     def get_default_parameters(self):
         raise NotImplementedError
 
-    def __init__(self, symbols, A, B, times, rate_labels, voltage=None):
+    def __init__(self, symbols, A, B, times, rate_labels, voltage=None,
+                 tolerances=[1e-3, 1e-5]):
 
         try:
             self.y = symbols['y']
@@ -25,6 +24,7 @@ class MarkovModel:
         except:
             raise Exception()
 
+        self.solver_tolerances = tolerances
 
         self.symbols = symbols
         # The timesteps we want to output at

@@ -4,7 +4,6 @@ from scipy.integrate import odeint
 
 from MarkovModel import MarkovModel
 from MarkovChain import MarkovChain
-from settings import settings
 import common
 
 class BeattieModel(MarkovModel):
@@ -75,7 +74,7 @@ class BeattieModel(MarkovModel):
         B = sp.Matrix([k4, 0, k1])
 
         # Call the constructor of the parent class, MarkovModel
-        super().__init__(symbols, A, B, times, rates, voltage=protocol)
+        super().__init__(symbols, A, B, times, rates, voltage=protocol, tolerances=(1e-6, 1e-8))
 
     def CreateSymbols(self):
         """
@@ -88,4 +87,4 @@ class BeattieModel(MarkovModel):
         y = sp.Matrix([sp.symbols('y%d' % i) for i in range(self.n_state_vars)])
         # Create voltage symbol
         v = sp.symbols('v')
-        return {'p' : p, 'y' : y, 'v' : v}
+        return {'p': p, 'y': y, 'v': v}

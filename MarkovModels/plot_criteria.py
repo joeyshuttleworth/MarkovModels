@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import common
+import logging
 import os
 import numpy as np
 import pandas as pd
@@ -10,6 +11,7 @@ from BeattieModel import BeattieModel
 import matplotlib.pyplot as plt
 
 criteria = ['D', 'A']
+sigma2 = 0.006
 
 def get_sensitivities(model: MarkovModel, spike_removal_duration: float, parameters: np.array):
 
@@ -40,7 +42,7 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.linspace(0, 35, 100)
+    spike_removal_durations = np.linspace(0, 50, 10)
 
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
@@ -78,6 +80,8 @@ def main():
 
         D_optimalities.append(np.linalg.det(H))
         A_optimalities.append(np.trace(H))
+
+        cov = sigma2 * cov
         covs.append(cov)
 
     D_optimalities = np.array(D_optimalities)
@@ -121,8 +125,6 @@ def main():
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
     cov = covs[0][p_of_interest, :]
     cov = cov[:, p_of_interest]
-    sigma2 = 0.006
-    cov = sigma2 * cov
     eigvals, eigvecs = np.linalg.eigh(cov)
     rotation = np.arctan2(*eigvecs[::-1, 0])
 
@@ -139,16 +141,14 @@ def main():
 
     # Plot confidence regions starting with the largest (most observations removed)
     for i, cov in list(enumerate(covs))[::-10] + [(len(covs), covs[0])]:
-        cov = cov[p_of_interest, :]
-        cov = cov[:, p_of_interest]
+        sub_cov = cov[p_of_interest, :]
+        sub_cov = sub_cov[:, p_of_interest]
         print("covariance is ", cov)
-        sigma2 = 0.006
-        cov = sigma2 * cov
-        eigvals, eigvecs = np.linalg.eigh(cov)
+        eigvals, eigvecs = np.linalg.eigh(sub_cov)
         print('eigvals are ', eigvals)
         rotation = np.arctan2(*eigvecs[::-1, 0])
 
-        common.cov_ellipse(cov, q=[0.95],
+        common.cov_ellipse(sub_cov, q=[0.95],
                            ax=axs[1],
                            offset=offset,
                            color=colors[i % len(colors)],
@@ -169,6 +169,51 @@ def main():
     plt.legend()
     fig.savefig(os.path.join(output_dir,
                              f"p{p_of_interest[0]+1} and p{p_of_interest[1]+1} rotated confidence regions.pdf"))
+
+
+    # Now plot predictions
+    # We can use less timesteps now -- only interested in plotting
+    pred_times = np.linspace(0, 15000, 1000)
+    n_samples = 1000
+
+    pred_model = BeattieModel(times=pred_times,
+                              protocol=common.get_protocol('staircase'),
+                              Erev=common.calculate_reversal_potential(37))
+
+    def get_trajectory(p):
+        try:
+            soln = pred_model.SimulateForwardModel(p)
+        except:
+            logging.warning(f"Failed to simulate model with p={p}")
+            return None
+
+        if np.all(np.isfinite(soln)):
+            return soln
+        else:
+            return None
+
+    fig = plt.figure()
+    plt.style.use('classic')
+    mean_param_trajectory = get_trajectory(params)
+    plt.plot(pred_times, mean_param_trajectory)
+    ax = plt.gca()
+    ax.set_ylim(np.min(mean_param_trajectory), np.max(mean_param_trajectory))
+    ax.set_xlim(np.min(pred_times), np.max(pred_times))
+
+    for i, cov in enumerate(covs):
+        samples = np.random.multivariate_normal(params, cov, n_samples)
+
+        # Filter out invalid samples
+        samples = [s for s in samples if np.all(s) > 0]
+
+        sample_trajectories = np.column_stack([traj for traj
+                                               in map(get_trajectory,
+                                                      samples)
+                                               if traj is not None])
+
+        plt.plot(pred_times, sample_trajectories, color='grey', alpha=0.1)
+        plt.savefig(os.path.join(output_dir, "{:.2f}ms_sample_trajectories.pdf".format(spike_removal_durations[i])))
+
 
 if __name__ == "__main__":
     main()
