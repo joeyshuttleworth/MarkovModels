@@ -233,7 +233,7 @@ def remove_indices(lst, indices_to_remove):
     return lst
 
 
-def detect_spikes(x, y, threshold=1000):
+def detect_spikes(x, y, threshold=100, window_size=250):
     """
     Find the points where time-series 'jumps' suddenly. This is useful in order
     to find 'capacitive spikes' in protocols.
@@ -247,9 +247,16 @@ def detect_spikes(x, y, threshold=1000):
     dy = np.diff(y)
 
     deriv = dy / dx
-    spike_indices = np.argwhere(np.abs(deriv) > 100)[:, 0]
+    spike_indices = np.argwhere(np.abs(deriv) > threshold)[:, 0]
 
-    return x[spike_indices], spike_indices
+    spike_indices = [index - window_size + np.argmax(
+        np.abs(y[(index - window_size):(index + window_size)]))
+                     for index in spike_indices]
+    spike_indices = np.unique(spike_indices)
+
+    print(spike_indices)
+
+    return x[spike_indices], np.array(spike_indices)
 
 
 def beattie_sine_wave(t):
