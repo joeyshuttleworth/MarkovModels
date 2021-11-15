@@ -151,6 +151,7 @@ class MarkovModel:
             voltage = self.holding_potential
         if parameters is None:
             parameters = self.get_default_parameters()
+
         param_dict = dict(zip(self.symbols['p'], parameters))
         A_matrix = np.array([self.A.subs(
             self.symbols['v'], voltage).subs(param_dict)]).astype(np.float64).reshape(self.A.rows, self.A.cols)
@@ -166,8 +167,8 @@ class MarkovModel:
         return A_matrix, B_vector
 
     def get_steady_state(self, voltage=None, parameters=None):
-        A,B = self.get_linear_system(voltage,parameters)
-        steady_state = -np.linalg.solve(A,B)
+        A,B = self.get_linear_system(voltage, parameters)
+        steady_state = -np.linalg.solve(A, B)
         return steady_state
 
     def get_analytic_solution(self, voltage=None, times=None, parameters=None, rhs0 = None):
