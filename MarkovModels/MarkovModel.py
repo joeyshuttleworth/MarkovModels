@@ -316,7 +316,11 @@ class MarkovModel:
         voltages = self.GetVoltage(times=times)
         return p[self.GKr_index] * o * (voltages - self.Erev)
 
-    def GetStateVariables(self, p):
+    def GetStateVariables(self, p = None):
+
+        if p is None:
+            p = self.get_default_parameters()
+
         states = self.solve_rhs(p)
 
         state1 = np.array([1.0 - np.sum(row) for row in states])

@@ -55,6 +55,7 @@ class BeattieModel(MarkovModel):
             mc.add_both_transitions(*r)
 
         self.state_labels = ['C', 'O', 'I']
+        self.parameter_labels = [f"p{i+1}" for i in range(len(self.default_parameters)-1)] + ['Gkr']
         A, B = mc.eliminate_state_from_transition_matrix(self.state_labels)
 
         rates = dict([("k{}".format(i+1), symbols['p'][2*i]*sp.exp(symbols['p'][2*i+1]*symbols['v'])) for i in range(int(self.n_params/2))])
