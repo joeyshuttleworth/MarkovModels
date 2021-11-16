@@ -11,9 +11,22 @@ import math
 import os
 import pints
 import symengine as se
+import regex as re
 
 def get_protocol_directory():
     return os.path.join(os.path.dirname( os.path.realpath(__file__)), "protocols")
+
+def get_protocol_list():
+    directory = get_protocol_directory()
+
+    files = os.listdir(directory)
+    regex = re.compile("^([a-z|0-9]*)\.csv$")
+
+    protocols = []
+    for fname in filter(regex.match, files):
+        name = re.search(regex, fname).group(1)
+        protocols.append(name)
+    return protocols
 
 def get_args(data_reqd=False, description=None):
     """Get command line arguments from using get_parser
@@ -328,7 +341,8 @@ def get_protocol_from_csv(protocol_name : str, directory=None, holding_potential
 
     def staircase_protocol_safe(t): return staircase_protocol(
             t) if t < times[-1] and t > times[0] else holding_potential
-    return staircase_protocol_safe
+
+    return staircase_protocol_safe, times[0], times[-1], times[1]-times[0]
 
 def draw_cov_ellipses(mean=[0, 0], S1=None, sigma2=None, cov=None, plot_dir=None):
     """Plot confidence intervals using a sensitivity matrix or covariance matrix.
@@ -404,7 +418,7 @@ def draw_cov_ellipses(mean=[0, 0], S1=None, sigma2=None, cov=None, plot_dir=None
                         i, j, eigen_val))
 
 
-def fit_model(funcs, data, starting_parameters, fix_parameters=None,
+def fit_model(funcs, data, starting_parameters=None, fix_parameters=None,
               max_iterations=None, method=pints.CMAES):
     """
     Fit a MarkovModel to some dataset using pints.
@@ -427,6 +441,9 @@ def fit_model(funcs, data, starting_parameters, fix_parameters=None,
     returns: A pair containing the optimal parameters and the corresponding sum of square errors.
 
     """
+    if starting_parameters is None:
+        starting_parameters = funcs.get_default_parameters()
+
     class Boundaries(pints.Boundaries):
         def __init__(self, parameters, fix_parameters=None):
             self.fix_parameters = fix_parameters
@@ -552,17 +569,39 @@ def get_protocol(protocol_name: str):
     v = None
     if protocol_name == "sine-wave":
         v = beattie_sine_wave
+        t_start = 0
+        t_end   = 15000
+        t_step  = 0.1
     else:
         # Check the protocol folders for a protocol with the same name
         protocol_dir = get_protocol_directory()
         possible_protocol_path = os.path.join(protocol_dir, protocol_name+".csv")
         if os.path.exists(possible_protocol_path):
             try:
-                v = get_protocol_from_csv(protocol_name)
+                v, t_start, t_end, t_step = get_protocol_from_csv(protocol_name)
             except:
                 # TODO
                 raise
         else:
             # Protocol not found
             raise Exception("Protocol not found at " + possible_protocol_path)
-    return v
+    return v, t_start, t_end, t_step
+
+def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations, output_dir = None):
+
+    # Ignore files that have been commented out
+    voltage_func, t_start, t_end, t_step = get_protocol(protocol)
+    # Find data
+    regex = re.compile(f"^newtonrun4-{protocol}-{well}.csv$")
+    data = pd.read_csv(os.path.join(data_directory, next(filter(regex.match, os.listdir(data_directory))))).values
+
+    times = pd.read_csv(os.path.join(data_directory, f"newtonrun4-{protocol}-times.csv")).values
+    model = model_class(voltage_func, times)
+
+    fitted_params, score = fit_model(model, data, max_iterations=max_iterations)
+
+    if output_dir is not None:
+           df = pd.DataFrame(list(fitted_params[None,:]) + [score], columns=model.parameter_labels + ['SSE'])
+           df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
+
+    return fitted_params
