@@ -28,6 +28,9 @@ def main():
     global output_dir
     output_dir = os.path.join('output', args.output)
 
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
     protocols = common.get_protocol_list()
 
     regex = re.compile("^newtonrun4-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$")
