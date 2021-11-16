@@ -10,7 +10,6 @@ import pandas as pd
 import math
 import os
 import pints
-import symengine as se
 import regex as re
 
 def get_protocol_directory():
@@ -601,7 +600,7 @@ def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations
     fitted_params, score = fit_model(model, data, max_iterations=max_iterations)
 
     if output_dir is not None:
-           df = pd.DataFrame(list(fitted_params[None,:]) + [score], columns=model.parameter_labels + ['SSE'])
+           df = pd.DataFrame(np.column_stack((fitted_params[None,:], [score])), columns=model.parameter_labels + ['SSE'])
            df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
 
     return fitted_params

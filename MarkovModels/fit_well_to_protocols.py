@@ -25,7 +25,7 @@ def main():
     if not re.compile("^[A-Z][0-9][0-9]$").match(args.well):
         raise ValueError(f"Well {well} not valid.")
 
-    common.fit_well_to_data(args.well, args.protocol, args.data_file_path, args.max_iterations, output_dir)
+    common.fit_well_to_data(BeattieModel, args.well, args.protocol, args.data_file_path, args.max_iterations, output_dir)
 
 if __name__ == "__main__":
     main()
