@@ -325,8 +325,8 @@ def main():
     if not os.path.exists(plot_dir):
         os.makedirs(plot_dir)
 
-    staircase_protocol = common.get_protocol("staircase")
-    times = np.linspace(0, 15000, 150000)
+    staircase_protocol, t_start, t_end, t_step = common.get_protocol("staircase")
+    times = np.linspace(t_start, t_end, int((t_end - t_start)/t_start))
     voltages = np.array([staircase_protocol(t) for t in times])
     spikes, _ = common.detect_spikes(times, voltages, 1000)
     print(spikes)
@@ -339,21 +339,8 @@ def main():
     reversal_potential = common.calculate_reversal_potential(temp=37)
     funcs.Erev = reversal_potential
 
-    ret = funcs.SimulateForwardModelSensitivities(para)
-    S1 = ret[1]
+    current, S1 = funcs.SimulateForwardModelSensitivities(para)
     S1n = S1 * np.array(para)[None, :]
-
-    param_labels = ['S(p' + str(i + 1) + ',t)' for i in range(funcs.n_params)]
-
-    [plt.plot(funcs.times, sens, label=param_labels[i])
-     for i, sens in enumerate(S1n.T)]
-    plt.legend()
-    plt.xlabel("time /ms")
-    plt.ylabel("dI(t)/dp")
-    if args.plot:
-        plt.show()
-    else:
-        plt.savefig(os.path.join(plot_dir, "sensitivities_plot"))
 
     param_labels = ['S(p' + str(i + 1) + ',t)' for i in range(funcs.n_params)]
 

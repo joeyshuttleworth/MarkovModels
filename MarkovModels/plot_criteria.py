@@ -171,18 +171,22 @@ def main():
         lower_bound = mean_param_trajectory - 1.96*mean_estimate_uncertainty
 
         plt.clf()
+        fig = plt.figure(figsize=(14,12))
+        axs = fig.subplots(2)
 
-        plt.fill_between(times, lower_bound, upper_bound, color='grey',
+        axs[0].fill_between(times, lower_bound, upper_bound, color='grey',
                          alpha=0.25)
-        plt.plot(times, mean_param_trajectory, 'red')
-        plt.ylim(np.min(current)*1.5, np.max(current)*1.5)
+        axs[0].plot(times, mean_param_trajectory, 'red')
+        axs[0].set_ylim(np.min(current)*1.5, np.max(current)*1.5)
+        for sample in samples:
+            trajectory = get_trajectory(sample)
+            if trajectory is not None:
+                axs[0].plot(pred_times, trajectory, color='grey', alpha=0.05)
+        axs[1].plot(times, model.GetVoltage())
+        axs[1].set_xlabel("time /ms")
+        axs[1].set_ylabel("membrane voltage /mV")
 
-        # for sample in samples:
-        #     trajectory = get_trajectory(sample)
-        #     if trajectory is not None:
-        #         plt.plot(pred_times, trajectory, color='grey', alpha=0.05)
-
-        plt.savefig(os.path.join(output_dir, "{:.2f}ms_sample_trajectories.png".format(
+        fig.savefig(os.path.join(output_dir, "{:.2f}ms_sample_trajectories.png".format(
             spike_removal_durations[i])))
 
 
