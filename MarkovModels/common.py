@@ -333,8 +333,8 @@ def get_protocol_from_csv(protocol_name : str, directory=None, holding_potential
 
     protocol = pd.read_csv(os.path.join(directory, protocol_name+".csv"))
 
-    times = 1000 * protocol["time"].values
-    voltages = protocol["voltage"].values
+    times = protocol["time"].values.flatten()
+    voltages = protocol["voltage"].values.flatten()
 
     staircase_protocol = scipy.interpolate.interp1d(
         times, voltages, kind="linear")
