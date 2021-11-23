@@ -266,7 +266,8 @@ def detect_spikes(x, y, threshold=100, window_size=250):
                      for index in spike_indices]
     spike_indices = np.unique(spike_indices)
 
-    print(spike_indices)
+    if(len(spike_indices) == 0):
+        return x, np.array([])
 
     return x[spike_indices], np.array(spike_indices)
 

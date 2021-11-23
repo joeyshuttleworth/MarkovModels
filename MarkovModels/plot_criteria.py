@@ -24,7 +24,7 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.linspace(0, 50, 20)
+    spike_removal_durations = np.linspace(0, 30, 10)
 
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
@@ -35,7 +35,7 @@ def main():
     times = np.linspace(0, t_end, no_steps)
 
     model = BeattieModel(times=times,
-                         protocol=common.get_protocol('staircase'),
+                         protocol=common.get_protocol('staircase')[0],
                          Erev=common.calculate_reversal_potential(37),
                          parameters=params)
 
@@ -49,6 +49,8 @@ def main():
     # S1n = S1 * np.array(params)[None, :]
     spike_times, spike_indices = common.detect_spikes(times, voltages,
                                                       window_size=1)
+
+    current_spikes, _ = common.detect_spikes(times, current, threshold = 10, window_size=100)
 
     covs = []
     for time_to_remove in spike_removal_durations:
@@ -108,13 +110,9 @@ def main():
             # axs[0].scatter(a_inf, tau_a, marker='x')
             sns.kdeplot(data=pd.DataFrame(zip(a_inf, tau_a), columns=[
                         'a_inf', 'tau_a']), shade=True, fill=True, ax=axs[0], x='a_inf', y='tau_a')
-            axs[0].set_ylabel('tau_a')
-            axs[0].set_xlabel('a_inf')
             axs[0].set_title(
                 f"+40mV with {spike_removal_durations[i]:.2f}ms removed")
             # axs[1].scatter(r_inf, tau_r, marker='x')
-            axs[1].set_ylabel('tau_r')
-            axs[1].set_xlabel('r_inf')
             sns.kdeplot(data=pd.DataFrame(zip(r_inf, tau_r), columns=[
                         'r_inf', 'tau_r']), shade=True, ax=axs[1], x='r_inf', y='tau_r')
 
@@ -126,7 +124,11 @@ def main():
     # Now plot predictions
     # We can use less timesteps now -- only interested in plotting
     pred_times = np.linspace(0, 15000, 1000)
-    n_samples = 100
+
+    pred_times = np.unique(list(pred_times) + list(current_spikes))
+    print(f"pred times are {pred_times}")
+
+    n_samples = 500
 
     pred_model = BeattieModel(times=pred_times,
                               protocol=common.get_protocol('staircase'),
@@ -137,11 +139,10 @@ def main():
         try:
             soln = pred_model.SimulateForwardModel(p)
         except Exception as e:
-            logging.warning(f"Failed to simulate model with p={p}")
             return None
 
         if np.all(np.isfinite(soln)):
-            soln += np.random.normal(0, np.sqrt(sigma2), soln.shape)
+            # soln += np.random.normal(0, np.sqrt(sigma2), soln.shape)
             return soln
         else:
             return None
@@ -178,10 +179,16 @@ def main():
                          alpha=0.25)
         axs[0].plot(times, mean_param_trajectory, 'red')
         axs[0].set_ylim(np.min(current)*1.5, np.max(current)*1.5)
+
+        count = 0
         for sample in samples:
             trajectory = get_trajectory(sample)
             if trajectory is not None:
+                count += 1
                 axs[0].plot(pred_times, trajectory, color='grey', alpha=0.05)
+
+        print(f"Successfully ran {count} out of {n_samples} simulations")
+
         axs[1].plot(times, model.GetVoltage())
         axs[1].set_xlabel("time /ms")
         axs[1].set_ylabel("membrane voltage /mV")
@@ -271,9 +278,7 @@ def plot_regions(times, model, spike_times, spike_indices, output_dir, spike_rem
     for i, cov in reversed(list(enumerate(covs[0:5]))):
         sub_cov = cov[p_of_interest, :]
         sub_cov = sub_cov[:, p_of_interest]
-        print("covariance is ", cov)
         eigvals, eigvecs = np.linalg.eigh(sub_cov)
-        print('eigvals are ', eigvals)
 
         rotation = np.arctan2(*eigvecs[::-1, 0])
 

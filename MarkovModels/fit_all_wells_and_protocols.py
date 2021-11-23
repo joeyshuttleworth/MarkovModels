@@ -13,8 +13,6 @@ import common
 import multiprocessing
 from BeattieModel import BeattieModel
 
-args = None
-
 def fit_func(protocol, well):
     common.fit_well_to_data(BeattieModel, well, protocol, args.data_file_path, args.max_iterations, output_dir)
 
@@ -26,7 +24,9 @@ def main():
     args = parser.parse_args()
 
     global output_dir
-    output_dir = os.path.join('output', args.output)
+    output_dir = args.output
+
+    print(output_dir)
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -49,7 +49,7 @@ def main():
 
 
     pool.starmap(fit_func, tasks)
-    print("=============\nfinished\n==========")
+    print("=============\nfinished\n=============")
 
 
 if __name__ == "__main__":
