@@ -2,6 +2,9 @@ import numpy as np
 import sympy as sp
 import logging
 from scipy.integrate import solve_ivp
+from NumbaLSODA import lsoda_sig, lsoda
+from numba import njit, cfunc
+import numba
 
 class MarkovModel:
     """
@@ -45,7 +48,7 @@ class MarkovModel:
         inputs = list(self.y) + list(self.p) + [self.v]
 
         # Create RHS function
-        frhs = [e for e in self.rhs_expr]
+        frhs = np.array([e for e in self.rhs_expr])
         self.func_rhs = sp.lambdify(inputs, frhs)
 
         # Create Jacobian of the RHS function
@@ -220,7 +223,6 @@ class MarkovModel:
         return solution[:, self.open_state_index]*parameters[self.GKr_index]*(voltage - self.Erev)
 
 
-    # Returns the open state
     def solve_rhs(self, p, times=None):
         """ Solve the RHS of the system and return the open state probability at each timestep
         """
@@ -229,18 +231,31 @@ class MarkovModel:
         if times is None:
             times = self.times
 
-        return solve_ivp(
-            self.rhs,
-            (times[0], times[-1]),
-            rhs0,
-            t_eval = times,
-            atol=self.solver_tolerances[0],
-            rtol=self.solver_tolerances[1],
-            jac=self.jrhs,
-            method='LSODA',
-            args=(
-                p,
-            ))
+        rhs = numba.njit(self.func_rhs)
+        voltage = self.voltage
+
+        @cfunc(lsoda_sig)
+        def crhs(t, y, dy, p):
+            res = rhs(y[0], y[1], y[2],
+                      p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8],
+                      voltage(t))
+            for i in range(3):
+                dy[i] = res[i]
+
+        solution, _ = lsoda(crhs.address, rhs0, times, data=p)
+        return(solution)
+        # return solve_ivp(
+        #     self.rhs,
+        #     (times[0], times[-1]),
+        #     rhs0,
+        #     t_eval = times,
+        #     atol=self.solver_tolerances[0],
+        #     rtol=self.solver_tolerances[1],
+        #     jac=self.jrhs,
+        #     method='LSODA',
+        #     args=(
+        #         p,
+        #     ))
 
     def drhs(self, t, y, p):
         """ Evaluate RHS analytically
@@ -318,7 +333,8 @@ class MarkovModel:
     def SimulateForwardModel(self, p=None, times=None):
         if p is None:
             p = self.get_default_parameters()
-        o = self.solve_rhs(p, times)['y'].T[:, self.open_state_index]
+        # o = self.solve_rhs(p, times)['y'].T[:, self.open_state_index]
+        o = self.solve_rhs(p, times)[:, self.open_state_index]
         voltages = self.GetVoltage(times=times)
         return p[self.GKr_index] * o * (voltages - self.Erev)
 
@@ -327,7 +343,8 @@ class MarkovModel:
         if p is None:
             p = self.get_default_parameters()
 
-        states = self.solve_rhs(p)['y'].T
+        # states = self.solve_rhs(p)['y'].T
+        states = self.solve_rhs(p)
 
         state1 = np.array([1.0 - np.sum(row) for row in states])
         state1 = state1.reshape(len(state1), 1)

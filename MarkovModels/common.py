@@ -11,6 +11,7 @@ import math
 import os
 import pints
 import regex as re
+from numba import njit
 
 def get_protocol_directory():
     return os.path.join(os.path.dirname( os.path.realpath(__file__)), "protocols")
@@ -327,13 +328,78 @@ def get_protocol_from_csv(protocol_name : str, directory=None, holding_potential
     times = protocol["time"].values.flatten()
     voltages = protocol["voltage"].values.flatten()
 
-    staircase_protocol = scipy.interpolate.interp1d(
-        times, voltages, kind="linear")
-
-    def staircase_protocol_safe(t): return staircase_protocol(
-            t) if t < times[-1] and t > times[0] else holding_potential
+    def staircase_protocol_safe(t):
+        return np.interp([t], times, voltages)[0] if t < times[-1] and t > times[0] else holding_potential
 
     return staircase_protocol_safe, times[0], times[-1], times[1]-times[0]
+
+
+def get_ramp_protocol_from_csv(protocol_name : str, directory=None, holding_potential=-80, threshold=0.00001):
+    """Generate a function by interpolating
+    time-series data.
+
+    Params:
+    Holding potential: the value to return for times outside of the
+    range
+
+    Returns:
+    Returns a function float->float which returns the voltage (in mV)
+    at any given time t (in ms)
+
+    """
+
+    if directory is None:
+        directory = get_protocol_directory()
+
+    protocol = pd.read_csv(os.path.join(directory, protocol_name+".csv"))
+
+    times = protocol["time"].values.flatten()
+    voltages = protocol["voltage"].values.flatten()
+
+    # Find gradient changes
+    diff2 = np.abs(np.diff(voltages, n=2))
+    diff1 = np.abs(np.diff(voltages, n=1))
+
+    windows = np.argwhere(diff2 > threshold).flatten()
+    window_locs = np.unique(windows)
+
+    windows = zip([0] + list(window_locs), list(window_locs) + [len(voltages)-1])
+
+    lst = []
+    t_diff = times[1] - times[0]
+    for start, end in windows:
+        start_t = start * t_diff
+        end_t   = end * t_diff
+        lst.append((start_t, end_t, voltages[start+1], voltages[end]))
+
+    protocol = tuple(lst)
+    # print(protocol)
+
+    @njit
+    def protocol_func(t):
+        if t < 0 or t >= protocol[-1][1]:
+            return holding_potential
+
+        for i in range(len(protocol)):
+            if t < protocol[i][1]:
+                if np.abs(protocol[i][3] - protocol[i][2]) > threshold:
+                    return protocol[i][2] + (t - protocol[i][0])*(protocol[i][3]-protocol[i][2])/(protocol[i][1] - protocol[i][0])
+                else:
+                    return protocol[i][3]
+
+        raise Exception()
+
+    # debug plots
+    # plt.plot(times, voltages, label='real voltage')
+    # plt.plot(times, [protocol_func(t) for t in times], label='interpolation')
+
+    # for l in window_locs:
+    #     plt.axvline(times[l], linestyle="--", color='red')
+    # plt.legend()
+    # plt.show()
+
+    return protocol_func, times[0], times[-1], times[1]-times[0]
+
 
 def draw_cov_ellipses(mean=[0, 0], S1=None, sigma2=None, cov=None, plot_dir=None):
     """Plot confidence intervals using a sensitivity matrix or covariance matrix.
@@ -568,7 +634,7 @@ def get_protocol(protocol_name: str):
         possible_protocol_path = os.path.join(protocol_dir, protocol_name+".csv")
         if os.path.exists(possible_protocol_path):
             try:
-                v, t_start, t_end, t_step = get_protocol_from_csv(protocol_name)
+                v, t_start, t_end, t_step = get_ramp_protocol_from_csv(protocol_name)
             except:
                 # TODO
                 raise
@@ -581,27 +647,27 @@ def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations
 
     # Ignore files that have been commented out
     voltage_func, t_start, t_end, t_step = get_protocol(protocol)
+
     # Find data
     regex = re.compile(f"^newtonrun4-{protocol}-{well}.csv$")
     fname = next(filter(regex.match, os.listdir(data_directory)))
     data = pd.read_csv(os.path.join(data_directory, fname))['current'].values
 
     times = pd.read_csv(os.path.join(data_directory, f"newtonrun4-{protocol}-times.csv"))['time'].values
-    print(times.shape)
 
     Erev = calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
 
-    model = model_class(voltage_func, times)
-
-    if default_parameters is not None:
-        model.default_parameters = default_parameters
+    model = model_class(voltage_func, times, parameters=default_parameters)
 
     model.Erev = Erev
 
-    initial_gkr_guess = np.max(data)/1000
+    initial_gkr_guess = np.max(data)/100
 
     initial_params = model.get_default_parameters()
     initial_params[model.GKr_index] = initial_gkr_guess
+
+    initial_score = ((model.SimulateForwardModel() - data)**2).sum()
+    print(f"initial score is {initial_score}")
 
     # First fit only Gkr
 
@@ -613,20 +679,17 @@ def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations
     initial_gkr = scipy.optimize.minimize_scalar(gkr_opt_func).x
     initial_params[8] = initial_gkr
 
-    # plot initial guess
-    # plt.plot(times, model.SimulateForwardModel(initial_params))
-    # plt.plot(times, data)
-    # plt.show()
-
     fitted_params, score = fit_model(model, data, starting_parameters=initial_params, max_iterations=max_iterations)
 
     fig = plt.figure(figsize=(14,12))
-    fig.plot(times, data)
-    fig.plot(times, model.SimulateForwardModel(fitted_params))
+    ax = fig.subplots(1)
+    ax.plot(times, data)
+    ax.plot(times, model.SimulateForwardModel(fitted_params))
 
     if output_dir is not None:
            df = pd.DataFrame(np.column_stack((fitted_params[None,:], [score])), columns=model.parameter_labels + ['SSE'])
            df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
-           fig.savefig(f"{well}_{protocol}_fit")
+           fig.savefig(os.path.join(output_dir,f"{well}_{protocol}_fit"))
+           ax.cla()
 
     return fitted_params
