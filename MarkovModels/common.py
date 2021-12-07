@@ -87,30 +87,21 @@ def get_parser(data_reqd=False, description=None):
     return parser
 
 
-def calculate_reversal_potential(temp=20):
+def calculate_reversal_potential(T=293.15, K_out=120, K_in=5):
     """
     Compute the Nernst potential of a potassium channel.
-
-    Params:
-
-    temp : temperature in degrees celcius, this defaults to 20
 
     """
     # E is the Nernst potential for potassium ions across the membrane
     # Gas constant R, temperature T, Faradays constat F
     R = 8314.55
-    T = temp + 273.15
     F = 96485
-
-    # Intracellular and extracellular concentrations of potassium.
-    K_out = 4
-    K_in = 130
 
     # valency of ions (1 in the case of K^+)
     z = 1
 
     # Nernst potential
-    E = R * T / (z * F) * np.log(K_out / K_in)
+    E = R * T / (z * F) * np.log(K_in / K_out)
     return E
 
 
@@ -267,7 +258,7 @@ def detect_spikes(x, y, threshold=100, window_size=250):
     spike_indices = np.unique(spike_indices)
 
     if(len(spike_indices) == 0):
-        return x, np.array([])
+        return [], np.array([])
 
     return x[spike_indices], np.array(spike_indices)
 
@@ -418,7 +409,7 @@ def draw_cov_ellipses(mean=[0, 0], S1=None, sigma2=None, cov=None, plot_dir=None
                         i, j, eigen_val))
 
 
-def fit_model(funcs, data, starting_parameters=None, fix_parameters=None,
+def fit_model(funcs, data, starting_parameters=None, fix_parameters=[],
               max_iterations=None, method=pints.CMAES):
     """
     Fit a MarkovModel to some dataset using pints.
@@ -452,16 +443,20 @@ def fit_model(funcs, data, starting_parameters=None, fix_parameters=None,
         def check(self, parameters):
             '''Check that each rate constant lies in the range 1.67E-5 < A*exp(B*V) < 1E3
             '''
-            # TODO Reimplement checks
-            return True
-            sim_params = np.copy(self.parameters)
+            sim_params = self.parameters
+
+            if np.any(sim_params) <= 0:
+                return False
+
             c = 0
-            for i, parameter in enumerate(self.parameters):
+            for i in fix_parameters:
                 if i not in self.fix_parameters:
                     sim_params[i] = parameters[c]
                     c += 1
                 if c == len(parameters):
                     break
+
+            # TODO Rewrite this for other models
             for i in range(0, 4):
                 alpha = sim_params[2 * i]
                 beta = sim_params[2 * i + 1]
@@ -469,15 +464,11 @@ def fit_model(funcs, data, starting_parameters=None, fix_parameters=None,
                 vals = [0, 0]
                 vals[0] = alpha * np.exp(beta * -90 * 1E-3)
                 vals[1] = alpha * np.exp(beta * 50 * 1E-3)
-
                 for val in vals:
                     if val < 1E-7 or val > 1E3:
                         return False
-            # Check maximal conductance
-            if sim_params[8] > 0 and sim_params[8] < 2:
-                return True
-            else:
-                return False
+
+            return True
 
         def n_parameters(self):
             return 9 - \
@@ -487,7 +478,9 @@ def fit_model(funcs, data, starting_parameters=None, fix_parameters=None,
         def __init__(self, funcs, parameters, fix_parameters=None):
             self.funcs = funcs
             self.parameters = parameters
+
             self.fix_parameters = fix_parameters
+
             if fix_parameters is not None:
                 self.free_parameters = [i for i in range(
                     0, len(starting_parameters)) if i not in fix_parameters]
@@ -495,10 +488,7 @@ def fit_model(funcs, data, starting_parameters=None, fix_parameters=None,
                 self.free_parameters = range(0, len(starting_parameters))
 
         def n_parameters(self):
-            if self.fix_parameters is not None:
                 return len(self.parameters) - len(self.fix_parameters)
-            else:
-                return len(self.parameters)
 
         def simulate(self, parameters, times):
             self.funcs.times = times
@@ -587,21 +577,56 @@ def get_protocol(protocol_name: str):
             raise Exception("Protocol not found at " + possible_protocol_path)
     return v, t_start, t_end, t_step
 
-def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations, output_dir = None):
+def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations, output_dir = None, T=298, K_in=120, K_out=5, default_parameters: float = None):
 
     # Ignore files that have been commented out
     voltage_func, t_start, t_end, t_step = get_protocol(protocol)
     # Find data
     regex = re.compile(f"^newtonrun4-{protocol}-{well}.csv$")
-    data = pd.read_csv(os.path.join(data_directory, next(filter(regex.match, os.listdir(data_directory))))).values
+    fname = next(filter(regex.match, os.listdir(data_directory)))
+    data = pd.read_csv(os.path.join(data_directory, fname))['current'].values
 
-    times = pd.read_csv(os.path.join(data_directory, f"newtonrun4-{protocol}-times.csv")).values
+    times = pd.read_csv(os.path.join(data_directory, f"newtonrun4-{protocol}-times.csv"))['time'].values
+    print(times.shape)
+
+    Erev = calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
+
     model = model_class(voltage_func, times)
 
-    fitted_params, score = fit_model(model, data, max_iterations=max_iterations)
+    if default_parameters is not None:
+        model.default_parameters = default_parameters
+
+    model.Erev = Erev
+
+    initial_gkr_guess = np.max(data)/1000
+
+    initial_params = model.get_default_parameters()
+    initial_params[model.GKr_index] = initial_gkr_guess
+
+    # First fit only Gkr
+
+    def gkr_opt_func(gkr):
+        p = model.get_default_parameters()
+        p[8] = gkr
+        return ((model.SimulateForwardModel() - data)**2).sum()
+
+    initial_gkr = scipy.optimize.minimize_scalar(gkr_opt_func).x
+    initial_params[8] = initial_gkr
+
+    # plot initial guess
+    # plt.plot(times, model.SimulateForwardModel(initial_params))
+    # plt.plot(times, data)
+    # plt.show()
+
+    fitted_params, score = fit_model(model, data, starting_parameters=initial_params, max_iterations=max_iterations)
+
+    fig = plt.figure(figsize=(14,12))
+    fig.plot(times, data)
+    fig.plot(times, model.SimulateForwardModel(fitted_params))
 
     if output_dir is not None:
            df = pd.DataFrame(np.column_stack((fitted_params[None,:], [score])), columns=model.parameter_labels + ['SSE'])
            df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
+           fig.savefig(f"{well}_{protocol}_fit")
 
     return fitted_params

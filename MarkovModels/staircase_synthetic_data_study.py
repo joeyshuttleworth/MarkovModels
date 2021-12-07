@@ -316,7 +316,7 @@ def main():
         type=int)
     args = parser.parse_args()
 
-    dirname = "staircase"
+    dirname = "staircase_synthetic_study"
     if args.remove != 0:
         dirname = dirname + "_%s_ms_removed" % args.remove
 
@@ -326,17 +326,17 @@ def main():
         os.makedirs(plot_dir)
 
     staircase_protocol, t_start, t_end, t_step = common.get_protocol("staircase")
-    times = np.linspace(t_start, t_end, int((t_end - t_start)/t_start))
+    times = np.linspace(t_start, t_end, int((t_end - t_start)/t_step))
     voltages = np.array([staircase_protocol(t) for t in times])
-    spikes, _ = common.detect_spikes(times, voltages, 1000)
-    print(spikes)
+    spikes, _ = common.detect_spikes(times, voltages, 10)
+    print(f"found {len(spikes)} spikes")
     times, voltages = common.remove_spikes(times, voltages, spikes, args.remove)
 
     funcs = BeattieModel(times=times,
                          protocol=staircase_protocol)
 
     # Compute resting potential for 37 degrees C
-    reversal_potential = common.calculate_reversal_potential(temp=37)
+    reversal_potential = common.calculate_reversal_potential(T=310.15)
     funcs.Erev = reversal_potential
 
     current, S1 = funcs.SimulateForwardModelSensitivities(para)
@@ -356,7 +356,7 @@ def main():
     [ax1.axvline(spike, linestyle="--", color='red', alpha=0.3)
      for spike in spikes]
     [ax1.axvline(spike, linestyle="--", color='orange', alpha=0.3)
-     for spike in spikes+args.remove]
+     for spike in np.array(spikes) + args.remove]
 
     ax2 = fig.add_subplot(412)
     ax2.plot(funcs.times, funcs.SimulateForwardModel(para))

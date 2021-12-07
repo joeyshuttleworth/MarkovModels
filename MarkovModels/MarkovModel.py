@@ -1,7 +1,7 @@
 import numpy as np
 import sympy as sp
 import logging
-from scipy.integrate import odeint
+from scipy.integrate import solve_ivp
 
 class MarkovModel:
     """
@@ -118,8 +118,8 @@ class MarkovModel:
 
         A_matrix, _ = self.get_linear_system()
 
-        eigvals = np.linalg.eig(A_matrix)[0]
-        assert(np.all(eigvals < 0))
+        # eigvals = np.linalg.eig(A_matrix)[0]
+        # assert(np.all(eigvals < 0))
 
         # Can be found analytically
         self.rhs_inf_expr = -self.A.LUsolve(self.B)
@@ -133,13 +133,13 @@ class MarkovModel:
 
         self.sensitivity_ics = sp.lambdify(self.p, self.sensitivity_ics_expr)
 
-    def rhs(self, y, t, p):
+    def rhs(self, t, y, p):
         """ Evaluates the RHS of the model (including sensitivities)
 
         """
         return self.func_rhs(*(*y, *p, self.voltage(t)))
 
-    def jrhs(self, y, t, p):
+    def jrhs(self, t, y, p):
         """ Evaluates the jacobian of the RHS
 
             Having this function can speed up solving the system
@@ -229,24 +229,26 @@ class MarkovModel:
         if times is None:
             times = self.times
 
-        return odeint(
+        return solve_ivp(
             self.rhs,
+            (times[0], times[-1]),
             rhs0,
-            times,
+            t_eval = times,
             atol=self.solver_tolerances[0],
             rtol=self.solver_tolerances[1],
-            Dfun=self.jrhs,
+            jac=self.jrhs,
+            method='LSODA',
             args=(
                 p,
             ))
 
-    def drhs(self, y, t, p):
+    def drhs(self, t, y, p):
         """ Evaluate RHS analytically
 
         """
         return self.func_S1(*(*y[:self.n_state_vars], *p, self.voltage(t), *y[self.n_state_vars:]))
 
-    def jdrhs(self, y, t, p):
+    def jdrhs(self, t, y, p):
         """  Evaluates the jacobian of the RHS (analytically)
 
         This allows the system to be solved faster
@@ -274,14 +276,16 @@ class MarkovModel:
         ics = np.concatenate(rhs0, drhs0, axis=None)
 
         # Chop off RHS
-        drhs = odeint(self.drhs,
-                      ics,
-                      times,
-                      atol=self.solver_tolerances[0],
-                      rtol=self.solver_tolerances[1],
-                      Dfun=self.jdrhs,
-                      args=(p,
-                            ))[:, self.n_state_vars:]
+        drhs = solve_ivp(self.drhs,
+                         (times[0], times[-1]),
+                         ics,
+                         t_eval = times,
+                         atol=self.solver_tolerances[0],
+                         rtol=self.solver_tolerances[1],
+                         Dfun=self.jdrhs,
+                         method='LSODA',
+                         args=(p,
+                               ))[:, self.n_state_vars:]
         # Return only open state sensitivites
         return drhs[:, self.open_state_index::self.n_state_vars]
 
@@ -295,13 +299,15 @@ class MarkovModel:
         rhs0 = np.array(self.rhs_inf(p, self.holding_potential)).astype(np.float64)
         drhs0 = np.array(self.sensitivity_ics(*p)).astype(np.float64)
 
-        return odeint(
+        return solve_ivp(
             self.drhs,
+            (times[0], times[-1]),
             np.concatenate((rhs0, drhs0), axis=None).astype(np.float64),
-            times,
+            t_eval=times,
             atol=self.solver_tolerances[0],
             rtol=self.solver_tolerances[1],
-            Dfun=self.jdrhs,
+            # jac=self.jdrhs,
+            method='LSODA',
             args=(
                 p,
             ))
@@ -312,7 +318,7 @@ class MarkovModel:
     def SimulateForwardModel(self, p=None, times=None):
         if p is None:
             p = self.get_default_parameters()
-        o = self.solve_rhs(p, times)[:, self.open_state_index]
+        o = self.solve_rhs(p, times)['y'].T[:, self.open_state_index]
         voltages = self.GetVoltage(times=times)
         return p[self.GKr_index] * o * (voltages - self.Erev)
 
@@ -321,7 +327,7 @@ class MarkovModel:
         if p is None:
             p = self.get_default_parameters()
 
-        states = self.solve_rhs(p)
+        states = self.solve_rhs(p)['y'].T
 
         state1 = np.array([1.0 - np.sum(row) for row in states])
         state1 = state1.reshape(len(state1), 1)
@@ -351,7 +357,7 @@ class MarkovModel:
         if p is None:
             p = self.get_default_parameters()
 
-        solution = self.solve_drhs_full(p, times=times)
+        solution = self.solve_drhs_full(p, times=times)['y'].T
 
         # Get the open state sensitivities for each parameter
         index_sensitivities = self.n_state_vars + self.open_state_index + \

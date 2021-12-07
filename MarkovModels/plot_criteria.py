@@ -35,7 +35,7 @@ def main():
     times = np.linspace(0, t_end, no_steps)
 
     model = BeattieModel(times=times,
-                         protocol=common.get_protocol('staircase')[0],
+                         protocol=common.get_protocol('staircaseramp')[0],
                          Erev=common.calculate_reversal_potential(37),
                          parameters=params)
 
@@ -49,9 +49,10 @@ def main():
     # S1n = S1 * np.array(params)[None, :]
     spike_times, spike_indices = common.detect_spikes(times, voltages,
                                                       window_size=1)
-
     current_spikes, _ = common.detect_spikes(times, current, threshold = 10, window_size=100)
 
+    conf_fig = plt.figure(figsize=(16,12))
+    conf_axs = conf_fig.subplots(3)
     covs = []
     for time_to_remove in spike_removal_durations:
         indices = common.remove_indices(list(range(len(times))),
@@ -88,15 +89,15 @@ def main():
     plt.savefig(os.path.join(output_dir, "criteria.pdf"))
 
     plot_regions(times, model, spike_times, spike_indices, output_dir,
-                 spike_removal_durations, (4, 6))
+                 spike_removal_durations, conf_fig, conf_axs, p_of_interest=(4, 6))
     plot_regions(times, model, spike_times, spike_indices, output_dir,
-                 spike_removal_durations, (5, 7))
+                 spike_removal_durations, conf_fig, conf_axs, (5, 7))
 
     plot_regions(times, model, spike_times, spike_indices, output_dir,
-                 spike_removal_durations, (4, 5))
+                 spike_removal_durations, conf_fig, conf_axs, (4, 5))
 
     plot_regions(times, model, spike_times, spike_indices, output_dir,
-                 spike_removal_durations, (6, 7))
+                 spike_removal_durations, conf_fig, conf_axs, (6, 7))
 
     # Sample steady states and timescales
     for i, cov in enumerate(covs):
@@ -126,12 +127,12 @@ def main():
     pred_times = np.linspace(0, 15000, 1000)
 
     pred_times = np.unique(list(pred_times) + list(current_spikes))
-    print(f"pred times are {pred_times}")
+    # print(f"pred times are {pred_times}")
 
     n_samples = 500
 
     pred_model = BeattieModel(times=pred_times,
-                              protocol=common.get_protocol('staircase'),
+                              protocol=common.get_protocol('staircase')[0],
                               Erev=common.calculate_reversal_potential(37),
                               parameters=params)
 
@@ -156,13 +157,16 @@ def main():
     ax.set_ylim(np.min(mean_param_trajectory), np.max(mean_param_trajectory))
     ax.set_xlim(np.min(pred_times), np.max(pred_times))
 
+
+    fig = plt.figure(figsize=(14,12))
+    axs = fig.subplots(2)
+
+
     for i, cov in list(enumerate(covs)):
         samples = np.random.multivariate_normal(params, cov, n_samples)
 
         # Filter out invalid samples
         samples = [s for s in samples if np.all(s) > 0]
-
-        print(f"spike_indices are {spike_indices}")
 
         mean_estimate_uncertainty = np.apply_along_axis(lambda row:
                                                         row @ cov @ row.T, 1,
@@ -172,9 +176,6 @@ def main():
         lower_bound = mean_param_trajectory - 1.96*mean_estimate_uncertainty
 
         plt.clf()
-        fig = plt.figure(figsize=(14,12))
-        axs = fig.subplots(2)
-
         axs[0].fill_between(times, lower_bound, upper_bound, color='grey',
                          alpha=0.25)
         axs[0].plot(times, mean_param_trajectory, 'red')
@@ -187,7 +188,7 @@ def main():
                 count += 1
                 axs[0].plot(pred_times, trajectory, color='grey', alpha=0.05)
 
-        print(f"Successfully ran {count} out of {n_samples} simulations")
+        print(f"{i}: Successfully ran {count} out of {n_samples} simulations")
 
         axs[1].plot(times, model.GetVoltage())
         axs[1].set_xlabel("time /ms")
@@ -195,6 +196,9 @@ def main():
 
         fig.savefig(os.path.join(output_dir, "{:.2f}ms_sample_trajectories.png".format(
             spike_removal_durations[i])))
+
+        for ax in axs:
+            ax.cla()
 
 
 def monte_carlo_tau_r(mean, cov, n_samples=10000, voltage=40):
@@ -213,10 +217,8 @@ def monte_carlo_tau_r(mean, cov, n_samples=10000, voltage=40):
     return a_inf, tau_a, r_inf, tau_r
 
 
-def plot_regions(times, model, spike_times, spike_indices, output_dir, spike_removal_durations, p_of_interest=(4, 6)):
+def plot_regions(times, model, spike_times, spike_indices, output_dir, spike_removal_durations, fig, axs, p_of_interest=(4, 6)):
     voltages = model.GetVoltage()
-    fig = plt.figure(figsize=(24, 20))
-    axs = fig.subplots(3)
     current, S1 = model.SimulateForwardModelSensitivities()
     params = model.get_default_parameters()
 
@@ -236,12 +238,6 @@ def plot_regions(times, model, spike_times, spike_indices, output_dir, spike_rem
     axs[2].legend()
 
     fig.savefig(os.path.join(output_dir, 'sensitivities_plot.pdf'))
-
-    plt.clf()
-    plt.figure()
-
-    fig = plt.figure(figsize=(19, 14))
-    axs = fig.subplots(2)
 
     offset = [params[p_of_interest[0]], params[p_of_interest[1]]]
 
