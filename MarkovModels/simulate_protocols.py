@@ -47,6 +47,7 @@ def simulate_protocol(model, name, output_dir):
 
     for ax in axs:
         ax.cla()
+    plt.close(fig)
 
 def main():
     parser = argparse.ArgumentParser(description="Plot output from different protocols")
@@ -75,7 +76,7 @@ def main():
         model.Erev = common.calculate_reversal_potential(298, K_out=130, K_in=5)
         simulate_protocol(model, protocol_name, output_dir)
 
-    pool = multiprocessing.Pool(processes=os.cpu_count())
+    pool = multiprocessing.Pool(processes=min(os.cpu_count(), len(tasks))
     pool.map(func, tasks)
 
 
