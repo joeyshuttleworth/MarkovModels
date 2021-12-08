@@ -67,7 +67,7 @@ def main():
         if ext != ".csv":
             logging.warning(f"Using file with extension {ext}")
 
-        protocol, t_start, t_end, t_step = common.get_protocol(os.path.splitext(fname)[0])
+        protocol, t_start, t_end, t_step = common.get_protocol(protocol_name)
         times = np.linspace(t_start, t_end, int((t_end-t_start)/t_step))
         model = BeattieModel(protocol, times)
         # model.default_parameters = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2, 4.75E-2, 2.51E-2, 3.33E-2])
