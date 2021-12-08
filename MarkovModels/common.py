@@ -202,9 +202,9 @@ def remove_spikes(times, voltages, spike_times, time_to_remove):
             break
         indices_to_remove.append((spike_index, end_index))
 
-    lst = np.array(remove_indices(np.column_stack((times, voltages)),
-                                  indices_to_remove))
-    return lst[:,0], lst[:,1]
+
+    indices_remaining = np.array(remove_indices(list(range(len(times))), indices_to_remove))
+    return lst[indices_remaining,0], lst[indices_remaining,1], indices_remaining
 
 def remove_indices(lst, indices_to_remove):
     """Remove a list of indices from some list-like object
@@ -253,10 +253,10 @@ def detect_spikes(x, y, threshold=100, window_size=250):
     deriv = dy / dx
     spike_indices = np.argwhere(np.abs(deriv) > threshold)[:, 0]
 
-    spike_indices = [index - window_size + np.argmax(
-        np.abs(y[(index - window_size):(index + window_size)]))
-                     for index in spike_indices]
-    spike_indices = np.unique(spike_indices)
+    # spike_indices = [index - window_size + np.argmax(
+    #     np.abs(y[(index - window_size):(index + window_size)]))
+    #                  for index in spike_indices]
+    # spike_indices = np.unique(spike_indices)
 
     if(len(spike_indices) == 0):
         return [], np.array([])
@@ -498,6 +498,8 @@ def fit_model(funcs, data, starting_parameters=None, fix_parameters=[],
     returns: A pair containing the optimal parameters and the corresponding sum of square errors.
 
     """
+    voltages = funcs.GetVoltage()
+
     if starting_parameters is None:
         starting_parameters = funcs.get_default_parameters()
 
@@ -552,14 +554,14 @@ def fit_model(funcs, data, starting_parameters=None, fix_parameters=[],
                     0, len(starting_parameters)) if i not in fix_parameters]
             else:
                 self.free_parameters = range(0, len(starting_parameters))
+            self.forward_solver = funcs.make_forward_solver_current()
 
         def n_parameters(self):
                 return len(self.parameters) - len(self.fix_parameters)
 
         def simulate(self, parameters, times):
-            self.funcs.times = times
             if self.fix_parameters is None:
-                return self.funcs.SimulateForwardModel(parameters, times)
+                return self.forward_solver(parameters, times, len(times), voltages)
             else:
                 sim_params = np.copy(self.parameters)
                 c = 0
@@ -569,9 +571,10 @@ def fit_model(funcs, data, starting_parameters=None, fix_parameters=[],
                         c += 1
                     if c == len(parameters):
                         break
-                return self.funcs.SimulateForwardModel(sim_params, times)
+                return self.forward_solver(sim_params, times, len(times), voltages)
 
         def simulateS1(self, parameters, times):
+            raise NotImplementedError()
             if fix_parameters is None:
                 return self.funcs.SimulateForwardModelSensitivities(parameters)
             else:
@@ -643,7 +646,7 @@ def get_protocol(protocol_name: str):
             raise Exception("Protocol not found at " + possible_protocol_path)
     return v, t_start, t_end, t_step
 
-def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations, output_dir = None, T=298, K_in=120, K_out=5, default_parameters: float = None):
+def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations, output_dir = None, T=298, K_in=120, K_out=5, default_parameters: float = None, removal_duration=5):
 
     # Ignore files that have been commented out
     voltage_func, t_start, t_end, t_step = get_protocol(protocol)
@@ -654,6 +657,11 @@ def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations
     data = pd.read_csv(os.path.join(data_directory, fname))['current'].values
 
     times = pd.read_csv(os.path.join(data_directory, f"newtonrun4-{protocol}-times.csv"))['time'].values
+    voltages = [voltage_func(t) for t in times]
+
+    spikes, _ = detect_spikes(times, voltages, 10)
+    times, _, indices = remove_spikes(times, voltages, spikes, removal_duration)
+    data = data[indices]
 
     Erev = calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
 

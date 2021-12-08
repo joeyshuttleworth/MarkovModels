@@ -4,7 +4,7 @@ import logging
 from scipy.integrate import solve_ivp
 from NumbaLSODA import lsoda_sig, lsoda
 from numba import njit, cfunc
-import numba
+import numba as nb
 
 class MarkovModel:
     """
@@ -126,7 +126,8 @@ class MarkovModel:
 
         # Can be found analytically
         self.rhs_inf_expr = -self.A.LUsolve(self.B)
-        self.rhs_inf = lambda p, v: np.array(self.rhs_inf_expr.subs(dict(zip(self.p, p))).subs('v', v)).astype(np.float64)
+        # self.rhs_inf = lambda p, v: np.array(self.rhs_inf_expr.subs(dict(zip(self.p, p))).subs('v', v)).astype(np.float64)
+        self.rhs_inf = nb.njit(sp.lambdify((*self.p, 'v'), self.rhs_inf_expr, modules='numpy'))
 
         self.current_inf_expr = self.auxillary_expression.subs(self.y, self.rhs_inf)
         self.current_inf = lambda p: np.array(self.current_inf_expr.subs(dict(zip(self.p, p))).evalf()).astype(np.float64)
@@ -223,16 +224,11 @@ class MarkovModel:
         return solution[:, self.open_state_index]*parameters[self.GKr_index]*(voltage - self.Erev)
 
 
-    def solve_rhs(self, p, times=None):
-        """ Solve the RHS of the system and return the open state probability at each timestep
-        """
-        rhs0 = np.array(self.rhs_inf(p, self.holding_potential)).astype(np.float64)[:,0]
-
-        if times is None:
-            times = self.times
-
-        rhs = numba.njit(self.func_rhs)
+    def make_forward_solver_states(self):
+        rhs = nb.njit(self.func_rhs)
         voltage = self.voltage
+
+        rhs_inf = self.rhs_inf
 
         @cfunc(lsoda_sig)
         def crhs(t, y, dy, p):
@@ -242,8 +238,63 @@ class MarkovModel:
             for i in range(3):
                 dy[i] = res[i]
 
-        solution, _ = lsoda(crhs.address, rhs0, times, data=p)
-        return(solution)
+        crhs_ptr = crhs.address
+
+        c_sig  = nb.float64[:,:](nb.float64[:],
+                                 nb.float64[:],
+                                 nb.int64)
+
+        @cfunc(c_sig)
+        def forward_solver(p, times, t_length):
+            rhs0 = rhs_inf(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], voltage(0))
+            # times_ = nb.carray(times, (t_length,))
+            solution, _ = lsoda(crhs_ptr, rhs0, times, data=p)
+            return solution
+        return forward_solver
+
+    def make_forward_solver_current(self):
+        solver_states = self.make_forward_solver_states()
+
+        gkr_index = self.GKr_index
+        open_index = self.open_state_index
+        Erev = self.Erev
+
+        c_sig  = nb.float64[:](nb.float64[:],
+                                 nb.float64[:],
+                                 nb.int64,
+                                 nb.float64[:])
+        @cfunc(c_sig)
+        def forward_solver(p, times, t_length, voltages):
+            states = solver_states(p, times, t_length)
+            return states[:,open_index] * p[gkr_index] * (voltages - Erev)
+        return forward_solver
+
+    def solve_rhs(self, p, times=None):
+        """ Solve the RHS of the system and return the open state probability at each timestep
+        """
+        if times is None:
+            times = self.times
+        p = np.array(p)
+        return self.make_forward_solver_states()(p, times, len(times))
+
+        # rhs0 = np.array(self.rhs_inf(p, self.holding_potential)).astype(np.float64)[:,0]
+
+        # if times is None:
+        #     times = self.times
+
+        # rhs = nb.njit(self.func_rhs)
+        # voltage = self.voltage
+
+        # @cfunc(lsoda_sig)
+        # def crhs(t, y, dy, p):
+        #     res = rhs(y[0], y[1], y[2],
+        #               p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8],
+        #               voltage(t))
+        #     for i in range(3):
+        #         dy[i] = res[i]
+
+        # solution, _ = lsoda(crhs.address, rhs0, times, data=p)
+        # return(solution)
         # return solve_ivp(
         #     self.rhs,
         #     (times[0], times[-1]),
