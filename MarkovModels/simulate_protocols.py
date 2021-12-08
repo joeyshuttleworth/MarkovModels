@@ -15,7 +15,10 @@ def simulate_protocol(model, name, output_dir, fig, axs):
     param_labels = ['S(p' + str(i + 1) + ',t)' for i in range(model.n_params)]
     state_occupancies = model.GetStateVariables()
 
-    axs[0].plot(model.times, model.GetVoltage())
+    interp_voltage, _, _, _, _ = common.get_protocol_from_csv(name, directory=common.get_protocol_directory())
+    axs[0].plot(model.times, model.GetVoltage(), label='generated voltage function')
+    axs[0].plot(model.times, [interp_voltage(t) for t in model.times], label='actual voltage')
+    axs[0].plot()
     axs[0].grid(True)
     axs[0].set_xticklabels([])
     axs[0].set_ylabel('Voltage (mV)')
@@ -42,22 +45,22 @@ def simulate_protocol(model, name, output_dir, fig, axs):
     for ax in axs:
         ax.cla()
 
-    # S1n = S1 * model.get_default_parameters()
-    # H = np.dot(S1n.T, S1n)
+    S1n = S1 * model.get_default_parameters()
+    H = np.dot(S1n.T, S1n)
 
-    # try:
-    #     eigvals = np.linalg.eigvals(H)
-    #     # Plot the eigenvalues of H, shows the condition of H
-    #     fig = plt.figure(figsize=(14, 12))
-    #     ax = fig.add_subplot(111)
-    #     for i in eigvals:
-    #         ax.axhline(y=i, xmin=0.25, xmax=0.75)
-    #         ax.set_yscale('log')
-    #         ax.set_xticks([])
-    #         ax.grid(True)
-    # except np.linalg.LinAlgError as err:
-    #     pass
-    # fig.savefig(os.path.join(output_dir, f"{name}_H_eigenvalues"))
+    try:
+        eigvals = np.linalg.eigvals(H)
+        # Plot the eigenvalues of H, shows the condition of H
+        fig = plt.figure(figsize=(14, 12))
+        ax = fig.add_subplot(111)
+        for i in eigvals:
+            ax.axhline(y=i, xmin=0.25, xmax=0.75)
+            ax.set_yscale('log')
+            ax.set_xticks([])
+            ax.grid(True)
+    except np.linalg.LinAlgError as err:
+        pass
+    fig.savefig(os.path.join(output_dir, f"{name}_H_eigenvalues"))
 
 
 def main():

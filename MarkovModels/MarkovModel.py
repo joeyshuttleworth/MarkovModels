@@ -336,7 +336,7 @@ class MarkovModel:
         if times is None:
             times = self.times
 
-        rhs0 = self.rhs_inf(p, self.holding_potential)
+        rhs0 = self.rhs_inf(*p, self.holding_potential)
         drhs0 = self.sensitivity_ics(*p)
 
         ics = np.concatenate(rhs0, drhs0, axis=None)
@@ -362,7 +362,7 @@ class MarkovModel:
         if times is None:
             times = self.times
 
-        rhs0 = np.array(self.rhs_inf(p, self.holding_potential)).astype(np.float64)
+        rhs0 = np.array(self.rhs_inf(*p, self.holding_potential)).astype(np.float64)
         drhs0 = np.array(self.sensitivity_ics(*p)).astype(np.float64)
 
         return solve_ivp(

@@ -695,10 +695,13 @@ def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations
     ax.plot(times, model.SimulateForwardModel(fitted_params))
 
     if output_dir is not None:
-           df = pd.DataFrame(np.column_stack((fitted_params[None,:], [score])), columns=model.parameter_labels + ['SSE'])
-           df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
-           fig.savefig(os.path.join(output_dir,f"{well}_{protocol}_fit"))
-           ax.cla()
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        df = pd.DataFrame(np.column_stack((fitted_params[None,:], [score])), columns=model.parameter_labels + ['SSE'])
+        df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
+        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit"))
+        ax.cla()
 
     return fitted_params
 

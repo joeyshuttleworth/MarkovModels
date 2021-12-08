@@ -15,8 +15,9 @@ from BeattieModel import BeattieModel
 
 def fit_func(protocol, well):
 
-    default_parameters = np.array([0.00023215680795174809,0.07422110165735675,2.477501557744992e-05,0.04414799725791213,0.11023652619943154,0.015996823969951217,0.015877336172564104,0.027816696279347616,49.70368237942998])
-    common.fit_well_to_data(BeattieModel, well, protocol, args.data_file_path, args.max_iterations, os.path.join(output_dir, "fitting", f"{protocol}_{well}"), T=298, K_in=5, K_out=130, default_parameters=default_parameters, removal_duration=args.removal_duration)
+    # default_parameters = np.array([0.00023215680795174809,0.07422110165735675,2.477501557744992e-05,0.04414799725791213,0.11023652619943154,0.015996823969951217,0.015877336172564104,0.027816696279347616,49.70368237942998])
+    default_parameters = None
+    common.fit_well_to_data(BeattieModel, well, protocol, args.data_file_path, args.max_iterations, os.path.join(output_dir, f"fitting_{args.removal_duration}ms_removed", f"{protocol}_{well}"), T=298, K_in=5, K_out=120, default_parameters=default_parameters, removal_duration=args.removal_duration)
 
 def main():
     parser = common.get_parser(data_reqd=True, description="Fit a given well to the data from each of the protocols. Output the resulting parameters to a file for later use")
