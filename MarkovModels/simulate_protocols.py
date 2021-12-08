@@ -8,7 +8,9 @@ import logging
 import matplotlib.pyplot as plt
 import multiprocessing
 
-def simulate_protocol(model, name, output_dir, fig, axs):
+def simulate_protocol(model, name, output_dir):
+    fig = plt.figure(figsize=(14,12))
+    axs = fig.subplots(4)
     print(f"Plotting {name}")
     current, S1 = model.SimulateForwardModelSensitivities()
     S1n = S1 * np.array(model.get_default_parameters())[None, :]
@@ -52,10 +54,6 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-
-    fig = plt.figure(figsize=(14, 12))
-    axs = fig.subplots(4)
-
     tasks = []
     for fname in os.listdir(common.get_protocol_directory()):
         fname, ext = os.path.splitext(fname)
@@ -75,7 +73,7 @@ def main():
         # model.default_parameters = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2, 4.75E-2, 2.51E-2, 3.33E-2])
         model.default_parameters = np.array([0.00023215680795174809,0.07422110165735675,2.477501557744992e-05,0.04414799725791213,0.11023652619943154,0.015996823969951217,0.015877336172564104,0.027816696279347616,49.70368237942998])
         model.Erev = common.calculate_reversal_potential(298, K_out=130, K_in=5)
-        simulate_protocol(model, protocol_name, output_dir, fig, axs)
+        simulate_protocol(model, protocol_name, output_dir)
 
     pool = multiprocessing.Pool(processes=os.cpu_count())
     pool.map(func, tasks)
