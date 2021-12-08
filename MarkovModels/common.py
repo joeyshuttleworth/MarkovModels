@@ -701,3 +701,13 @@ def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations
            ax.cla()
 
     return fitted_params
+
+def get_all_wells_in_directory(data_dir, regex="^newtonrun4-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$", group=1):
+    regex = re.compile(regex)
+    wells = []
+
+    for f in filter(regex.match, os.listdir(data_dir)):
+        well = re.search(regex, f).groups()[group]
+        wells.append(well)
+
+    return wells
