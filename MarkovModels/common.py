@@ -560,9 +560,7 @@ def fit_model(funcs, data, starting_parameters=None, fix_parameters=[],
                 return len(self.parameters) - len(self.fix_parameters)
 
         def simulate(self, parameters, times):
-            if self.fix_parameters is None:
-                return self.forward_solver(parameters, times, len(times), voltages)
-            else:
+            if fix_parameters is not None:
                 sim_params = np.copy(self.parameters)
                 c = 0
                 for i, parameter in enumerate(self.parameters):
@@ -571,7 +569,13 @@ def fit_model(funcs, data, starting_parameters=None, fix_parameters=[],
                         c += 1
                     if c == len(parameters):
                         break
+            else:
+                sim_params = parameters
+
+            try:
                 return self.forward_solver(sim_params, times, len(times), voltages)
+            except Exception as ex:
+                return np.inf
 
         def simulateS1(self, parameters, times):
             raise NotImplementedError()
