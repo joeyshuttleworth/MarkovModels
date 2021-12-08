@@ -575,7 +575,7 @@ def fit_model(funcs, data, starting_parameters=None, fix_parameters=[],
             try:
                 return self.forward_solver(sim_params, times, len(times), voltages)
             except Exception as ex:
-                return np.inf
+                return np.full(times.shape, np.inf)
 
         def simulateS1(self, parameters, times):
             raise NotImplementedError()
@@ -706,6 +706,8 @@ def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations
         df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
         fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit"))
         ax.cla()
+    else:
+        plt.show()
 
     return fitted_params
 
