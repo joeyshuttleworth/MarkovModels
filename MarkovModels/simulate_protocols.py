@@ -49,6 +49,8 @@ def simulate_protocol(model, name, output_dir):
         ax.cla()
     plt.close(fig)
 
+    print(f"{name} finished")
+
 def main():
     parser = argparse.ArgumentParser(description="Plot output from different protocols")
     output_dir = os.path.join('output', 'simulate_protocols')
@@ -83,4 +85,5 @@ def main():
 
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     main()
