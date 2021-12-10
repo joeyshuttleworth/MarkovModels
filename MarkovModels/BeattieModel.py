@@ -24,13 +24,14 @@ class BeattieModel(MarkovModel):
         return self.default_parameters
 
     def __init__(self, protocol=None, times=None, Erev: float = None,
-                 parameters=None):
+                 parameters=None, *args, **kwargs):
         # Create symbols for symbolic functions
         symbols = self.CreateSymbols()
 
         if parameters is None:
-            self.default_parameters = np.array((2.26E-4, 6.99E-2, 3.44E-5, 5.460E-2, 0.0873,
-                         8.91E-3, 5.15E-3, 0.003158, 0.1524))
+            self.default_parameters = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2, 4.75E-2, 2.51E-2, 3.33E-2])
+            # np.array((2.26E-4, 6.99E-2, 3.44E-5, 5.460E-2, 0.0873,
+            #              8.91E-3, 5.15E-3, 0.003158, 0.1524))
 
         else:
             self.default_parameters = parameters
@@ -79,7 +80,7 @@ class BeattieModel(MarkovModel):
         B = sp.Matrix([k4, 0, k1])
 
         # Call the constructor of the parent class, MarkovModel
-        super().__init__(symbols, A, B, times, rates, voltage=protocol, tolerances=(1e-6, 1e-8))
+        super().__init__(symbols, A, B, times, rates, voltage=protocol, *args, **kwargs)
 
     def CreateSymbols(self):
         """

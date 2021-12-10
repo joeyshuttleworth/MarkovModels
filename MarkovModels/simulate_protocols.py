@@ -20,7 +20,6 @@ def simulate_protocol(model, name, output_dir):
 
     interp_voltage, _, _, _ = common.get_protocol_from_csv(name, directory=common.get_protocol_directory())
     axs[0].plot(model.times, model.GetVoltage(), label='generated voltage function')
-    # axs[0].plot(model.times, np.array([interp_voltage(t) for t in model.times]) - model.GetVoltage(), label='actual voltage')
     axs[0].plot()
     axs[0].grid(True)
     axs[0].set_xticklabels([])

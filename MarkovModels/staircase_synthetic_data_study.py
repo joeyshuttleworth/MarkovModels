@@ -330,7 +330,7 @@ def main():
     voltages = np.array([staircase_protocol(t) for t in times])
     spikes, _ = common.detect_spikes(times, voltages, 10)
     print(f"found {len(spikes)} spikes")
-    times, voltages = common.remove_spikes(times, voltages, spikes, args.remove)
+    times, voltages, _ = common.remove_spikes(times, voltages, spikes, args.remove)
 
     funcs = BeattieModel(times=times,
                          protocol=staircase_protocol)
