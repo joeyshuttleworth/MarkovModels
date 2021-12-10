@@ -1,0 +1,36 @@
+[[model]]
+name: Beattie_model
+
+# Initial values
+markov_chain.s_O = 1
+markov_chain.C   = 0
+markov_chain.s_I = 0
+
+[engine]
+time = 0 bind time
+
+[markov_chain]
+use membrane.V as V
+dot(C) = C * (-k1 - k3) + IC * k4 + k2 * s_O
+IC = 1 - C - s_I - s_O
+k1 = p0 * exp(V * p1)
+k2 = p2 * exp(-V * p3)
+k3 = p4 * exp(V * p5)
+k4 = p6 * exp(-V * p7)
+dot(s_I) = IC * k1 + k3 * s_O + s_I * (-k2 - k4)
+dot(s_O) = C * k1 + k4 * s_I + s_O * (-k2 - k3)
+
+p0 = 0.000226
+p1 = 0.0699
+p2 = 3.44e-5
+p3 = 0.0546
+p4 = 0.0873
+p5 = 0.00891
+p6 = 0.00515
+p7 = 0.003158
+p8 = 0.1524
+
+[membrane]
+V = 0 bind pace
+Erev = -88
+I_Kr = markov_chain.p8 * markov_chain.s_O * (V - Erev)
