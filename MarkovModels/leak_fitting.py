@@ -86,7 +86,7 @@ def main():
             df.append([f"{protocol}", "before", well] + list(fit_leak_lr(protocol_voltages, before_trace, dt=5e-4,  percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps))[0:5])
             df.append([f"{protocol}", "after", well] + list(fit_leak_lr(protocol_voltages, after_trace, dt=5e-4, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps))[0:5])
 
-            g_leak, E_leak, _, x, y, _, _ = fit_leak_lr(protocol_voltages, before_trace, dt=dt,  percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
+            g_leak, E_leak, _, _, _, x, y = fit_leak_lr(protocol_voltages, before_trace, dt=dt,  percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
             before_leak_current = (protocol_voltages - E_leak) * g_leak
             fit_axs[2].scatter(x, y, marker='s', color = 'grey', s=2)
             fit_axs[2].plot(x, (x - E_leak) * g_leak, color='red')
@@ -135,6 +135,7 @@ def main():
             plt.show()
         else:
             scatter_fig.savefig(os.path.join(output_dir, f"{well}.png"))
+        scatter_ax.cla()
 
         fig2 = plt.figure(clear=True)
         ax2 = fig2.subplots()
