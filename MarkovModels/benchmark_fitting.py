@@ -130,7 +130,7 @@ def main():
     cProfile.run('func2()')
 
 def get_mk_solver(mk_protocol, times, atol, rtol):
-    model = mk.load_model(os.path.join('this_dir', 'benchmarks', 'beattie_model.mmt'))
+    model = mk.load_model(os.path.join(this_dir, 'benchmarks', 'beattie_model.mmt'))
     sim = mk.Simulation(model, mk_protocol)
 
     sim.set_constant('membrane.Erev', Erev)
