@@ -363,14 +363,14 @@ def get_ramp_protocol_from_csv(protocol_name : str, directory=None, holding_pote
     windows = np.argwhere(diff2 > threshold).flatten()
     window_locs = np.unique(windows)
 
-    windows = zip([0] + list(window_locs), list(window_locs) + [len(voltages)-1])
+    windows = zip([0] + list(window_locs+1), list(window_locs+1) + [len(voltages)-1])
 
     lst = []
     t_diff = times[1] - times[0]
     for start, end in windows:
         start_t = start * t_diff
         end_t   = end * t_diff
-        lst.append((start_t, end_t, voltages[start+1], voltages[end]))
+        lst.append((start_t, end_t, voltages[start], voltages[end]))
 
     protocol = tuple(lst)
     # print(protocol)
@@ -381,7 +381,7 @@ def get_ramp_protocol_from_csv(protocol_name : str, directory=None, holding_pote
             return holding_potential
 
         for i in range(len(protocol)):
-            if t < protocol[i][1]:
+            if t <= protocol[i][1]:
                 if np.abs(protocol[i][3] - protocol[i][2]) > threshold:
                     return protocol[i][2] + (t - protocol[i][0])*(protocol[i][3]-protocol[i][2])/(protocol[i][1] - protocol[i][0])
                 else:
@@ -398,7 +398,7 @@ def get_ramp_protocol_from_csv(protocol_name : str, directory=None, holding_pote
     # plt.legend()
     # plt.show()
 
-    return protocol_func, times[0], times[-1], times[1]-times[0]
+    return protocol_func, times[0], times[-1], times[1]-times[0], protocol
 
 
 def draw_cov_ellipses(mean=[0, 0], S1=None, sigma2=None, cov=None, plot_dir=None):
