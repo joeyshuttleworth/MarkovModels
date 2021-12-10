@@ -48,6 +48,24 @@ def simulate_protocol(model, name, output_dir):
         ax.cla()
     plt.close(fig)
 
+    # Now plot just the voltage and current
+    fig = plt.figure(figsize=(14,12))
+    ax = fig.subplots(2)
+
+    fig.set_title(name)
+
+    axs[0].plot(model.times, model.GetVoltage())
+    axs[1].plot(model.times, current)
+    axs[1].set_xlabel('time /ms')
+    axs[0].set_ylabel('current /nA')
+    axs[1].set_ylabel('voltage / mV')
+
+    fig.savefig(os.path.join(output_dir, f"{name}_protocol"))
+
+    for ax in axs:
+        ax.cla()
+    plt.clos(fig)
+
     print(f"{name} finished")
 
 def main():
