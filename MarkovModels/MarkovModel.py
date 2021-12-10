@@ -27,6 +27,7 @@ class MarkovModel:
         except:
             raise Exception()
 
+        # [atol, rtol]
         self.solver_tolerances = tolerances
 
         self.symbols = symbols
@@ -240,15 +241,18 @@ class MarkovModel:
 
         crhs_ptr = crhs.address
 
-        c_sig  = nb.float64[:,:](nb.float64[:],
-                                 nb.float64[:],
-                                 nb.int64)
+        c_sig  = nb.float64[:,:](
+            nb.types.Array(nb.types.float64, 1, 'A', readonly=True),
+            nb.types.Array(nb.types.float64, 1, 'A', readonly=True),
+            nb.int64)
 
+        atol = self.solver_tolerances[0]
+        rtol = self.solver_tolerances[1]
         @cfunc(c_sig)
         def forward_solver(p, times, t_length):
             rhs0 = rhs_inf(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], voltage(0))
             # times_ = nb.carray(times, (t_length,))
-            solution, _ = lsoda(crhs_ptr, rhs0, times, data=p)
+            solution, _ = lsoda(crhs_ptr, rhs0, times, data=p, rtol=rtol, atol=atol)
             return solution
         return forward_solver
 
@@ -259,14 +263,16 @@ class MarkovModel:
         open_index = self.open_state_index
         Erev = self.Erev
 
-        c_sig  = nb.float64[:](nb.float64[:],
-                                 nb.float64[:],
-                                 nb.int64,
-                                 nb.float64[:])
+        c_sig  = nb.float64[:](
+            nb.types.Array(nb.types.float64, 1, 'A', readonly=True),
+            nb.types.Array(nb.types.float64, 1, 'A', readonly=True),
+            nb.int64,
+            nb.types.Array(nb.types.float64, 1, 'A', readonly=True))
+
         @cfunc(c_sig)
         def forward_solver(p, times, t_length, voltages):
             states = solver_states(p, times, t_length)
-            return states[:,open_index] * p[gkr_index] * (voltages - Erev)
+            return states[:,open_index].flatten() * p[gkr_index] * (voltages - Erev)
         return forward_solver
 
     def solve_rhs(self, p, times=None):
@@ -276,37 +282,6 @@ class MarkovModel:
             times = self.times
         p = np.array(p)
         return self.make_forward_solver_states()(p, times, len(times))
-
-        # rhs0 = np.array(self.rhs_inf(p, self.holding_potential)).astype(np.float64)[:,0]
-
-        # if times is None:
-        #     times = self.times
-
-        # rhs = nb.njit(self.func_rhs)
-        # voltage = self.voltage
-
-        # @cfunc(lsoda_sig)
-        # def crhs(t, y, dy, p):
-        #     res = rhs(y[0], y[1], y[2],
-        #               p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8],
-        #               voltage(t))
-        #     for i in range(3):
-        #         dy[i] = res[i]
-
-        # solution, _ = lsoda(crhs.address, rhs0, times, data=p)
-        # return(solution)
-        # return solve_ivp(
-        #     self.rhs,
-        #     (times[0], times[-1]),
-        #     rhs0,
-        #     t_eval = times,
-        #     atol=self.solver_tolerances[0],
-        #     rtol=self.solver_tolerances[1],
-        #     jac=self.jrhs,
-        #     method='LSODA',
-        #     args=(
-        #         p,
-        #     ))
 
     def drhs(self, t, y, p):
         """ Evaluate RHS analytically
@@ -410,6 +385,7 @@ class MarkovModel:
         """
         if times is None:
             times = self.times
+
         v = np.array([self.voltage(t) for t in times])
         return v
 
@@ -465,3 +441,6 @@ class MarkovModel:
             [2 * (current - data) * current * sensitivity for sensitivity in sensitivites.T])
 
         return current, current_sensitivies
+
+    def get_no_parameters(self):
+        return len(self.get_default_parameters())
