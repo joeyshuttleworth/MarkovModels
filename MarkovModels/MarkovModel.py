@@ -17,8 +17,8 @@ class MarkovModel:
     def get_default_parameters(self):
         raise NotImplementedError
 
-    def __init__(self, symbols, A, B, times, rate_labels, voltage=None,
-                 tolerances=[1e-3, 1e-5]):
+    def __init__(self, symbols, A, B, rates_dict, times, rate_labels, voltage=None,
+                 tolerances=(1e-3, 1e-5)):
 
         try:
             self.y = symbols['y']
@@ -26,6 +26,8 @@ class MarkovModel:
             self.v = symbols['v']
         except:
             raise Exception()
+
+        self.rates_dict = rates_dict
 
         # [atol, rtol]
         self.solver_tolerances = tolerances
@@ -38,7 +40,7 @@ class MarkovModel:
         self.B = B
         self.rate_labels = rate_labels
 
-        self.rhs_expr = A @ self.y + B
+        self.rhs_expr = (A @ self.y + B).subs(rates_dict)
 
         if voltage is not None:
             self.voltage = voltage
@@ -126,7 +128,7 @@ class MarkovModel:
         # assert(np.all(eigvals < 0))
 
         # Can be found analytically
-        self.rhs_inf_expr = -self.A.LUsolve(self.B)
+        self.rhs_inf_expr = -self.A.LUsolve(self.B).subs(rates_dict)
         # self.rhs_inf = lambda p, v: np.array(self.rhs_inf_expr.subs(dict(zip(self.p, p))).subs('v', v)).astype(np.float64)
         self.rhs_inf = nb.njit(sp.lambdify((*self.p, 'v'), self.rhs_inf_expr, modules='numpy'))
 
@@ -158,11 +160,8 @@ class MarkovModel:
             parameters = self.get_default_parameters()
 
         param_dict = dict(zip(self.symbols['p'], parameters))
-        A_matrix = np.array([self.A.subs(
-            self.symbols['v'], voltage).subs(param_dict)]).astype(np.float64).reshape(self.A.rows, self.A.cols)
-
-        B_vector = np.array([float(el.evalf()) for el in self.B.subs(
-            self.symbols['v'], voltage).subs(param_dict)])
+        A_matrix = np.array(self.A.subs(self.rates_dict).subs(self.v, voltage).subs(param_dict)).astype(np.float64)
+        B_vector = np.array(self.B.subs(self.rates_dict).subs(self.v, voltage).subs(param_dict)).astype(np.float64)
 
         cond = np.linalg.cond(A_matrix)
         logging.info("A matrix condition number is {} for voltage = {}".format(cond, voltage))
@@ -199,7 +198,7 @@ class MarkovModel:
             parameters = self.get_default_parameters()
 
         if rhs0 is None:
-            rhs0 = self.rhs_inf(parameters, self.holding_potential)
+            rhs0 = self.rhs_inf(*parameters, self.holding_potential)
 
         #Solve non-homogeneous part
         A_matrix, B_vector = self.get_linear_system(voltage=voltage, parameters=parameters)
@@ -218,8 +217,8 @@ class MarkovModel:
 
         IC = rhs0
         IC_KZ = np.linalg.solve(C, IC - X2)
-        K =  np.diag(IC_KZ)
-        solution = (C@K@np.exp(times*eigenvalues[:,None]) + X2[:, None]).T
+        K =  np.diag(IC_KZ.flatten())
+        solution = (C@K@np.exp(np.outer(eigenvalues, times)) + X2[:,None]).T
 
         # Apply auxiliary function to solution
         return solution[:, self.open_state_index]*parameters[self.GKr_index]*(voltage - self.Erev)

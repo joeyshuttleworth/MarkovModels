@@ -59,28 +59,31 @@ class BeattieModel(MarkovModel):
         self.parameter_labels = [f"p{i+1}" for i in range(len(self.default_parameters)-1)] + ['Gkr']
         A, B = mc.eliminate_state_from_transition_matrix(self.state_labels)
 
-        rates = dict([("k{}".format(i+1), symbols['p'][2*i]*sp.exp(symbols['p'][2*i+1]*symbols['v'])) for i in range(int(self.n_params/2))])
-
-        A = A.subs(rates)
-        B = B.subs(rates)
-
         p = symbols['p']
         y = symbols['y']
         v = symbols['v']
 
-        # Define system equations and initial conditions
-        k1 = p[0] * sp.exp(p[1] * v)
-        k2 = p[2] * sp.exp(-p[3] * v)
-        k3 = p[4] * sp.exp(p[5] * v)
-        k4 = p[6] * sp.exp(-p[7] * v)
+        rates = dict([("k%i"% (i + 1),
+                      p[2*i]*sp.exp(p[2*i+1]*v))
+                      for i in range(int(self.n_params/2))])
 
+        # A = A.subs(rates)
+        # B = B.subs(rates)
+
+        # Define system equations and initial conditions
+        # k1 = p[0] * sp.exp(p[1] * v)
+        # k2 = p[2] * sp.exp(-p[3] * v)
+        # k3 = p[4] * sp.exp(p[5] * v)
+        # k4 = p[6] * sp.exp(-p[7] * v)
 
         # Notation is consistent between the two papers
-        A = sp.Matrix([[-k1 - k3 - k4, k2 - k4, -k4], [k1, -k2 - k3, k4], [-k1, k3 - k1, -k2 - k4 - k1]])
-        B = sp.Matrix([k4, 0, k1])
+        A = sp.Matrix([['-k1 - k3 - k4', 'k2 - k4', '-k4'],
+                       ['k1', '-k2 - k3', 'k4'],
+                       ['-k1', 'k3 - k1', '-k2 - k4 - k1']])
+        B = sp.Matrix(['k4', 0, 'k1'])
 
         # Call the constructor of the parent class, MarkovModel
-        super().__init__(symbols, A, B, times, rates, voltage=protocol, *args, **kwargs)
+        super().__init__(symbols, A, B, rates, times, rates, voltage=protocol, *args, **kwargs)
 
     def CreateSymbols(self):
         """
@@ -88,7 +91,7 @@ class BeattieModel(MarkovModel):
         These are used to generate functions for the right hand side and Jacobian
         """
         # Create parameter symbols
-        p = [sp.symbols('p%d' % j) for j in range(self.n_params)]
+        p = sp.Matrix([sp.symbols('p%d' % j) for j in range(self.n_params)])
         # Create state variable symbols
         y = sp.Matrix([sp.symbols('y%d' % i) for i in range(self.n_state_vars)])
         # Create voltage symbol
