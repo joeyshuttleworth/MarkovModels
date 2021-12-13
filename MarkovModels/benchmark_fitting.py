@@ -72,7 +72,7 @@ def main():
         protocol.append((start_t, end_t, level, level))
 
     protocol = tuple(protocol)
-    holding_potential = mk_protocol.events()[-1].level()
+    holding_potential = -80
 
     @njit
     def protocol_func(t):
@@ -84,7 +84,7 @@ def main():
                 if np.abs(protocol[i][3] - protocol[i][2]) > 0.0001:
                     return protocol[i][2] + (t - protocol[i][0])*(protocol[i][3]-protocol[i][2])/(protocol[i][1] - protocol[i][0])
                 else:
-                    return protocol[i][3]
+                    return protocol[i][2]
 
     for step in protocol:
         mk_protocol.add_step(step[-1], step[1]-step[0])
@@ -92,6 +92,31 @@ def main():
     voltages = np.array([protocol_func(t) for t in times])
 
     model = BeattieModel(protocol_func, times, Erev=Erev)
+    model.window_locs = [tstart for tstart, _, _, _ in protocol]
+    model.protocol_description = protocol
+
+    tolerances = [(1E-3, 1E-5), (1E-5, 1E-7), (1E-7, 1E-9), (1E-9, 1E-12)]
+
+    fig = plt.figure(figsize=(16,14))
+    axs = fig.subplots(len(tolerances))
+
+    mms_solver = model.make_forward_solver_current(voltages)
+    for ax, (abs_tol, rel_tol) in zip(axs, tolerances):
+        mk_res = get_mk_solver(mk_protocol, times, abs_tol, rel_tol)(mean_params)
+        mms_res = mms_solver(mean_params, times, voltages, abs_tol, rel_tol)
+        hybrid_res = model.make_hybrid_solver_current(voltages, protocol)(mean_params, times)
+
+        ax.plot(times, np.log(np.abs(np.array(mk_res['membrane.I_Kr']) - hybrid_res)), label="myokit errors")
+        ax.plot(times, np.log(np.abs(mms_res - hybrid_res)), label="numerical solver errors")
+        ax.legend()
+        ax.set_title(f"abs_tol = {abs_tol}, rel_tol = {rel_tol}")
+        ax.set_ylabel(f"log absolute errors ")
+
+    axs[-1].set_xlabel("time /ms")
+    model.set_tolerances(1e-3, 1e-5)
+
+    fig.savefig('benchmark_solver_errors')
+    plt.close(fig)
 
     mk_solver = get_mk_solver(mk_protocol, times, atol=model.solver_tolerances[0], rtol=model.solver_tolerances[1])
     mms_solver_func = model.make_forward_solver_current()
@@ -114,17 +139,15 @@ def main():
 
     @njit
     def mms_solver(p):
-        sol = mms_solver_func_states(p, times, len(times))
+        sol = mms_solver_func_states(p, times)
 
         dy = np.array([0, 0, 0])
-        # for i in range(len(times)):
-        #     crhs(times[i], sol[i,:], dy, p)
         return p[-1]*sol[:,1]*(voltages - Erev)
 
-    hybrid_solve = model.make_hybrid_solver_current(protocol)
+    hybrid_solve = model.make_hybrid_solver_current(voltages)
     @njit
     def hybrid_solver(p):
-        return hybrid_solve(p, times, voltages)
+        return hybrid_solve(p, times)
 
     samples = np.random.multivariate_normal(mean_params, params_cov, args.no_simulations)
 
@@ -140,16 +163,19 @@ def main():
     ax.plot(times, np.array(mk_res[0]['membrane.I_Kr']), label="myokit solution")
     ax.plot(times, mms_res[0], label="numerical solver solution")
     ax.plot(times, hybrid_res[0], label="hybrid solver solution")
-    fig.savefig('benchmark_solver_comparison')
     ax.legend()
+    fig.savefig('benchmark_solver_comparison')
     ax.cla()
+    plt.close(fig)
+
+    fig = plt.figure(figsize=(16,14))
+    ax = fig.subplots()
 
     # compare voltages
     ax.plot(mk_res[0]['engine.time'], np.array(mk_res[0]['membrane.V']))
     ax.plot(times, voltages)
     fig.savefig('voltage_comparison')
     ax.cla()
-
 
     mk_errors = np.array([((res2-res1['membrane.I_Kr'])**2).sum() for res1, res2 in zip(mk_res, hybrid_res)])
     mms_errors = np.array([((res2-res1)**2).sum() for res1, res2 in zip(mms_res, hybrid_res)])
@@ -158,12 +184,13 @@ def main():
     arg_max_error = np.argmax(mms_errors)
     plt.plot(times, hybrid_solver(subsamples[arg_max_error]), label="hybrid")
     plt.plot(times, mms_solver(subsamples[arg_max_error]), label="mms")
+    plt.plot(times, mk_solver(subsamples[arg_max_error])['membrane.I_Kr'], label="myokit")
     plt.legend()
-    plt.show()
+    plt.savefig("biggest_mms_error")
 
     print(errors_df)
 
-    errors_df.to_csv('benchmark_errors')
+    errors_df.to_csv('benchmark_errors.csv')
 
     print("Running mk simulations")
     global func1

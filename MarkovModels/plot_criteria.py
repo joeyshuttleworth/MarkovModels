@@ -18,7 +18,6 @@ criteria = ['D', 'A', 'G']
 
 sigma2 = 0.0001
 
-
 def plot_sensitivities():
     fig = plt.figure(figsize=(14,12))
     axs = fig.subplots(2)
@@ -71,10 +70,15 @@ def main():
     no_steps = int(t_end/t_step)
     times = np.linspace(0, t_end, no_steps)
 
+    protocol_func, _, _, _, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
+
     model = BeattieModel(times=times,
-                         protocol=common.get_protocol('staircaseramp')[0],
+                         protocol=protocol_func,
                          Erev=common.calculate_reversal_potential(310.15),
                          parameters=params)
+    model.protocol_description = protocol_desc
+
+    model.window_locs = [t for t, _, _, _ in protocol_desc]
 
     voltages = model.GetVoltage()
 
@@ -109,7 +113,6 @@ def main():
                 1, S1)))
 
         cov = sigma2 * cov
-        print(cov)
         covs.append(cov)
 
     D_optimalities = np.array(D_optimalities)
@@ -225,7 +228,7 @@ def main():
                               parameters=params)
 
     pred_voltages = pred_model.GetVoltage()
-    forward_solve = pred_model.make_forward_solver_current()
+    forward_solve = pred_model.make_hybrid_solver_current(protocol_desc)
 
     def get_trajectory(p):
         try:
@@ -359,8 +362,8 @@ def plot_regions(times, model, spike_times, spike_indices, output_dir, spike_rem
                 label=f"p{p_of_interest[0]+1} = {offset[0]}, p{p_of_interest[1]+1} = {offset[1]}")
     axs[0].set_xlabel(f"p{p_of_interest[0]+1} / ms^-1")
     axs[0].set_ylabel(f"p{p_of_interest[1]+1} / ms^-1")
-    axs[1].xaxis.set_ticks([])
-    axs[1].yaxis.set_ticks([])
+    # axs[1].xaxis.set_ticks([])
+    # axs[1].yaxis.set_ticks([])
     axs[1].set_xlabel('rotated and scaled view')
 
     axs[1].legend()
@@ -376,11 +379,12 @@ def get_mcmc_chains(model, indices, chain_length=1000):
     times = model.times[indices]
     voltages = model.GetVoltage()[indices]
 
-    forward_solver = model.make_forward_solver_current()
+    print(times.shape)
+    forward_solver = model.make_hybrid_solver_current(voltages)
 
     @cfunc(nb.float64(nb.float64[:]))
     def log_likelihood_func(p):
-        return -0.5*np.sum((forward_solver(p, times, times.shape[0], voltages) - data)**2/sigma2) - np.log(np.sqrt(sigma2*2*np.pi))
+        return -0.5*np.sum((forward_solver(p, times) - data)**2/sigma2) - np.log(np.sqrt(sigma2*2*np.pi))
 
     class pints_likelihood(pints.LogPDF):
         def __call__(self, p):
@@ -398,6 +402,7 @@ def get_mcmc_chains(model, indices, chain_length=1000):
     return mcmc.run()
 
 def compute_tau_inf_from_samples(samples, voltage=40):
+    print(samples.shape)
     k1 = samples[:, :, 0] * np.exp(samples[:, :, 1] * voltage)
     k2 = samples[:, :, 2] * np.exp(-samples[:, :, 3] * voltage)
     k3 = samples[:, :, 4] * np.exp(samples[:, :, 5] * voltage)

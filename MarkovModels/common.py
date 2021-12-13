@@ -370,12 +370,11 @@ def get_ramp_protocol_from_csv(protocol_name : str, directory=None, holding_pote
     for start, end in windows:
         start_t = start * t_diff
         end_t   = end * t_diff
-        if np.abs(voltages[start], voltages[end]) < threshold:
+        if np.abs(voltages[start] - voltages[end]) < threshold:
             voltages[end] = voltages[start]
         lst.append((start_t, end_t, voltages[start], voltages[end]))
 
     protocol = tuple(lst)
-    # print(protocol)
 
     @njit
     def protocol_func(t):
@@ -390,16 +389,6 @@ def get_ramp_protocol_from_csv(protocol_name : str, directory=None, holding_pote
                     return protocol[i][3]
 
         raise Exception()
-
-    # debug plots
-    # plt.plot(times, voltages, label='real voltage')
-    # plt.plot(times, [protocol_func(t) for t in times], label='interpolation')
-
-    # for l in window_locs:
-    #     plt.axvline(times[l], linestyle="--", color='red')
-    # plt.legend()
-    # plt.show()
-
     return protocol_func, times[0], times[-1], times[1]-times[0], protocol
 
 
