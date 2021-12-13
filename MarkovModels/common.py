@@ -370,6 +370,8 @@ def get_ramp_protocol_from_csv(protocol_name : str, directory=None, holding_pote
     for start, end in windows:
         start_t = start * t_diff
         end_t   = end * t_diff
+        if np.abs(voltages[start], voltages[end]) < threshold:
+            voltages[end] = voltages[start]
         lst.append((start_t, end_t, voltages[start], voltages[end]))
 
     protocol = tuple(lst)
