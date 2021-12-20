@@ -8,6 +8,7 @@ import logging
 import matplotlib.pyplot as plt
 import multiprocessing
 
+
 def simulate_protocol(model, name, output_dir):
     fig = plt.figure(figsize=(14, 12))
     axs = fig.subplots(4)
@@ -50,7 +51,7 @@ def simulate_protocol(model, name, output_dir):
     plt.close(fig)
 
     # Now plot just the voltage and current
-    fig = plt.figure(figsize=(14,12))
+    fig = plt.figure(figsize=(14, 12))
     axs = fig.subplots(2)
 
     axs[0].set_title(name)
@@ -68,6 +69,7 @@ def simulate_protocol(model, name, output_dir):
     plt.close(fig)
 
     print(f"{name} finished")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Plot output from different protocols")
@@ -88,18 +90,18 @@ def main():
         if fname in args.protocols or len(args.protocols) == 0:
             func(fname, ext, output_dir)
 
+
 def func(protocol_name, ext, output_dir):
     if ext != ".csv":
         logging.warning(f"Using file with extension {ext}")
 
     protocol, t_start, t_end, t_step = common.get_protocol_from_csv(protocol_name)
-    times = np.linspace(t_start, t_end, int((t_end-t_start)/t_step))
-    model = BeattieModel(protocol, times, Erev = common.calculate_reversal_potential(298, K_out=130, K_in=5))
+    times = np.linspace(t_start, t_end, int((t_end - t_start) / t_step))
+    model = BeattieModel(protocol, times, Erev=common.calculate_reversal_potential(298, K_out=130, K_in=5))
 
-    model.default_parameters = np.array([0.00023215680795174809,0.07422110165735675,2.477501557744992e-05,0.04414799725791213,0.11023652619943154,0.015996823969951217,0.015877336172564104,0.027816696279347616,49.70368237942998])
+    model.default_parameters = np.array([0.00023215680795174809, 0.07422110165735675, 2.477501557744992e-05, 0.04414799725791213,
+                                        0.11023652619943154, 0.015996823969951217, 0.015877336172564104, 0.027816696279347616, 49.70368237942998])
     simulate_protocol(model, protocol_name, output_dir)
-
-
 
 
 if __name__ == "__main__":

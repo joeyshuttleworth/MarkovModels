@@ -22,6 +22,7 @@ from BeattieModel import BeattieModel
 sigma2 = 0.006
 n_params = 9
 
+
 def draw_likelihood_surface(
         funcs, paras, params_to_change, ranges, data, args, output_dir=None):
     """
@@ -326,7 +327,7 @@ def main():
         os.makedirs(plot_dir)
 
     staircase_protocol, t_start, t_end, t_step = common.get_protocol("staircase")
-    times = np.linspace(t_start, t_end, int((t_end - t_start)/t_step))
+    times = np.linspace(t_start, t_end, int((t_end - t_start) / t_step))
     voltages = np.array([staircase_protocol(t) for t in times])
     spikes, _ = common.detect_spikes(times, voltages, 10)
     print(f"found {len(spikes)} spikes")
@@ -432,7 +433,7 @@ def main():
 
 def create_symbols():
     y = sp.Matrix([sp.sympify("y%i" % i) for i in range(1, 4)])
-    p = sp.Matrix([sp.sympify("p%i" % (i+1)) for i in range(n_params)])
+    p = sp.Matrix([sp.sympify("p%i" % (i + 1)) for i in range(n_params)])
     v = sp.sympify('v')
     dict = {'y': y, 'p': p, 'v': v}
     return dict

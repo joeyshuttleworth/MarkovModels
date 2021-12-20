@@ -13,8 +13,10 @@ import pints
 import regex as re
 from numba import njit
 
+
 def get_protocol_directory():
-    return os.path.join(os.path.dirname( os.path.realpath(__file__)), "protocols")
+    return os.path.join(os.path.dirname(os.path.realpath(__file__)), "protocols")
+
 
 def get_protocol_list():
     directory = get_protocol_directory()
@@ -27,6 +29,7 @@ def get_protocol_list():
         name = re.search(regex, fname).group(1)
         protocols.append(name)
     return protocols
+
 
 def get_args(data_reqd=False, description=None):
     """Get command line arguments from using get_parser
@@ -72,7 +75,7 @@ def get_parser(data_reqd=False, description=None):
     parser = argparse.ArgumentParser(description=description)
     if data_reqd:
         parser.add_argument(
-            "data_file_path",
+            "data_directory",
             help="path to csv data for the model to be fit to",
             default=False)
     parser.add_argument(
@@ -110,7 +113,7 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
                 nsig=None, ax: plt.axes = None,
                 label_arg: str = None,
                 rotate: float = None,
-                resize_axes: bool=False,
+                resize_axes: bool = False,
                 color: str = None):
     """
     copied from stackoverflow
@@ -168,7 +171,7 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
         ax.add_patch(e)
         e.set_clip_box(ax.bbox)
 
-        window_width  = max(np.abs(width[0] * math.cos(rotate)), np.abs(height[0] * math.sin(rotate)))
+        window_width = max(np.abs(width[0] * math.cos(rotate)), np.abs(height[0] * math.sin(rotate)))
         window_height = max(np.abs(width[0] * math.sin(rotate)), np.abs(height[0] * math.cos(rotate)))
         # window_height = np.abs(height[0] * np.sin(rotate))
         # max_dim = max(window_width, window_height)
@@ -179,10 +182,11 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
             ax.set_xlim(offset[0] - window_width, offset[0] + window_width)
             ax.set_ylim(offset[1] - window_height, offset[1] + window_height)
         else:
-            ax.set_xlim(offset[0] - width/2, offset[0] + width/2)
-            ax.set_ylim(offset[1] - height/2, offset[1] + height/2)
+            ax.set_xlim(offset[0] - width / 2, offset[0] + width / 2)
+            ax.set_ylim(offset[1] - height / 2, offset[1] + height / 2)
 
     return ax
+
 
 def remove_spikes(times, voltages, spike_times, time_to_remove):
     lst = np.column_stack((times, voltages))
@@ -202,9 +206,9 @@ def remove_spikes(times, voltages, spike_times, time_to_remove):
             break
         indices_to_remove.append((spike_index, end_index))
 
-
     indices_remaining = np.array(remove_indices(list(range(len(times))), indices_to_remove))
-    return lst[indices_remaining,0], lst[indices_remaining,1], indices_remaining
+    return lst[indices_remaining, 0], lst[indices_remaining, 1], indices_remaining
+
 
 def remove_indices(lst, indices_to_remove):
     """Remove a list of indices from some list-like object
@@ -323,7 +327,7 @@ def get_protocol_from_csv(protocol_name: str, directory=None, holding_potential=
     if directory is None:
         directory = get_protocol_directory()
 
-    protocol = pd.read_csv(os.path.join(directory, protocol_name+".csv"))
+    protocol = pd.read_csv(os.path.join(directory, protocol_name + ".csv"))
 
     times = protocol["time"].values.flatten()
     voltages = protocol["voltage"].values.flatten()
@@ -331,10 +335,10 @@ def get_protocol_from_csv(protocol_name: str, directory=None, holding_potential=
     def staircase_protocol_safe(t):
         return np.interp([t], times, voltages)[0] if t < times[-1] and t > times[0] else holding_potential
 
-    return staircase_protocol_safe, times[0], times[-1], times[1]-times[0]
+    return staircase_protocol_safe, times[0], times[-1], times[1] - times[0]
 
 
-def get_ramp_protocol_from_csv(protocol_name : str, directory=None, holding_potential=-80, threshold=0.001):
+def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_potential=-80, threshold=0.001):
     """Generate a function by interpolating
     time-series data.
 
@@ -351,20 +355,20 @@ def get_ramp_protocol_from_csv(protocol_name : str, directory=None, holding_pote
     if directory is None:
         directory = get_protocol_directory()
 
-    protocol = pd.read_csv(os.path.join(directory, protocol_name+".csv"))
+    protocol = pd.read_csv(os.path.join(directory, protocol_name + ".csv"))
 
     times = protocol["time"].values.flatten()
     voltages = protocol["voltage"].values.flatten()
 
     # Find gradient changes
     diff2 = np.abs(np.diff(voltages, n=2))
-    diff1 = np.abs(np.diff(voltages, n=1))
+    # diff1 = np.abs(np.diff(voltages, n=1))
 
     windows = np.argwhere(diff2 > threshold).flatten()
     window_locs = np.unique(windows)
-    window_locs = np.array([val for val in window_locs if val + 1 not in window_locs])+1
+    window_locs = np.array([val for val in window_locs if val + 1 not in window_locs]) + 1
 
-    windows = zip([0] + list(window_locs), list(window_locs) + [len(voltages)-1])
+    windows = zip([0] + list(window_locs), list(window_locs) + [len(voltages) - 1])
 
     lst = []
     t_diff = times[1] - times[0]
@@ -388,12 +392,12 @@ def get_ramp_protocol_from_csv(protocol_name : str, directory=None, holding_pote
         for i in range(len(protocol)):
             if t <= protocol[i][1]:
                 if np.abs(protocol[i][3] - protocol[i][2]) > threshold:
-                    return protocol[i][2] + (t - protocol[i][0])*(protocol[i][3]-protocol[i][2])/(protocol[i][1] - protocol[i][0])
+                    return protocol[i][2] + (t - protocol[i][0]) * (protocol[i][3] - protocol[i][2]) / (protocol[i][1] - protocol[i][0])
                 else:
                     return protocol[i][3]
 
         raise Exception()
-    return protocol_func, times[0], times[-1], times[1]-times[0], protocol
+    return protocol_func, times[0], times[-1], times[1] - times[0], protocol
 
 
 def draw_cov_ellipses(mean=[0, 0], S1=None, sigma2=None, cov=None, plot_dir=None):
@@ -444,7 +448,7 @@ def draw_cov_ellipses(mean=[0, 0], S1=None, sigma2=None, cov=None, plot_dir=None
                 sub_cov = sigma2 * np.linalg.inv(np.dot(sub_sens.T, sub_sens))
             # Else use cov
             else:
-                sub_cov = cov[parameters_to_view[:, None], np.array((i,j))]
+                sub_cov = cov[parameters_to_view[:, None], np.array((i, j))]
             eigen_val, eigen_vec = np.linalg.eigh(sub_cov)
             eigen_val = eigen_val.real
             if eigen_val[0] > 0 and eigen_val[1] > 0:
@@ -540,37 +544,36 @@ def fit_model(funcs, data, starting_parameters=None, fix_parameters=[],
     class PintsWrapper(pints.ForwardModelS1):
         def __init__(self, funcs, parameters, fix_parameters=None):
             self.funcs = funcs
-            self.parameters = parameters
+            self.parameters = np.array(parameters)
 
             self.fix_parameters = fix_parameters
 
             if fix_parameters is not None:
-                self.free_parameters = [i for i in range(
-                    0, len(starting_parameters)) if i not in fix_parameters]
+                free_parameters = tuple([i for i in range(len(parameters))
+                                         if i not in fix_parameters])
             else:
-                self.free_parameters = range(0, len(starting_parameters))
-            self.forward_solver = funcs.make_forward_solver_current()
+                free_parameters = tuple(range(len(parameters)))
+                fix_parameters = tuple()
+            forward_solver_func = funcs.make_hybrid_solver_current()
+
+            if len(fix_parameters) > 0:
+                @njit
+                def simulate(p, times):
+                    sim_parameters = np.copy(parameters)
+
+                    for i in range(len(fix_parameters)):
+                        sim_parameters[fix_parameters[i]] = p[i]
+
+                    return forward_solver_func(sim_parameters, times)
+            else:
+                @njit
+                def simulate(p, times):
+                    return forward_solver_func(p, times)
+
+            self.simulate = simulate
 
         def n_parameters(self):
-                return len(self.parameters) - len(self.fix_parameters)
-
-        def simulate(self, parameters, times):
-            if fix_parameters is not None:
-                sim_params = np.copy(self.parameters)
-                c = 0
-                for i, parameter in enumerate(self.parameters):
-                    if i not in self.fix_parameters:
-                        sim_params[i] = parameters[c]
-                        c += 1
-                    if c == len(parameters):
-                        break
-            else:
-                sim_params = parameters
-
-            try:
-                return self.forward_solver(sim_params, times, len(times), voltages)
-            except Exception as ex:
-                return np.full(times.shape, np.inf)
+            return len(self.parameters) - len(self.fix_parameters)
 
         def simulateS1(self, parameters, times):
             raise NotImplementedError()
@@ -628,12 +631,12 @@ def get_protocol(protocol_name: str):
     if protocol_name == "sine-wave":
         v = beattie_sine_wave
         t_start = 0
-        t_end   = 15000
-        t_step  = 0.1
+        t_end = 15000
+        t_step = 0.1
     else:
         # Check the protocol folders for a protocol with the same name
         protocol_dir = get_protocol_directory()
-        possible_protocol_path = os.path.join(protocol_dir, protocol_name+".csv")
+        possible_protocol_path = os.path.join(protocol_dir, protocol_name + ".csv")
         if os.path.exists(possible_protocol_path):
             try:
                 v, t_start, t_end, t_step, _ = get_ramp_protocol_from_csv(protocol_name)
@@ -645,33 +648,38 @@ def get_protocol(protocol_name: str):
             raise Exception("Protocol not found at " + possible_protocol_path)
     return v, t_start, t_end, t_step
 
-def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations, output_dir = None, T=298, K_in=120, K_out=5, default_parameters: float = None, removal_duration=5):
+
+def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations, output_dir=None, T=298, K_in=120, K_out=5, default_parameters: float = None, removal_duration=5):
 
     # Ignore files that have been commented out
-    voltage_func, t_start, t_end, t_step = get_protocol(protocol)
+    voltage_func, t_start, t_end, t_step, protocol_desc = get_ramp_protocol_from_csv(protocol)
+
+    print(protocol_desc)
 
     # Find data
     regex = re.compile(f"^newtonrun4-{protocol}-{well}.csv$")
     fname = next(filter(regex.match, os.listdir(data_directory)))
     data = pd.read_csv(os.path.join(data_directory, fname))['current'].values
 
-    times = pd.read_csv(os.path.join(data_directory, f"newtonrun4-{protocol}-times.csv"))['time'].values
-    voltages = [voltage_func(t) for t in times]
-
+    times = pd.read_csv(os.path.join(data_directory, f"newtonrun4-{protocol}-times.csv"))['time'].values*1e3
+    voltages = np.array([voltage_func(t) for t in times])
     spikes, _ = detect_spikes(times, voltages, 10)
     times, _, indices = remove_spikes(times, voltages, spikes, removal_duration)
+    voltages = voltages[indices]
     data = data[indices]
 
     Erev = calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
 
     model = model_class(voltage_func, times, parameters=default_parameters)
+    model.set_tolerances(1e-5, 1e-7)
+    model.protocol_description = protocol_desc
 
     model.Erev = Erev
 
-    initial_gkr_guess = np.max(data)/100
+    initial_gkr = np.max(data) / 10
 
     initial_params = model.get_default_parameters()
-    initial_params[model.GKr_index] = initial_gkr_guess
+    initial_params[model.GKr_index] = initial_gkr
 
     initial_score = ((model.SimulateForwardModel() - data)**2).sum()
     print(f"initial score is {initial_score}")
@@ -681,14 +689,16 @@ def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations
     def gkr_opt_func(gkr):
         p = model.get_default_parameters()
         p[8] = gkr
-        return ((model.SimulateForwardModel() - data)**2).sum()
+        return ((model.SimulateForwardModel(p) - data)**2).sum()
 
     initial_gkr = scipy.optimize.minimize_scalar(gkr_opt_func).x
     initial_params[8] = initial_gkr
 
+    print(f"initial_gkr is {initial_gkr}")
+
     fitted_params, score = fit_model(model, data, starting_parameters=initial_params, max_iterations=max_iterations)
 
-    fig = plt.figure(figsize=(14,12))
+    fig = plt.figure(figsize=(14, 12))
     ax = fig.subplots(1)
     ax.plot(times, data)
     ax.plot(times, model.SimulateForwardModel(fitted_params))
@@ -697,7 +707,7 @@ def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-        df = pd.DataFrame(np.column_stack((fitted_params[None,:], [score])), columns=model.parameter_labels + ['SSE'])
+        df = pd.DataFrame(np.column_stack((fitted_params[None, :], [score])), columns=model.parameter_labels + ['SSE'])
         df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
         fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit"))
         ax.cla()
@@ -705,6 +715,7 @@ def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations
         plt.show()
 
     return fitted_params
+
 
 def get_all_wells_in_directory(data_dir, regex="^newtonrun4-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$", group=1):
     regex = re.compile(regex)

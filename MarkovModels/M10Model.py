@@ -15,16 +15,16 @@ class M10Model(MarkovModel):
 
     n_params = 13
     n_states = 6
-    n_state_vars = n_states-1
+    n_state_vars = n_states - 1
     GKr_index = 12
     open_state_index = 0
     Erev = -88
     holding_potential = -80
 
-    state_labels=('O', 'IC1', 'IC2', 'IO', 'C2', 'C1')
+    state_labels = ('O', 'IC1', 'IC2', 'IO', 'C2', 'C1')
 
     def get_default_parameters(self):
-        return np.array((8.53183002138620944e-03, 8.31760044455376601e-02, 1.26287052202195688e-02, -1.03628499834739776e-07, 2.70276339808042609e-01,1.58000446046794897e-02, 7.66699486356391818e-02, -2.24575000694940963e-02, 1.49033896782688496e-01, 2.43156986537036227e-02, 5.58072076984100361e-04, -4.06619125485430874e-02, 0.1524))
+        return np.array((8.53183002138620944e-03, 8.31760044455376601e-02, 1.26287052202195688e-02, -1.03628499834739776e-07, 2.70276339808042609e-01, 1.58000446046794897e-02, 7.66699486356391818e-02, -2.24575000694940963e-02, 1.49033896782688496e-01, 2.43156986537036227e-02, 5.58072076984100361e-04, -4.06619125485430874e-02, 0.1524))
 
     def __init__(self, protocol=None, times=None):
         # Create symbols for symbolic functions
@@ -35,9 +35,10 @@ class M10Model(MarkovModel):
 
         mc = MarkovChain()
 
-        states = ('O','IC1','IC2','IO','C1','C2')
+        states = ('O', 'IC1', 'IC2', 'IO', 'C1', 'C2')
         mc.add_states(states)
-        rates = (('IC2', 'IC1', 'a1', 'b1'), ('IC1', 'IO', 'a2', 'b2'), ('IO', 'O', 'ah', 'bh'), ('O', 'C1', 'b2', 'a2'), ('C1', 'C2', 'b1', 'a1'), ('C2', 'IC2', 'bh', 'ah'), ('C1', 'IC1', 'bh', 'ah'))
+        rates = (('IC2', 'IC1', 'a1', 'b1'), ('IC1', 'IO', 'a2', 'b2'), ('IO', 'O', 'ah', 'bh'), ('O', 'C1',
+                 'b2', 'a2'), ('C1', 'C2', 'b1', 'a1'), ('C2', 'IC2', 'bh', 'ah'), ('C1', 'IC1', 'bh', 'ah'))
 
         for r in rates:
             mc.add_both_transitions(*r)
@@ -45,10 +46,10 @@ class M10Model(MarkovModel):
         A, B = mc.eliminate_state_from_transition_matrix(('O', 'IC1', 'IC2', 'IO', 'C2'))
 
         p = symbols['p']
-        rate_vals=[p[2*i]*sp.exp(p[2*i+1]*symbols['v']) for i in range(int((len(p))/2))]
+        rate_vals = [p[2 * i] * sp.exp(p[2 * i + 1] * symbols['v']) for i in range(int((len(p)) / 2))]
         rate_labels = ('a1', 'b1', 'bh', 'ah', 'a2', 'b2')
 
-        rates_dict=dict(zip(rate_labels, rate_vals))
+        rates_dict = dict(zip(rate_labels, rate_vals))
 
         A = A.subs(rates_dict)
         B = B.subs(rates_dict)
@@ -56,8 +57,6 @@ class M10Model(MarkovModel):
         self.mc = mc
         # Call the constructor of the parent class, MarkovModel
         super().__init__(symbols, A, B, times, rate_labels, voltage=protocol)
-
-
 
     def CreateSymbols(self):
         """
@@ -70,4 +69,4 @@ class M10Model(MarkovModel):
         y = sp.Matrix([sp.symbols('y%d' % i) for i in range(self.n_state_vars)])
         # Create voltage symbol
         v = sp.symbols('v')
-        return {'p' : p, 'y' : y, 'v' : v}
+        return {'p': p, 'y': y, 'v': v}

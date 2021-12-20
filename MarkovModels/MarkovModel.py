@@ -6,6 +6,7 @@ from NumbaLSODA import lsoda_sig, lsoda
 from numba import njit, cfunc, literal_unroll
 import numba as nb
 
+
 class MarkovModel:
     """
     A class containing describing a Markov Model of an ion channel
@@ -123,7 +124,6 @@ class MarkovModel:
         # voltage
         # dx/dt = Ax+B
 
-
         A_matrix, _ = self.get_linear_system()
 
         # eigvals = np.linalg.eig(A_matrix)[0]
@@ -135,10 +135,12 @@ class MarkovModel:
         self.rhs_inf = nb.njit(sp.lambdify((*self.p, 'v'), self.rhs_inf_expr, modules='numpy'))
 
         self.current_inf_expr = self.auxillary_expression.subs(self.y, self.rhs_inf)
-        self.current_inf = lambda p: np.array(self.current_inf_expr.subs(dict(zip(self.p, p))).evalf()).astype(np.float64)
+        self.current_inf = lambda p: np.array(self.current_inf_expr.subs(
+            dict(zip(self.p, p))).evalf()).astype(np.float64)
 
         # Find sensitivity steady states at holding potential
-        self.sensitivity_ics_expr = sp.Matrix([sp.diff(self.rhs_inf_expr[i].subs('v', self.holding_potential), self.p[j]) for j in range(self.n_params) for i in range(self.n_state_vars)])
+        self.sensitivity_ics_expr = sp.Matrix([sp.diff(self.rhs_inf_expr[i].subs(
+            'v', self.holding_potential), self.p[j]) for j in range(self.n_params) for i in range(self.n_state_vars)])
 
         self.sensitivity_ics = sp.lambdify(self.p, self.sensitivity_ics_expr)
 
@@ -173,7 +175,7 @@ class MarkovModel:
         return A_matrix, B_vector
 
     def get_steady_state(self, voltage=None, parameters=None):
-        A,B = self.get_linear_system(voltage, parameters)
+        A, B = self.get_linear_system(voltage, parameters)
         steady_state = -np.linalg.solve(A, B)
         return steady_state
 
@@ -189,7 +191,7 @@ class MarkovModel:
         TODO: Check that the matrix is well conditioned
         """
 
-       #Solve non-homogeneous part
+       # Solve non-homogeneous part
         X2 = -self.A.LUsolve(self.B)
 
         # Solve the homogenous part via diagonalisation
@@ -210,11 +212,11 @@ class MarkovModel:
 
         IC = sp.Matrix(['rhs%i' % i for i in range(self.get_no_states())])
         IC_KZ = C.LUsolve(IC - X2)
-        K =  sp.matrices.diag(*IC_KZ)
+        K = sp.matrices.diag(*IC_KZ)
 
         # solution = (C@K@np.exp(times*eigenvalues[:,None]) + X2[:, None]).T
 
-        return C@K, eigenvalues, X2
+        return C @ K, eigenvalues, X2
 
     def get_rates_func(self, njitted=True):
 
@@ -267,7 +269,7 @@ class MarkovModel:
 
         if self.window_locs is not None:
             window_locs = np.array(self.window_locs)
-            windows = tuple(zip([float(0)] + list(window_locs+1), list(window_locs+1) + [np.inf]))
+            windows = tuple(zip([float(0)] + list(window_locs + 1), list(window_locs + 1) + [np.inf]))
         else:
             windows = ((-np.inf, np.inf),)
         no_states = self.get_no_states()
@@ -291,7 +293,7 @@ class MarkovModel:
                     iend = len(times)
                 else:
                     iend += 1
-                    step_times = times[istart:iend+1]
+                    step_times = times[istart:iend + 1]
 
                 step_sol, _ = lsoda(crhs_ptr, rhs0, step_times, data=p,
                                     rtol=rtol, atol=atol)
@@ -350,7 +352,7 @@ class MarkovModel:
                     iend = len(times)
                 else:
                     iend += 1
-                    step_times = times[istart:iend+1]
+                    step_times = times[istart:iend + 1]
 
                 # Analytic solve
                 if vstart == vend:
@@ -380,10 +382,14 @@ class MarkovModel:
 
         if protocol_description is None:
             if self.protocol_description is None:
-                #TODO
+                # TODO
                 raise Exception()
             else:
                 protocol_description = self.protocol_description
+
+        if voltages is None:
+            voltages = self.GetVoltage()
+
         times = self.times
 
         atol, rtol = self.solver_tolerances
@@ -406,6 +412,9 @@ class MarkovModel:
         gkr_index = self.GKr_index
         open_index = self.open_state_index
         Erev = self.Erev
+
+        if voltages is None:
+            voltages = self.GetVoltage()
 
         def forward_solver(p, times, voltages=voltages, atol=atol, rtol=rtol):
             states = solver_states(p, times, atol, rtol)
@@ -445,8 +454,10 @@ class MarkovModel:
 
         evals = 0
         rhs_func = self.rhs
+
         class rhs_counter():
-            evals=0
+            evals = 0
+
             def func(self, t, y, *args):
                 self.evals += 1
                 return rhs_func(t, y, p)
@@ -477,9 +488,9 @@ class MarkovModel:
 
         """
         return self.jfunc_S1(*(*
-                              y[:self.n_state_vars], *
-                              p, self.voltage(t), *
-                              y[self.n_state_vars:]))
+                               y[:self.n_state_vars], *
+                               p, self.voltage(t), *
+                               y[self.n_state_vars:]))
 
     # Returns the open state 1st order sensitivities
     def solve_drhs(self, p, times=None):
@@ -501,7 +512,7 @@ class MarkovModel:
         drhs = solve_ivp(self.drhs,
                          (times[0], times[-1]),
                          ics,
-                         t_eval = times,
+                         t_eval=times,
                          atol=self.solver_tolerances[0],
                          rtol=self.solver_tolerances[1],
                          Dfun=self.jdrhs,
@@ -540,11 +551,12 @@ class MarkovModel:
     def SimulateForwardModel(self, p=None, times=None):
         if p is None:
             p = self.get_default_parameters()
-        o = self.solve_rhs(p, times)['y'].T[:, self.open_state_index]
-        voltages = self.GetVoltage(times=times)
-        return p[self.GKr_index] * o * (voltages - self.Erev)
+        if times is None:
+            times = self.times
 
-    def GetStateVariables(self, p = None):
+        return self.make_forward_solver_current(njitted=False)(p, times)
+
+    def GetStateVariables(self, p=None):
 
         if p is None:
             p = self.get_default_parameters()

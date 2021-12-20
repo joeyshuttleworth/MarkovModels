@@ -2,9 +2,9 @@ import numpy as np
 import sympy as sp
 from scipy.integrate import odeint
 
-from MarkovModel import MarkovModel
-from MarkovChain import MarkovChain
-import common
+from . MarkovModel import MarkovModel
+from . import common
+
 
 class BeattieModel(MarkovModel):
     """
@@ -13,7 +13,7 @@ class BeattieModel(MarkovModel):
 
     n_params = 9
     n_states = 4
-    n_state_vars = n_states-1
+    n_state_vars = n_states - 1
     GKr_index = 8
     open_state_index = 1
     holding_potential = -80
@@ -21,7 +21,7 @@ class BeattieModel(MarkovModel):
     def get_default_parameters(self):
         return self.default_parameters
 
-    def __init__(self, protocol=None, times=None, Erev: float = None,
+    def __init__(self, voltage=None, times=None, Erev: float = None,
                  parameters=None, *args, **kwargs):
         # Create symbols for symbolic functions
         symbols = self.CreateSymbols()
@@ -29,7 +29,7 @@ class BeattieModel(MarkovModel):
         if parameters is None:
             # self.default_parameters = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2, 4.75E-2, 2.51E-2, 3.33E-2])
             self.default_parameters = np.array((2.26E-4, 6.99E-2, 3.44E-5, 5.460E-2, 0.0873,
-                         8.91E-3, 5.15E-3, 0.003158, 0.1524))
+                                                8.91E-3, 5.15E-3, 0.003158, 0.1524))
 
         else:
             self.default_parameters = parameters
@@ -43,15 +43,14 @@ class BeattieModel(MarkovModel):
             times = np.linspace(0, 15000, 1000)
 
         self.state_labels = ['C', 'O', 'I']
-        self.parameter_labels = [f"p{i+1}" for i in range(len(self.default_parameters)-1)] + ['Gkr']
+        self.parameter_labels = [f"p{i+1}" for i in range(len(self.default_parameters) - 1)] + ['Gkr']
 
         p = symbols['p']
-        y = symbols['y']
         v = symbols['v']
 
-        rates = {"k%i"%(i + 1):
-                      p[2*i]*sp.exp((-1)**i*p[2*i+1]*v)
-                      for i in range(int(self.n_params/2))}
+        rates = {"k%i" % (i + 1):
+                 p[2 * i] * sp.exp((-1)**i * p[2 * i + 1] * v)
+                 for i in range(int(self.n_params / 2))}
 
         # Notation is consistent between the two papers
         A = sp.Matrix([['-k1 - k3 - k4', 'k2 - k4', '-k4'],
@@ -59,7 +58,7 @@ class BeattieModel(MarkovModel):
                        ['-k1', 'k3 - k1', '-k2 - k4 - k1']])
         B = sp.Matrix(['k4', 0, 'k1'])
         # Call the constructor of the parent class, MarkovModel
-        super().__init__(symbols, A, B, rates, times, rates, voltage=protocol, *args, **kwargs)
+        super().__init__(symbols, A, B, rates, times, rates, voltage=voltage, *args, **kwargs)
 
     def CreateSymbols(self):
         """
