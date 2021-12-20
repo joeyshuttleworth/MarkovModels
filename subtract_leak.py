@@ -179,7 +179,7 @@ def main():
                     passed2 = False
 
                 if trace.mean() > -(before_sd + after_sd) * 2:
-                    print(f"{protocol}, {well}, {tracename} \tpassed QC6b")
+                    print(f"{protocol}, {well}, {tracename} \tpassed QC6c")
                     passed3 = True
                 else:
                     print(f"{protocol}, {well}, {tracename} \tfailed QC6c")
