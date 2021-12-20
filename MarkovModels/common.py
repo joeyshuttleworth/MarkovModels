@@ -689,7 +689,7 @@ def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations
         p[8] = gkr
         return ((model.SimulateForwardModel(p) - data)**2).sum()
 
-    initial_gkr = scipy.optimize.minimize_scalar(gkr_opt_func).x
+    initial_gkr = np.abs(scipy.optimize.minimize_scalar(gkr_opt_func).x)
     initial_params[8] = initial_gkr
 
     print(f"initial_gkr is {initial_gkr}")
