@@ -306,7 +306,7 @@ def beattie_sine_wave(t):
     return V
 
 
-def get_protocol_from_csv(protocol_name : str, directory=None, holding_potential=-80):
+def get_protocol_from_csv(protocol_name: str, directory=None, holding_potential=-80):
     """Generate a function by interpolating
     time-series data.
 
@@ -334,7 +334,7 @@ def get_protocol_from_csv(protocol_name : str, directory=None, holding_potential
     return staircase_protocol_safe, times[0], times[-1], times[1]-times[0]
 
 
-def get_ramp_protocol_from_csv(protocol_name : str, directory=None, holding_potential=-80, threshold=0.00001):
+def get_ramp_protocol_from_csv(protocol_name : str, directory=None, holding_potential=-80, threshold=0.001):
     """Generate a function by interpolating
     time-series data.
 
@@ -362,17 +362,21 @@ def get_ramp_protocol_from_csv(protocol_name : str, directory=None, holding_pote
 
     windows = np.argwhere(diff2 > threshold).flatten()
     window_locs = np.unique(windows)
+    window_locs = np.array([val for val in window_locs if val + 1 not in window_locs])+1
 
-    windows = zip([0] + list(window_locs+1), list(window_locs+1) + [len(voltages)-1])
+    windows = zip([0] + list(window_locs), list(window_locs) + [len(voltages)-1])
 
     lst = []
     t_diff = times[1] - times[0]
     for start, end in windows:
+        end -= 1
         start_t = start * t_diff
-        end_t   = end * t_diff
-        if np.abs(voltages[start] - voltages[end]) < threshold:
+        end_t = end * t_diff
+        if np.abs(voltages[start] - voltages[end]) <= threshold:
             voltages[end] = voltages[start]
         lst.append((start_t, end_t, voltages[start], voltages[end]))
+
+    lst.append((end_t, np.inf, voltages[-1], voltages[-1]))
 
     protocol = tuple(lst)
 
@@ -632,7 +636,7 @@ def get_protocol(protocol_name: str):
         possible_protocol_path = os.path.join(protocol_dir, protocol_name+".csv")
         if os.path.exists(possible_protocol_path):
             try:
-                v, t_start, t_end, t_step = get_ramp_protocol_from_csv(protocol_name)
+                v, t_start, t_end, t_step, _ = get_ramp_protocol_from_csv(protocol_name)
             except:
                 # TODO
                 raise

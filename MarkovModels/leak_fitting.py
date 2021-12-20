@@ -34,17 +34,17 @@ def main():
     parser.add_argument('--output', '-o', default='output')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--percentage_to_remove', default=0, type=float)
-    # parser.add_argument('--extra_points', default=0, type=int)
+    parser.add_argument('-e', '--extra_points', nargs=2, default=(0,0), type=int)
     parser.add_argument('--plot', '-p', action="store_true")
 
     args = parser.parse_args()
-    args.extra_points = 0
+    # args.extra_points = 0
 
     if len(args.protocols)==0:
         default_protocol_list = ["sis", "longap", "rtovmaxdiff", "rvotmaxdiff", "spacefill10", "spacefill19", "spacefill26", "hhsobol3step", "hhbrute3gstep", "wangsobol3step", "wangbrute3gstep"]
         args.protocols = default_protocol_list
 
-    output_dir = os.path.join(args.output, f"leak_fitting_{args.percentage_to_remove:.0f}")
+    output_dir = os.path.join(args.output, f"leak_fitting_{args.percentage_to_remove:.0f}_{args.extra_points}")
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -73,8 +73,8 @@ def main():
             protocol_voltages = np.array([protocol_func(t) for t in observation_times])
 
             # Find first few steps where voltage is big
-            if args.extra_points > 0:
-                extra_steps = np.array(list(itertools.islice(filter(lambda x : x[1] > 20, enumerate(protocol_voltages)), args.extra_points)))[:,0].astype(int)
+            if args.extra_points[1] > 0:
+                extra_steps = np.array(list(itertools.islice(filter(lambda x : x[1] > 20, enumerate(protocol_voltages)), args.extra_points[1])))[args.extra_points[0]:,0].astype(int)
             else:
                 extra_steps = []
 
@@ -86,13 +86,45 @@ def main():
             df.append([f"{protocol}", "before", well] + list(fit_leak_lr(protocol_voltages, before_trace, dt=5e-4,  percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps))[0:5])
             df.append([f"{protocol}", "after", well] + list(fit_leak_lr(protocol_voltages, after_trace, dt=5e-4, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps))[0:5])
 
-            g_leak, E_leak, _, _, _, x, y = fit_leak_lr(protocol_voltages, before_trace, dt=dt,  percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
+            g_leak, E_leak, _, s_alpha, s_beta, x, y = fit_leak_lr(protocol_voltages, before_trace, dt=dt,  percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
             before_leak_current = (protocol_voltages - E_leak) * g_leak
-            fit_axs[2].scatter(x, y, marker='s', color = 'grey', s=2)
-            fit_axs[2].plot(x, (x - E_leak) * g_leak, color='red')
+            fit_axs[2].scatter(x, y, marker='s', color='grey', s=2)
+            n = len(x)
+            xpred = np.linspace(-120, 40, 1000)
+            predictions = (xpred - E_leak) * g_leak
+
+            fit_axs[2].plot(xpred, predictions, color='red')
+
+            msres = (((x - E_leak)*g_leak - y)**2/(n-2)).sum()
+            confidence_region = np.sqrt(msres*(1/n + (xpred - x.mean())**2/((x**2).sum())))
+
+            fit_axs[2].fill_between(xpred, 1.96*confidence_region + predictions,
+                                    -1.96*confidence_region + predictions,
+                                    color='blue',
+                                    alpha=0.5)
+            before_mean = predictions[-1]
+            before_sd = confidence_region[-1]
+            before_subtraced = before_trace - (protocol_voltages - E_leak)*g_leak
+            print(f"{well}, {protocol}: prediction of pre-drug leak current at 40mV: mean = {predictions[-1]}, sd={confidence_region[-1]}")
+
             fit_axs[2].set_xlabel("voltage mV")
             fit_axs[2].set_ylabel("before current")
-            g_leak, E_leak, _, x, y, _, _ = fit_leak_lr(protocol_voltages, after_trace, dt=dt,  percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
+            g_leak, E_leak, _, s_alpha, s_beta, x, y = fit_leak_lr(protocol_voltages, after_trace, dt=dt,  percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
+            predictions = (xpred - E_leak) * g_leak
+            msres = (((x - E_leak)*g_leak - y)**2/(n-2)).sum()
+            confidence_region = np.sqrt(msres*(1/n + (xpred - x.mean())**2/((x**2).sum())))
+
+            after_mean = predictions[-1]
+            after_sd = confidence_region[-1]
+            after_subtraced = after_trace - (protocol_voltages - E_leak)*g_leak
+            confidence_region = np.sqrt(msres*(1/n + (xpred - x.mean())**2/((x**2).sum())))
+
+            fit_axs[3].fill_between(xpred, 1.96*confidence_region + predictions,
+                                    -1.96*confidence_region + predictions,
+                                    color='blue',
+                                    alpha=0.5)
+
+            print(f"{well}, {protocol}: prediction of post-drug leak current at 40mV: mean = {predictions[-1]}, sd={confidence_region[-1]}")
             fit_axs[3].scatter(x, y, marker='s', color= 'grey', s=2)
             fit_axs[3].plot(x, (x - E_leak) * g_leak, color='red')
             fit_axs[3].set_xlabel("voltage mV")
@@ -110,15 +142,17 @@ def main():
             if args.plot:
                 plt.show()
             else:
-                plt.savefig(os.path.join(fits_dir, f"{well}_{protocol}_fit.png"))
+                fit_fig.savefig(os.path.join(fits_dir, f"{well}_{protocol}_fit.png"))
+
             for ax in fit_axs:
                 ax.cla()
+            subtracted_trace = before_trace - after_trace
+            print(f"{well}, {protocol}: prediction of subtracted trace at 1s: mean = {subtracted_trace[window[-1]]}, sd={before_sd + after_sd}")
 
         df = pd.DataFrame(df, columns=('trace', "E4031", 'well', 'g_leak', 'E_leak', 'r', 's_alpha', 's_beta'))
         color = df.E4031.map({'before':'b', 'after':'r'})
         df.set_index(['trace', 'E4031'], inplace=True)
         df.plot.scatter('g_leak', 'E_leak', ax=scatter_ax, title=well, color=color, marker='x')
-        plt.close(scatter_fig)
 
         for i, row in df.iterrows():
             text_color = 'red' if i[1] == "after" else 'blue'
@@ -137,7 +171,7 @@ def main():
             scatter_fig.savefig(os.path.join(output_dir, f"{well}.png"))
         scatter_ax.cla()
 
-        fig2 = plt.figure(clear=True)
+        fig2 = plt.figure(figsize=(20,18), clear=True)
         ax2 = fig2.subplots()
         df['r'].plot.bar(ax=ax2, color=color)
         if args.plot:
