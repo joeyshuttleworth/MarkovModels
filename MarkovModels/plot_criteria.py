@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import pints
+
+import itertools
 from MarkovModel import MarkovModel
 from BeattieModel import BeattieModel
 from numba import jit, njit, cfunc
@@ -17,33 +19,6 @@ import matplotlib.pyplot as plt
 criteria = ['D', 'A', 'G']
 
 sigma2 = 0.0001
-
-def plot_sensitivities():
-    fig = plt.figure(figsize=(14,12))
-    axs = fig.subplots(2)
-    voltages = model.GetVoltage()
-    current, S1 = model.SimulateForwardModelSensitivities()
-    params = model.get_default_parameters()
-
-    t_step = (model.times[-1] - model.times[0])/len(model.times)
-    axs[0].plot(times, current, label='Current /nA')
-    axs[0].plot(spike_times, current[spike_indices], 'x', color='red')
-    axs[1].plot(times, voltages, label='voltage / mV')
-    axs[1].set_ylim(-150, 50)
-    axs[0].legend()
-    axs[1].legend()
-
-    param_labels = [f"S(p{i})" for i in range(model.n_params)]
-
-    for i in range(model.n_params):
-        axs[2].plot(times, S1[:, i]*params[i], label=param_labels[i])
-    axs[2].legend()
-
-    fig.savefig(os.path.join(output_dir, 'sensitivities_plot.pdf'))
-    for ax in axs:
-        ax.cla()
-    plt.close(fig)
-
 def main():
 
     plt.style.use('classic')
@@ -51,55 +26,54 @@ def main():
     parser.add_argument("-n", "--no_samples", type=int, default=1000)
     parser.add_argument("-N", "--no_chains", type=int, default=8)
     parser.add_argument("-l", "--chain_length", type=int, default=1000)
+    parser.add_argument("-b", "--burn-in", type=int, default=None)
 
     global args
     args = parser.parse_args()
-
     output_dir = os.path.join(args.output, "plot_criteria")
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.linspace(0, 30, 10)
+    spike_removal_durations = np.linspace(0, 50, 10)
 
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
 
-    t_end = 15000
-    t_step = 0.1
-    no_steps = int(t_end/t_step)
-    times = np.linspace(0, t_end, no_steps)
-
-    protocol_func, _, _, _, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
+    protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
+    times = np.linspace(tstart, tend, int((tend-tstart)/tstep))
 
     model = BeattieModel(times=times,
                          protocol=protocol_func,
                          Erev=common.calculate_reversal_potential(310.15),
                          parameters=params)
-    model.protocol_description = protocol_desc
 
+    model.protocol_description = protocol_desc
     model.window_locs = [t for t, _, _, _ in protocol_desc]
 
     voltages = model.GetVoltage()
+    states = model.make_hybrid_solver_states()(params, times)
 
     D_optimalities = []
     A_optimalities = []
     G_optimalities = []
 
     current, S1 = model.SimulateForwardModelSensitivities(params)
-    # S1n = S1 * np.array(params)[None, :]
     spike_times, spike_indices = common.detect_spikes(times, voltages,
                                                       window_size=1)
-    current_spikes, _ = common.detect_spikes(times, current, threshold = 10, window_size=100)
+
+    current_spikes, _ = common.detect_spikes(times, current, threshold=max(current)/100,
+                                             window_size=100)
+    print(f"spike locations are{current_spikes}")
 
     covs = []
-    indices_used=[]
+    indices_used = []
     for time_to_remove in spike_removal_durations:
         indices = common.remove_indices(list(range(len(times))),
                                         [(spike,
-                                          int(spike + time_to_remove/t_step))
+                                          int(spike + time_to_remove/tstep))
                                          for spike in spike_indices])
-        indices_used.append(indices)
+        indices_used.append(np.unique(indices))
 
         H = np.dot(S1[indices, :].T, S1[indices, :])
 
@@ -143,87 +117,93 @@ def main():
     plot_regions(times, model, spike_times, spike_indices, output_dir,
                  spike_removal_durations, conf_fig, conf_axs, (6, 7))
 
-    fig = plt.figure(figsize=(18,14))
+    fig = plt.figure(figsize=(18, 14))
     axs = fig.subplots(4)
+
     # Sample steady states and timescales
     print("Sampling steady states and timescales")
     voltage = 0
-    param_fig = plt.figure(figsize=(18,14))
+
+    param_fig = plt.figure(figsize=(18, 14))
     param_axs = param_fig.subplots(model.get_no_parameters())
-    for i, cov in enumerate(covs):
-        try:
-            # Normal approximation first
-            a_inf, tau_a, r_inf, tau_r = monte_carlo_tau_inf(
-                params, cov, voltage=0)
-            # axs[0].scatter(a_inf, tau_a, marker='x')
-            sns.kdeplot(data=pd.DataFrame(zip(a_inf, tau_a), columns=[
-                        'a_inf', 'tau_a']), shade=True, fill=True, ax=axs[0], x='a_inf', y='tau_a')
-            axs[0].set_title(
-                f"+40mV with {spike_removal_durations[i]:.2f}ms removed")
-            # axs[1].scatter(r_inf, tau_r, marker='x')
-            sns.kdeplot(data=pd.DataFrame(zip(r_inf, tau_r), columns=[
-                        'r_inf', 'tau_r']), shade=True, ax=axs[1], x='r_inf', y='tau_r')
-            # r_inf vs a_inf
-            sns.kdeplot(data=pd.DataFrame(zip(r_inf, a_inf), columns=[
-                'r_inf', 'a_inf']), shade=True, ax=axs[2], x='r_inf', y='a_inf')
-            sns.kdeplot(data=pd.DataFrame(r_inf*a_inf, columns=[
-                'r_inf * a_inf']), shade=True, ax=axs[3])
 
-            fig.savefig(os.path.join(output_dir, f"{i}.png"))
+    forward_solver = model.make_hybrid_solver_current()
+    data = forward_solver(model.get_default_parameters(), times, voltage) + np.random.normal(0, np.sqrt(sigma2), (len(times),))
 
-            for ax in axs:
-                ax.cla()
-        except Exception as e:
-            print(str(e))
+    for i, cov, in enumerate(covs):
+        # Normal approximation first
+        a_inf, tau_a, r_inf, tau_r, gkr = monte_carlo_tau_inf(
+            params, cov, voltage=voltage)
+        # axs[0].scatter(a_inf, tau_a, marker='x')
+        sns.kdeplot(data=pd.DataFrame(zip(a_inf, tau_a), columns=[
+                    'a_inf', 'tau_a']), shade=True, fill=True, ax=axs[0], x='a_inf', y='tau_a')
+        axs[0].set_title(
+            f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed")
+        # axs[1].scatter(r_inf, tau_r, marker='x')
+        sns.kdeplot(data=pd.DataFrame(zip(r_inf, tau_r), columns=[
+                    'r_inf', 'tau_r']), shade=True, ax=axs[1], x='r_inf', y='tau_r')
+        # r_inf vs a_inf
+        sns.kdeplot(data=pd.DataFrame(zip(r_inf, a_inf), columns=[
+            'r_inf', 'a_inf']), shade=True, ax=axs[2], x='r_inf', y='a_inf')
+        sns.kdeplot(data=pd.DataFrame(gkr*r_inf*a_inf, columns=[
+            'I_Kr_inf']), shade=True, ax=axs[3])
+
+        axs[0].set_title(f"{voltage}mV with {spike_removal_durations[i]}ms removed after each spike")
+        fig.savefig(os.path.join(output_dir, f"{i}.png"))
+
+        for ax in axs:
+            ax.cla()
 
         # Next, the MCMC version
-        samples = get_mcmc_chains(model, indices_used[i])
-        res = compute_tau_inf_from_samples(samples, voltage=0)
-        for a_inf, tau_a, r_inf, tau_r in zip(*res):
+        samples = get_mcmc_chains(forward_solver, times, voltages, indices_used[i], data, args.chain_length, model.get_default_parameters(), burn_in=args.burn_in)
+        res = compute_tau_inf_from_samples(samples, voltage=voltage)
+        for j, (a_inf, tau_a, r_inf, tau_r) in enumerate(zip(*res)):
+            gkrs = samples[j,:,-1]
+            axs[0].set_title(f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed after each spike")
             try:
                 # axs[0].scatter(a_inf, tau_a, marker='x')
                 sns.kdeplot(data=pd.DataFrame(zip(a_inf, tau_a), columns=[
-                    'a_inf', 'tau_a']), shade=True, fill=True, ax=param_axs[0], x='a_inf', y='tau_a')
+                    'a_inf', 'tau_a']), shade=True, fill=True, ax=axs[0], x='a_inf', y='tau_a')
                 axs[0].set_title(
                     f"+40mV with {spike_removal_durations[i]:.2f}ms removed (MCMC)")
-                # axs[1].scatter(r_inf, tau_r, marker='x')
                 sns.kdeplot(data=pd.DataFrame(zip(r_inf, tau_r), columns=[
-                    'r_inf', 'tau_r']), shade=True, ax=param_axs[1], x='r_inf', y='tau_r')
+                    'r_inf', 'tau_r']), shade=True, ax=axs[1], x='r_inf', y='tau_r')
                 # r_inf vs a_inf
                 sns.kdeplot(data=pd.DataFrame(zip(r_inf, a_inf), columns=[
-                    'r_inf', 'a_inf']), shade=True, ax=param_axs[2], x='r_inf', y='a_inf')
-                sns.kdeplot(data=pd.DataFrame(r_inf*a_inf, columns=[
-                    'r_inf * a_inf']), shade=True, ax=param_axs[3])
-                fig.savefig(os.path.join(output_dir, f"mcmc_{i}.png"))
-
-                for ax in axs:
-                    ax.cla()
-
+                    'r_inf', 'a_inf']), shade=True, ax=axs[2], x='r_inf', y='a_inf')
+                sns.kdeplot(data=pd.DataFrame(gkrs*r_inf*a_inf, columns=[
+                    'I_Kr_inf']), shade=True, ax=axs[3])
             except Exception as e:
                 print(str(e))
 
-            for i, p in enumerate([f"p{i+1}"]):
-                for row in samples:
-                    try:
-                        sns.kdeplot(data=pd.DataFrame(row[:,i], columns=[p]), shade=True, ax=axs[i])
-                    except Exception as e:
-                        print(str(e))
+        fig.savefig(os.path.join(output_dir, f"mcmc_{i}.png"))
+        for ax in axs:
+            ax.cla()
 
-            fig.savefig(os.path.join(output_dir, f"mcmc_params_{i}.png"))
+        for j in range(samples.shape[0]):
+            pd.DataFrame(samples[j], columns=model.parameter_labels).to_csv(f"mcmc_samples_{i}_chain_{j}.csv")
 
-            for ax in axs:
-                ax.cla()
+        for j, p in [(j, "p%i" % (j + 1)) for j in range(model.get_no_parameters())]:
+            for row in samples:
+                try:
+                    sns.kdeplot(data=pd.DataFrame(row[:, j], columns=[p]), shade=True, ax=param_axs[j])
+                except Exception as e:
+                    print(str(e))
+        param_axs[0].set_title(f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed after each spike")
+        param_fig.savefig(os.path.join(output_dir, f"mcmc_params_{i}.png"))
 
+        for ax in param_axs:
+            ax.cla()
 
     # Now plot predictions
     # We can use less timesteps now -- only interested in plotting
-    pred_times = np.linspace(0, 15000, 1000)
+    pred_times = times
     pred_times = np.unique(list(pred_times) + list(current_spikes))
 
     n_samples = args.no_samples
 
     pred_model = BeattieModel(times=pred_times,
-                              protocol=common.get_protocol('staircase')[0],
+                              protocol=protocol_func,
                               Erev=common.calculate_reversal_potential(T=310.15),
                               parameters=params)
 
@@ -259,7 +239,7 @@ def main():
         upper_bound = mean_param_trajectory + 1.96*mean_estimate_uncertainty
         lower_bound = mean_param_trajectory - 1.96*mean_estimate_uncertainty
 
-        axs[0].fill_between(times, lower_bound, upper_bound, color='grey',
+        axs[0].fill_between(times, lower_bound, upper_bound, color='blue',
                          alpha=0.25)
         axs[0].plot(times, mean_param_trajectory, 'red')
         axs[0].set_ylim(np.min(current)*1.5, np.max(current)*1.5)
@@ -297,12 +277,12 @@ def monte_carlo_tau_inf(mean, cov, n_samples=10000, voltage=40):
     r_inf = 1 / (k3 + k4)
     tau_r = k4 / (k3 + k4)
 
-    return a_inf, tau_a, r_inf, tau_r
+    return a_inf, tau_a, r_inf, tau_r, samples[:, -1]
 
 
 def plot_regions(times, model, spike_times, spike_indices, output_dir, spike_removal_durations, fig, axs, p_of_interest=(4, 6)):
     params = model.get_default_parameters()
-    t_step = times[1]-times[0]
+    tstep = times[1]-times[0]
 
     offset = [params[p_of_interest[0]], params[p_of_interest[1]]]
 
@@ -315,7 +295,7 @@ def plot_regions(times, model, spike_times, spike_indices, output_dir, spike_rem
     for time_to_remove in spike_removal_durations:
         indices = common.remove_indices(list(range(len(times))),
                                         [(spike,
-                                          int(spike + time_to_remove/t_step))
+                                          int(spike + time_to_remove/tstep))
                                          for spike in spike_indices])
 
         H = np.dot(S1[indices, :].T, S1[indices, :])
@@ -372,37 +352,44 @@ def plot_regions(times, model, spike_times, spike_indices, output_dir, spike_rem
     for ax in axs:
         ax.cla()
 
-def get_mcmc_chains(model, indices, chain_length=1000):
+def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, default_parameters, burn_in = None):
     # Do the same as above but using mcmc on synthetic data
     print('doing mcmc')
-    data = model.SimulateForwardModel()[indices] + np.random.normal(0, np.sqrt(sigma2), (len(indices),))
-    times = model.times[indices]
-    voltages = model.GetVoltage()[indices]
+    times = times
+    voltages = voltages
+    data = data[indices]
 
-    print(times.shape)
-    forward_solver = model.make_hybrid_solver_current(voltages)
+    if burn_in is None:
+        burn_in = int(chain_length/10)
 
-    @cfunc(nb.float64(nb.float64[:]))
+    @njit
     def log_likelihood_func(p):
-        return -0.5*np.sum((forward_solver(p, times) - data)**2/sigma2) - np.log(np.sqrt(sigma2*2*np.pi))
+        sol = solver(p, times, voltages)[indices]
+        # print(np.argwhere(np.isnan(sol)))
+        return -0.*np.sum((sol - data)**2/sigma2) - np.log(np.sqrt(sigma2*2*np.pi))
 
     class pints_likelihood(pints.LogPDF):
         def __call__(self, p):
             return log_likelihood_func(p)
 
         def n_parameters(self):
-            return len(model.get_default_parameters())
+            return len(default_parameters)
 
-    prior = pints.UniformLogPrior([0]*pints_likelihood().n_parameters(), [1]*pints_likelihood().n_parameters())
+    prior = pints.UniformLogPrior([0]*pints_likelihood().n_parameters(),
+                                  [1]*pints_likelihood().n_parameters())
+
     posterior = pints.LogPosterior(pints_likelihood(), prior)
+
     mcmc = pints.MCMCController(posterior, args.no_chains,
-        [model.get_default_parameters()]*args.no_chains, method=pints.HaarioBardenetACMC)
+                                [default_parameters]*args.no_chains,
+                                method=pints.HaarioBardenetACMC)
+
     mcmc.set_max_iterations(args.chain_length)
 
-    return mcmc.run()
+    samples = mcmc.run()
+    return samples[:, burn_in:, :]
 
 def compute_tau_inf_from_samples(samples, voltage=40):
-    print(samples.shape)
     k1 = samples[:, :, 0] * np.exp(samples[:, :, 1] * voltage)
     k2 = samples[:, :, 2] * np.exp(-samples[:, :, 3] * voltage)
     k3 = samples[:, :, 4] * np.exp(samples[:, :, 5] * voltage)
@@ -414,12 +401,7 @@ def compute_tau_inf_from_samples(samples, voltage=40):
     r_inf = 1 / (k3 + k4)
     tau_r = k4 / (k3 + k4)
 
-
     return a_inf, tau_a, r_inf, tau_r
-
-
-
-
 
 if __name__ == "__main__":
     main()
