@@ -9,16 +9,18 @@ import matplotlib.pyplot as plt
 import multiprocessing
 
 def simulate_protocol(model, name, output_dir):
-    fig = plt.figure(figsize=(14,12))
+    fig = plt.figure(figsize=(14, 12))
     axs = fig.subplots(4)
-    print(f"Plotting {name}")
+    print(f"Plotting {name} to {output_dir}")
+
+    model.set_tolerances(1e-7, 1e-9)
+
     current, S1 = model.SimulateForwardModelSensitivities()
     S1n = S1 * np.array(model.get_default_parameters())[None, :]
 
     param_labels = ['S(p' + str(i + 1) + ',t)' for i in range(model.n_params)]
     state_occupancies = model.GetStateVariables()
 
-    interp_voltage, _, _, _ = common.get_protocol_from_csv(name, directory=common.get_protocol_directory())
     axs[0].plot(model.times, model.GetVoltage(), label='generated voltage function')
     axs[0].plot()
     axs[0].grid(True)
@@ -40,8 +42,7 @@ def simulate_protocol(model, name, output_dir):
     axs[3].grid(True)
     axs[3].set_xlabel('Time (ms)')
     axs[3].set_ylabel('Sensitivities')
-    plt.tight_layout()
-
+    fig.tight_layout()
     fig.savefig(os.path.join(output_dir, f"{name}_sensitivities"))
 
     for ax in axs:
@@ -50,26 +51,30 @@ def simulate_protocol(model, name, output_dir):
 
     # Now plot just the voltage and current
     fig = plt.figure(figsize=(14,12))
-    ax = fig.subplots(2)
+    axs = fig.subplots(2)
 
-    fig.set_title(name)
+    axs[0].set_title(name)
 
     axs[0].plot(model.times, model.GetVoltage())
-    axs[1].plot(model.times, current)
+    axs[1].plot(model.times, model.SimulateForwardModel())
     axs[1].set_xlabel('time /ms')
-    axs[0].set_ylabel('current /nA')
-    axs[1].set_ylabel('voltage / mV')
+    axs[1].set_ylabel('current /nA')
+    axs[0].set_ylabel('voltage / mV')
 
     fig.savefig(os.path.join(output_dir, f"{name}_protocol"))
 
     for ax in axs:
         ax.cla()
-    plt.clos(fig)
+    plt.close(fig)
 
     print(f"{name} finished")
 
 def main():
     parser = argparse.ArgumentParser(description="Plot output from different protocols")
+    parser.add_argument("--protocols", "-p", default=[], type=str, nargs='+')
+
+    args = parser.parse_args()
+
     output_dir = os.path.join('output', 'simulate_protocols')
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -79,28 +84,23 @@ def main():
         fname, ext = os.path.splitext(fname)
         if fname[0] == '#':
             continue
-        tasks.append(fname)
+        print(fname, args.protocols)
+        if fname in args.protocols or len(args.protocols) == 0:
+            func(fname, ext, output_dir)
 
+def func(protocol_name, ext, output_dir):
+    if ext != ".csv":
+        logging.warning(f"Using file with extension {ext}")
 
-    global func
-    def func(protocol_name):
-        if ext != ".csv":
-            logging.warning(f"Using file with extension {ext}")
+    protocol, t_start, t_end, t_step = common.get_protocol_from_csv(protocol_name)
+    times = np.linspace(t_start, t_end, int((t_end-t_start)/t_step))
+    model = BeattieModel(protocol, times, Erev = common.calculate_reversal_potential(298, K_out=130, K_in=5))
 
-        protocol, t_start, t_end, t_step = common.get_protocol(protocol_name)
-        times = np.linspace(t_start, t_end, int((t_end-t_start)/t_step))
-        model = BeattieModel(protocol, times)
-        # model.default_parameters = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2, 4.75E-2, 2.51E-2, 3.33E-2])
-        model.default_parameters = np.array([0.00023215680795174809,0.07422110165735675,2.477501557744992e-05,0.04414799725791213,0.11023652619943154,0.015996823969951217,0.015877336172564104,0.027816696279347616,49.70368237942998])
-        model.Erev = common.calculate_reversal_potential(298, K_out=130, K_in=5)
-        simulate_protocol(model, protocol_name, output_dir)
-
-    pool = multiprocessing.Pool(processes=min(os.cpu_count(), len(tasks)))
-    pool.map(func, tasks)
+    model.default_parameters = np.array([0.00023215680795174809,0.07422110165735675,2.477501557744992e-05,0.04414799725791213,0.11023652619943154,0.015996823969951217,0.015877336172564104,0.027816696279347616,49.70368237942998])
+    simulate_protocol(model, protocol_name, output_dir)
 
 
 
 
 if __name__ == "__main__":
-    multiprocessing.freeze_support()
     main()
