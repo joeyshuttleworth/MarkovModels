@@ -654,8 +654,6 @@ def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations
     # Ignore files that have been commented out
     voltage_func, t_start, t_end, t_step, protocol_desc = get_ramp_protocol_from_csv(protocol)
 
-    print(protocol_desc)
-
     # Find data
     regex = re.compile(f"^newtonrun4-{protocol}-{well}.csv$")
     fname = next(filter(regex.match, os.listdir(data_directory)))
