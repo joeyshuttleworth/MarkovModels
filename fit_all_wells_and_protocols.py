@@ -10,7 +10,7 @@ from MarkovModels.BeattieModel import BeattieModel
 import argparse
 import os
 import numpy as np
-
+import pandas as pd
 
 def fit_func(protocol, well):
     default_parameters = None
@@ -27,7 +27,9 @@ def fit_func(protocol, well):
         model.times = times
         model.voltage = protocol
         model.protocol_description = protocol_desc
-        model.make_hybrid_solver_current()(fitted_params, times)
+        solution = model.make_hybrid_solver_current()(fitted_params, times)
+        df = pd.DataFrame(np.column_stack(times, solution), columns=('time / ms', 'current'))
+        df.to_csv(os.path.join(this_output_dir, f'{sim_protocol}_simulation'))
 
 
 def main():
