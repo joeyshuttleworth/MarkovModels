@@ -19,7 +19,6 @@ class BeattieModel(MarkovModel):
     holding_potential = -80
 
     def get_default_parameters(self):
-        # Parameters from Temp dependence
         return self.default_parameters
 
     def __init__(self, protocol=None, times=None, Erev: float = None,

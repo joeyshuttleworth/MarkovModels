@@ -20,8 +20,14 @@ this_dir = os.path.dirname(os.path.realpath(__file__))
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--no_simulations', '-n', type=int, default=500)
+    parser.add_argument('--output', '-o', type=str, default="output")
 
     args = parser.parse_args()
+
+    output_dir = os.path.join(args.output, "benchmark_fitting")
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     mean_params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
@@ -55,7 +61,7 @@ def main():
                              7.07475893e-10]])
 
     t_max = 15400
-    times = np.linspace(0, t_max, t_max*10)
+    times = np.linspace(0, t_max, int(t_max*10))
 
     global Erev
     Erev = common.calculate_reversal_potential(310.15)
@@ -100,14 +106,15 @@ def main():
     fig = plt.figure(figsize=(16,14))
     axs = fig.subplots(len(tolerances))
 
-    mms_solver = model.make_forward_solver_current(voltages)
+    mms_solver_func = model.make_forward_solver_current()
+
     for ax, (abs_tol, rel_tol) in zip(axs, tolerances):
         mk_res = get_mk_solver(mk_protocol, times, abs_tol, rel_tol)(mean_params)
-        mms_res = mms_solver(mean_params, times, voltages, abs_tol, rel_tol)
-        hybrid_res = model.make_hybrid_solver_current(voltages, protocol)(mean_params, times)
+        mms_res = mms_solver_func(mean_params, times, voltages, abs_tol, rel_tol)
+        hybrid_res = model.make_hybrid_solver_current(protocol)(mean_params, times, voltages)
 
         ax.plot(times, np.log(np.abs(np.array(mk_res['membrane.I_Kr']) - hybrid_res)), label="myokit errors")
-        ax.plot(times, np.log(np.abs(mms_res - hybrid_res)), label="numerical solver errors")
+        ax.plot(times, np.log(np.abs(mms_res - hybrid_res)), label="LSODA errors")
         ax.legend()
         ax.set_title(f"abs_tol = {abs_tol}, rel_tol = {rel_tol}")
         ax.set_ylabel(f"log absolute errors ")
@@ -115,12 +122,10 @@ def main():
     axs[-1].set_xlabel("time /ms")
     model.set_tolerances(1e-3, 1e-5)
 
-    fig.savefig('benchmark_solver_errors')
+    fig.savefig(os.path.join(output_dir, 'benchmark_solver_errors'))
     plt.close(fig)
 
     mk_solver = get_mk_solver(mk_protocol, times, atol=model.solver_tolerances[0], rtol=model.solver_tolerances[1])
-    mms_solver_func = model.make_forward_solver_current()
-    mms_solver_func_states = model.make_forward_solver_states()
 
     inputs = list(model.y) + list(model.p) + [model.v]
     frhs = np.array([e for e in model.rhs_expr])
@@ -137,21 +142,25 @@ def main():
 
     Erev = model.Erev
 
+    atol = model.solver_tolerances[0]
+    rtol = model.solver_tolerances[1]
+
     @njit
     def mms_solver(p):
-        sol = mms_solver_func_states(p, times)
+        return mms_solver_func(p, times, voltages=voltages, atol=atol, rtol=rtol)
 
-        dy = np.array([0, 0, 0])
-        return p[-1]*sol[:,1]*(voltages - Erev)
+    hybrid_solve = model.make_hybrid_solver_current()
 
-    hybrid_solve = model.make_hybrid_solver_current(voltages)
     @njit
     def hybrid_solver(p):
-        return hybrid_solve(p, times)
+        return hybrid_solve(p, times, voltages, atol, rtol)
 
     samples = np.random.multivariate_normal(mean_params, params_cov, args.no_simulations)
 
-    subsamples = samples[0:100,:]
+
+    n_subsamples = int(args.no_simulations/10)+1
+    subsamples = samples[0:n_subsamples + 1, :]
+
     mms_res = simulate_samples(subsamples, mms_solver)
     mk_res  = simulate_samples(subsamples, mk_solver)
     hybrid_res  = simulate_samples(subsamples, hybrid_solver)
@@ -161,10 +170,10 @@ def main():
     fig = plt.figure(figsize=(16,14))
     ax = fig.subplots()
     ax.plot(times, np.array(mk_res[0]['membrane.I_Kr']), label="myokit solution")
-    ax.plot(times, mms_res[0], label="numerical solver solution")
+    ax.plot(times, mms_res[0], label="MarkovModels LSODA solution")
     ax.plot(times, hybrid_res[0], label="hybrid solver solution")
     ax.legend()
-    fig.savefig('benchmark_solver_comparison')
+    fig.savefig(os.path.join('benchmark_solver_comparison'))
     ax.cla()
     plt.close(fig)
 
@@ -174,7 +183,7 @@ def main():
     # compare voltages
     ax.plot(mk_res[0]['engine.time'], np.array(mk_res[0]['membrane.V']))
     ax.plot(times, voltages)
-    fig.savefig('voltage_comparison')
+    fig.savefig(os.path.join(output_dir, 'voltage_comparison'))
     ax.cla()
 
     mk_errors = np.array([((res2-res1['membrane.I_Kr'])**2).sum() for res1, res2 in zip(mk_res, hybrid_res)])
@@ -186,7 +195,7 @@ def main():
     plt.plot(times, mms_solver(subsamples[arg_max_error]), label="mms")
     plt.plot(times, mk_solver(subsamples[arg_max_error])['membrane.I_Kr'], label="myokit")
     plt.legend()
-    plt.savefig("biggest_mms_error")
+    plt.savefig(os.path.join(output_dir, "biggest_mms_error"))
 
     print(errors_df)
 
