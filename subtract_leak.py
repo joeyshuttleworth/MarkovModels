@@ -69,7 +69,6 @@ def main():
             observation_times = pd.read_csv(os.path.join(
                 args.data_directory, f"newtonrun4-{protocol}-times.csv")).values.flatten() * 1e3
             dt = (observation_times[1] - observation_times[0])
-            print(f"using {dt*args.extra_points[1]}ms of extra data")
             extra_points = [int(val / dt) for val in args.extra_points]
             protocol_voltages = np.array([protocol_func(t) for t in observation_times])
 
