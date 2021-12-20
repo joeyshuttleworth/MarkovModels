@@ -16,21 +16,7 @@ def fit_func(protocol, well):
     default_parameters = None
     this_output_dir = os.path.join(output_dir, f"fitting_{args.removal_duration}ms_removed", f"{protocol}_{well}")
 
-    fitted_params = common.fit_well_to_data(BeattieModel, well, protocol, args.data_directory, args.max_iterations, this_output_dir, T=298, K_in=5, K_out=120, default_parameters=default_parameters, removal_duration=args.removal_duration)
-
-    protocols_list = common.get_protocol_list()
-
-    model = BeattieModel(parameters=fitted_params)
-    for sim_protocol in protocols_list:
-        protocol, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv(sim_protocol)
-        times = np.linspace(tstart, tend, int((tend-tstart)/tstep))
-        model.times = times
-        model.voltage = protocol
-        model.protocol_description = protocol_desc
-        solution = model.make_hybrid_solver_current()(fitted_params, times)
-        df = pd.DataFrame(np.column_stack(times, solution), columns=('time / ms', 'current'))
-        df.to_csv(os.path.join(this_output_dir, f'{sim_protocol}_simulation'))
-
+    common.fit_well_to_data(BeattieModel, well, protocol, args.data_directory, args.max_iterations, this_output_dir, T=298, K_in=5, K_out=120, default_parameters=default_parameters, removal_duration=args.removal_duration)
 
 def main():
     parser = common.get_parser(
