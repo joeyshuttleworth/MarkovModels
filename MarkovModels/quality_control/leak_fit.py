@@ -213,7 +213,7 @@ def fit_leak_lr(staircase_protocol, current, percentage_to_remove, V_full=[-120,
     s_beta  = np.sqrt((1/(n-2) * eps2.sum())/((x - x.mean())**2).sum())
     s_alpha = s_beta * np.sqrt((x**2).sum()/n)
 
-    return g_leak, E_leak, r_value, s_alpha, s_beta, x, y # g_leak, E_leak
+    return g_leak, E_leak, r_value, s_alpha, s_beta, x, y
 
 
 
