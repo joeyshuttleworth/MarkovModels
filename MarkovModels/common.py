@@ -561,14 +561,14 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
                     try:
                         return forward_solver_func(sim_parameters, times)
                     except Exception:
-                        return np.inf
+                        return np.full(times.shape, np.inf)
             else:
                 @njit
                 def simulate(p, times):
                     try:
                         return forward_solver_func(p, times)
                     except Exception:
-                        return np.inf
+                        return np.full(times.shape, np.inf)
 
             self.simulate = simulate
 
