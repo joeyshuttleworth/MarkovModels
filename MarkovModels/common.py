@@ -474,17 +474,17 @@ def draw_cov_ellipses(mean=[0, 0], S1=None, sigma2=None, cov=None, plot_dir=None
                         i, j, eigen_val))
 
 
-def fit_model(funcs, data, starting_parameters=None, fix_parameters=[],
+def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
               max_iterations=None, method=pints.CMAES):
     """
     Fit a MarkovModel to some dataset using pints.
 
     Params:
 
-    funcs: A MarkovModel
+    mm: A MarkovModel
 
     data: The data set to fit to: a (1,n) numpy array
-    consiting of observations corresponding to the times in funcs.times.
+    consiting of observations corresponding to the times in mm.times.
 
     starting_parameters: An initial guess for the optimal parameters
 
@@ -497,10 +497,9 @@ def fit_model(funcs, data, starting_parameters=None, fix_parameters=[],
     returns: A pair containing the optimal parameters and the corresponding sum of square errors.
 
     """
-    voltages = funcs.GetVoltage()
 
     if starting_parameters is None:
-        starting_parameters = funcs.get_default_parameters()
+        starting_parameters = mm.get_default_parameters()
 
     class Boundaries(pints.Boundaries):
         def __init__(self, parameters, fix_parameters=None):
@@ -542,19 +541,15 @@ def fit_model(funcs, data, starting_parameters=None, fix_parameters=[],
                 len(self.fix_parameters) if self.fix_parameters is not None else 9
 
     class PintsWrapper(pints.ForwardModelS1):
-        def __init__(self, funcs, parameters, fix_parameters=None):
-            self.funcs = funcs
+        def __init__(self, mm, parameters, fix_parameters=None):
+            self.mm = mm
             self.parameters = np.array(parameters)
 
             self.fix_parameters = fix_parameters
 
-            if fix_parameters is not None:
-                free_parameters = tuple([i for i in range(len(parameters))
-                                         if i not in fix_parameters])
-            else:
-                free_parameters = tuple(range(len(parameters)))
+            if fix_parameters is None:
                 fix_parameters = tuple()
-            forward_solver_func = funcs.make_hybrid_solver_current()
+            forward_solver_func = mm.make_hybrid_solver_current()
 
             if len(fix_parameters) > 0:
                 @njit
@@ -578,7 +573,7 @@ def fit_model(funcs, data, starting_parameters=None, fix_parameters=[],
         def simulateS1(self, parameters, times):
             raise NotImplementedError()
             if fix_parameters is None:
-                return self.funcs.SimulateForwardModelSensitivities(parameters)
+                return self.mm.SimulateForwardModelSensitivities(parameters)
             else:
                 sim_params = np.copy(self.parameters)
                 c = 0
@@ -588,16 +583,18 @@ def fit_model(funcs, data, starting_parameters=None, fix_parameters=[],
                         c += 1
                     if c == len(parameters):
                         break
-                current, sens = self.funcs.SimulateForwardModelSensitivities(
+                current, sens = self.mm.SimulateForwardModelSensitivities(
                     sim_params, times)
                 sens = sens[:, self.free_parameters]
                 return current, sens
 
-    model = PintsWrapper(funcs, starting_parameters,
+    model = PintsWrapper(mm, starting_parameters,
                          fix_parameters=fix_parameters)
-    problem = pints.SingleOutputProblem(model, funcs.times, data)
+
+    problem = pints.SingleOutputProblem(model, mm.times, data)
     error = pints.SumOfSquaresError(problem)
     boundaries = Boundaries(starting_parameters, fix_parameters)
+
 
     print("data size is {}".format(data.shape))
 
@@ -659,7 +656,7 @@ def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations
     fname = next(filter(regex.match, os.listdir(data_directory)))
     data = pd.read_csv(os.path.join(data_directory, fname))['current'].values
 
-    times = pd.read_csv(os.path.join(data_directory, f"newtonrun4-{protocol}-times.csv"))['time'].values*1e3
+    times = pd.read_csv(os.path.join(data_directory, f"newtonrun4-{protocol}-times.csv"))['time'].values
     voltages = np.array([voltage_func(t) for t in times])
     spikes, _ = detect_spikes(times, voltages, 10)
     times, _, indices = remove_spikes(times, voltages, spikes, removal_duration)
@@ -683,13 +680,14 @@ def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations
     print(f"initial score is {initial_score}")
 
     # First fit only Gkr
-
     def gkr_opt_func(gkr):
         p = model.get_default_parameters()
         p[8] = gkr
         return ((model.SimulateForwardModel(p) - data)**2).sum()
 
-    initial_gkr = np.abs(scipy.optimize.minimize_scalar(gkr_opt_func).x)
+    if initial_gkr <= 0:
+        initial_gkr = 1
+
     initial_params[8] = initial_gkr
 
     print(f"initial_gkr is {initial_gkr}")
