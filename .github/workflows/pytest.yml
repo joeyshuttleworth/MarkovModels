@@ -32,5 +32,5 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
     - name: Benchmark fitting
-    run: |
-      python -m benchmark_fitting.py -n 10000
+      run: |
+        python -m benchmark_fitting.py -n 10000
