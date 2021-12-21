@@ -19,6 +19,9 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         python -m pip install .[test]
+    - name: Install Sundials ${{ matrix.sundials-version }}
+      run: |
+        sudo apt install libsundials-dev
     - name: Benchmark fitting
       run: |
         python benchmark_fitting.py -n 10000
