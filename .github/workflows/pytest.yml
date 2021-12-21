@@ -24,4 +24,4 @@ jobs:
         sudo apt install libsundials-dev
     - name: Benchmark fitting
       run: |
-        python benchmark_fitting.py -n 10000
+        python benchmark_fitting.py -n 500
