@@ -558,12 +558,17 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
 
                     for i in range(len(fix_parameters)):
                         sim_parameters[fix_parameters[i]] = p[i]
-
-                    return forward_solver_func(sim_parameters, times)
+                    try:
+                        return forward_solver_func(sim_parameters, times)
+                    except Exception:
+                        return np.inf
             else:
                 @njit
                 def simulate(p, times):
-                    return forward_solver_func(p, times)
+                    try:
+                        return forward_solver_func(p, times)
+                    except Exception:
+                        return np.inf
 
             self.simulate = simulate
 
