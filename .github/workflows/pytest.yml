@@ -21,4 +21,4 @@ jobs:
         python -m pip install .[test]
     - name: Benchmark fitting
       run: |
-        python -m benchmark_fitting.py -n 10000
+        python benchmark_fitting.py -n 10000
