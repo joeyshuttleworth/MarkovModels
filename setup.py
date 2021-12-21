@@ -56,7 +56,7 @@ setup(
         'sympy>=1.8',
         'numba>=0.54.1',
         'NumbaLSODA>=0.1.7',
-        'regex>=2021.11.10'
+        'regex>=2021.11.10',
         'myokit>=1.33.0'
     ],
     extras_require={
