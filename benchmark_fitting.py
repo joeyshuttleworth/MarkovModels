@@ -91,9 +91,6 @@ def main():
                 else:
                     return protocol[i][2]
 
-    for step in protocol:
-        mk_protocol.add_step(step[-1], step[1] - step[0])
-
     voltages = np.array([protocol_func(t) for t in times])
 
     model = BeattieModel(protocol_func, times, Erev=Erev)
@@ -202,16 +199,23 @@ def main():
 
     print("Running mk simulations")
     global func1
-    def func1(): return simulate_samples(samples, mk_solver)
+
+    def func1():
+        return simulate_samples(samples, mk_solver)
     cProfile.run('func1()')
 
     print("Running MarkovModels simulations")
+
     global func2
-    def func2(): return simulate_samples(samples, mms_solver)
+
+    def func2():
+        return simulate_samples(samples, mms_solver)
     cProfile.run('func2()')
 
     global func3
-    def func3(): return simulate_samples(samples, hybrid_solver)
+
+    def func3():
+        return simulate_samples(samples, hybrid_solver)
     cProfile.run('func3()')
 
 
@@ -221,27 +225,22 @@ def get_mk_solver(mk_protocol, times, atol, rtol):
 
     sim.set_constant('membrane.Erev', Erev)
 
-    end_time = mk_protocol.characteristic_time()
+    end_time = int(mk_protocol.characteristic_time())+1
+
     sim.set_tolerance(atol, rtol)
 
     # set states to steady state
-    log = sim.run(20000)
-
-    states = ["C", "s_O", "s_I"]
-
-    for i in range(len(states)):
-        state = f"markov_chain.{states[i]}"
-        model.get(state).set_state_value(log[state][-1])
+    sim.pre(20000)
+    sim.set_constant('membrane.Erev', Erev)
+    model.set_state(sim.state())
 
     sim = mk.Simulation(model, mk_protocol)
-    sim.set_tolerance(atol, rtol)
 
     def solver(parameters):
         # TODO: set parameters to steady state
         sim.reset()
         for i, p in enumerate(parameters):
             sim.set_constant('markov_chain.p' + str(i), p)
-            sim.set_constant('membrane.Erev', Erev)
         log = sim.run(end_time, log_times=times, log=['membrane.I_Kr',
                       'engine.time', 'membrane.V', 'engine.evaluations'])
         return log
