@@ -53,12 +53,9 @@ setup(
         'numpy>=1.21',
         'matplotlib>=3.4',
         'pandas>=1.3',
-        'networkx>=2.6',
-        'plotly>=5.3',
-        'symengine>=0.8',
         'sympy>=1.8',
-        'numba>=0.54.1'
-        'NumbaLSODA>=0.1.7'
+        'numba>=0.54.1',
+        'NumbaLSODA>=0.1.7',
         'regex>=2021.11.10'
     ],
     extras_require={
