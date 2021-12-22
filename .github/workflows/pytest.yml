@@ -20,7 +20,7 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install .[test]
         pip uninstall myokit -y
-        pip install git+https://github.com/MichaelClerx/myokit -y
+        pip install git+https://github.com/MichaelClerx/myokit
     - name: Install Sundials ${{ matrix.sundials-version }}
       run: |
         sudo apt install libsundials-dev
