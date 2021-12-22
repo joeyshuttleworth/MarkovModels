@@ -18,9 +18,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--no_simulations', '-n', type=int, default=500)
     parser.add_argument('--output', '-o', type=str, default="output")
-    parser.add_argument('--tolerance_plot', '-t', default=False)
+    parser.add_argument('--tolerance_plot', '-t', action='store_true', default=False)
+    parser.add_argument('--dt', default=0.1, type=float)
 
     args = parser.parse_args()
+
+    print(f"Using a timestep of {args.dt:.2f}ms, running {args.no_simulations} simulations")
 
     output_dir = os.path.join(args.output, "benchmark_fitting")
 
@@ -59,7 +62,7 @@ def main():
                             7.07475893e-10]])
 
     t_max = 15400
-    times = np.linspace(0, t_max, int(t_max * 10))
+    times = np.linspace(0, t_max, int(t_max * args.dt))
 
     global Erev
     Erev = common.calculate_reversal_potential(310.15)
