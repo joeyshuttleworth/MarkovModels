@@ -5,12 +5,10 @@ import os
 import numpy as np
 import logging
 import matplotlib.pyplot as plt
-import regex as re
 import pandas as pd
 import myokit as mk
 import cProfile
-from numba import njit, cfunc
-from NumbaLSODA import lsoda_sig
+from numba import njit
 import sympy as sp
 
 this_dir = os.path.dirname(os.path.realpath(__file__))
@@ -20,6 +18,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--no_simulations', '-n', type=int, default=500)
     parser.add_argument('--output', '-o', type=str, default="output")
+    parser.add_argument('--tolerance_plot', '-t', default=False)
 
     args = parser.parse_args()
 
@@ -97,29 +96,9 @@ def main():
     model.window_locs = [tstart for tstart, _, _, _ in protocol]
     model.protocol_description = protocol
 
-    tolerances = [(1E-3, 1E-5), (1E-5, 1E-7), (1E-7, 1E-9), (1E-9, 1E-12)]
-
-    fig = plt.figure(figsize=(16, 14))
-    axs = fig.subplots(len(tolerances))
-
-    mms_solver_func = model.make_forward_solver_current()
-
-    for ax, (abs_tol, rel_tol) in zip(axs, tolerances):
-        mk_res = get_mk_solver(mk_protocol, times, abs_tol, rel_tol)(mean_params)
-        mms_res = mms_solver_func(mean_params, times, voltages, abs_tol, rel_tol)
-        hybrid_res = model.make_hybrid_solver_current(protocol)(mean_params, times, voltages)
-
-        ax.plot(times, np.log(np.abs(np.array(mk_res['membrane.I_Kr']) - hybrid_res)), label="myokit errors")
-        ax.plot(times, np.log(np.abs(mms_res - hybrid_res)), label="LSODA errors")
-        ax.legend()
-        ax.set_title(f"abs_tol = {abs_tol}, rel_tol = {rel_tol}")
-        ax.set_ylabel(f"log absolute errors ")
-
-    axs[-1].set_xlabel("time /ms")
-    model.set_tolerances(1e-3, 1e-5)
-
-    fig.savefig(os.path.join(output_dir, 'benchmark_solver_errors'))
-    plt.close(fig)
+    # Do tolerance plots
+    if args.tolerance_plot:
+        make_tolerance_plot(model, mk_protocol, mean_params, protocol, output_dir)
 
     mk_solver = get_mk_solver(mk_protocol, times, atol=model.solver_tolerances[0], rtol=model.solver_tolerances[1])
 
@@ -140,6 +119,8 @@ def main():
 
     atol = model.solver_tolerances[0]
     rtol = model.solver_tolerances[1]
+
+    mms_solver_func = model.make_forward_solver_current()
 
     @njit
     def mms_solver(p):
@@ -193,7 +174,7 @@ def main():
     plt.legend()
     plt.savefig(os.path.join(output_dir, "biggest_mms_error"))
 
-    print(errors_df)
+    logging.info(errors_df)
 
     errors_df.to_csv(os.path.join(output_dir, 'benchmark_errors.csv'))
 
@@ -231,10 +212,10 @@ def get_mk_solver(mk_protocol, times, atol, rtol):
 
     # set states to steady state
     sim.pre(20000)
-    sim.set_constant('membrane.Erev', Erev)
     model.set_state(sim.state())
 
     sim = mk.Simulation(model, mk_protocol)
+    sim.set_constant('membrane.Erev', Erev)
 
     def solver(parameters):
         # TODO: set parameters to steady state
@@ -249,6 +230,34 @@ def get_mk_solver(mk_protocol, times, atol, rtol):
 
 def simulate_samples(samples, solver):
     return [solver(sample) for sample in samples]
+
+
+def make_tolerance_plot(model, mk_protocol, mean_params, protocol, output_dir):
+    tolerances = [(1E-3, 1E-5), (1E-5, 1E-7), (1E-7, 1E-9), (1E-9, 1E-12)]
+    times = model.times
+    voltages = model.GetVoltage()
+    fig = plt.figure(figsize=(16, 14))
+    axs = fig.subplots(len(tolerances))
+
+    mms_solver_func = model.make_forward_solver_current()
+
+    for ax, (abs_tol, rel_tol) in zip(axs, tolerances):
+        mk_res = get_mk_solver(mk_protocol, times, abs_tol, rel_tol)(mean_params)
+        mms_res = mms_solver_func(mean_params, times, voltages, abs_tol, rel_tol)
+        hybrid_res = model.make_hybrid_solver_current(protocol)(mean_params, times, voltages)
+
+        ax.plot(times, np.log(np.abs(np.array(mk_res['membrane.I_Kr']) - hybrid_res)), label="myokit errors")
+        ax.plot(times, np.log(np.abs(mms_res - hybrid_res)), label="LSODA errors")
+        ax.legend()
+        ax.set_title(f"abs_tol = {abs_tol}, rel_tol = {rel_tol}")
+        ax.set_ylabel("log absolute errors ")
+
+    axs[-1].set_xlabel("time /ms")
+    model.set_tolerances(1e-3, 1e-5)
+
+    fig.savefig(os.path.join(output_dir, 'benchmark_solver_errors'))
+    plt.close(fig)
+
 
 
 if __name__ == "__main__":
