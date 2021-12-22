@@ -62,7 +62,8 @@ def main():
                             7.07475893e-10]])
 
     t_max = 15400
-    times = np.linspace(0, t_max, int(t_max * args.dt))
+    times = np.linspace(0, t_max, int(t_max / args.dt))
+    print(f"Evaluating at {len(times)} timesteps")
 
     global Erev
     Erev = common.calculate_reversal_potential(310.15)
