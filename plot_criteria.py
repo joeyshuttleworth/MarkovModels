@@ -136,21 +136,20 @@ def main():
 
     # Sample steady states and timescales
     print("Sampling steady states and timescales")
-    voltages = [-80, -40, -20, 0, 20, 40]
-
     param_fig = plt.figure(figsize=(18, 14))
     param_axs = param_fig.subplots(model.get_no_parameters())
 
     forward_solver = model.make_hybrid_solver_current()
-    data = forward_solver(model.get_default_parameters(), times, voltage) + \
+    data = forward_solver(model.get_default_parameters(), times, voltages) + \
         np.random.normal(0, np.sqrt(sigma2), (len(times),))
 
     # Next, the MCMC version
-    mcmc_samples = get_mcmc_chains(forward_solver, times, voltages,
-                                   indices_used[i], data, args.chain_length,
-                                   model.get_default_parameters(), burn_in=args.burn_in)
+    mcmc_samples = [get_mcmc_chains(forward_solver, times, voltages,
+                                   index_set, data, args.chain_length,
+                                   model.get_default_parameters(), burn_in=args.burn_in) for index_set in indices_used]
+    voltage_list = [-80, -40, -20, 0, 20, 40]
 
-    for voltage in voltages:
+    for voltage in voltage_list:
         steady_state_samples = []
         sub_output_dir = os.path.join(output_dir, f"{voltage}mV")
         if not os.path.exists(sub_output_dir):
@@ -213,7 +212,7 @@ def main():
 
             for j in range(samples.shape[0]):
                 df = pd.DataFrame(samples[j], columns=model.parameter_labels)
-                df.to_csv(os.path.join(sub_output_dir, f"mcmc_samples_{i}_chain_{j}.csv"))
+                df.to_csv(os.path.join(sub_output_dir, f"mcmc_samples[i]_{i}_chain_{j}.csv"))
 
             for j, p in [(j, "p%i" % (j + 1)) for j in range(model.get_no_parameters())]:
                 for row in samples:
