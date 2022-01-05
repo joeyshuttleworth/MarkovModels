@@ -136,7 +136,7 @@ def main():
 
     # Sample steady states and timescales
     print("Sampling steady states and timescales")
-    voltage = -20
+    voltages = [-80, -40, -20, 0, 20, 40]
 
     param_fig = plt.figure(figsize=(18, 14))
     param_axs = param_fig.subplots(model.get_no_parameters())
@@ -145,116 +145,118 @@ def main():
     data = forward_solver(model.get_default_parameters(), times, voltage) + \
         np.random.normal(0, np.sqrt(sigma2), (len(times),))
 
-    steady_state_samples = []
-    for i, cov, in enumerate(covs):
-        try:
-            # Normal approximation first
-            a_inf, tau_a, r_inf, tau_r, gkr = monte_carlo_tau_inf(
-                params, cov, voltage=voltage, n_samples=args.no_samples)
-            # axs[0].scatter(a_inf, tau_a, marker='x')
-            sns.kdeplot(data=pd.DataFrame(zip(a_inf, tau_a), columns=[
-                        'a_inf', 'tau_a']), shade=True, fill=True, ax=axs[0], x='a_inf', y='tau_a', common_norm=True)
-            axs[0].set_title(
-                f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed")
-            # axs[1].scatter(r_inf, tau_r, marker='x')
-            sns.kdeplot(data=pd.DataFrame(zip(r_inf, tau_r), columns=[
-                        'r_inf', 'tau_r']), shade=True, ax=axs[1], x='r_inf', y='tau_r', common_norm=True)
-            # r_inf vs a_inf
-            sns.kdeplot(data=pd.DataFrame(zip(r_inf, a_inf), columns=[
-                'r_inf', 'a_inf']), shade=True, ax=axs[2], x='r_inf', y='a_inf', common_norm=True)
-            I_Kr_inf = (gkr*r_inf*a_inf*(voltage - Erev)).flatten()
-            steady_state_samples.append(I_Kr_inf)
-            sns.kdeplot(data=pd.DataFrame(I_Kr_inf, columns=[
-                'I_Kr_inf']), shade=True, ax=axs[3], common_norm=True)
+    # Next, the MCMC version
+    mcmc_samples = get_mcmc_chains(forward_solver, times, voltages,
+                                   indices_used[i], data, args.chain_length,
+                                   model.get_default_parameters(), burn_in=args.burn_in)
 
-            axs[0].set_title(f"{voltage:.2f}mV with {spike_removal_durations[i]}ms removed after each spike")
-            fig.savefig(os.path.join(output_dir, f"{i}.png"))
-        except Exception as e:
-            print(str(e))
-
-        for ax in axs:
-            ax.cla()
-
-        fig = plt.figure(figsize=(18, 14))
-        axs = fig.subplots(4)
-
-        # Next, the MCMC version
-        samples = get_mcmc_chains(forward_solver, times, voltages,
-                                  indices_used[i], data, args.chain_length, model.get_default_parameters(), burn_in=args.burn_in)
-        res = compute_tau_inf_from_samples(samples, voltage=voltage)
-        for j, (a_inf, tau_a, r_inf, tau_r) in enumerate(zip(*res)):
-            gkrs = samples[j, :, -1]
-            axs[0].set_title(f"{voltage:.2f}mV with {spike_removal_durations[i]:.2f}ms removed after each spike")
+    for voltage in voltages:
+        steady_state_samples = []
+        sub_output_dir = os.path.join(output_dir, f"{voltage}mV")
+        if not os.path.exists(sub_output_dir):
+            os.makedirs(sub_output_dir)
+        for i, cov, in enumerate(covs):
             try:
+                # Normal approximation first
+                a_inf, tau_a, r_inf, tau_r, gkr = monte_carlo_tau_inf(
+                    params, cov, voltage=voltage, n_samples=args.no_samples)
                 # axs[0].scatter(a_inf, tau_a, marker='x')
                 sns.kdeplot(data=pd.DataFrame(zip(a_inf, tau_a), columns=[
-                    'a_inf', 'tau_a']), shade=True, fill=True, ax=axs[0], x='a_inf', y='tau_a')
+                            'a_inf', 'tau_a']), shade=True, fill=True, ax=axs[0], x='a_inf', y='tau_a', common_norm=True)
                 axs[0].set_title(
-                    f"+40mV with {spike_removal_durations[i]:.2f}ms removed (MCMC)")
+                    f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed")
+                # axs[1].scatter(r_inf, tau_r, marker='x')
                 sns.kdeplot(data=pd.DataFrame(zip(r_inf, tau_r), columns=[
-                    'r_inf', 'tau_r']), shade=True, ax=axs[1], x='r_inf', y='tau_r')
+                            'r_inf', 'tau_r']), shade=True, ax=axs[1], x='r_inf', y='tau_r', common_norm=True)
                 # r_inf vs a_inf
                 sns.kdeplot(data=pd.DataFrame(zip(r_inf, a_inf), columns=[
-                    'r_inf', 'a_inf']), shade=True, ax=axs[2], x='r_inf', y='a_inf')
-                sns.kdeplot(data=pd.DataFrame(gkrs * r_inf * a_inf, columns=[
-                    'I_Kr_inf']), shade=True, ax=axs[3])
+                    'r_inf', 'a_inf']), shade=True, ax=axs[2], x='r_inf', y='a_inf', common_norm=True)
+                I_Kr_inf = (gkr*r_inf*a_inf*(voltage - Erev)).flatten()
+                steady_state_samples.append(I_Kr_inf)
+                sns.kdeplot(data=pd.DataFrame(I_Kr_inf, columns=[
+                    'I_Kr_inf']), shade=True, ax=axs[3], common_norm=True)
+
+                axs[0].set_title(f"{voltage:.2f}mV with {spike_removal_durations[i]}ms removed after each spike")
+                fig.savefig(os.path.join(sub_output_dir, f"{i}.png"))
             except Exception as e:
                 print(str(e))
 
-        fig.savefig(os.path.join(output_dir, f"mcmc_{i}.png"))
-        for ax in axs:
-            ax.cla()
+            for ax in axs:
+                ax.cla()
 
-        for j in range(samples.shape[0]):
-            pd.DataFrame(samples[j], columns=model.parameter_labels).to_csv(f"mcmc_samples_{i}_chain_{j}.csv")
+            fig = plt.figure(figsize=(18, 14))
+            axs = fig.subplots(4)
 
-        for j, p in [(j, "p%i" % (j + 1)) for j in range(model.get_no_parameters())]:
-            for row in samples:
+            res = compute_tau_inf_from_samples(samples, voltage=voltage)
+            for j, (a_inf, tau_a, r_inf, tau_r) in enumerate(zip(*res)):
+                gkrs = samples[j, :, -1]
+                axs[0].set_title(f"{voltage:.2f}mV with {spike_removal_durations[i]:.2f}ms removed after each spike")
                 try:
-                    sns.kdeplot(data=pd.DataFrame(row[:, j], columns=[p]), shade=True, ax=param_axs[j])
+                    # axs[0].scatter(a_inf, tau_a, marker='x')
+                    sns.kdeplot(data=pd.DataFrame(zip(a_inf, tau_a), columns=[
+                        'a_inf', 'tau_a']), shade=True, fill=True, ax=axs[0], x='a_inf', y='tau_a')
+                    axs[0].set_title(
+                        f"+40mV with {spike_removal_durations[i]:.2f}ms removed (MCMC)")
+                    sns.kdeplot(data=pd.DataFrame(zip(r_inf, tau_r), columns=[
+                        'r_inf', 'tau_r']), shade=True, ax=axs[1], x='r_inf', y='tau_r')
+                    # r_inf vs a_inf
+                    sns.kdeplot(data=pd.DataFrame(zip(r_inf, a_inf), columns=[
+                        'r_inf', 'a_inf']), shade=True, ax=axs[2], x='r_inf', y='a_inf')
+                    sns.kdeplot(data=pd.DataFrame(gkrs * r_inf * a_inf, columns=[
+                        'I_Kr_inf']), shade=True, ax=axs[3])
                 except Exception as e:
                     print(str(e))
-        param_axs[0].set_title(f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed after each spike")
-        param_fig.savefig(os.path.join(output_dir, f"mcmc_params_{i}.png"))
 
-        for ax in param_axs:
-            ax.cla()
+            fig.savefig(os.path.join(sub_output_dir, f"mcmc_{i}.png"))
+            for ax in axs:
+                ax.cla()
 
-    # Plot steady states on one axis for comparison
-    fig = plt.figure(figsize=(16, 14))
-    ax = fig.subplots()
+            for j in range(samples.shape[0]):
+                df = pd.DataFrame(samples[j], columns=model.parameter_labels)
+                df.to_csv(os.path.join(sub_output_dir, f"mcmc_samples_{i}_chain_{j}.csv"))
 
-    steady_state_samples = np.column_stack(steady_state_samples)
-    print("shape", steady_state_samples.shape)
-    columns=[f"{dur:.2f}ms removed" for dur in spike_removal_durations]
-    print(f"columns are {columns}")
-    df = pd.DataFrame(steady_state_samples, columns=columns)
-    print(f"dataframe is {df}")
+            for j, p in [(j, "p%i" % (j + 1)) for j in range(model.get_no_parameters())]:
+                for row in samples:
+                    try:
+                        sns.kdeplot(data=pd.DataFrame(row[:, j], columns=[p]), shade=True, ax=param_axs[j])
+                    except Exception as e:
+                        print(str(e))
+            param_axs[0].set_title(f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed after each spike")
+            param_fig.savefig(os.path.join(sub_output_dir, f"mcmc_params_{i}.png"))
 
-    sns.kdeplot(data=df, shade=True, ax=ax, hue=spike_removal_durations, pallette="viridis", common_norm=True)
+            for ax in param_axs:
+                ax.cla()
 
-    ax.set_xlim(*np.quantile(steady_state_samples[-1, :]), (.1, .9))
-    fig.savefig(os.path.join(output_dir, "steady_state_prediction_comparison.pdf"))
-    ax.cla()
+        # Plot steady states on one axis for comparison
+        fig = plt.figure(figsize=(16, 14))
+        ax = fig.subplots()
+
+        steady_state_samples = np.column_stack(steady_state_samples)
+        print("shape", steady_state_samples.shape)
+        columns = [f"{dur:.2f}ms removed" for dur in spike_removal_durations]
+        print(f"columns are {columns}")
+        df = pd.DataFrame(steady_state_samples, columns=columns)
+        print(f"dataframe is {df}")
+
+        sns.kdeplot(data=df, shade=True, ax=ax, common_norm=True)
+
+        ax.set_xlim(*np.quantile(steady_state_samples[-1, :], (.0.1, .99)))
+        fig.savefig(os.path.join(output_dir, f"steady_state_prediction_comparison_{voltage}mV.png"))
+        ax.cla()
 
     # Now plot predictions
     # We can use less timesteps now -- only interested in plotting
     pred_times = times
+    pred_voltages = np.array([model.voltage(t) for t in pred_times])
     pred_times = np.unique(list(pred_times) + list(current_spikes))
 
     n_samples = args.no_samples
 
-    pred_model = BeattieModel(times=pred_times,
-                              voltage=protocol_func,
-                              Erev=common.calculate_reversal_potential(T=310.15),
-                              parameters=params)
-
-    pred_voltages = pred_model.GetVoltage()
-    forward_solve = pred_model.make_hybrid_solver_current(protocol_desc)
+    forward_solve = model.make_hybrid_solver_current()
 
     def get_trajectory(p):
         try:
-            soln = forward_solve(p, pred_times, len(pred_times), pred_voltages)
+            soln = forward_solve(p, times=pred_times, voltages=pred_voltages)
         except Exception:
             return np.full(pred_times.shape, np.nan)
 
