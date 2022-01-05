@@ -238,8 +238,8 @@ def simulate_samples(samples, solver):
 
 def make_tolerance_plot(model, mk_protocol, mean_params, protocol, output_dir):
     tolerances = [(1E-3, 1E-5), (1E-5, 1E-7), (1E-7, 1E-9), (1E-9, 1E-12)]
-    times = model.times
-    voltages = model.GetVoltage()
+    times = model.times[::100]
+    voltages = model.GetVoltage()[::100]
     fig = plt.figure(figsize=(16, 14))
     axs = fig.subplots(len(tolerances))
 
