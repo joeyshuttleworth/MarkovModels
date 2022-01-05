@@ -234,7 +234,6 @@ def main():
         steady_state_samples = np.column_stack(steady_state_samples)
         print("shape", steady_state_samples.shape)
         columns = [f"{dur:.2f}ms removed" for dur in spike_removal_durations]
-        print(f"columns are {columns}")
         df = pd.DataFrame(steady_state_samples, columns=columns)
         print(f"dataframe is {df}")
 
