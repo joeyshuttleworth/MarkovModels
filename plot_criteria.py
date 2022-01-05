@@ -240,7 +240,7 @@ def main():
 
         sns.kdeplot(data=df, shade=True, ax=ax, common_norm=True)
 
-        ax.set_xlim(*np.quantile(steady_state_samples[-1, :], (.0.1, .99)))
+        ax.set_xlim(*np.quantile(steady_state_samples[-1, :], (.01, .99)))
         fig.savefig(os.path.join(output_dir, f"steady_state_prediction_comparison_{voltage}mV.png"))
         ax.cla()
 
