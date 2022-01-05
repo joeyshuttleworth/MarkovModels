@@ -156,10 +156,15 @@ def main():
             os.makedirs(sub_output_dir)
         for i, cov, in enumerate(covs):
             samples = mcmc_samples[i]
+
+            # Normal approximation first
+            a_inf, tau_a, r_inf, tau_r, gkr = monte_carlo_tau_inf(
+                params, cov, voltage=voltage, n_samples=args.no_samples)
+
+            I_Kr_inf = (gkr*r_inf*a_inf*(voltage - Erev)).flatten()
+            steady_state_samples.append(I_Kr_inf)
+
             try:
-                # Normal approximation first
-                a_inf, tau_a, r_inf, tau_r, gkr = monte_carlo_tau_inf(
-                    params, cov, voltage=voltage, n_samples=args.no_samples)
                 # axs[0].scatter(a_inf, tau_a, marker='x')
                 sns.kdeplot(data=pd.DataFrame(zip(a_inf, tau_a), columns=[
                             'a_inf', 'tau_a']), shade=True, fill=True, ax=axs[0], x='a_inf', y='tau_a', common_norm=True)
@@ -171,8 +176,6 @@ def main():
                 # r_inf vs a_inf
                 sns.kdeplot(data=pd.DataFrame(zip(r_inf, a_inf), columns=[
                     'r_inf', 'a_inf']), shade=True, ax=axs[2], x='r_inf', y='a_inf', common_norm=True)
-                I_Kr_inf = (gkr*r_inf*a_inf*(voltage - Erev)).flatten()
-                steady_state_samples.append(I_Kr_inf)
                 sns.kdeplot(data=pd.DataFrame(I_Kr_inf, columns=[
                     'I_Kr_inf']), shade=True, ax=axs[3], common_norm=True)
 
@@ -190,6 +193,8 @@ def main():
             res = compute_tau_inf_from_samples(samples, voltage=voltage)
             for j, (a_inf, tau_a, r_inf, tau_r) in enumerate(zip(*res)):
                 gkrs = samples[j, :, -1]
+                I_Kr_inf = (gkrs*r_inf*a_inf*(voltage - Erev)).flatten()
+
                 axs[0].set_title(f"{voltage:.2f}mV with {spike_removal_durations[i]:.2f}ms removed after each spike")
                 try:
                     # axs[0].scatter(a_inf, tau_a, marker='x')
@@ -202,7 +207,7 @@ def main():
                     # r_inf vs a_inf
                     sns.kdeplot(data=pd.DataFrame(zip(r_inf, a_inf), columns=[
                         'r_inf', 'a_inf']), shade=True, ax=axs[2], x='r_inf', y='a_inf')
-                    sns.kdeplot(data=pd.DataFrame(gkrs * r_inf * a_inf, columns=[
+                    sns.kdeplot(data=pd.DataFrame(I_Kr_inf, columns=[
                         'I_Kr_inf']), shade=True, ax=axs[3])
                 except Exception as e:
                     print(str(e))
