@@ -147,7 +147,7 @@ def main():
     mcmc_samples = [get_mcmc_chains(forward_solver, times, voltages,
                                    index_set, data, args.chain_length,
                                    model.get_default_parameters(), burn_in=args.burn_in) for index_set in indices_used]
-    voltage_list = [-80, -40, -20, 0, 20, 40]
+    voltage_list = [-100, -80, -40, -30, -20, -10, 0, 10, 20, 30, 40]
 
     for voltage in voltage_list:
         steady_state_samples = []
@@ -243,6 +243,7 @@ def main():
         print(f"dataframe is {df}")
 
         sns.kdeplot(data=df, shade=True, ax=ax, common_norm=True)
+
         plot_x_lims = np.quantile(steady_state_samples[-1, :], (.05, .95))
         x_window_size = plot_x_lims[1] - plot_x_lims[0]
 
