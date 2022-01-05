@@ -1,13 +1,11 @@
 
-from BeattieModel import BeattieModel
+from MarkovModels.BeattieModel import BeattieModel
 import argparse
 import os
-import common
+from MarkovModels import common
 import numpy as np
 import logging
 import matplotlib.pyplot as plt
-import multiprocessing
-
 
 def simulate_protocol(model, name, output_dir):
     fig = plt.figure(figsize=(14, 12))
@@ -37,7 +35,7 @@ def simulate_protocol(model, name, output_dir):
     axs[2].grid(True)
     axs[2].set_xticklabels([])
     axs[2].set_ylabel('State occupancy')
-    for i in range(model.n_params):
+    for i in range(model.n_params - 1):
         axs[3].plot(model.times, S1n[:, i], label=param_labels[i])
     axs[3].legend(ncol=3)
     axs[3].grid(True)
@@ -81,12 +79,10 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    tasks = []
     for fname in os.listdir(common.get_protocol_directory()):
         fname, ext = os.path.splitext(fname)
         if fname[0] == '#':
             continue
-        print(fname, args.protocols)
         if fname in args.protocols or len(args.protocols) == 0:
             func(fname, ext, output_dir)
 
@@ -95,12 +91,17 @@ def func(protocol_name, ext, output_dir):
     if ext != ".csv":
         logging.warning(f"Using file with extension {ext}")
 
-    protocol, t_start, t_end, t_step = common.get_protocol_from_csv(protocol_name)
+    protocol, t_start, t_end, t_step, protocol_description = common.get_ramp_protocol_from_csv(protocol_name)
     times = np.linspace(t_start, t_end, int((t_end - t_start) / t_step))
     model = BeattieModel(protocol, times, Erev=common.calculate_reversal_potential(298, K_out=130, K_in=5))
+    model.protocol_description = protocol_description
 
-    model.default_parameters = np.array([0.00023215680795174809, 0.07422110165735675, 2.477501557744992e-05, 0.04414799725791213,
-                                        0.11023652619943154, 0.015996823969951217, 0.015877336172564104, 0.027816696279347616, 49.70368237942998])
+    model.default_parameters = np.array([0.00023215680795174809, 0.07422110165735675,
+                                         2.477501557744992e-05, 0.04414799725791213,
+                                        0.11023652619943154, 0.015996823969951217,
+                                         0.015877336172564104, 0.027816696279347616,
+                                         49.70368237942998])
+
     simulate_protocol(model, protocol_name, output_dir)
 
 
