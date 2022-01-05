@@ -1,22 +1,18 @@
 #!/usr/bin/env python3
 
-import common
-import logging
+from MarkovModels import common
 import os
+import logging
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import pints
 
-import itertools
-from MarkovModel import MarkovModel
-from BeattieModel import BeattieModel
-from numba import jit, njit, cfunc
-import numba as nb
+from MarkovModels.BeattieModel import BeattieModel
+
+from numba import njit
 
 import matplotlib.pyplot as plt
-
-criteria = ['D', 'A', 'G']
 
 sigma2 = 0.0001
 
@@ -44,32 +40,36 @@ def main():
 
     protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
     times = np.linspace(tstart, tend, int((tend - tstart) / tstep))
-
+    Erev = common.calculate_reversal_potential(310.15)
     model = BeattieModel(times=times,
-                         protocol=protocol_func,
-                         Erev=common.calculate_reversal_potential(310.15),
+                         voltage=protocol_func,
+                         Erev=Erev,
                          parameters=params)
 
     model.protocol_description = protocol_desc
     model.window_locs = [t for t, _, _, _ in protocol_desc]
 
     voltages = model.GetVoltage()
-    states = model.make_hybrid_solver_states()(params, times)
 
     D_optimalities = []
     A_optimalities = []
     G_optimalities = []
 
+    logging.info("Getting model sensitivities")
     current, S1 = model.SimulateForwardModelSensitivities(params)
     spike_times, spike_indices = common.detect_spikes(times, voltages,
-                                                      window_size=1)
+                                                      window_size=500)
 
     current_spikes, _ = common.detect_spikes(times, current, threshold=max(current) / 100,
-                                             window_size=100)
+                                             window_size=500)
     print(f"spike locations are{current_spikes}")
 
     covs = []
     indices_used = []
+
+    # Setup for Bayesian D optimality
+    nb_samples = 10
+
     for time_to_remove in spike_removal_durations:
         indices = common.remove_indices(list(range(len(times))),
                                         [(spike,
@@ -99,11 +99,23 @@ def main():
     A_optimalities = A_optimalities / A_optimalities.max()
     G_optimalities = G_optimalities / G_optimalities.max()
 
-    df = pd.DataFrame(np.column_stack((spike_removal_durations, np.log(D_optimalities), np.log(A_optimalities), np.log(A_optimalities))),
-                      columns=('time removed after spikes /ms', "normalised log D-optimality", "normalised log A-optimality", "normalised log G-optimality"))
+    df = pd.DataFrame(np.column_stack((spike_removal_durations,
+                                       # Bayesian_D_optimalities,
+                                       np.log(D_optimalities),
+                                       np.log(A_optimalities),
+                                       np.log(A_optimalities))),
+                      columns=('time removed after spikes /ms',
+                               # "Bayesian D-optimality",
+                               "normalised log D-optimality",
+                               "normalised log A-optimality",
+                               "normalised log G-optimality"))
+
     df.set_index('time removed after spikes /ms', inplace=True)
+
     df.plot(legend=True, subplots=True)
-    plt.savefig(os.path.join(output_dir, "criteria.pdf"))
+
+    fig = plt.gcf()
+    fig.savefig(os.path.join(output_dir, "criteria.pdf"))
 
     conf_fig = plt.figure(figsize=(16, 12))
     conf_axs = conf_fig.subplots(2)
@@ -124,7 +136,7 @@ def main():
 
     # Sample steady states and timescales
     print("Sampling steady states and timescales")
-    voltage = 0
+    voltage = -20
 
     param_fig = plt.figure(figsize=(18, 14))
     param_axs = param_fig.subplots(model.get_no_parameters())
@@ -133,29 +145,38 @@ def main():
     data = forward_solver(model.get_default_parameters(), times, voltage) + \
         np.random.normal(0, np.sqrt(sigma2), (len(times),))
 
+    steady_state_samples = []
     for i, cov, in enumerate(covs):
-        # Normal approximation first
-        a_inf, tau_a, r_inf, tau_r, gkr = monte_carlo_tau_inf(
-            params, cov, voltage=voltage)
-        # axs[0].scatter(a_inf, tau_a, marker='x')
-        sns.kdeplot(data=pd.DataFrame(zip(a_inf, tau_a), columns=[
-                    'a_inf', 'tau_a']), shade=True, fill=True, ax=axs[0], x='a_inf', y='tau_a')
-        axs[0].set_title(
-            f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed")
-        # axs[1].scatter(r_inf, tau_r, marker='x')
-        sns.kdeplot(data=pd.DataFrame(zip(r_inf, tau_r), columns=[
-                    'r_inf', 'tau_r']), shade=True, ax=axs[1], x='r_inf', y='tau_r')
-        # r_inf vs a_inf
-        sns.kdeplot(data=pd.DataFrame(zip(r_inf, a_inf), columns=[
-            'r_inf', 'a_inf']), shade=True, ax=axs[2], x='r_inf', y='a_inf')
-        sns.kdeplot(data=pd.DataFrame(gkr * r_inf * a_inf, columns=[
-            'I_Kr_inf']), shade=True, ax=axs[3])
+        try:
+            # Normal approximation first
+            a_inf, tau_a, r_inf, tau_r, gkr = monte_carlo_tau_inf(
+                params, cov, voltage=voltage, n_samples=args.no_samples)
+            # axs[0].scatter(a_inf, tau_a, marker='x')
+            sns.kdeplot(data=pd.DataFrame(zip(a_inf, tau_a), columns=[
+                        'a_inf', 'tau_a']), shade=True, fill=True, ax=axs[0], x='a_inf', y='tau_a', common_norm=True)
+            axs[0].set_title(
+                f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed")
+            # axs[1].scatter(r_inf, tau_r, marker='x')
+            sns.kdeplot(data=pd.DataFrame(zip(r_inf, tau_r), columns=[
+                        'r_inf', 'tau_r']), shade=True, ax=axs[1], x='r_inf', y='tau_r', common_norm=True)
+            # r_inf vs a_inf
+            sns.kdeplot(data=pd.DataFrame(zip(r_inf, a_inf), columns=[
+                'r_inf', 'a_inf']), shade=True, ax=axs[2], x='r_inf', y='a_inf', common_norm=True)
+            I_Kr_inf = (gkr*r_inf*a_inf*(voltage - Erev)).flatten()
+            steady_state_samples.append(I_Kr_inf)
+            sns.kdeplot(data=pd.DataFrame(I_Kr_inf, columns=[
+                'I_Kr_inf']), shade=True, ax=axs[3], common_norm=True)
 
-        axs[0].set_title(f"{voltage}mV with {spike_removal_durations[i]}ms removed after each spike")
-        fig.savefig(os.path.join(output_dir, f"{i}.png"))
+            axs[0].set_title(f"{voltage:.2f}mV with {spike_removal_durations[i]}ms removed after each spike")
+            fig.savefig(os.path.join(output_dir, f"{i}.png"))
+        except Exception as e:
+            print(str(e))
 
         for ax in axs:
             ax.cla()
+
+        fig = plt.figure(figsize=(18, 14))
+        axs = fig.subplots(4)
 
         # Next, the MCMC version
         samples = get_mcmc_chains(forward_solver, times, voltages,
@@ -163,7 +184,7 @@ def main():
         res = compute_tau_inf_from_samples(samples, voltage=voltage)
         for j, (a_inf, tau_a, r_inf, tau_r) in enumerate(zip(*res)):
             gkrs = samples[j, :, -1]
-            axs[0].set_title(f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed after each spike")
+            axs[0].set_title(f"{voltage:.2f}mV with {spike_removal_durations[i]:.2f}ms removed after each spike")
             try:
                 # axs[0].scatter(a_inf, tau_a, marker='x')
                 sns.kdeplot(data=pd.DataFrame(zip(a_inf, tau_a), columns=[
@@ -199,6 +220,23 @@ def main():
         for ax in param_axs:
             ax.cla()
 
+    # Plot steady states on one axis for comparison
+    fig = plt.figure(figsize=(16, 14))
+    ax = fig.subplots()
+
+    steady_state_samples = np.column_stack(steady_state_samples)
+    print("shape", steady_state_samples.shape)
+    columns=[f"{dur:.2f}ms removed" for dur in spike_removal_durations]
+    print(f"columns are {columns}")
+    df = pd.DataFrame(steady_state_samples, columns=columns)
+    print(f"dataframe is {df}")
+
+    sns.kdeplot(data=df, shade=True, ax=ax, hue=spike_removal_durations, pallette="viridis", common_norm=True)
+
+    ax.set_xlim(*np.quantile(steady_state_samples[-1, :]), (.1, .9))
+    fig.savefig(os.path.join(output_dir, "steady_state_prediction_comparison.pdf"))
+    ax.cla()
+
     # Now plot predictions
     # We can use less timesteps now -- only interested in plotting
     pred_times = times
@@ -207,7 +245,7 @@ def main():
     n_samples = args.no_samples
 
     pred_model = BeattieModel(times=pred_times,
-                              protocol=protocol_func,
+                              voltage=protocol_func,
                               Erev=common.calculate_reversal_potential(T=310.15),
                               parameters=params)
 
@@ -270,21 +308,22 @@ def main():
 
 def monte_carlo_tau_inf(mean, cov, n_samples=10000, voltage=40):
     samples = np.random.multivariate_normal(mean, cov, n_samples)
-    k1 = samples[:, 0] * np.exp(samples[:, 1] * voltage)
-    k2 = samples[:, 2] * np.exp(-samples[:, 3] * voltage)
-    k3 = samples[:, 4] * np.exp(samples[:, 5] * voltage)
-    k4 = samples[:, 6] * np.exp(-samples[:, 7] * voltage)
+    k1 = (samples[:, 0] * np.exp(samples[:, 1] * voltage)).flatten()
+    k2 = (samples[:, 2] * np.exp(-samples[:, 3] * voltage)).flatten()
+    k3 = (samples[:, 4] * np.exp(samples[:, 5] * voltage)).flatten()
+    k4 = (samples[:, 6] * np.exp(-samples[:, 7] * voltage)).flatten()
 
-    a_inf = 1 / (k1 + k2)
-    tau_a = k1 / (k1 + k2)
+    a_inf = k1 / (k1 + k2)
+    tau_a = 1 / (k1 + k2)
 
-    r_inf = 1 / (k3 + k4)
-    tau_r = k4 / (k3 + k4)
+    r_inf = k4 / (k3 + k4)
+    tau_r = 1 / (k3 + k4)
 
-    return a_inf, tau_a, r_inf, tau_r, samples[:, -1]
+    return a_inf, tau_a, r_inf, tau_r, samples[:, -1].flatten()
 
 
-def plot_regions(times, model, spike_times, spike_indices, output_dir, spike_removal_durations, fig, axs, p_of_interest=(4, 6)):
+def plot_regions(times, model, spike_times, spike_indices, output_dir, spike_removal_durations,
+                 fig, axs, p_of_interest=(4, 6)):
     params = model.get_default_parameters()
     tstep = times[1] - times[0]
 
@@ -370,7 +409,6 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, defaul
     @njit
     def log_likelihood_func(p):
         sol = solver(p, times, voltages)[indices]
-        # print(np.argwhere(np.isnan(sol)))
         return -0. * np.sum((sol - data)**2 / sigma2) - np.log(np.sqrt(sigma2 * 2 * np.pi))
 
     class pints_likelihood(pints.LogPDF):
@@ -401,14 +439,15 @@ def compute_tau_inf_from_samples(samples, voltage=40):
     k3 = samples[:, :, 4] * np.exp(samples[:, :, 5] * voltage)
     k4 = samples[:, :, 6] * np.exp(-samples[:, :, 7] * voltage)
 
-    a_inf = 1 / (k1 + k2)
-    tau_a = k1 / (k1 + k2)
+    a_inf = k1 / (k1 + k2)
+    tau_a = 1 / (k1 + k2)
 
-    r_inf = 1 / (k3 + k4)
-    tau_r = k4 / (k3 + k4)
+    r_inf = k4 / (k3 + k4)
+    tau_r = 1 / (k3 + k4)
 
     return a_inf, tau_a, r_inf, tau_r
 
 
 if __name__ == "__main__":
+    logging.getLogger().setLevel(logging.INFO)
     main()
