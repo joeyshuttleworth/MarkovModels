@@ -243,8 +243,13 @@ def main():
         print(f"dataframe is {df}")
 
         sns.kdeplot(data=df, shade=True, ax=ax, common_norm=True)
+        plot_x_lims = np.quantile(steady_state_samples[-1, :], (.05, .95))
+        x_window_size = plot_x_lims[1] - plot_x_lims[0]
 
-        ax.set_xlim(*np.quantile(steady_state_samples[-1, :], (.01, .99)))
+        plot_x_lims = steady_state_samples[0] + np.array([-x_window_size, x_window_size]) * .5
+
+        ax.set_xlim(*plot_x_lims)
+
         fig.savefig(os.path.join(output_dir, f"steady_state_prediction_comparison_{voltage}mV.png"))
         ax.cla()
 
