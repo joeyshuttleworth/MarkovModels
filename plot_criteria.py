@@ -33,7 +33,7 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.linspace(0, 50, 20)
+    spike_removal_durations = np.linspace(0, 50, 10)
 
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
@@ -61,7 +61,7 @@ def main():
                                                       window_size=500)
 
     current_spikes, _ = common.detect_spikes(times, current, threshold=max(current) / 100,
-                                             window_size=500)
+                                             window_size=100)
     print(f"spike locations are{current_spikes}")
 
     covs = []
@@ -236,15 +236,20 @@ def main():
         fig = plt.figure(figsize=(16, 14))
         ax = fig.subplots()
 
-        steady_state_samples = np.column_stack(steady_state_samples)
-        print("shape", steady_state_samples.shape)
-        columns = [f"{dur:.2f}ms removed" for dur in spike_removal_durations]
-        df = pd.DataFrame(steady_state_samples, columns=columns)
-        print(f"dataframe is {df}")
+        steady_states_df = pd.DataFrame(columns=('IKr', 'removal_duration'))
+        for i, sample in enumerate(steady_state_samples):
+            df = pd.DataFrame(sample.T, columns=('IKr',))
+            df['removal_duration'] = spike_removal_durations[i]
+            steady_states_df = steady_states_df.append(df, ignore_index=True)
 
-        sns.kdeplot(data=df, shade=True, ax=ax, common_norm=True)
+        print("shape", steady_states_df.values.shape)
 
-        plot_x_lims = np.quantile(steady_state_samples[-1, :], (.05, .95))
+        print(f"dataframe is {steady_states_df}")
+
+        sns.kdeplot(data=steady_states_df, x='IKr', shade=False, ax=ax, common_norm=True,
+                    hue='removal_duration', palette='viridis')
+
+        plot_x_lims = np.quantile(steady_state_samples[-1], (.05, .95))
         x_window_size = plot_x_lims[1] - plot_x_lims[0]
 
         plot_x_lims = np.mean(steady_state_samples[0]) + np.array([-x_window_size, x_window_size]) * .5

@@ -257,10 +257,10 @@ def detect_spikes(x, y, threshold=100, window_size=250):
     deriv = dy / dx
     spike_indices = np.argwhere(np.abs(deriv) > threshold)[:, 0]
 
-    # spike_indices = [index - window_size + np.argmax(
-    #     np.abs(y[(index - window_size):(index + window_size)]))
-    #                  for index in spike_indices]
-    # spike_indices = np.unique(spike_indices)
+    spike_indices = [index - window_size + np.argmax(
+        np.abs(y[(index - window_size):(index + window_size)]))
+                     for index in spike_indices]
+    spike_indices = np.unique(spike_indices)
 
     if(len(spike_indices) == 0):
         return [], np.array([])
