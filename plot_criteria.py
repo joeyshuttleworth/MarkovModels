@@ -137,9 +137,7 @@ def main():
     # Sample steady states and timescales
     print("Sampling steady states and timescales")
     param_fig = plt.figure(figsize=(18, 14))
-    param_axs = param_fig.subplots(model.get_no_parameters())
     std_fig = plt.figure(figsize=(16, 14))
-    std_ax = std_fig.subplots()
 
     forward_solver = model.make_hybrid_solver_current()
     data = forward_solver(model.get_default_parameters(), times, voltages) + \
@@ -222,6 +220,7 @@ def main():
                 df = pd.DataFrame(samples[j], columns=model.parameter_labels)
                 df.to_csv(os.path.join(sub_output_dir, f"mcmc_samples_[{i}]_chain_{j}.csv"))
 
+            param_axs = param_fig.subplots(model.get_no_parameters())
             for j, p in [(j, "p%i" % (j + 1)) for j in range(model.get_no_parameters())]:
                 for row in samples:
                     try:
@@ -262,6 +261,7 @@ def main():
         ax.cla()
 
         stds = [np.std(sample) for sample in steady_state_samples]
+        std_ax = std_fig.subpolots()
         std_ax.plot(spike_removal_durations, stds)
         std_ax.set_xlabel('time removed after each spike /ms')
         std_ax.set_ylabel('standard deviation in steady state estimate')
