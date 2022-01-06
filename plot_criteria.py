@@ -138,6 +138,8 @@ def main():
     print("Sampling steady states and timescales")
     param_fig = plt.figure(figsize=(18, 14))
     param_axs = param_fig.subplots(model.get_no_parameters())
+    std_fig = plt.figure(figsize=(16, 14))
+    std_ax = std_fig.subplots()
 
     forward_solver = model.make_hybrid_solver_current()
     data = forward_solver(model.get_default_parameters(), times, voltages) + \
@@ -218,7 +220,7 @@ def main():
 
             for j in range(samples.shape[0]):
                 df = pd.DataFrame(samples[j], columns=model.parameter_labels)
-                df.to_csv(os.path.join(sub_output_dir, f"mcmc_samples[i]_{i}_chain_{j}.csv"))
+                df.to_csv(os.path.join(sub_output_dir, f"mcmc_samples_[{i}]_chain_{j}.csv"))
 
             for j, p in [(j, "p%i" % (j + 1)) for j in range(model.get_no_parameters())]:
                 for row in samples:
@@ -239,7 +241,7 @@ def main():
         steady_states_df = pd.DataFrame(columns=('IKr', 'removal_duration'))
         for i, sample in enumerate(steady_state_samples):
             df = pd.DataFrame(sample.T, columns=('IKr',))
-            df['removal_duration'] = spike_removal_durations[i]
+            df['removal_duration'] = round(spike_removal_durations[i], 2)
             steady_states_df = steady_states_df.append(df, ignore_index=True)
 
         print("shape", steady_states_df.values.shape)
@@ -258,6 +260,14 @@ def main():
 
         fig.savefig(os.path.join(output_dir, f"steady_state_prediction_comparison_{voltage}mV.png"))
         ax.cla()
+
+        stds = [np.std(sample) for sample in steady_state_samples]
+        std_ax.plot(spike_removal_durations, stds)
+        std_ax.set_xlabel('time removed after each spike /ms')
+        std_ax.set_ylabel('standard deviation in steady state estimate')
+        std_ax.set_title(f"{voltage}mV")
+        std_fig.savefig(os.path.join(sub_output_dir, 'standard_deviations'))
+        std_ax.cla()
 
     # Now plot predictions
     # We can use less timesteps now -- only interested in plotting
