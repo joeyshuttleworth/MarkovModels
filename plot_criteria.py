@@ -145,8 +145,8 @@ def main():
 
     # Next, the MCMC version
     mcmc_samples = [get_mcmc_chains(forward_solver, times, voltages,
-                                   index_set, data, args.chain_length,
-                                   model.get_default_parameters(), burn_in=args.burn_in) for index_set in indices_used]
+                                    index_set, data, args.chain_length,
+                                    model.get_default_parameters(), burn_in=args.burn_in) for index_set in indices_used]
     voltage_list = [-100, -80, -40, -30, -20, -10, 0, 10, 20, 30, 40]
 
     for voltage in voltage_list:
@@ -240,7 +240,8 @@ def main():
         fig = plt.figure(figsize=(20, 18))
         axs = fig.subplots(5)
 
-        steady_states_df = pd.DataFrame(columns=('IKr', 'a_inf', 'tau_a', 'r_inf', 'tau_r' 'removal_duration'))
+        steady_states_df = pd.DataFrame(columns=('IKr', 'a_inf', 'tau_a', 'r_inf',
+                                                 'tau_r', 'removal_duration'))
         for i in range(len(steady_state_samples)):
             sample = np.column_stack((steady_state_samples[i].T, *voi_samples[i])).T
             df = pd.DataFrame(sample.T, columns=('IKr', 'a_inf', 'tau_a', 'r_inf', 'tau_r'))
@@ -272,10 +273,11 @@ def main():
         std_axs[0].set_title(f"{voltage}mV")
 
         for i, var in enumerate(('a_inf', 'tau_a', 'r_inf', 'tau_r')):
-            stds = [np.std(steady_states_df[steady_states_df['removal_duration'] == time_removed].values)
+            stds = [np.std(steady_states_df[steady_states_df['removal_duration'] == time_removed][var].values)
                     for time_removed in np.unique(steady_states_df['removal_duration'])]
-            std_axs[i].plot(spike_removal_durations, stds)
-            std_axs[i].set_ylabel(f"standard deviation in {var} estimate")
+            print(stds)
+            std_axs[i + 1].plot(spike_removal_durations, stds)
+            std_axs[i + 1].set_ylabel(f"std of {var} estimate")
 
         std_fig.savefig(os.path.join(sub_output_dir, 'standard_deviations'))
 
