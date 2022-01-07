@@ -137,7 +137,8 @@ def main():
     # Sample steady states and timescales
     print("Sampling steady states and timescales")
     param_fig = plt.figure(figsize=(18, 14))
-    std_fig = plt.figure(figsize=(16, 14))
+    std_fig = plt.figure(figsize=(22, 20))
+    std_axs = std_fig.subplots(5)
 
     forward_solver = model.make_hybrid_solver_current()
     data = forward_solver(model.get_default_parameters(), times, voltages) + \
@@ -237,7 +238,7 @@ def main():
                 ax.cla()
 
         # Plot steady states on one axis for comparison
-        fig = plt.figure(figsize=(20, 18))
+        fig = plt.figure(figsize=(24, 22))
         axs = fig.subplots(5)
 
         steady_states_df = pd.DataFrame(columns=('IKr', 'a_inf', 'tau_a', 'r_inf',
@@ -267,7 +268,6 @@ def main():
 
         stds = [np.std(sample) for sample in steady_state_samples]
 
-        std_axs = std_fig.subplots(5)
         std_axs[0].plot(spike_removal_durations, stds)
         std_axs[-1].set_xlabel('time removed after each spike /ms')
         std_axs[0].set_title(f"{voltage}mV")
