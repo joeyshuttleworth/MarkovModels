@@ -151,6 +151,7 @@ def main():
 
     for voltage in voltage_list:
         steady_state_samples = []
+        voi_samples = []
         sub_output_dir = os.path.join(output_dir, f"{voltage}mV")
         if not os.path.exists(sub_output_dir):
             os.makedirs(sub_output_dir)
@@ -160,6 +161,8 @@ def main():
             # Normal approximation first
             a_inf, tau_a, r_inf, tau_r, gkr = monte_carlo_tau_inf(
                 params, cov, voltage=voltage, n_samples=args.no_samples)
+
+            voi_samples.append([a_inf, tau_a, r_inf, tau_r])
 
             I_Kr_inf = (gkr*r_inf*a_inf*(voltage - Erev)).flatten()
             steady_state_samples.append(I_Kr_inf)
@@ -179,7 +182,7 @@ def main():
                 sns.kdeplot(data=pd.DataFrame(I_Kr_inf, columns=[
                     'I_Kr_inf']), shade=True, ax=axs[3], common_norm=True)
 
-                axs[0].set_title(f"{voltage:.2f}mV with {spike_removal_durations[i]}ms removed after each spike")
+                axs[0].set_title(f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed after each spike")
                 fig.savefig(os.path.join(sub_output_dir, f"{i}.png"))
             except Exception as e:
                 print(str(e))
@@ -234,21 +237,22 @@ def main():
                 ax.cla()
 
         # Plot steady states on one axis for comparison
-        fig = plt.figure(figsize=(16, 14))
-        ax = fig.subplots()
+        fig = plt.figure(figsize=(20, 18))
+        axs = fig.subplots(5)
 
-        steady_states_df = pd.DataFrame(columns=('IKr', 'removal_duration'))
-        for i, sample in enumerate(steady_state_samples):
-            df = pd.DataFrame(sample.T, columns=('IKr',))
+        steady_states_df = pd.DataFrame(columns=('IKr', 'a_inf', 'tau_a', 'r_inf', 'tau_r' 'removal_duration'))
+        for i in range(len(steady_state_samples)):
+            sample = np.column_stack((steady_state_samples[i].T, *voi_samples[i])).T
+            df = pd.DataFrame(sample.T, columns=('IKr', 'a_inf', 'tau_a', 'r_inf', 'tau_r'))
             df['removal_duration'] = round(spike_removal_durations[i], 2)
             steady_states_df = steady_states_df.append(df, ignore_index=True)
 
         print("shape", steady_states_df.values.shape)
-
         print(f"dataframe is {steady_states_df}")
 
-        sns.kdeplot(data=steady_states_df, x='IKr', shade=False, ax=ax, common_norm=True,
-                    hue='removal_duration', palette='viridis')
+        for i, var in enumerate(('IKr', 'a_inf', 'tau_a', 'r_inf', 'tau_r')):
+            sns.kdeplot(data=steady_states_df, x=var, ax=axs[i], shade=False, common_norm=True,
+                        hue='removal_duration', palette='viridis', legend=(i==0))
 
         plot_x_lims = np.quantile(steady_state_samples[-1], (.05, .95))
         x_window_size = plot_x_lims[1] - plot_x_lims[0]
@@ -261,13 +265,22 @@ def main():
         ax.cla()
 
         stds = [np.std(sample) for sample in steady_state_samples]
-        std_ax = std_fig.subpolots()
-        std_ax.plot(spike_removal_durations, stds)
-        std_ax.set_xlabel('time removed after each spike /ms')
-        std_ax.set_ylabel('standard deviation in steady state estimate')
-        std_ax.set_title(f"{voltage}mV")
+
+        std_axs = std_fig.subplots(5)
+        std_axs[0].plot(spike_removal_durations, stds)
+        std_axs[-1].set_xlabel('time removed after each spike /ms')
+        std_axs[0].set_title(f"{voltage}mV")
+
+        for i, var in enumerate(('a_inf', 'tau_a', 'r_inf', 'tau_r')):
+            stds = [np.std(steady_states_df[steady_states_df['removal_duration'] == time_removed].values)
+                    for time_removed in np.unique(steady_states_df['removal_duration'])]
+            std_axs[i].plot(spike_removal_durations, stds)
+            std_axs[i].set_ylabel(f"standard deviation in {var} estimate")
+
         std_fig.savefig(os.path.join(sub_output_dir, 'standard_deviations'))
-        std_ax.cla()
+
+        for ax in std_axs:
+            ax.cla()
 
     # Now plot predictions
     # We can use less timesteps now -- only interested in plotting
