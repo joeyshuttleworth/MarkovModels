@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import pints
+import uuid
 
 from MarkovModels.BeattieModel import BeattieModel
 
@@ -28,6 +29,10 @@ def main():
 
     global args
     args = parser.parse_args()
+
+    if args.output is None:
+        args.output = os.path.join('output', f"output_{uuid.uuid4()}")
+
     output_dir = os.path.join(args.output, "plot_criteria")
 
     if not os.path.exists(output_dir):
