@@ -14,7 +14,7 @@ from numba import njit
 
 import matplotlib.pyplot as plt
 
-sigma2 = 0.0001
+sigma2 = 0.05**2
 
 
 def main():
@@ -67,9 +67,6 @@ def main():
     covs = []
     indices_used = []
 
-    # Setup for Bayesian D optimality
-    nb_samples = 10
-
     for time_to_remove in spike_removal_durations:
         indices = common.remove_indices(list(range(len(times))),
                                         [(spike,
@@ -90,6 +87,14 @@ def main():
 
         cov = sigma2 * cov
         covs.append(cov)
+
+    # Plot representative sample from DGP
+    sample_params = np.random.multivariate_normal(params, covs[0])
+    sample_current = model.SimulateForwardModel(sample_params) + np.random.normal(0, sigma2, times.shape)
+
+    plt.plot(times, sample_current)
+    plt.savefig("sample_of_DGP")
+    plt.clf()
 
     D_optimalities = np.array(D_optimalities)
     A_optimalities = np.array(A_optimalities)
