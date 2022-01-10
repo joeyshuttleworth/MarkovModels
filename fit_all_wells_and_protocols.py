@@ -30,7 +30,7 @@ def main():
     output_dir = args.output
 
     if output_dir is None:
-        args.output = os.path.join('output', f"output_{uuid.uuid4()}")
+        output_dir = os.path.join('output', f"output_{uuid.uuid4()}")
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
