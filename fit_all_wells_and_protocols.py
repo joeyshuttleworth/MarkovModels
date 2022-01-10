@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
+
 import multiprocessing
-import pandas as pd
 import regex as re
-import matplotlib.pyplot as plt
-import logging
 from MarkovModels import common
 from MarkovModels.BeattieModel import BeattieModel
 
-import argparse
 import os
-import numpy as np
-import pandas as pd
+import uuid
 
 def fit_func(protocol, well):
     default_parameters = None
