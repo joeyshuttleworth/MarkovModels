@@ -86,7 +86,7 @@ def get_parser(data_reqd=False, description=None):
         default=False)
     parser.add_argument("--dpi", type=int, default=100,
                         help="what DPI to use for figures")
-    parser.add_argument("-o", "--output", type=str, help="The directory to output figures and data to")
+    parser.add_argument("-o", "--output", type=str, help="The directory to output figures and data to", default='output')
     return parser
 
 
