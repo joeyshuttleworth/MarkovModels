@@ -650,7 +650,7 @@ def get_protocol(protocol_name: str):
     return v, t_start, t_end, t_step
 
 
-def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations, output_dir=None, T=298, K_in=120, K_out=5, default_parameters: float = None, removal_duration=5):
+def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations, output_dir=None, T=298, K_in=120, K_out=5, default_parameters: float = None, removal_duration=5, repeats=1):
 
     # Ignore files that have been commented out
     voltage_func, t_start, t_end, t_step, protocol_desc = get_ramp_protocol_from_csv(protocol)
@@ -696,25 +696,29 @@ def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations
 
     print(f"initial_gkr is {initial_gkr}")
 
-    fitted_params, score = fit_model(model, data, starting_parameters=initial_params, max_iterations=max_iterations)
+    fitted_params_list = []
 
-    fig = plt.figure(figsize=(14, 12))
-    ax = fig.subplots(1)
-    ax.plot(times, data)
-    ax.plot(times, model.SimulateForwardModel(fitted_params))
+    for i in range(repeats):
+        fitted_params, score = fit_model(model, data, starting_parameters=initial_params, max_iterations=max_iterations)
 
-    if output_dir is not None:
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+        fig = plt.figure(figsize=(14, 12))
+        ax = fig.subplots(1)
+        ax.plot(times, data)
+        ax.plot(times, model.SimulateForwardModel(fitted_params))
 
-        df = pd.DataFrame(np.column_stack((fitted_params[None, :], [score])), columns=model.parameter_labels + ['SSE'])
-        df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
-        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit"))
-        ax.cla()
-    else:
-        plt.show()
+        if output_dir is not None:
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
 
-    return fitted_params
+                df = pd.DataFrame(np.column_stack((fitted_params[None, :], [score])), columns=model.parameter_labels + ['SSE'])
+                df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params_{i}.csv"))
+                fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit_{i}"))
+                ax.cla()
+            else:
+                plt.show()
+        fitted_params_list.append(fitted_params)
+
+    return fitted_params_list
 
 
 def get_all_wells_in_directory(data_dir, regex="^newtonrun4-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$", group=1):

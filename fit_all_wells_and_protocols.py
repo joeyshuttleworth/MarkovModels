@@ -16,12 +16,13 @@ def fit_func(protocol, well):
     default_parameters = None
     this_output_dir = os.path.join(output_dir, f"fitting_{args.removal_duration}ms_removed", f"{protocol}_{well}")
 
-    common.fit_well_to_data(BeattieModel, well, protocol, args.data_directory, args.max_iterations, this_output_dir, T=298, K_in=5, K_out=120, default_parameters=default_parameters, removal_duration=args.removal_duration)
+    common.fit_well_to_data(BeattieModel, well, protocol, args.data_directory, args.max_iterations, this_output_dir, T=298, K_in=5, K_out=120, default_parameters=default_parameters, removal_duration=args.removal_duration, repeats=args.repeats)
 
 def main():
     parser = common.get_parser(
         data_reqd=True, description="Fit a given well to the data from each of the protocols. Output the resulting parameters to a file for later use")
     parser.add_argument('--max_iterations', '-i', type=int, default="100000")
+    parser.add_argumetns('--repeats', type=int, default=8)
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--removal_duration', '-r', default=5, type=int)
