@@ -22,7 +22,7 @@ def main():
     parser = common.get_parser(
         data_reqd=True, description="Fit a given well to the data from each of the protocols. Output the resulting parameters to a file for later use")
     parser.add_argument('--max_iterations', '-i', type=int, default="100000")
-    parser.add_argumetns('--repeats', type=int, default=8)
+    parser.add_argument('--repeats', type=int, default=8)
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--removal_duration', '-r', default=5, type=int)
