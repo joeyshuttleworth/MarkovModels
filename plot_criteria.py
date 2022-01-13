@@ -256,7 +256,7 @@ def main():
             for j, p in [(j, "p%i" % (j + 1)) for j in range(model.get_no_parameters())]:
                 for row in samples:
                     try:
-                        sns.kdeplot(data=pd.DataFrame(row[:, j], columns=[p]), shade=True, ax=param_axs[j])
+                        sns.kdeplot(data=pd.DataFrame(row[:, j], columns=[p]), shade=False, ax=param_axs[j])
                     except Exception as e:
                         print(str(e))
             param_axs[0].set_title(f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed after each spike")
@@ -284,6 +284,7 @@ def main():
             sns.kdeplot(data=steady_states_df, x=var, ax=axs[i], shade=False, common_norm=True,
                         hue='removal_duration', palette='viridis', legend=(i==0))
 
+
         plot_x_lims = np.quantile(steady_state_samples[-1], (.05, .95))
         x_window_size = plot_x_lims[1] - plot_x_lims[0]
 
@@ -292,7 +293,26 @@ def main():
         ax.set_xlim(*plot_x_lims)
 
         fig.savefig(os.path.join(output_dir, f"steady_state_prediction_comparison_{voltage}mV.png"))
-        ax.cla()
+        for ax in axs:
+            ax.cla()
+
+        mcmc_steady_state_samples = [compute_tau_inf_from_samples(samples, voltage=voltage) for samples in mcmc_samples]
+        varlist = ['a_inf', 'tau_a', 'r_inf', 'tau_r']
+        mcmc_steady_states_df = pd.DataFrame(columns=varlist+['removal_duration'])
+
+        for i in range(len(mcmc_steady_state_samples)):
+            sample = np.array(mcmc_steady_state_samples[i])
+            df = pd.DataFrame(sample, columns=('a_inf', 'tau_a', 'r_inf', 'tau_r'))
+            df['removal_duration'] = round(spike_removal_durations[i], 2)
+            mcmc_steady_states_df = steady_states_df.append(df, ignore_index=True)
+
+        for i, var in enumerate():
+            sns.kdeplot(data=mcmc_steady_states_df, x=var, ax=axs[i], shade=False, common_norm=True,
+                        hue='removal_duration', palette='viridis', legend=(i == 0))
+        fig.savefig(os.path.join(output_dir, f"mcmc_steady_state_prediction_comparison{voltage}mV.png"))
+
+        for ax in axs:
+            ax.cla()
 
         stds = [np.std(sample) for sample in steady_state_samples]
 
@@ -482,7 +502,6 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, defaul
         sol = solver(p, times, voltages)[indices]
         SSE = ((sol - data)**2).sum()
         return -n * 0.5 * np.log(2 * np.pi) - n * 0.5 * np.log(sigma2) - SSE / (2 * sigma2)
-
 
     class pints_likelihood(pints.LogPDF):
         def __call__(self, p):
