@@ -1,4 +1,3 @@
-
 from MarkovModels.BeattieModel import BeattieModel
 import argparse
 import os
@@ -6,10 +5,12 @@ from MarkovModels import common
 import numpy as np
 import logging
 import matplotlib.pyplot as plt
+import pandas as pd
 
-def simulate_protocol(model, name, output_dir):
+def simulate_protocol(model, name, output_dir, params=None):
     fig = plt.figure(figsize=(14, 12))
     axs = fig.subplots(4)
+
     print(f"Plotting {name} to {output_dir}")
 
     model.set_tolerances(1e-7, 1e-9)
@@ -72,8 +73,12 @@ def simulate_protocol(model, name, output_dir):
 def main():
     parser = argparse.ArgumentParser(description="Plot output from different protocols")
     parser.add_argument("--protocols", "-p", default=[], type=str, nargs='+')
+    parser.add_argument("--parameter_file", type=str, default=None)
 
     args = parser.parse_args()
+
+    if args.parameter_file is not None:
+        params = pd.read_csv(args.parameter_file).values.flatten()
 
     output_dir = os.path.join('output', 'simulate_protocols')
     if not os.path.exists(output_dir):
@@ -84,16 +89,19 @@ def main():
         if fname[0] == '#':
             continue
         if fname in args.protocols or len(args.protocols) == 0:
-            func(fname, ext, output_dir)
+            func(fname, ext, output_dir, args.params)
 
 
-def func(protocol_name, ext, output_dir):
+def func(protocol_name, ext, output_dir, params=None):
     if ext != ".csv":
         logging.warning(f"Using file with extension {ext}")
 
     protocol, t_start, t_end, t_step, protocol_description = common.get_ramp_protocol_from_csv(protocol_name)
     times = np.linspace(t_start, t_end, int((t_end - t_start) / t_step))
     model = BeattieModel(protocol, times, Erev=common.calculate_reversal_potential(298, K_out=130, K_in=5))
+    if params is not None:
+        model.params = params
+
     model.protocol_description = protocol_description
 
     model.default_parameters = np.array([0.00023215680795174809, 0.07422110165735675,

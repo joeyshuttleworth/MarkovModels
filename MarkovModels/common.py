@@ -345,9 +345,7 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
     Holding potential: the value to return for times outside of the
     range
 
-    Returns:
-    Returns a function float->float which returns the voltage (in mV)
-    at any given time t (in ms)
+    :returns: a Tuple containg float->float which returns the voltage (in mV) at any given time t (in ms), tstart, tend, tstep and a Tuple describing the protocol.
 
     """
 
@@ -730,3 +728,46 @@ def get_all_wells_in_directory(data_dir, regex="^newtonrun4-([a-z|A-Z|0-9]*)-([A
         wells.append(well)
 
     return wells
+
+
+def compute_reversal_potential(protocol: str, current: np.array, times, ax=None, output_path=None):
+
+    protocol_func, _, _, _, protocol_desc = get_ramp_protocol_from_csv(protocol)
+
+    tstart = times[0]
+    tstep = times[1] - times[0]
+
+    # First, find the reversal ramp. Search backwards along the protocol until we find a >= 40mV step
+    step = next(filter(lambda x: x[2] >= -74, reversed(protocol_desc)))
+
+    if step[1] - step[0] > 200 or step[1] - step[0] < 50:
+        raise Exception("Failed to find reversal ramp in protocol")
+
+    # Next extract steps
+    istart = int((step[0] + tstart) / tstep)
+    iend = int((step[1] + tstart) / tstep)
+
+    times = times[istart:iend]
+    current = current[istart:iend]
+
+    voltages = np.array([protocol_func(t) for t in times])
+
+    # Now plot current vs voltage
+    plt.plot(voltages, current, 'x', markersize=2, color='grey')
+
+    fitted_poly = np.polyfit(current, voltages, 6)
+    fitted_poly_func = np.poly1d(fitted_poly)
+
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.subplots()
+
+    ax.plot(fitted_poly_func(current), current)
+    ax.set_xlabel('voltage mV')
+    ax.set_ylabel('current nA')
+
+    if output_path is not None:
+        fig = ax.figure
+        fig.savefig(output_path)
+
+    return fitted_poly_func(0)

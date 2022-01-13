@@ -14,6 +14,7 @@ import matplotlib.lines as mlines
 import argparse
 import regex as re
 import itertools
+import uuid
 
 
 def get_wells_list(input_dir):
@@ -32,21 +33,27 @@ def main():
 
     parser.add_argument('data_directory', type=str, help="path to the directory containing the raw data")
     parser.add_argument('--wells', '-w', action='append', default=None)
-    parser.add_argument('--output', '-o', default='output')
+    parser.add_argument('--output', '-o', default=None)
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--percentage_to_remove', default=0, type=float)
     parser.add_argument('-e', '--extra_points', nargs=2, default=(0, 0), type=int)
 
     args = parser.parse_args()
 
+    if args.output is None:
+        args.output = os.path.join('output', f"output-{uuid.uuid4()}")
+
     if len(args.protocols) == 0:
         default_protocol_list = ["sis", "longap", "rtovmaxdiff", "rvotmaxdiff", "spacefill10",
-                                 "spacefill19", "spacefill26", "hhsobol3step", "hhbrute3gstep", "wangsobol3step", "wangbrute3gstep"]
+                                 "spacefill19", "spacefill26", "hhsobol3step", "hhbrute3gstep",
+                                 "wangsobol3step", "wangbrute3gstep"]
+
         args.protocols = default_protocol_list
 
-    output_dir = os.path.join(args.output, f"leak_subtraction_{args.extra_points}")
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    output = os.path.join(args.output, f"subtract_leak_{args.extra_points[0]}_{args.extra_points[1]}")
+
+    if not os.path.exists(output):
+        os.makedirs(output)
 
     if args.wells is None:
         args.wells = get_wells_list(args.data_directory)
@@ -60,8 +67,11 @@ def main():
 
     subtracted_trace_dirname = "subtracted_traces"
 
-    if not os.path.exists(os.path.join(output_dir, subtracted_trace_dirname)):
-        os.makedirs(os.path.join(output_dir, subtracted_trace_dirname))
+    if not os.path.exists(os.path.join(output, subtracted_trace_dirname)):
+        os.makedirs(os.path.join(output, subtracted_trace_dirname))
+
+    reversal_fig = plt.figure(figsize=(18, 16))
+    reversal_ax  = reversal_fig.subplots()
 
     for well in args.wells:
         for protocol in args.protocols:
@@ -71,6 +81,8 @@ def main():
             dt = (observation_times[1] - observation_times[0])
             extra_points = [int(val / dt) for val in args.extra_points]
             protocol_voltages = np.array([protocol_func(t) for t in observation_times])
+
+            dt = observation_times[1] - observation_times[0]
 
             # Find first few steps where voltage is big
             if args.extra_points[1] > 0:
@@ -86,22 +98,29 @@ def main():
             after_trace = pd.read_csv(os.path.join(args.data_directory, after_filename)).values.flatten()
 
             g_leak_before, E_leak_before, _, _, _, _, _ = fit_leak_lr(
-                protocol_voltages, before_trace, dt=5e-4, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
+                protocol_voltages, before_trace, dt=dt, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
             g_leak_after, E_leak_after, _, _, _, _, _ = fit_leak_lr(
-                protocol_voltages, after_trace, dt=5e-4, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
+                protocol_voltages, after_trace, dt=dt, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
 
             before_subtracted = before_trace - (g_leak_before * (protocol_voltages - E_leak_before))
             after_subtracted = after_trace - (g_leak_after * (protocol_voltages - E_leak_after))
 
             subtracted_trace = before_subtracted - after_subtracted
+
+            reversal_ax.cla()
+            fitted_Erev = common.compute_reversal_potential(protocol, subtracted_trace,
+                                                            observation_times,
+                                                            output_path=os.path.join(output, f"reversal_potential_{protocol}_{well}"),
+                                                            ax=reversal_ax)
+
             subtracted_trace_df = pd.DataFrame(np.column_stack(
                 (observation_times, subtracted_trace)), columns=('time', 'current'))
 
             fname = f"newtonrun4-{protocol}-{well}.csv"
 
-            subtracted_trace_df.to_csv(os.path.join(output_dir, subtracted_trace_dirname, fname))
+            subtracted_trace_df.to_csv(os.path.join(output, subtracted_trace_dirname, fname))
             subtracted_trace_df['time'].to_csv(os.path.join(
-                output_dir, subtracted_trace_dirname, f"newtonrun4-{protocol}-times.csv"))
+                output, subtracted_trace_dirname, f"newtonrun4-{protocol}-times.csv"))
 
             # Check that the current isn't negative on the first step after the leak ramp
             first_step = [(i, v) for i, v in enumerate(protocol_voltages) if v > 30]
@@ -122,7 +141,6 @@ def main():
             predictions = (xpred - E_leak) * g_leak
             msres = (((x - E_leak) * g_leak - y)**2 / (n - 2)).sum()
             sd = np.sqrt(msres * (1 / n + (x - x.mean())**2 / ((x**2).sum())))
-            before_mean = predictions[-1]
             before_sd = sd[-1]
 
             g_leak, E_leak, _, _, _, x, y = fit_leak_lr(
@@ -155,7 +173,7 @@ def main():
             axs[5].set_ylabel(f"Voltage /mV")
             axs[5].set_xlabel("time /ms")
 
-            fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_traces_from_leak_subtraction"))
+            fig.savefig(os.path.join(output, f"{well}_{protocol}_traces_from_leak_subtraction"))
             for ax in axs:
                 ax.cla()
 
@@ -184,10 +202,11 @@ def main():
                     print(f"{protocol}, {well}, {tracename} \tfailed QC6c")
                     passed3 = False
 
-                df.append((protocol, well, tracename, passed1, passed2, passed3))
+                df.append((protocol, well, tracename, fitted_Erev, passed1, passed2, passed3))
 
-    df = pd.DataFrame(df, columns=('protocol', 'well', 'before/after', 'passed QC6a', 'passed QC6b', 'passed QC6c'))
-    df.to_csv(os.path.join(output_dir, "subtraction_qc"))
+    df = pd.DataFrame(df, columns=('protocol', 'well', 'before/after', 'fitted_erev',
+                                   'passed QC6a', 'passed QC6b', 'passed QC6c'))
+    df.to_csv(os.path.join(output, "subtraction_qc.csv"))
     print(df)
 
     # Find wells passing all traces
@@ -198,7 +217,7 @@ def main():
             if row['well'] == well and row['passed QC6c'] == False:
                 failed = True
                 break
-        if failed == False:
+        if not failed:
             passed_lst.append(well)
 
     print(f"Wells with all successful traces: {passed_lst}")

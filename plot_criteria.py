@@ -14,6 +14,10 @@ from MarkovModels.BeattieModel import BeattieModel
 from numba import njit
 
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+
+# Don't use scientific notation offsets on plots (it's confusing)
+mpl.rcParams["axes.formatter.useoffset"] = False
 
 sigma2 = 0.05**2
 
@@ -26,6 +30,7 @@ def main():
     parser.add_argument("-N", "--no_chains", type=int, default=8)
     parser.add_argument("-l", "--chain_length", type=int, default=1000)
     parser.add_argument("-b", "--burn-in", type=int, default=None)
+    parser.add_argument("-H", "--heatmap_size", type=int, default=0)
 
     global args
     args = parser.parse_args()
@@ -38,7 +43,7 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.linspace(0, 50, 10)
+    spike_removal_durations = np.linspace(0, 149, 20)
 
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
@@ -55,6 +60,26 @@ def main():
     model.window_locs = [t for t, _, _, _ in protocol_desc]
 
     voltages = model.GetVoltage()
+
+    # Plot representative sample from DGP
+    sample_current = model.SimulateForwardModel(params) + np.random.normal(0, sigma2, times.shape)
+
+    plt.plot(times, sample_current)
+    plt.savefig(os.path.join(output_dir, "sample_of_DGP"))
+
+    ranges = [[0.15, 0.6], [0.04, 0.065]]
+
+    solver = model.make_forward_solver_current()
+    # Plot p5 p7 heatmap
+    if args.heatmap_size > 0:
+        logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
+        draw_likelihood_heatmap(solver, params, times, sample_current,
+                                sigma2, ranges, args.heatmap_size,
+                                (4, 6), output_dir)
+
+        draw_likelihood_heatmap(solver, params, times, sample_current,
+                                sigma2, ranges, args.heatmap_size,
+                                (5, 7), output_dir)
 
     D_optimalities = []
     A_optimalities = []
@@ -92,14 +117,6 @@ def main():
 
         cov = sigma2 * cov
         covs.append(cov)
-
-    # Plot representative sample from DGP
-    sample_params = np.random.multivariate_normal(params, covs[0])
-    sample_current = model.SimulateForwardModel(sample_params) + np.random.normal(0, sigma2, times.shape)
-
-    plt.plot(times, sample_current)
-    plt.savefig("sample_of_DGP")
-    plt.clf()
 
     D_optimalities = np.array(D_optimalities)
     A_optimalities = np.array(A_optimalities)
@@ -147,6 +164,8 @@ def main():
     # Sample steady states and timescales
     print("Sampling steady states and timescales")
     param_fig = plt.figure(figsize=(18, 14))
+    param_axs = param_fig.subplots(model.get_no_parameters())
+
     std_fig = plt.figure(figsize=(22, 20))
     std_axs = std_fig.subplots(5)
 
@@ -234,7 +253,6 @@ def main():
                 df = pd.DataFrame(samples[j], columns=model.parameter_labels)
                 df.to_csv(os.path.join(sub_output_dir, f"mcmc_samples_[{i}]_chain_{j}.csv"))
 
-            param_axs = param_fig.subplots(model.get_no_parameters())
             for j, p in [(j, "p%i" % (j + 1)) for j in range(model.get_no_parameters())]:
                 for row in samples:
                     try:
@@ -400,7 +418,7 @@ def plot_regions(times, model, spike_times, spike_indices, output_dir, spike_rem
     cov = cov[:, p_of_interest]
     eigvals, eigvecs = np.linalg.eigh(cov)
 
-    # Plot biggest region on top plot
+    # Plot smallest region on top plot
     common.cov_ellipse(cov, nsig=1,
                        ax=axs[0],
                        resize_axes=True,
@@ -414,7 +432,7 @@ def plot_regions(times, model, spike_times, spike_indices, output_dir, spike_rem
     # removed)
     first_rotation = np.arctan2(*eigvecs[::-1, 0])
 
-    for i, cov in reversed(list(enumerate(covs[0:5]))):
+    for i, cov in reversed(list(enumerate(covs[0::2]))):
         sub_cov = cov[p_of_interest, :]
         sub_cov = sub_cov[:, p_of_interest]
         eigvals, eigvecs = np.linalg.eigh(sub_cov)
@@ -439,7 +457,7 @@ def plot_regions(times, model, spike_times, spike_indices, output_dir, spike_rem
     axs[0].set_ylabel(f"p{p_of_interest[1]+1} / ms^-1")
     # axs[1].xaxis.set_ticks([])
     # axs[1].yaxis.set_ticks([])
-    axs[1].set_xlabel('rotated and scaled view')
+    # axs[1].set_xlabel('rotated and scaled view')
 
     axs[1].legend()
     fig.savefig(os.path.join(output_dir,
@@ -461,7 +479,7 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, defaul
     @njit
     def log_likelihood_func(p):
         sol = solver(p, times, voltages)[indices]
-        return -0. * np.sum((sol - data)**2 / sigma2) - np.log(np.sqrt(sigma2 * 2 * np.pi))
+        return -0.5 * np.sum((sol - data)**2 / sigma2) - np.log(np.sqrt(sigma2 * 2 * np.pi))
 
     class pints_likelihood(pints.LogPDF):
         def __call__(self, p):
@@ -483,6 +501,63 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, defaul
 
     samples = mcmc.run()
     return samples[:, burn_in:, :]
+
+
+def draw_likelihood_heatmap(solver, params, times, data, sigma2, ranges, no_points, p_index, output_dir):
+    xs = np.linspace(ranges[0][0], ranges[0][1], no_points)
+    ys = np.linspace(ranges[1][0], ranges[1][1], no_points)
+    zs = np.empty(shape=(xs.shape[0], ys.shape[0]))
+    n = len(times)
+
+    # @njit
+    def log_likelihood(x, y):
+        solver_input = np.copy(params)
+        solver_input[p_index[0]] = x
+        solver_input[p_index[1]] = y
+        output = solver(solver_input, times)
+        SSE = ((output - data)**2).sum()
+        return -n * 0.5 * np.log(2 * np.pi) - n * 0.5 * np.log(sigma2) - SSE / (2 * sigma2)
+
+    # limits for colormap
+    ll_of_true_params = log_likelihood(*params[[p_index[0], p_index[1]]])
+    l_z, r_z = ll_of_true_params - 200, max(np.max(zs), ll_of_true_params)
+    print(f"ll_of_true_params is {ll_of_true_params}")
+
+    for i, x in enumerate(xs):
+        for j, y in enumerate(ys):
+            zs[i, j] = log_likelihood(x, y)
+
+    print(zs)
+
+    fig = plt.figure(figsize=(18, 14))
+    ax = fig.subplots()
+
+    # ax.imshow(zs, cmap='viridis', interpolation='nearest', extent=(ranges[0] + ranges[1]), normalize=True)
+
+    xs, ys = np.meshgrid(xs, ys)
+
+    c = ax.pcolormesh(
+        xs,
+        ys,
+        zs,
+        vmin=l_z,
+        vmax=r_z,
+        label="log likelihood",
+        shading="gouraud",
+        rasterized=True
+    )
+
+    ax.set_xlabel(f"p_{p_index[0]+1}")
+    ax.set_ylabel(f"p_{p_index[1]+1}")
+    ax.axis([ranges[0][0], ranges[0][1], ranges[1][0], ranges[1][1]])
+
+    ax.plot(params[p_index[0]], params[p_index[1]], 'x', color='black')
+
+    fig.colorbar(c)
+    fig.savefig(os.path.join(output_dir, f"heatmap_{p_index[0]+1}_{p_index[1]+1}"))
+
+    return
+
 
 
 def compute_tau_inf_from_samples(samples, voltage=40):

@@ -164,8 +164,8 @@ def fit(model, values, times, N=3):
     return params[0], scores[0]
 
 
-def fit_leak_lr(staircase_protocol, current, percentage_to_remove, V_full=[-120, -80],
-                ramp_start=0.3, ramp_end=0.7, dt=2e-4, extra_points=[]):
+def fit_leak_lr(staircase_protocol, current, percentage_to_remove=0, V_full=[-120, -80],
+                ramp_start=300, ramp_end=700, dt=1e-1, extra_points=[]):
     # Fitting leak during the first ramp in staircaseramp prt
     #
     # staircase_protocol: full staircase ramp protocol
@@ -210,7 +210,7 @@ def fit_leak_lr(staircase_protocol, current, percentage_to_remove, V_full=[-120,
 
     eps2 = (predictions - y)**2
 
-    s_beta  = np.sqrt((1/(n-2) * eps2.sum())/((x - x.mean())**2).sum())
+    s_beta = np.sqrt((1/(n-2) * eps2.sum())/((x - x.mean())**2).sum())
     s_alpha = s_beta * np.sqrt((x**2).sum()/n)
 
     return g_leak, E_leak, r_value, s_alpha, s_beta, x, y
