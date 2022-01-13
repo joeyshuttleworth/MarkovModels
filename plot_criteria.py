@@ -67,19 +67,19 @@ def main():
     plt.plot(times, sample_current)
     plt.savefig(os.path.join(output_dir, "sample_of_DGP"))
 
-    ranges = [[0.15, 0.6], [0.04, 0.065]]
-
     solver = model.make_forward_solver_current()
     # Plot p5 p7 heatmap
     if args.heatmap_size > 0:
         logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
+        ranges = [[0.15, 0.6], [0.04, 0.065]]
         draw_likelihood_heatmap(solver, params, times, sample_current,
                                 sigma2, ranges, args.heatmap_size,
                                 (4, 6), output_dir)
-
+        ranges = [[-0.01, 0.06], [0.01, 0.04]]
         draw_likelihood_heatmap(solver, params, times, sample_current,
                                 sigma2, ranges, args.heatmap_size,
                                 (5, 7), output_dir)
+        logging.info("Finished drawing heatmap")
 
     D_optimalities = []
     A_optimalities = []
@@ -234,7 +234,7 @@ def main():
                     sns.kdeplot(data=pd.DataFrame(zip(a_inf, tau_a), columns=[
                         'a_inf', 'tau_a']), shade=True, fill=True, ax=axs[0], x='a_inf', y='tau_a')
                     axs[0].set_title(
-                        f"+40mV with {spike_removal_durations[i]:.2f}ms removed (MCMC)")
+                        f"{voltage} with {spike_removal_durations[i]:.2f}ms removed (MCMC)")
                     sns.kdeplot(data=pd.DataFrame(zip(r_inf, tau_r), columns=[
                         'r_inf', 'tau_r']), shade=True, ax=axs[1], x='r_inf', y='tau_r')
                     # r_inf vs a_inf
@@ -472,6 +472,7 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, defaul
     times = times
     voltages = voltages
     data = data[indices]
+    n = len(indices)
 
     if burn_in is None:
         burn_in = int(chain_length / 10)
@@ -479,7 +480,9 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, defaul
     @njit
     def log_likelihood_func(p):
         sol = solver(p, times, voltages)[indices]
-        return -0.5 * np.sum((sol - data)**2 / sigma2) - np.log(np.sqrt(sigma2 * 2 * np.pi))
+        SSE = ((sol - data)**2).sum()
+        return -n * 0.5 * np.log(2 * np.pi) - n * 0.5 * np.log(sigma2) - SSE / (2 * sigma2)
+
 
     class pints_likelihood(pints.LogPDF):
         def __call__(self, p):
@@ -521,13 +524,10 @@ def draw_likelihood_heatmap(solver, params, times, data, sigma2, ranges, no_poin
     # limits for colormap
     ll_of_true_params = log_likelihood(*params[[p_index[0], p_index[1]]])
     l_z, r_z = ll_of_true_params - 200, max(np.max(zs), ll_of_true_params)
-    print(f"ll_of_true_params is {ll_of_true_params}")
 
     for i, x in enumerate(xs):
         for j, y in enumerate(ys):
             zs[i, j] = log_likelihood(x, y)
-
-    print(zs)
 
     fig = plt.figure(figsize=(18, 14))
     ax = fig.subplots()
@@ -557,8 +557,6 @@ def draw_likelihood_heatmap(solver, params, times, data, sigma2, ranges, no_poin
     fig.savefig(os.path.join(output_dir, f"heatmap_{p_index[0]+1}_{p_index[1]+1}"))
 
     return
-
-
 
 def compute_tau_inf_from_samples(samples, voltage=40):
     k1 = samples[:, :, 0] * np.exp(samples[:, :, 1] * voltage)
