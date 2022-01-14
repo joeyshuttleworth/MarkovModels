@@ -19,11 +19,10 @@ import matplotlib as mpl
 # Don't use scientific notation offsets on plots (it's confusing)
 mpl.rcParams["axes.formatter.useoffset"] = False
 
-sigma2 = 0.05**2
+sigma2 = 0.005**2
 
 
 def main():
-
     plt.style.use('classic')
     parser = common.get_parser(description="Plot various optimality criteria")
     parser.add_argument("-n", "--no_samples", type=int, default=1000)
@@ -62,21 +61,27 @@ def main():
     voltages = model.GetVoltage()
 
     # Plot representative sample from DGP
-    sample_current = model.SimulateForwardModel(params) + np.random.normal(0, sigma2, times.shape)
+    sample_mean = model.make_hybrid_solver_current(njitted=False)(params, times)
+    noise = np.random.normal(0, np.sqrt(sigma2), times.shape)
+    print(f"Sample std of noise is {noise.std()}")
+    data = sample_mean + noise
+    print(f"Sample std of noise is {np.std(data - sample_mean)}")
 
-    plt.plot(times, sample_current)
+    plt.plot(times, data, label='data')
+    plt.plot(times, sample_mean, color='red', label='mean')
+    plt.legend()
     plt.savefig(os.path.join(output_dir, "sample_of_DGP"))
 
-    solver = model.make_forward_solver_current()
-    # Plot p5 p7 heatmap
+    solver = model.make_hybrid_solver_current()
+    # Plot heatmaps
     if args.heatmap_size > 0:
         logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
-        ranges = [[0.15, 0.6], [0.04, 0.065]]
-        draw_likelihood_heatmap(solver, params, times, sample_current,
+        ranges = [[0.001, 0.6], [0.04, 0.065]]
+        draw_likelihood_heatmap(model, solver, params, times, data,
                                 sigma2, ranges, args.heatmap_size,
                                 (4, 6), output_dir)
-        ranges = [[-0.01, 0.06], [0.01, 0.04]]
-        draw_likelihood_heatmap(solver, params, times, sample_current,
+        ranges = [[0.01, 0.06], [0.01, 0.04]]
+        draw_likelihood_heatmap(model, solver, params, times, data,
                                 sigma2, ranges, args.heatmap_size,
                                 (5, 7), output_dir)
         logging.info("Finished drawing heatmap")
@@ -170,9 +175,6 @@ def main():
     std_axs = std_fig.subplots(5)
 
     forward_solver = model.make_hybrid_solver_current()
-    data = forward_solver(model.get_default_parameters(), times, voltages) + \
-        np.random.normal(0, np.sqrt(sigma2), (len(times),))
-
     # Next, the MCMC version
     mcmc_samples = [get_mcmc_chains(forward_solver, times, voltages,
                                     index_set, data, args.chain_length,
@@ -301,7 +303,7 @@ def main():
         mcmc_steady_states_df = pd.DataFrame(columns=varlist+['removal_duration'])
 
         for i in range(len(mcmc_steady_state_samples)):
-            sample = np.array(mcmc_steady_state_samples[i])
+            sample = mcmc_steady_state_samples[i, 0]
             df = pd.DataFrame(sample, columns=('a_inf', 'tau_a', 'r_inf', 'tau_r'))
             df['removal_duration'] = round(spike_removal_durations[i], 2)
             mcmc_steady_states_df = steady_states_df.append(df, ignore_index=True)
@@ -481,7 +483,7 @@ def plot_regions(times, model, spike_times, spike_indices, output_dir, spike_rem
 
     axs[1].legend()
     fig.savefig(os.path.join(output_dir,
-                             f"p{p_of_interest[0]+1} and p{p_of_interest[1]+1} rotated confidence regions.pdf"))
+                             f"p{p_of_interest[0]+1} and p{p_of_interest[1]+1} confidence regions.png"))
     for ax in axs:
         ax.cla()
 
@@ -525,42 +527,62 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, defaul
     return samples[:, burn_in:, :]
 
 
-def draw_likelihood_heatmap(solver, params, times, data, sigma2, ranges, no_points, p_index, output_dir):
+def draw_likelihood_heatmap(model, solver, params, times, data, sigma2, ranges, no_points, p_index, output_dir):
     xs = np.linspace(ranges[0][0], ranges[0][1], no_points)
     ys = np.linspace(ranges[1][0], ranges[1][1], no_points)
-    zs = np.empty(shape=(xs.shape[0], ys.shape[0]))
-    n = len(times)
 
-    # @njit
+    x_index = p_index[0]
+    y_index = p_index[1]
+
+    print(f"Modifying variables {x_index} and {y_index}")
+
+    @njit
     def log_likelihood(x, y):
+        n = len(times)
         solver_input = np.copy(params)
-        solver_input[p_index[0]] = x
-        solver_input[p_index[1]] = y
+        solver_input[x_index] = x
+        solver_input[y_index] = y
         output = solver(solver_input, times)
-        SSE = ((output - data)**2).sum()
-        return -n * 0.5 * np.log(2 * np.pi) - n * 0.5 * np.log(sigma2) - SSE / (2 * sigma2)
+        error = output - data
+        SSE = (error**2).sum()
+        return -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
 
-    # limits for colormap
-    ll_of_true_params = log_likelihood(*params[[p_index[0], p_index[1]]])
-    l_z, r_z = ll_of_true_params - 200, max(np.max(zs), ll_of_true_params)
+    fix_parameters = [i for i in range(9) if i not in p_index]
 
-    for i, x in enumerate(xs):
-        for j, y in enumerate(ys):
-            zs[i, j] = log_likelihood(x, y)
+    print(f"Fixing parameters {fix_parameters}")
+
+    mle, _ = common.fit_model(model, data, params, fix_parameters=fix_parameters,
+                              max_iterations=1000)
+
+    plt.plot(times, data, color='grey', label='data')
+    plt.plot(times, solver(params, times), label='true_model')
+    mle_params = np.copy(params)
+    mle_params[p_index[0]] = mle[0]
+    mle_params[p_index[1]] = mle[1]
+    plt.plot(times, solver(mle_params, times), label='mle')
+    plt.legend()
+
+    xs, ys = np.meshgrid(xs, ys)
+    zs = []
+    for x, y in zip(xs.flatten(), ys.flatten()):
+        zs.append(log_likelihood(x,y))
+
+    zs = np.array(zs).reshape(xs.shape)
+
+    print(zs, zs.shape)
 
     fig = plt.figure(figsize=(18, 14))
     ax = fig.subplots()
 
-    # ax.imshow(zs, cmap='viridis', interpolation='nearest', extent=(ranges[0] + ranges[1]), normalize=True)
-
-    xs, ys = np.meshgrid(xs, ys)
+    # limits for colormap
+    ll_of_true_params = log_likelihood(*params[[p_index[0], p_index[1]]])
 
     c = ax.pcolormesh(
         xs,
         ys,
         zs,
-        vmin=l_z,
-        vmax=r_z,
+        vmax = np.max(zs),
+        vmin = 0,
         label="log likelihood",
         shading="gouraud",
         rasterized=True
@@ -570,12 +592,22 @@ def draw_likelihood_heatmap(solver, params, times, data, sigma2, ranges, no_poin
     ax.set_ylabel(f"p_{p_index[1]+1}")
     ax.axis([ranges[0][0], ranges[0][1], ranges[1][0], ranges[1][1]])
 
-    ax.plot(params[p_index[0]], params[p_index[1]], 'x', color='black')
+    ax.plot(params[p_index[0]], params[p_index[1]], 'x', color='purple')
+    ax.plot(mle[0], mle[1], 'o', color='pink')
+
+    print(f"ll of mle {log_likelihood(*mle)}")
+    print(f"ll of true values {ll_of_true_params}")
+    max_z = np.argmax(zs)
+    print(max_z)
+    print(f"max ll on heatmap {np.max(zs)} at {xs.flatten()[np.argmax(zs)], ys.flatten()[np.argmax(zs)]}")
+
+    print(f"std of mle error {(solver(mle_params, times)-data).std()}")
+    print(f"std of true_params error {(solver(params, times)-data).std()}")
 
     fig.colorbar(c)
     fig.savefig(os.path.join(output_dir, f"heatmap_{p_index[0]+1}_{p_index[1]+1}"))
-
     return
+
 
 def compute_tau_inf_from_samples(samples, voltage=40):
     k1 = samples[:, :, 0] * np.exp(samples[:, :, 1] * voltage)

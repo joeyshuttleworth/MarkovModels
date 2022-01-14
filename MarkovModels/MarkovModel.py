@@ -19,7 +19,7 @@ class MarkovModel:
         raise NotImplementedError
 
     def __init__(self, symbols, A, B, rates_dict, times, rate_labels, voltage=None,
-                 tolerances=(1e-5, 1e-7)):
+                 tolerances=(1e-6, 1e-8)):
 
         self.window_locs = None
         self.protocol_description = None
@@ -30,6 +30,7 @@ class MarkovModel:
             self.v = symbols['v']
         except:
             raise Exception()
+
         self.rates_dict = rates_dict
 
         # (atol, rtol)
@@ -47,8 +48,6 @@ class MarkovModel:
 
         if voltage is not None:
             self.voltage = voltage
-
-        para = self.get_default_parameters()
 
         # Inputs for RHS ODEs
         inputs = list(self.y) + list(self.p) + [self.v]
@@ -551,6 +550,7 @@ class MarkovModel:
     def SimulateForwardModel(self, p=None, times=None):
         if p is None:
             p = self.get_default_parameters()
+            print(p)
         if times is None:
             times = self.times
 

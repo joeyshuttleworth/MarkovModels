@@ -495,6 +495,8 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
 
     """
 
+    fix_parameters = tuple(fix_parameters)
+
     if starting_parameters is None:
         starting_parameters = mm.get_default_parameters()
 
@@ -520,16 +522,16 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
                     break
 
             # TODO Rewrite this for other models
-            for i in range(0, 4):
-                alpha = sim_params[2 * i]
-                beta = sim_params[2 * i + 1]
+            # for i in range(0, 4):
+            #     alpha = sim_params[2 * i]
+            #     beta = sim_params[2 * i + 1]
 
-                vals = [0, 0]
-                vals[0] = alpha * np.exp(beta * -90 * 1E-3)
-                vals[1] = alpha * np.exp(beta * 50 * 1E-3)
-                for val in vals:
-                    if val < 1E-7 or val > 1E3:
-                        return False
+            #     vals = [0, 0]
+            #     vals[0] = alpha * np.exp(beta * -90 * 1E-3)
+            #     vals[1] = alpha * np.exp(beta * 50 * 1E-3)
+            #     for val in vals:
+            #         if val < 1E-7 or val > 1E3:
+            #             return False
 
             return True
 
@@ -544,17 +546,17 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
 
             self.fix_parameters = fix_parameters
 
+            unfixed_parameters = tuple([i for i in range(len(parameters)) if i not in fix_parameters])
             if fix_parameters is None:
                 fix_parameters = tuple()
-            forward_solver_func = mm.make_hybrid_solver_current()
+            forward_solver_func = mm.make_forward_solver_current()
 
             if len(fix_parameters) > 0:
                 @njit
                 def simulate(p, times):
                     sim_parameters = np.copy(parameters)
-
-                    for i in range(len(fix_parameters)):
-                        sim_parameters[fix_parameters[i]] = p[i]
+                    for i, j in enumerate(unfixed_parameters):
+                        sim_parameters[j] = p[i]
                     try:
                         return forward_solver_func(sim_parameters, times)
                     except Exception:
@@ -596,9 +598,6 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
     problem = pints.SingleOutputProblem(model, mm.times, data)
     error = pints.SumOfSquaresError(problem)
     boundaries = Boundaries(starting_parameters, fix_parameters)
-
-
-    print("data size is {}".format(data.shape))
 
     if fix_parameters is not None:
         params_not_fixed = [starting_parameters[i] for i in range(
