@@ -298,24 +298,6 @@ def main():
         for ax in axs:
             ax.cla()
 
-        mcmc_steady_state_samples = [compute_tau_inf_from_samples(samples, voltage=voltage) for samples in mcmc_samples]
-        varlist = ['a_inf', 'tau_a', 'r_inf', 'tau_r']
-        mcmc_steady_states_df = pd.DataFrame(columns=varlist+['removal_duration'])
-
-        for i in range(len(mcmc_steady_state_samples)):
-            sample = mcmc_steady_state_samples[i][0:,]
-            df = pd.DataFrame(sample, columns=('a_inf', 'tau_a', 'r_inf', 'tau_r'))
-            df['removal_duration'] = round(spike_removal_durations[i], 2)
-            mcmc_steady_states_df = steady_states_df.append(df, ignore_index=True)
-
-        for i, var in enumerate():
-            sns.kdeplot(data=mcmc_steady_states_df, x=var, ax=axs[i], shade=False, common_norm=True,
-                        hue='removal_duration', palette='viridis', legend=(i == 0))
-        fig.savefig(os.path.join(output_dir, f"mcmc_steady_state_prediction_comparison{voltage}mV.png"))
-
-        for ax in axs:
-            ax.cla()
-
         stds = [np.std(sample) for sample in steady_state_samples]
 
         std_axs[0].plot(spike_removal_durations, stds)
@@ -568,8 +550,6 @@ def draw_likelihood_heatmap(model, solver, params, times, data, sigma2, ranges, 
         zs.append(log_likelihood(x,y))
 
     zs = np.array(zs).reshape(xs.shape)
-
-    print(zs, zs.shape)
 
     fig = plt.figure(figsize=(18, 14))
     ax = fig.subplots()
