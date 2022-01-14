@@ -303,7 +303,7 @@ def main():
         mcmc_steady_states_df = pd.DataFrame(columns=varlist+['removal_duration'])
 
         for i in range(len(mcmc_steady_state_samples)):
-            sample = mcmc_steady_state_samples[i, 0]
+            sample = mcmc_steady_state_samples[i][0:,]
             df = pd.DataFrame(sample, columns=('a_inf', 'tau_a', 'r_inf', 'tau_r'))
             df['removal_duration'] = round(spike_removal_durations[i], 2)
             mcmc_steady_states_df = steady_states_df.append(df, ignore_index=True)
