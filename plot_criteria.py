@@ -472,7 +472,6 @@ def plot_regions(times, model, spike_times, spike_indices, output_dir, spike_rem
 
 def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, default_parameters, burn_in=None):
     # Do the same as above but using mcmc on synthetic data
-    print('doing mcmc')
     times = times
     voltages = voltages
     data = data[indices]
@@ -484,8 +483,8 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, defaul
     @njit
     def log_likelihood_func(p):
         sol = solver(p, times, voltages)[indices]
-        SSE = ((sol - data)**2).sum()
-        return -n * 0.5 * np.log(2 * np.pi) - n * 0.5 * np.log(sigma2) - SSE / (2 * sigma2)
+        SSE = np.sum((sol - data)**2)
+        return -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
 
     class pints_likelihood(pints.LogPDF):
         def __call__(self, p):
@@ -562,7 +561,7 @@ def draw_likelihood_heatmap(model, solver, params, times, data, sigma2, ranges, 
         ys,
         zs,
         vmax = np.max(zs),
-        vmin = 0,
+        vmin = np.max(zs) - 50,
         label="log likelihood",
         shading="gouraud",
         rasterized=True
