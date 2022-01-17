@@ -19,7 +19,7 @@ import matplotlib as mpl
 # Don't use scientific notation offsets on plots (it's confusing)
 mpl.rcParams["axes.formatter.useoffset"] = False
 
-sigma2 = 0.005**2
+sigma2 = 0.01**2
 
 
 def main():
@@ -42,7 +42,7 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.linspace(0, 149, 20)
+    spike_removal_durations = np.linspace(0, 251, 25)
 
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
@@ -63,16 +63,22 @@ def main():
     # Plot representative sample from DGP
     sample_mean = model.make_hybrid_solver_current(njitted=False)(params, times)
     noise = np.random.normal(0, np.sqrt(sigma2), times.shape)
-    print(f"Sample std of noise is {noise.std()}")
     data = sample_mean + noise
-    print(f"Sample std of noise is {np.std(data - sample_mean)}")
 
-    plt.plot(times, data, label='data')
-    plt.plot(times, sample_mean, color='red', label='mean')
-    plt.legend()
-    plt.savefig(os.path.join(output_dir, "sample_of_DGP"))
+    fig = plt.figure(figsize=(20, 18))
+    axs = fig.subplots(3)
+    axs[0].plot(times, data, label='data')
+    axs[0].plot(times, sample_mean, color='red', label='mean')
+    axs[0].legend()
+    states = model.GetStateVariables()
+    axs[1].plot(times, states[:, 0] + states[:, 1], label='r')
+    axs[1].plot(times, states[:, 2] + states[:, 1], label='a')
+    axs[1].legend()
+    axs[2].plot(times, voltages)
+    fig.savefig(os.path.join(output_dir, "sample_of_DGP"))
+    fig.clf()
 
-    solver = model.make_hybrid_solver_current()
+    solver = model.make_hybrid_solver_current(njitted=True)
     # Plot heatmaps
     if args.heatmap_size > 0:
         logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
@@ -93,14 +99,17 @@ def main():
     logging.info("Getting model sensitivities")
     current, S1 = model.SimulateForwardModelSensitivities(params)
     spike_times, spike_indices = common.detect_spikes(times, voltages,
-                                                      window_size=500)
+                                                      window_size=1000)
 
-    current_spikes, _ = common.detect_spikes(times, current, threshold=max(current) / 100,
-                                             window_size=100)
+    current_spikes, current_spike_indices = common.detect_spikes(times, current, threshold=max(current) / 100, window_size=100)
+
     print(f"spike locations are{current_spikes}")
 
     covs = []
     indices_used = []
+
+    sample_fig = plt.figure(figsize=(14, 12))
+    sample_axs = sample_fig.subplots(2)
 
     for time_to_remove in spike_removal_durations:
         indices = common.remove_indices(list(range(len(times))),
@@ -108,6 +117,15 @@ def main():
                                           int(spike + time_to_remove / tstep))
                                          for spike in spike_indices])
         indices_used.append(np.unique(indices))
+
+        # Plot the observations being removed
+        fig.clf()
+        ax = fig.subplots()
+        ax.plot(times, voltages)
+        for t in spike_times:
+            ax.axvspan(t, t + time_to_remove, alpha=0.4, color='red', lw=0)
+        fig.savefig(os.path.join(output_dir, f"spike_removal_{time_to_remove:.0f}.png"))
+        ax.cla()
 
         H = np.dot(S1[indices, :].T, S1[indices, :])
 
@@ -122,6 +140,13 @@ def main():
 
         cov = sigma2 * cov
         covs.append(cov)
+
+    for time_to_remove, cov in zip(spike_removal_durations, covs):
+        plot_sample_trajectories(solver, times, voltages, time_to_remove, params, cov, sample_axs,
+                                 args.no_samples, spike_indices)
+        sample_fig.savefig(os.path.join(output_dir, f"sample_trajectories_{time_to_remove:.2f}.png"))
+        for ax in sample_axs:
+            ax.cla()
 
     D_optimalities = np.array(D_optimalities)
     A_optimalities = np.array(A_optimalities)
@@ -316,68 +341,42 @@ def main():
         for ax in std_axs:
             ax.cla()
 
-    # Now plot predictions
-    # We can use less timesteps now -- only interested in plotting
-    pred_times = times
-    pred_voltages = np.array([model.voltage(t) for t in pred_times])
-    pred_times = np.unique(list(pred_times) + list(current_spikes))
 
-    n_samples = args.no_samples
+def plot_sample_trajectories(solver, times, voltages, removal_duration, params, cov, axs, n_samples, spike_indices):
+    for spike in spike_indices:
+        axs[0].axvspan(times[spike], times[spike] + removal_duration, alpha=0.2, color='red', lw=0)
 
-    forward_solve = model.make_hybrid_solver_current()
+    indices = np.unique(np.array(list(range(len(times)))[::50] + list(spike_indices)))
+    times = times[indices]
+    voltages = voltages[indices]
 
     def get_trajectory(p):
         try:
-            soln = forward_solve(p, times=pred_times, voltages=pred_voltages)
-        except Exception:
-            return np.full(pred_times.shape, np.nan)
-
-        if np.all(np.isfinite(soln)):
+            soln = solver(p, times)
             return soln
-        else:
-            return np.full(pred_times.shape, np.nan)
+        except Exception as e:
+            print(str(e))
+            return np.full(times.shape, np.nan)
 
-    fig = plt.figure(figsize=(14, 12))
-    axs = fig.subplots(2)
+    mean_param_trajectory = solver(params)[indices]
 
-    mean_param_trajectory = model.SimulateForwardModel()
+    samples = np.random.multivariate_normal(params, cov, n_samples)
 
-    for i, cov in list(enumerate(covs)):
-        samples = np.random.multivariate_normal(params, cov, n_samples)
+    axs[0].plot(times, mean_param_trajectory, 'red')
+    axs[0].set_ylim(np.min(mean_param_trajectory) * 1.5, np.max(mean_param_trajectory) * 1.5)
 
-        # Filter out invalid samples
-        samples = [s for s in samples if np.all(s) > 0]
+    count = 0
+    for sample in samples:
+        trajectory = get_trajectory(sample)
+        if np.all(np.isfinite(trajectory)):
+            count += 1
+        axs[0].plot(times, trajectory, color='grey', alpha=0.3)
 
-        mean_estimate_uncertainty = np.apply_along_axis(lambda row:
-                                                        row @ cov @ row.T, 1,
-                                                        S1)
+    print(f"{removal_duration:.2f}: Successfully ran {count} out of {n_samples} simulations")
 
-        upper_bound = mean_param_trajectory + 1.96 * mean_estimate_uncertainty
-        lower_bound = mean_param_trajectory - 1.96 * mean_estimate_uncertainty
-
-        axs[0].fill_between(times, lower_bound, upper_bound, color='blue',
-                            alpha=0.25)
-        axs[0].plot(times, mean_param_trajectory, 'red')
-        axs[0].set_ylim(np.min(current) * 1.5, np.max(current) * 1.5)
-
-        count = 0
-        for sample in samples:
-            trajectory = get_trajectory(sample)
-            if trajectory is not None:
-                count += 1
-                axs[0].plot(pred_times, trajectory, color='grey', alpha=0.1)
-
-        print(f"{i}: Successfully ran {count} out of {n_samples} simulations")
-
-        axs[1].plot(times, model.GetVoltage())
-        axs[1].set_xlabel("time /ms")
-        axs[1].set_ylabel("membrane voltage /mV")
-
-        fig.savefig(os.path.join(output_dir, "{:.2f}ms_sample_trajectories.png".format(
-            spike_removal_durations[i])))
-
-        for ax in axs:
-            ax.cla()
+    axs[1].plot(times, voltages)
+    axs[1].set_xlabel("time /ms")
+    axs[1].set_ylabel("membrane voltage /mV")
 
 
 def monte_carlo_tau_inf(mean, cov, n_samples=10000, voltage=40):
@@ -560,8 +559,8 @@ def draw_likelihood_heatmap(model, solver, params, times, data, sigma2, ranges, 
         xs,
         ys,
         zs,
-        vmax = np.max(zs),
-        vmin = np.max(zs) - 50,
+        vmax=np.max(zs),
+        vmin=np.max(zs) - 50,
         label="log likelihood",
         shading="gouraud",
         rasterized=True

@@ -337,8 +337,9 @@ class MarkovModel:
         rhs_inf = self.rhs_inf
         voltage = self.voltage
         atol, rtol = self.solver_tolerances
+        times = self.times
 
-        def hybrid_forward_solve(p, times, atol=atol, rtol=rtol):
+        def hybrid_forward_solve(p, times=times, atol=atol, rtol=rtol):
             rhs0 = rhs_inf(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], voltage(0)).flatten()
 
             solution = np.full((len(times), no_states), np.nan)
@@ -386,15 +387,17 @@ class MarkovModel:
             else:
                 protocol_description = self.protocol_description
 
-        if voltages is None:
-            voltages = self.GetVoltage()
-
         times = self.times
 
         atol, rtol = self.solver_tolerances
+        voltage_func = self.voltage
 
         def hybrid_forward_solve(p, times=times, voltages=voltages, atol=atol, rtol=rtol):
-            states = hybrid_solver(p, times)
+            voltages = np.empty(len(times))
+            for i in range(len(times)):
+                voltages[i] = voltage_func(times[i])
+
+            states = hybrid_solver(p, times=times)
             return ((states[:, open_index] * p[gkr_index]) * (voltages - Erev)).flatten()
 
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve
