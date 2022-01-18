@@ -68,7 +68,7 @@ def main():
     fig = plt.figure(figsize=(20, 18))
     axs = fig.subplots(3)
     axs[0].plot(times, data, label='data')
-    axs[0].plot(times, sample_mean, color='red', label='mean')
+    axs[0].plot(times, sample_mean, color='blue', label='mean')
     axs[0].legend()
     states = model.GetStateVariables()
     axs[1].plot(times, states[:, 0] + states[:, 1], label='r')
@@ -82,11 +82,11 @@ def main():
     # Plot heatmaps
     if args.heatmap_size > 0:
         logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
-        ranges = [[0.001, 0.6], [0.04, 0.065]]
+        ranges = [[0.414, 0.422], [0.047, 0.048]]
         draw_likelihood_heatmap(model, solver, params, times, data,
                                 sigma2, ranges, args.heatmap_size,
                                 (4, 6), output_dir)
-        ranges = [[0.01, 0.06], [0.01, 0.04]]
+        ranges = [[0.025, 0.0026], [0.0245, 0.02525]]
         draw_likelihood_heatmap(model, solver, params, times, data,
                                 sigma2, ranges, args.heatmap_size,
                                 (5, 7), output_dir)
@@ -177,16 +177,16 @@ def main():
     conf_fig = plt.figure(figsize=(16, 12))
     conf_axs = conf_fig.subplots(2)
 
-    plot_regions(times, model, spike_times, spike_indices, output_dir,
-                 spike_removal_durations, conf_fig, conf_axs, p_of_interest=(4, 6))
-    plot_regions(times, model, spike_times, spike_indices, output_dir,
-                 spike_removal_durations, conf_fig, conf_axs, (5, 7))
+    plot_regions(covs, params, output_dir,
+                 spike_removal_durations, conf_fig, conf_axs, sigma2, p_of_interest=(4, 6))
+    plot_regions(covs, params, output_dir,
+                 spike_removal_durations, conf_fig, conf_axs, sigma2, (5, 7))
 
-    plot_regions(times, model, spike_times, spike_indices, output_dir,
-                 spike_removal_durations, conf_fig, conf_axs, (4, 5))
+    plot_regions(covs, params, output_dir,
+                 spike_removal_durations, conf_fig, conf_axs, sigma2, (4, 5))
 
-    plot_regions(times, model, spike_times, spike_indices, output_dir,
-                 spike_removal_durations, conf_fig, conf_axs, (6, 7))
+    plot_regions(covs, params, output_dir,
+                 spike_removal_durations, conf_fig, conf_axs, sigma2, (6, 7))
 
     fig = plt.figure(figsize=(18, 14))
     axs = fig.subplots(4)
@@ -261,7 +261,7 @@ def main():
                     sns.kdeplot(data=pd.DataFrame(zip(a_inf, tau_a), columns=[
                         'a_inf', 'tau_a']), shade=True, fill=True, ax=axs[0], x='a_inf', y='tau_a')
                     axs[0].set_title(
-                        f"{voltage} with {spike_removal_durations[i]:.2f}ms removed (MCMC)")
+                        f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed (MCMC)")
                     sns.kdeplot(data=pd.DataFrame(zip(r_inf, tau_r), columns=[
                         'r_inf', 'tau_r']), shade=True, ax=axs[1], x='r_inf', y='tau_r')
                     # r_inf vs a_inf
@@ -332,9 +332,9 @@ def main():
         for i, var in enumerate(('a_inf', 'tau_a', 'r_inf', 'tau_r')):
             stds = [np.std(steady_states_df[steady_states_df['removal_duration'] == time_removed][var].values)
                     for time_removed in np.unique(steady_states_df['removal_duration'])]
-            print(stds)
-            std_axs[i + 1].plot(spike_removal_durations, stds)
-            std_axs[i + 1].set_ylabel(f"std of {var} estimate")
+            # print(stds)
+            std_axs[i + 1].plot(np.log(spike_removal_durations), stds)
+            std_axs[i + 1].set_ylabel(f"log std of {var} estimate")
 
         std_fig.savefig(os.path.join(sub_output_dir, 'standard_deviations'))
 
@@ -343,6 +343,11 @@ def main():
 
 
 def plot_sample_trajectories(solver, times, voltages, removal_duration, params, cov, axs, n_samples, spike_indices):
+
+    mean_param_trajectory = solver(params)
+    axs[0].plot(times, mean_param_trajectory, 'red')
+    axs[0].set_ylim(np.min(mean_param_trajectory) * 1.5, np.max(mean_param_trajectory) * 1.5)
+
     for spike in spike_indices:
         axs[0].axvspan(times[spike], times[spike] + removal_duration, alpha=0.2, color='red', lw=0)
 
@@ -358,12 +363,7 @@ def plot_sample_trajectories(solver, times, voltages, removal_duration, params, 
             print(str(e))
             return np.full(times.shape, np.nan)
 
-    mean_param_trajectory = solver(params)[indices]
-
     samples = np.random.multivariate_normal(params, cov, n_samples)
-
-    axs[0].plot(times, mean_param_trajectory, 'red')
-    axs[0].set_ylim(np.min(mean_param_trajectory) * 1.5, np.max(mean_param_trajectory) * 1.5)
 
     count = 0
     for sample in samples:
@@ -395,27 +395,10 @@ def monte_carlo_tau_inf(mean, cov, n_samples=10000, voltage=40):
     return a_inf, tau_a, r_inf, tau_r, samples[:, -1].flatten()
 
 
-def plot_regions(times, model, spike_times, spike_indices, output_dir, spike_removal_durations,
-                 fig, axs, p_of_interest=(4, 6)):
-    params = model.get_default_parameters()
-    tstep = times[1] - times[0]
-
+def plot_regions(covs, params, output_dir, spike_removal_durations,
+                 fig, axs, sigma2, p_of_interest=(4, 6)):
     offset = [params[p_of_interest[0]], params[p_of_interest[1]]]
-
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-
-    covs = []
-
-    current, S1 = model.SimulateForwardModelSensitivities()
-
-    for time_to_remove in spike_removal_durations:
-        indices = common.remove_indices(list(range(len(times))),
-                                        [(spike,
-                                          int(spike + time_to_remove / tstep))
-                                         for spike in spike_indices])
-
-        H = np.dot(S1[indices, :].T, S1[indices, :])
-        covs.append(np.linalg.inv(H))
 
     cov = covs[0][p_of_interest, :]
     cov = cov[:, p_of_interest]
@@ -545,7 +528,7 @@ def draw_likelihood_heatmap(model, solver, params, times, data, sigma2, ranges, 
     xs, ys = np.meshgrid(xs, ys)
     zs = []
     for x, y in zip(xs.flatten(), ys.flatten()):
-        zs.append(log_likelihood(x,y))
+        zs.append(log_likelihood(x, y))
 
     zs = np.array(zs).reshape(xs.shape)
 
