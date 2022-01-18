@@ -203,7 +203,8 @@ def main():
     # Next, the MCMC version
     mcmc_samples = [get_mcmc_chains(forward_solver, times, voltages,
                                     index_set, data, args.chain_length,
-                                    model.get_default_parameters(), burn_in=args.burn_in) for index_set in indices_used]
+                                    model.get_default_parameters(), burn_in=args.burn_in)
+                    for index_set in indices_used]
     voltage_list = [-100, -80, -40, -30, -20, -10, 0, 10, 20, 30, 40]
 
     for voltage in voltage_list:
@@ -453,9 +454,8 @@ def plot_regions(covs, params, output_dir, spike_removal_durations,
 
 
 def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, default_parameters, burn_in=None):
-    # Do the same as above but using mcmc on synthetic data
-    times = times
-    voltages = voltages
+    times = times[indices]
+    voltages = voltages[indices]
     data = data[indices]
     n = len(indices)
 
@@ -464,7 +464,7 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, defaul
 
     @njit
     def log_likelihood_func(p):
-        sol = solver(p, times, voltages)[indices]
+        sol = solver(p, times, voltages)
         SSE = np.sum((sol - data)**2)
         return -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
 
