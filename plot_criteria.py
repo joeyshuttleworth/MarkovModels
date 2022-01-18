@@ -42,7 +42,7 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.linspace(0, 251, 25)
+    spike_removal_durations = np.linspace(0, 251, 10)
 
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
@@ -99,7 +99,7 @@ def main():
     logging.info("Getting model sensitivities")
     current, S1 = model.SimulateForwardModelSensitivities(params)
     spike_times, spike_indices = common.detect_spikes(times, voltages,
-                                                      window_size=1000)
+                                                      window_size=100)
 
     current_spikes, current_spike_indices = common.detect_spikes(times, current, threshold=max(current) / 100, window_size=100)
 
@@ -116,7 +116,7 @@ def main():
                                         [(spike,
                                           int(spike + time_to_remove / tstep))
                                          for spike in spike_indices])
-        indices_used.append(np.unique(indices))
+        indices_used.append(indices)
 
         # Plot the observations being removed
         fig.clf()
@@ -203,7 +203,7 @@ def main():
     # Next, the MCMC version
     mcmc_samples = [get_mcmc_chains(forward_solver, times, voltages,
                                     index_set, data, args.chain_length,
-                                    model.get_default_parameters(), burn_in=args.burn_in)
+                                    model.get_default_parameters(), sigma2, burn_in=args.burn_in)
                     for index_set in indices_used]
     voltage_list = [-100, -80, -40, -30, -20, -10, 0, 10, 20, 30, 40]
 
@@ -453,20 +453,23 @@ def plot_regions(covs, params, output_dir, spike_removal_durations,
         ax.cla()
 
 
-def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, default_parameters, burn_in=None):
+def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, default_parameters, sigma2, burn_in=None):
     times = times[indices]
     voltages = voltages[indices]
     data = data[indices]
     n = len(indices)
+    print(f"number of timesteps is {n}")
 
     if burn_in is None:
         burn_in = int(chain_length / 10)
 
     @njit
     def log_likelihood_func(p):
-        sol = solver(p, times, voltages)
-        SSE = np.sum((sol - data)**2)
-        return -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
+        output = solver(p, times, voltages=voltages)
+        error = output - data
+        SSE = np.sum(error**2)
+        ll = -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
+        return ll
 
     class pints_likelihood(pints.LogPDF):
         def __call__(self, p):
@@ -543,7 +546,7 @@ def draw_likelihood_heatmap(model, solver, params, times, data, sigma2, ranges, 
         ys,
         zs,
         vmax=np.max(zs),
-        vmin=np.max(zs) - 50,
+        vmin=np.max(zs) - 10,
         label="log likelihood",
         shading="gouraud",
         rasterized=True

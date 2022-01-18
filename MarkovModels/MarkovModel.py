@@ -347,7 +347,9 @@ class MarkovModel:
             for tstart, tend, vstart, vend in protocol_description:
                 istart = np.argmax(times >= tstart)
                 iend = np.argmax(times >= tend)
-                if iend == 0:
+                if iend + 1 <= istart:
+                    continue
+                elif iend == 0:
                     step_times = times[istart:]
                     iend = len(times)
                 else:
