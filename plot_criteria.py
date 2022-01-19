@@ -348,7 +348,7 @@ def main():
             stds = [np.std(steady_states_df[steady_states_df['removal_duration'] == time_removed][var].values)
                     for time_removed in np.unique(steady_states_df['removal_duration'])]
             # print(stds)
-            std_axs[i + 1].plot(np.log(spike_removal_durations), stds)
+            std_axs[i + 1].plot(spike_removal_durations, np.log(stds))
             std_axs[i + 1].set_ylabel(f"log std of {var} estimate")
 
         std_fig.savefig(os.path.join(sub_output_dir, 'standard_deviations'))
