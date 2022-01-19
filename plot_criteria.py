@@ -86,7 +86,7 @@ def main():
         draw_likelihood_heatmap(model, solver, params, times, data,
                                 sigma2, ranges, args.heatmap_size,
                                 (4, 6), output_dir)
-        ranges = [[0.025, 0.005], [0.0245, 0.02525]]
+        ranges = [[0.025, 0.026], [0.0245, 0.02525]]
         draw_likelihood_heatmap(model, solver, params, times, data,
                                 sigma2, ranges, args.heatmap_size,
                                 (5, 7), output_dir)
@@ -232,8 +232,8 @@ def main():
                     sns.kdeplot(data=pd.DataFrame(row[:, j], columns=[p]), shade=False, ax=param_axs[j])
                 except Exception as e:
                     print(str(e))
-                    param_axs[0].set_title(f"{spike_removal_durations[i]:.2f}ms removed after each spike")
-                    param_fig.savefig(os.path.join(output_dir, f"mcmc_params_{i}.png"))
+        param_axs[0].set_title(f"{spike_removal_durations[i]:.2f}ms removed after each spike")
+        param_fig.savefig(os.path.join(output_dir, f"mcmc_params_{i}.png"))
 
         for ax in param_axs:
             ax.cla()
