@@ -26,7 +26,7 @@ def main():
     plt.style.use('classic')
     parser = common.get_parser(description="Plot various optimality criteria")
     parser.add_argument("-n", "--no_samples", type=int, default=1000)
-    parser.add_argument("-N", "--no_chains", type=int, default=8)
+    parser.add_argument("-N", "--no_chains", type=int, default=4)
     parser.add_argument("-l", "--chain_length", type=int, default=1000)
     parser.add_argument("-b", "--burn-in", type=int, default=None)
     parser.add_argument("-H", "--heatmap_size", type=int, default=0)
@@ -42,7 +42,7 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.linspace(0, 251, 10)
+    spike_removal_durations = np.linspace(0, 251, 20)
 
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
@@ -86,7 +86,7 @@ def main():
         draw_likelihood_heatmap(model, solver, params, times, data,
                                 sigma2, ranges, args.heatmap_size,
                                 (4, 6), output_dir)
-        ranges = [[0.025, 0.0026], [0.0245, 0.02525]]
+        ranges = [[0.025, 0.005], [0.0245, 0.02525]]
         draw_likelihood_heatmap(model, solver, params, times, data,
                                 sigma2, ranges, args.heatmap_size,
                                 (5, 7), output_dir)
@@ -203,9 +203,40 @@ def main():
     # Next, the MCMC version
     mcmc_samples = [get_mcmc_chains(forward_solver, times, voltages,
                                     index_set, data, args.chain_length,
-                                    model.get_default_parameters(), sigma2, burn_in=args.burn_in)
+                                    params, sigma2, burn_in=args.burn_in)
                     for index_set in indices_used]
-    voltage_list = [-100, -80, -40, -30, -20, -10, 0, 10, 20, 30, 40]
+
+    # For each mcmc run plot some sample trajectories
+    traj_fig = plt.figure(figsize=(18, 12))
+    traj_ax = traj_fig.subplots()
+    indices = np.unique(np.array(list(range(len(times)))[::50] + list(spike_indices)))
+
+    for j, mcmc_sample in enumerate(mcmc_samples):
+        for i in range(min(mcmc_sample.shape[1], 100)):
+            sample = mcmc_sample[0, i, :]
+            trajectory = solver(sample, times)
+            traj_ax.plot(times[indices], trajectory[indices], color='grey', alpha=.3)
+        traj_fig.savefig(os.path.join(output_dir, f"{j}_mcmc_trajectories.png"))
+        traj_ax.cla()
+
+    voltage_list = [-120, -80, -20, 0, 10, 20, 40]
+
+    for i, samples in enumerate(mcmc_samples):
+        for j in range(samples.shape[0]):
+            df = pd.DataFrame(samples[j], columns=model.parameter_labels)
+            df.to_csv(os.path.join(output_dir, f"mcmc_samples_[{i}]_chain_{j}.csv"))
+
+        for j, p in [(j, "p%i" % (j + 1)) for j in range(model.get_no_parameters())]:
+            for row in samples:
+                try:
+                    sns.kdeplot(data=pd.DataFrame(row[:, j], columns=[p]), shade=False, ax=param_axs[j])
+                except Exception as e:
+                    print(str(e))
+                    param_axs[0].set_title(f"{spike_removal_durations[i]:.2f}ms removed after each spike")
+                    param_fig.savefig(os.path.join(output_dir, f"mcmc_params_{i}.png"))
+
+        for ax in param_axs:
+            ax.cla()
 
     for voltage in voltage_list:
         steady_state_samples = []
@@ -276,23 +307,6 @@ def main():
             fig.savefig(os.path.join(sub_output_dir, f"mcmc_{i}.png"))
             for ax in axs:
                 ax.cla()
-
-            for j in range(samples.shape[0]):
-                df = pd.DataFrame(samples[j], columns=model.parameter_labels)
-                df.to_csv(os.path.join(sub_output_dir, f"mcmc_samples_[{i}]_chain_{j}.csv"))
-
-            for j, p in [(j, "p%i" % (j + 1)) for j in range(model.get_no_parameters())]:
-                for row in samples:
-                    try:
-                        sns.kdeplot(data=pd.DataFrame(row[:, j], columns=[p]), shade=False, ax=param_axs[j])
-                    except Exception as e:
-                        print(str(e))
-            param_axs[0].set_title(f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed after each spike")
-            param_fig.savefig(os.path.join(sub_output_dir, f"mcmc_params_{i}.png"))
-
-            for ax in param_axs:
-                ax.cla()
-
         # Plot steady states on one axis for comparison
         fig = plt.figure(figsize=(24, 22))
         axs = fig.subplots(5)
@@ -352,10 +366,6 @@ def plot_sample_trajectories(solver, times, voltages, removal_duration, params, 
     for spike in spike_indices:
         axs[0].axvspan(times[spike], times[spike] + removal_duration, alpha=0.2, color='red', lw=0)
 
-    indices = np.unique(np.array(list(range(len(times)))[::50] + list(spike_indices)))
-    times = times[indices]
-    voltages = voltages[indices]
-
     def get_trajectory(p):
         try:
             soln = solver(p, times)
@@ -367,11 +377,13 @@ def plot_sample_trajectories(solver, times, voltages, removal_duration, params, 
     samples = np.random.multivariate_normal(params, cov, n_samples)
 
     count = 0
+
+    indices = np.unique(np.array(list(range(len(times)))[::50] + list(spike_indices)))
     for sample in samples:
         trajectory = get_trajectory(sample)
         if np.all(np.isfinite(trajectory)):
             count += 1
-        axs[0].plot(times, trajectory, color='grey', alpha=0.3)
+        axs[0].plot(times[indices], trajectory[indices], color='grey', alpha=0.3)
 
     print(f"{removal_duration:.2f}: Successfully ran {count} out of {n_samples} simulations")
 
@@ -419,7 +431,7 @@ def plot_regions(covs, params, output_dir, spike_removal_durations,
     # removed)
     first_rotation = np.arctan2(*eigvecs[::-1, 0])
 
-    for i, cov in reversed(list(enumerate(covs[0::2]))):
+    for i, cov in reversed(list(enumerate(covs))):
         sub_cov = cov[p_of_interest, :]
         sub_cov = sub_cov[:, p_of_interest]
         eigvals, eigvecs = np.linalg.eigh(sub_cov)
@@ -453,9 +465,7 @@ def plot_regions(covs, params, output_dir, spike_removal_durations,
         ax.cla()
 
 
-def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, default_parameters, sigma2, burn_in=None):
-    times = times[indices]
-    voltages = voltages[indices]
+def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, starting_parameters, sigma2, burn_in=None):
     data = data[indices]
     n = len(indices)
     print(f"number of timesteps is {n}")
@@ -463,9 +473,9 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, defaul
     if burn_in is None:
         burn_in = int(chain_length / 10)
 
-    @njit
+    # @njit
     def log_likelihood_func(p):
-        output = solver(p, times, voltages=voltages)
+        output = solver(p, times, voltages=voltages)[indices]
         error = output - data
         SSE = np.sum(error**2)
         ll = -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
@@ -476,7 +486,7 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, defaul
             return log_likelihood_func(p)
 
         def n_parameters(self):
-            return len(default_parameters)
+            return len(starting_parameters)
 
     prior = pints.UniformLogPrior([0] * pints_likelihood().n_parameters(),
                                   [1] * pints_likelihood().n_parameters())
@@ -484,8 +494,8 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, defaul
     posterior = pints.LogPosterior(pints_likelihood(), prior)
 
     mcmc = pints.MCMCController(posterior, args.no_chains,
-                                [default_parameters] * args.no_chains,
-                                method=pints.HaarioBardenetACMC)
+                                 np.tile(starting_parameters, [args.no_chains, 1]),
+                                         method=pints.HaarioBardenetACMC)
 
     mcmc.set_max_iterations(args.chain_length)
 
