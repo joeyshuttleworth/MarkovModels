@@ -213,7 +213,7 @@ def main():
 
     for j, mcmc_sample in enumerate(mcmc_samples):
         for i in range(min(mcmc_sample.shape[1], 100)):
-            sample = mcmc_sample[0, i, :]
+            sample = mcmc_sample[0, -i, :]
             trajectory = solver(sample, times)
             traj_ax.plot(times[indices], trajectory[indices], color='grey', alpha=.3)
         traj_fig.savefig(os.path.join(output_dir, f"{j}_mcmc_trajectories.png"))
