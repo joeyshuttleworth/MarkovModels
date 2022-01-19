@@ -342,6 +342,7 @@ def main():
 
         std_axs[0].plot(spike_removal_durations, stds)
         std_axs[-1].set_xlabel('time removed after each spike /ms')
+        std_axs[0].set_ylabel('std log error in IKr')
         std_axs[0].set_title(f"{voltage}mV")
 
         for i, var in enumerate(('a_inf', 'tau_a', 'r_inf', 'tau_r')):
