@@ -42,7 +42,7 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.linspace(0, 251, 20)
+    spike_removal_durations = np.unique(list(np.linspace(0, 5, 6)) + list(np.linspace(5, 251, 20)))
 
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
@@ -80,18 +80,6 @@ def main():
 
     solver = model.make_hybrid_solver_current(njitted=True)
     # Plot heatmaps
-    if args.heatmap_size > 0:
-        logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
-        ranges = [[0.414, 0.422], [0.047, 0.048]]
-        draw_likelihood_heatmap(model, solver, params, times, data,
-                                sigma2, ranges, args.heatmap_size,
-                                (4, 6), output_dir)
-        ranges = [[0.025, 0.026], [0.0245, 0.02525]]
-        draw_likelihood_heatmap(model, solver, params, times, data,
-                                sigma2, ranges, args.heatmap_size,
-                                (5, 7), output_dir)
-        logging.info("Finished drawing heatmap")
-
     D_optimalities = []
     A_optimalities = []
     G_optimalities = []
@@ -140,6 +128,20 @@ def main():
 
         cov = sigma2 * cov
         covs.append(cov)
+
+        if args.heatmap_size > 0:
+            logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
+            for x_index, y_index in [(4, 6), (5, 7), (4, 8)]:
+                width = np.sqrt(cov[x_index, x_index]) * 3
+                height = np.sqrt(cov[y_index, y_index]) * 3
+                x = params[x_index]
+                y = params[y_index]
+
+                ranges = [[x - width, x + width], [y - height, y + height]]
+                draw_likelihood_heatmap(model, solver, params, cov, times[indices], data[indices],
+                                        sigma2, ranges, args.heatmap_size,
+                                        (4, 6), output_dir)
+            logging.info("Finished drawing heatmaps")
 
     for time_to_remove, cov in zip(spike_removal_durations, covs):
         plot_sample_trajectories(solver, times, voltages, time_to_remove, params, cov, sample_axs,
@@ -499,7 +501,7 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, starti
     return samples[:, burn_in:, :]
 
 
-def draw_likelihood_heatmap(model, solver, params, times, data, sigma2, ranges, no_points, p_index, output_dir):
+def draw_likelihood_heatmap(model, solver, params, cov, times, data, sigma2, ranges, no_points, p_index, output_dir):
     xs = np.linspace(ranges[0][0], ranges[0][1], no_points)
     ys = np.linspace(ranges[1][0], ranges[1][1], no_points)
 
@@ -555,8 +557,13 @@ def draw_likelihood_heatmap(model, solver, params, times, data, sigma2, ranges, 
         vmin=np.max(zs) - 10,
         label="log likelihood",
         shading="gouraud",
+        cmap="viridis",
         rasterized=True
     )
+
+    # Draw confidence region over the heatmap
+    common.cov_ellipse(cov, offset=params[x_index, y_index], q=0.95, ax=ax,
+                       color='red')
 
     ax.set_xlabel(f"p_{p_index[0]+1}")
     ax.set_ylabel(f"p_{p_index[1]+1}")
