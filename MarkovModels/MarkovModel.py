@@ -347,14 +347,21 @@ class MarkovModel:
             for tstart, tend, vstart, vend in protocol_description:
                 istart = np.argmax(times >= tstart)
                 iend = np.argmax(times >= tend)
-                if iend + 1 <= istart:
+
+                if iend == 0:
+                    iend = len(times)
+
+                step_times = np.empty(iend-istart+2)
+                step_times[0] = tstart
+                step_times[-1] = tend
+                if iend == istart:
+                    # TODO handle this nicely
                     continue
                 elif iend == 0:
-                    step_times = times[istart:]
+                    step_times[1:-1] = times[istart:]
                     iend = len(times)
                 else:
-                    iend += 1
-                    step_times = times[istart:iend + 1]
+                    step_times[1:-1] = times[istart:iend]
 
                 # Analytic solve
                 if vstart == vend:
@@ -366,12 +373,12 @@ class MarkovModel:
                     step_sol, _ = lsoda(crhs_ptr, rhs0, step_times, data=p,
                                         rtol=rtol, atol=atol)
                 if iend == len(times):
-                    solution[istart:, ] = step_sol[:, ]
+                    solution[istart:, ] = step_sol[1:-1, ]
                     break
 
                 else:
                     rhs0 = step_sol[-1, :]
-                    solution[istart:iend, ] = step_sol[:-1, ]
+                    solution[istart:iend, ] = step_sol[1:-1, ]
             return solution
 
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve
@@ -420,7 +427,9 @@ class MarkovModel:
         if voltages is None:
             voltages = self.GetVoltage()
 
-        def forward_solver(p, times, voltages=voltages, atol=atol, rtol=rtol):
+        times = self.times
+
+        def forward_solver(p, times=times, voltages=voltages, atol=atol, rtol=rtol):
             states = solver_states(p, times, atol, rtol)
             return ((states[:, open_index] * p[gkr_index]) * (voltages - Erev)).flatten()
 
