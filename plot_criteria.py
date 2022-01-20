@@ -539,10 +539,10 @@ def draw_likelihood_heatmap(model, solver, params, cov, data, sigma2,
     print(times)
     plt.plot(times, data, color='grey', label='data')
     plt.plot(times, solver(params), label='true_model')
-    mle_params = np.copy(params)
-    mle_params[p_index[0]] = mle[0]
-    mle_params[p_index[1]] = mle[1]
-    plt.plot(times, solver(mle_params, times), label='mle')
+    # mle_params = np.copy(params)
+    # mle_params[p_index[0]] = mle[0]
+    # mle_params[p_index[1]] = mle[1]
+    # plt.plot(times, solver(mle_params, times), label='mle')
     plt.legend()
 
     xs, ys = np.meshgrid(xs, ys)
