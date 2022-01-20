@@ -586,7 +586,7 @@ def draw_likelihood_heatmap(model, solver, params, cov, data, sigma2,
     print(max_z)
     print(f"max ll on heatmap {np.max(zs)} at {xs.flatten()[np.argmax(zs)], ys.flatten()[np.argmax(zs)]}")
 
-    print(f"std of mle error {(solver(mle_params, times)-data).std()}")
+    # print(f"std of mle error {(solver(mle_params, times)-data).std()}")
     print(f"std of true_params error {(solver(params, times)-data).std()}")
 
     fig.colorbar(c)
