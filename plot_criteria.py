@@ -280,27 +280,22 @@ def main():
                 ax.cla()
 
             fig = plt.figure(figsize=(18, 14))
-            axs = fig.subplots(4)
+            axs = fig.subplots(5)
 
             res = compute_tau_inf_from_samples(samples, voltage=voltage)
             for j, (a_inf, tau_a, r_inf, tau_r) in enumerate(zip(*res)):
                 gkrs = samples[j, :, -1]
                 I_Kr_inf = (gkrs*r_inf*a_inf*(voltage - Erev)).flatten()
+                colnames = ('a_inf', 'tau_a', 'r_inf', 'tau_r', 'I_Kr_inf')
+                vals_df = pd.DataFrame(np.column_stack(a_inf, tau_a, r_inf, tau_r, I_Kr_inf.T), columns=colnames)
 
                 axs[0].set_title(f"{voltage:.2f}mV with {spike_removal_durations[i]:.2f}ms removed after each spike")
                 try:
-                    # axs[0].scatter(a_inf, tau_a, marker='x')
-                    sns.kdeplot(data=pd.DataFrame(zip(a_inf, tau_a), columns=[
-                        'a_inf', 'tau_a']), shade=True, fill=True, ax=axs[0], x='a_inf', y='tau_a')
                     axs[0].set_title(
                         f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed (MCMC)")
-                    sns.kdeplot(data=pd.DataFrame(zip(r_inf, tau_r), columns=[
-                        'r_inf', 'tau_r']), shade=True, ax=axs[1], x='r_inf', y='tau_r')
-                    # r_inf vs a_inf
-                    sns.kdeplot(data=pd.DataFrame(zip(r_inf, a_inf), columns=[
-                        'r_inf', 'a_inf']), shade=True, ax=axs[2], x='r_inf', y='a_inf')
-                    sns.kdeplot(data=pd.DataFrame(I_Kr_inf, columns=[
-                        'I_Kr_inf']), shade=True, ax=axs[3])
+                    for k, var in enumerate(colnames):
+                        sns.kdeplot(data=pd.DataFrame(vals_df, columns=[var]), shade=True, fill=True, ax=axs[0], x=var)
+
                 except Exception as e:
                     print(str(e))
 
