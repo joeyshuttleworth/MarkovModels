@@ -571,7 +571,7 @@ def draw_likelihood_heatmap(model, solver, params, cov, data, sigma2,
     )
 
     # Draw confidence region over the heatmap
-    common.cov_ellipse(cov, offset=(params[x_index], params[y_index]), q=[0.95], ax=ax,
+    common.cov_ellipse(cov[[x_index, y_index], [x_index, y_index]], offset=(params[x_index], params[y_index]), q=[0.95], ax=ax,
                        color='red')
 
     ax.set_xlabel(f"p_{p_index[0]+1}")
