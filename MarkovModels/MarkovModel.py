@@ -266,11 +266,6 @@ class MarkovModel:
 
         voltage = self.voltage
 
-        if self.window_locs is not None:
-            window_locs = np.array(self.window_locs)
-            windows = tuple(zip([float(0)] + list(window_locs + 1), list(window_locs + 1) + [np.inf]))
-        else:
-            windows = ((-np.inf, np.inf),)
         no_states = self.get_no_states()
 
         times = self.times

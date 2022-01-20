@@ -104,6 +104,7 @@ def main():
                                         [(spike,
                                           int(spike + time_to_remove / tstep))
                                          for spike in spike_indices])
+        print(indices)
         indices_used.append(indices)
 
         # Plot the observations being removed
@@ -138,9 +139,9 @@ def main():
                 y = params[y_index]
 
                 ranges = [[x - width, x + width], [y - height, y + height]]
-                draw_likelihood_heatmap(model, solver, params, cov, times[indices], data[indices],
-                                        sigma2, ranges, args.heatmap_size,
-                                        (4, 6), output_dir)
+                draw_likelihood_heatmap(model, solver, params, cov, data,
+                                        sigma2, ranges, args.heatmap_size, subset_indices=indices,
+                                        p_index=(x_index, y_index), output_dir=output_dir)
             logging.info("Finished drawing heatmaps")
 
     for time_to_remove, cov in zip(spike_removal_durations, covs):
@@ -492,8 +493,8 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, starti
     posterior = pints.LogPosterior(pints_likelihood(), prior)
 
     mcmc = pints.MCMCController(posterior, args.no_chains,
-                                 np.tile(starting_parameters, [args.no_chains, 1]),
-                                         method=pints.HaarioBardenetACMC)
+                                np.tile(starting_parameters, [args.no_chains, 1]),
+                                method=pints.HaarioBardenetACMC)
 
     mcmc.set_max_iterations(args.chain_length)
 
@@ -501,7 +502,13 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, starti
     return samples[:, burn_in:, :]
 
 
-def draw_likelihood_heatmap(model, solver, params, cov, times, data, sigma2, ranges, no_points, p_index, output_dir):
+def draw_likelihood_heatmap(model, solver, params, cov, data, sigma2,
+                            ranges, no_points, p_index, output_dir,
+                            subset_indices=None):
+    if subset_indices is None:
+        subset_indices = range(len(data))
+
+    n = len(subset_indices)
     xs = np.linspace(ranges[0][0], ranges[0][1], no_points)
     ys = np.linspace(ranges[1][0], ranges[1][1], no_points)
 
@@ -510,26 +517,28 @@ def draw_likelihood_heatmap(model, solver, params, cov, times, data, sigma2, ran
 
     print(f"Modifying variables {x_index} and {y_index}")
 
+    times = model.times
+
     @njit
     def log_likelihood(x, y):
-        n = len(times)
         solver_input = np.copy(params)
         solver_input[x_index] = x
         solver_input[y_index] = y
         output = solver(solver_input, times)
-        error = output - data
-        SSE = (error**2).sum()
+        error = output[subset_indices] - data[subset_indices]
+        SSE = np.sum(error**2)
         return -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
 
     fix_parameters = [i for i in range(9) if i not in p_index]
 
     print(f"Fixing parameters {fix_parameters}")
 
-    mle, _ = common.fit_model(model, data, params, fix_parameters=fix_parameters,
-                              max_iterations=1000)
+    # mle, _ = common.fit_model(model, data, params, fix_parameters=fix_parameters,
+    #                           max_iterations=2, subset_indices=subset_indices)
 
+    print(times)
     plt.plot(times, data, color='grey', label='data')
-    plt.plot(times, solver(params, times), label='true_model')
+    plt.plot(times, solver(params), label='true_model')
     mle_params = np.copy(params)
     mle_params[p_index[0]] = mle[0]
     mle_params[p_index[1]] = mle[1]
@@ -562,7 +571,7 @@ def draw_likelihood_heatmap(model, solver, params, cov, times, data, sigma2, ran
     )
 
     # Draw confidence region over the heatmap
-    common.cov_ellipse(cov, offset=params[x_index, y_index], q=0.95, ax=ax,
+    common.cov_ellipse(cov, offset=(params[x_index], params[y_index]), q=[0.95], ax=ax,
                        color='red')
 
     ax.set_xlabel(f"p_{p_index[0]+1}")
@@ -570,9 +579,7 @@ def draw_likelihood_heatmap(model, solver, params, cov, times, data, sigma2, ran
     ax.axis([ranges[0][0], ranges[0][1], ranges[1][0], ranges[1][1]])
 
     ax.plot(params[p_index[0]], params[p_index[1]], 'x', color='purple')
-    ax.plot(mle[0], mle[1], 'o', color='pink')
 
-    print(f"ll of mle {log_likelihood(*mle)}")
     print(f"ll of true values {ll_of_true_params}")
     max_z = np.argmax(zs)
     print(max_z)

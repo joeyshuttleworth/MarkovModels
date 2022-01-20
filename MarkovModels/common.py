@@ -122,7 +122,7 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
 
     cov : (2, 2) array
         Covariance matrix.
-    q : float, optional
+    q : array of floats, optional
         Confidence level, should be in (0, 1)
     nsig : int, optional
         Confidence level in unit of standard deviations.
@@ -237,7 +237,7 @@ def remove_indices(lst, indices_to_remove):
     lsts.append(lst[indices_to_remove[-1][1]:-1])
 
     lst = list(first_lst) + [index for lst in lsts for index in lst]
-    return lst
+    return np.unique(lst)
 
 
 def detect_spikes(x, y, threshold=100, window_size=250):
@@ -398,7 +398,7 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
 
 
 def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
-              max_iterations=None, method=pints.CMAES):
+              max_iterations=None, subset_indices=None, method=pints.CMAES):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -421,7 +421,8 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
 
     """
 
-    fix_parameters = tuple(fix_parameters)
+    if subset_indices is None:
+        subset_indices = np.array(list(range(len(mm.times))))
 
     if starting_parameters is None:
         starting_parameters = mm.get_default_parameters()
@@ -448,17 +449,6 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
                     break
 
             # TODO Rewrite this for other models
-            # for i in range(0, 4):
-            #     alpha = sim_params[2 * i]
-            #     beta = sim_params[2 * i + 1]
-
-            #     vals = [0, 0]
-            #     vals[0] = alpha * np.exp(beta * -90 * 1E-3)
-            #     vals[1] = alpha * np.exp(beta * 50 * 1E-3)
-            #     for val in vals:
-            #         if val < 1E-7 or val > 1E3:
-            #             return False
-
             return True
 
         def n_parameters(self):
@@ -478,20 +468,20 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
             forward_solver_func = mm.make_forward_solver_current()
 
             if len(fix_parameters) > 0:
-                @njit
                 def simulate(p, times):
                     sim_parameters = np.copy(parameters)
                     for i, j in enumerate(unfixed_parameters):
                         sim_parameters[j] = p[i]
                     try:
-                        return forward_solver_func(sim_parameters, times)
-                    except Exception:
-                        return np.full(times.shape, np.inf)
+                        # Easiest to just ignores times and take a slice of the output
+                        return forward_solver_func(sim_parameters)[subset_indices]
+                    except Exception as ex:
+                        print(str(ex))
+                        return np.full(len(subset_indices), np.inf)
             else:
-                @njit
                 def simulate(p, times):
                     try:
-                        return forward_solver_func(p, times)
+                        return forward_solver_func(p, times)[subset_indices]
                     except Exception:
                         return np.full(times.shape, np.inf)
 
@@ -502,26 +492,11 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
 
         def simulateS1(self, parameters, times):
             raise NotImplementedError()
-            if fix_parameters is None:
-                return self.mm.SimulateForwardModelSensitivities(parameters)
-            else:
-                sim_params = np.copy(self.parameters)
-                c = 0
-                for i, parameter in enumerate(self.parameters):
-                    if i not in fix_parameters:
-                        sim_params[i] = parameters[c]
-                        c += 1
-                    if c == len(parameters):
-                        break
-                current, sens = self.mm.SimulateForwardModelSensitivities(
-                    sim_params, times)
-                sens = sens[:, self.free_parameters]
-                return current, sens
 
     model = PintsWrapper(mm, starting_parameters,
                          fix_parameters=fix_parameters)
 
-    problem = pints.SingleOutputProblem(model, mm.times, data)
+    problem = pints.SingleOutputProblem(model, mm.times[subset_indices], data[subset_indices])
     error = pints.SumOfSquaresError(problem)
     boundaries = Boundaries(starting_parameters, fix_parameters)
 
