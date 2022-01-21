@@ -134,9 +134,8 @@ def main():
         if args.heatmap_size > 0:
             logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
             mle, _ = common.fit_model(model, data, params, subset_indices=indices, solver=solver)
-            _, S1 = model.SimulateForwardModelSensitivities(mle)
-            S1 = S1[indices, :]
-            mle_cov = sigma2 * np.linalg.inv(np.dot(S1[indices, :].T, S1[indices, : ]))
+            _, S1_tmp = model.SimulateForwardModelSensitivities(mle)
+            mle_cov = sigma2 * np.linalg.inv(np.dot(S1_tmp[indices, :].T, S1_tmp[indices, :]))
 
             for x_index, y_index in [(4, 6), (5, 7), (4, 7)]:
                 width = np.sqrt(cov[x_index, x_index]) * 3
