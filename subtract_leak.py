@@ -16,6 +16,20 @@ import regex as re
 import itertools
 import uuid
 
+protocol_chrono_order = ['staircase_before',
+                         'sis',
+                         'rtovmaxdiff',
+                         'rvotmaxdiff',
+                         'spacefill10',
+                         'spacefill19',
+                         'spacefill26',
+                         'longap',
+                         'hhbrute3gstep',
+                         'hhsobol3step',
+                         'wangbrute3gstep',
+                         'wangsobol3step',
+                         'staircase_after']
+
 
 def get_wells_list(input_dir):
     regex = re.compile("^newtonrun4-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9])-raw_after.csv$")
@@ -108,7 +122,7 @@ def main():
             subtracted_trace = before_subtracted - after_subtracted
 
             reversal_ax.cla()
-            fitted_Erev = common.compute_reversal_potential(protocol, subtracted_trace,
+            fitted_E_rev = common.compute_reversal_potential(protocol, subtracted_trace,
                                                             observation_times,
                                                             output_path=os.path.join(output, f"reversal_potential_{protocol}_{well}"),
                                                             ax=reversal_ax)
@@ -202,9 +216,9 @@ def main():
                     print(f"{protocol}, {well}, {tracename} \tfailed QC6c")
                     passed3 = False
 
-                df.append((protocol, well, tracename, fitted_Erev, passed1, passed2, passed3))
+                df.append((protocol, well, tracename, fitted_E_rev, passed1, passed2, passed3))
 
-    df = pd.DataFrame(df, columns=('protocol', 'well', 'before/after', 'fitted_erev',
+    df = pd.DataFrame(df, columns=('protocol', 'well', 'before/after', 'fitted_E_rev',
                                    'passed QC6a', 'passed QC6b', 'passed QC6c'))
     df.to_csv(os.path.join(output, "subtraction_qc.csv"))
     print(df)
@@ -222,6 +236,27 @@ def main():
 
     print(f"Wells with all successful traces: {passed_lst}")
 
+
+    fig = plt.figure(figsize=(16, 12))
+    ax = fig.subplots()
+    erev_dir = os.path.join(output, "erev_plots")
+
+    if not os.path.exists(erev_dir):
+        os.makedirs(erev_dir)
+
+    df['xlocs'] = df['protocol'].map(lambda x: protocol_chrono_order.index(x))
+    # Plot reversal potentials over time for each well
+    for well in np.unique(df['well'].values):
+        df_to_plot = df[df.well == well]
+        df_to_plot = df_to_plot.set_index('xlocs').sort_index()
+        print(df_to_plot)
+        df_to_plot.plot('protocol', 'fitted_E_rev', ax=ax)
+        labels = df_to_plot['protocol'].values
+        ax.set_xticks(range(len(labels)))
+        ax.set_xticklabels(labels, rotation=90)
+        ax.set_ylabel('Fitted reversal potential / mV')
+        fig.savefig(os.path.join(erev_dir, f"{well}_erevs"))
+        ax.cla()
 
 if __name__ == "__main__":
     main()
