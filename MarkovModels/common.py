@@ -110,7 +110,7 @@ def calculate_reversal_potential(T=293.15, K_out=120, K_in=5):
 
 def cov_ellipse(cov, offset=[0, 0], q=None,
                 nsig=None, ax: plt.axes = None,
-                label_arg: str = None,
+                label: str = None,
                 rotate: float = None,
                 resize_axes: bool = False,
                 color: str = None):
@@ -155,10 +155,10 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
         r2 = scipy.stats.chi2.ppf(q, 2)
         width, height = 2 * np.sqrt(val[:, None] * r2)
         rotate = np.arctan2(*vec[::-1, 0]) if rotate is None else rotate
-        if label_arg is None:
+        if label is None:
             label = "{}% confidence region".format(int(q * 100))
         else:
-            label = label_arg
+            label = label
 
         e = matplotlib.patches.Ellipse(offset,
                                        width[0],
@@ -397,7 +397,8 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
 
 
 def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
-              max_iterations=None, subset_indices=None, method=pints.CMAES):
+              max_iterations=None, subset_indices=None, method=pints.CMAES,
+              solver=None):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -419,6 +420,9 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
     returns: A pair containing the optimal parameters and the corresponding sum of square errors.
 
     """
+
+    if solver is None:
+        solver = mm.make_forward_solver_current()
 
     if subset_indices is None:
         subset_indices = np.array(list(range(len(mm.times))))
@@ -464,23 +468,23 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
             unfixed_parameters = tuple([i for i in range(len(parameters)) if i not in fix_parameters])
             if fix_parameters is None:
                 fix_parameters = tuple()
-            forward_solver_func = mm.make_forward_solver_current()
 
             if len(fix_parameters) > 0:
                 def simulate(p, times):
                     sim_parameters = np.copy(parameters)
                     for i, j in enumerate(unfixed_parameters):
                         sim_parameters[j] = p[i]
-                    try:
+                    # try:
                         # Easiest to just ignores times and take a slice of the output
-                        return forward_solver_func(sim_parameters)[subset_indices]
-                    except Exception as ex:
-                        print(str(ex))
-                        return np.full(len(subset_indices), np.inf)
+                    sol = solver(sim_parameters, times)
+                    return sol
+                    # except Exception as ex:
+                    #     print(str(ex))
+                    #     return np.full(len(subset_indices), np.inf)
             else:
                 def simulate(p, times):
                     try:
-                        return forward_solver_func(p, times)[subset_indices]
+                        return solver(p, times)
                     except Exception:
                         return np.full(times.shape, np.inf)
 
