@@ -62,6 +62,8 @@ def main():
 
     # Plot representative sample from DGP
     sample_mean = model.make_hybrid_solver_current(njitted=False)(params, times)
+    print(times[np.argwhere(np.isnan(sample_mean))])
+
     noise = np.random.normal(0, np.sqrt(sigma2), times.shape)
     data = sample_mean + noise
 
@@ -104,7 +106,6 @@ def main():
                                         [(spike,
                                           int(spike + time_to_remove / tstep))
                                          for spike in spike_indices])
-        print(indices)
         indices_used.append(indices)
 
         # Plot the observations being removed
@@ -132,7 +133,7 @@ def main():
 
         if args.heatmap_size > 0:
             logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
-            for x_index, y_index in [(4, 6), (5, 7), (4, 8)]:
+            for x_index, y_index in [(4, 6), (5, 7), (4, 7)]:
                 width = np.sqrt(cov[x_index, x_index]) * 3
                 height = np.sqrt(cov[y_index, y_index]) * 3
                 x = params[x_index]
@@ -519,7 +520,7 @@ def draw_likelihood_heatmap(model, solver, params, cov, data, sigma2,
 
     times = model.times
 
-    @njit
+    # @njit
     def log_likelihood(x, y):
         solver_input = np.copy(params)
         solver_input[x_index] = x
@@ -536,7 +537,6 @@ def draw_likelihood_heatmap(model, solver, params, cov, data, sigma2,
     # mle, _ = common.fit_model(model, data, params, fix_parameters=fix_parameters,
     #                           max_iterations=2, subset_indices=subset_indices)
 
-    print(times)
     plt.plot(times, data, color='grey', label='data')
     plt.plot(times, solver(params), label='true_model')
     # mle_params = np.copy(params)

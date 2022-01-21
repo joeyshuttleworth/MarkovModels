@@ -338,21 +338,20 @@ class MarkovModel:
             rhs0 = rhs_inf(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], voltage(0)).flatten()
 
             solution = np.full((len(times), no_states), np.nan)
+            solution[0] = rhs0
 
             for tstart, tend, vstart, vend in protocol_description:
                 istart = np.argmax(times >= tstart)
-                iend = np.argmax(times >= tend)
+                iend = np.argmax(times > tend)
+                print(istart, iend)
 
                 if iend == 0:
                     iend = len(times)
 
-                step_times = np.empty(iend-istart+2)
+                step_times = np.full(iend-istart+2, np.nan)
                 step_times[0] = tstart
                 step_times[-1] = tend
-                if iend == istart:
-                    # TODO handle this nicely
-                    continue
-                elif iend == 0:
+                if iend == 0:
                     step_times[1:-1] = times[istart:]
                     iend = len(times)
                 else:
@@ -373,7 +372,7 @@ class MarkovModel:
 
                 else:
                     rhs0 = step_sol[-1, :]
-                    solution[istart:iend, ] = step_sol[1:-1, ]
+                    solution[istart:iend, ] = step_sol[1:-1, :]
             return solution
 
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve
@@ -559,7 +558,6 @@ class MarkovModel:
     def SimulateForwardModel(self, p=None, times=None):
         if p is None:
             p = self.get_default_parameters()
-            print(p)
         if times is None:
             times = self.times
 

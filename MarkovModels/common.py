@@ -370,16 +370,16 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
     lst = []
     t_diff = times[1] - times[0]
     for start, end in windows:
-        end -= 1
         start_t = start * t_diff
         end_t = end * t_diff
-        if np.abs(voltages[start] - voltages[end]) <= threshold:
+        if np.abs(voltages[start + 1] - voltages[end - 1]) <= threshold:
             voltages[end] = voltages[start]
-        lst.append((start_t, end_t, voltages[start], voltages[end]))
+        lst.append((start_t, end_t, voltages[start + 1], voltages[end - 1]))
 
     lst.append((end_t, np.inf, voltages[-1], voltages[-1]))
 
     protocol = tuple(lst)
+    print(protocol)
 
     @njit
     def protocol_func(t):
@@ -387,7 +387,7 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
             return holding_potential
 
         for i in range(len(protocol)):
-            if t <= protocol[i][1]:
+            if t < protocol[i][1]:
                 if np.abs(protocol[i][3] - protocol[i][2]) > threshold:
                     return protocol[i][2] + (t - protocol[i][0]) * (protocol[i][3] - protocol[i][2]) / (protocol[i][1] - protocol[i][0])
                 else:
