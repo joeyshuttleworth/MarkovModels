@@ -257,7 +257,7 @@ def main():
         ax.set_xticks(range(len(labels)))
         ax.set_xticklabels(labels, rotation=90)
         ax.set_ylabel('Nernst potential (fitted) / mV')
-        ax.axhline(Erev, "--", label='Nernst potential (calculated from concentrations) mV')
+        ax.axhline(Erev, ls="--", label='Nernst potential (calculated from concentrations) / mV')
         fig.savefig(os.path.join(erev_dir, f"{well}_erevs"))
         ax.cla()
 
