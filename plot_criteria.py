@@ -600,7 +600,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     if title is not None:
         ax.set_title(title)
 
-    fig.colorbar(c, "log likelihood of data")
+    fig.colorbar(c, label="log likelihood of data")
     fig.savefig(os.path.join(output_dir, filename))
     return
 
