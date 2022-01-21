@@ -142,7 +142,8 @@ def main():
                 ranges = [[x - width, x + width], [y - height, y + height]]
                 draw_likelihood_heatmap(model, solver, params, cov, data,
                                         sigma2, ranges, args.heatmap_size, subset_indices=indices,
-                                        p_index=(x_index, y_index), output_dir=output_dir)
+                                        p_index=(x_index, y_index), output_dir=output_dir,
+                                        filename=f"heatmap_{x_index}_{y_index}_{int(time_to_remove):d}.png")
             logging.info("Finished drawing heatmaps")
 
     for time_to_remove, cov in zip(spike_removal_durations, covs):
@@ -505,7 +506,11 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, starti
 
 def draw_likelihood_heatmap(model, solver, params, cov, data, sigma2,
                             ranges, no_points, p_index, output_dir,
-                            subset_indices=None):
+                            subset_indices=None, filename=None):
+
+    if filename is None:
+        filename = f"log_likelihood_heatmap_{p_index[0]}_{p_index[1]}"
+
     if subset_indices is None:
         subset_indices = range(len(data))
 
@@ -583,14 +588,13 @@ def draw_likelihood_heatmap(model, solver, params, cov, data, sigma2,
 
     print(f"ll of true values {ll_of_true_params}")
     max_z = np.argmax(zs)
-    print(max_z)
     print(f"max ll on heatmap {np.max(zs)} at {xs.flatten()[np.argmax(zs)], ys.flatten()[np.argmax(zs)]}")
 
     # print(f"std of mle error {(solver(mle_params, times)-data).std()}")
     print(f"std of true_params error {(solver(params, times)-data).std()}")
 
     fig.colorbar(c)
-    fig.savefig(os.path.join(output_dir, f"heatmap_{p_index[0]+1}_{p_index[1]+1}"))
+    fig.savefig(os.path.join(output_dir, filename))
     return
 
 

@@ -379,7 +379,6 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
     lst.append((end_t, np.inf, voltages[-1], voltages[-1]))
 
     protocol = tuple(lst)
-    print(protocol)
 
     @njit
     def protocol_func(t):

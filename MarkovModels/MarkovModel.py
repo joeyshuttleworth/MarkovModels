@@ -343,7 +343,6 @@ class MarkovModel:
             for tstart, tend, vstart, vend in protocol_description:
                 istart = np.argmax(times >= tstart)
                 iend = np.argmax(times > tend)
-                print(istart, iend)
 
                 if iend == 0:
                     iend = len(times)
