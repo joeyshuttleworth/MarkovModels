@@ -148,7 +148,7 @@ def main():
                                         sigma2, ranges, args.heatmap_size, subset_indices=indices,
                                         p_index=(x_index, y_index), output_dir=output_dir,
                                         filename=f"heatmap_{x_index+1}_{y_index+1}_{int(time_to_remove):d}ms_removed.png",
-                                        title="log likelihood heatmap with {time_to_remove:.2f}ms removed")
+                                        title=f"log likelihood heatmap with {time_to_remove:.2f}ms removed")
             logging.info("Finished drawing heatmaps")
 
     for time_to_remove, cov in zip(spike_removal_durations, covs):
