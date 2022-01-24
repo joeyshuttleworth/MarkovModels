@@ -429,7 +429,7 @@ def plot_regions(covs, params, output_dir, spike_removal_durations,
                        resize_axes=True,
                        color=colors[0 % len(colors)],
                        offset=offset,
-                       label_arg="{:.2f}ms".format(
+                       label="{:.2f}ms".format(
                            spike_removal_durations[-1]))
     eigvals, eigvecs = np.linalg.eigh(cov)
 
@@ -450,7 +450,7 @@ def plot_regions(covs, params, output_dir, spike_removal_durations,
                            color=colors[i % len(colors)],
                            # rotate=rotation - first_rotation,
                            # resize_axes=(i == len(covs)-1),
-                           label_arg="{:.2f}ms".format(
+                           label="{:.2f}ms".format(
                                spike_removal_durations[i % len(spike_removal_durations)]))
 
     axs[0].set_title(f"95% confidence regions after spike removal")
@@ -585,14 +585,14 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     # Draw normal approximation of credible region
     subcov = mle_cov[(x_index, y_index), :][:, (x_index, y_index)]
     common.cov_ellipse(subcov, offset=(mle[x_index], mle[y_index]), q=[0.95], ax=ax,
-                       color='red', label='95% credible region (normal approximation)')
+                       color='pink', label='95% credible region (normal approximation)')
 
     ax.set_xlabel(f"p_{p_index[0]+1}")
     ax.set_ylabel(f"p_{p_index[1]+1}")
     ax.axis([ranges[0][0], ranges[0][1], ranges[1][0], ranges[1][1]])
 
-    ax.plot(params[p_index[0]], params[p_index[1]], 'x', color='red', label='true_params')
-    ax.plot(mle[p_index[0]], mle[p_index[1]], 'o', color='pink', label='mle')
+    ax.plot(params[p_index[0]], params[p_index[1]], marker='x', color='red', linestyle='None', label='true_params')
+    ax.plot(mle[p_index[0]], mle[p_index[1]], marker='o', linestyle='None', color='pink', label='mle')
 
     ax.legend()
 
