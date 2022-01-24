@@ -18,7 +18,7 @@ def fit_func(protocol, well):
                             removal_duration=args.removal_duration, repeats=args.repeats)
 
 def main():
-    Erev = common.calculate_reversal_potential(T=298, K_in=5, K_out=120)
+    Erev = common.calculate_reversal_potential(T=298, K_in=120, K_out=5)
     print(f"Erev is {Erev}")
     parser = common.get_parser(
         data_reqd=True, description="Fit a given well to the data from each of the protocols. Output the resulting parameters to a file for later use")

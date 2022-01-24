@@ -16,7 +16,7 @@ import regex as re
 import itertools
 import uuid
 
-Erev = common.calculate_reversal_potential(T=298, K_in=5, K_out=120)
+Erev = common.calculate_reversal_potential(T=298.15, K_in=120, K_out=5)
 
 protocol_chrono_order = ['staircase_before',
                          'sis',
@@ -258,6 +258,7 @@ def main():
         ax.set_xticklabels(labels, rotation=90)
         ax.set_ylabel('Nernst potential (fitted) / mV')
         ax.axhline(Erev, ls="--", label='Nernst potential (calculated from concentrations) / mV')
+        ax.legend()
         fig.savefig(os.path.join(erev_dir, f"{well}_erevs"))
         ax.cla()
 

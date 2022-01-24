@@ -90,22 +90,24 @@ def get_parser(data_reqd=False, description=None):
     return parser
 
 
-def calculate_reversal_potential(T=293.15, K_out=120, K_in=5):
+def calculate_reversal_potential(T=293.15, K_in=120, K_out=5):
     """
     Compute the Nernst potential of a potassium channel.
 
     """
     # E is the Nernst potential for potassium ions across the membrane
     # Gas constant R, temperature T, Faradays constat F
-    R = 8314.55
+    R = 8.31455
     F = 96485
 
     # valency of ions (1 in the case of K^+)
     z = 1
 
     # Nernst potential
-    E = R * T / (z * F) * np.log(K_in / K_out)
-    return E
+    E = R * T / (z * F) * np.log(K_out / K_in)
+
+    # Convert to mV
+    return E * 1e3
 
 
 def cov_ellipse(cov, offset=[0, 0], q=None,
