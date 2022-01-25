@@ -187,19 +187,20 @@ def main():
     conf_fig = plt.figure(figsize=(16, 12))
     conf_axs = conf_fig.subplots(2)
 
-    plot_regions(covs[::4], params, output_dir,
+    labels = [f"{duration:.2f}ms removed" for duration in spike_removal_durations[::4]]
+    plot_regions(covs[::4], labels, params, output_dir,
                  spike_removal_durations, conf_fig, conf_axs, sigma2, p_of_interest=(4, 6))
-    plot_regions(covs[::4], params, output_dir,
+    plot_regions(covs[::4], labels, params, output_dir,
                  spike_removal_durations, conf_fig, conf_axs, sigma2, (5, 7))
 
-    plot_regions(covs[::4], params, output_dir,
+    plot_regions(covs[::4], labels, params, output_dir,
                  spike_removal_durations, conf_fig, conf_axs, sigma2, (4, 5))
 
-    plot_regions(covs[::4], params, output_dir,
+    plot_regions(covs[::4], labels, params, output_dir,
                  spike_removal_durations, conf_fig, conf_axs, sigma2, (6, 7))
 
     fig = plt.figure(figsize=(18, 14))
-    axs = fig.subplots(4)
+    axs = fig.subplots(3)
 
     # Sample steady states and timescales
     print("Sampling steady states and timescales")
@@ -289,7 +290,7 @@ def main():
                 ax.cla()
 
             fig = plt.figure(figsize=(18, 14))
-            axs = fig.subplots(5)
+            axs = fig.subplots(4)
 
             res = compute_tau_inf_from_samples(samples, voltage=voltage)
             for j, (a_inf, tau_a, r_inf, tau_r) in enumerate(zip(*res)):
@@ -303,7 +304,7 @@ def main():
                     axs[0].set_title(
                         f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed (MCMC)")
                     for k, var in enumerate(colnames):
-                        sns.kdeplot(data=pd.DataFrame(vals_df, columns=[var]), shade=True, fill=True, ax=axs[0], x=var)
+                        sns.kdeplot(data=pd.DataFrame(vals_df, columns=[var]), shade=True, fill=True, ax=axs[k], x=var)
 
                 except Exception as e:
                     print(str(e))
@@ -329,7 +330,6 @@ def main():
         for i, var in enumerate(('IKr', 'a_inf', 'tau_a', 'r_inf', 'tau_r')):
             sns.kdeplot(data=steady_states_df, x=var, ax=axs[i], shade=False, common_norm=True,
                         hue='removal_duration', palette='viridis', legend=(i==0))
-
 
         plot_x_lims = np.quantile(steady_state_samples[-1], (.05, .95))
         x_window_size = plot_x_lims[1] - plot_x_lims[0]
@@ -413,7 +413,7 @@ def monte_carlo_tau_inf(mean, cov, n_samples=10000, voltage=40):
     return a_inf, tau_a, r_inf, tau_r, samples[:, -1].flatten()
 
 
-def plot_regions(covs, params, output_dir, spike_removal_durations,
+def plot_regions(covs, labels, params, output_dir, spike_removal_durations,
                  fig, axs, sigma2, p_of_interest=(4, 6)):
     offset = [params[p_of_interest[0]], params[p_of_interest[1]]]
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
@@ -428,8 +428,8 @@ def plot_regions(covs, params, output_dir, spike_removal_durations,
                        resize_axes=True,
                        color=colors[0 % len(colors)],
                        offset=offset,
-                       label="{:.2f}ms".format(
-                           spike_removal_durations[-1]))
+                       label=labels[0])
+
     eigvals, eigvecs = np.linalg.eigh(cov)
 
     # Plot confidence regions starting with the largest (most observations
@@ -449,8 +449,7 @@ def plot_regions(covs, params, output_dir, spike_removal_durations,
                            color=colors[i % len(colors)],
                            # rotate=rotation - first_rotation,
                            # resize_axes=(i == len(covs)-1),
-                           label="{:.2f}ms".format(
-                               spike_removal_durations[i % len(spike_removal_durations)]))
+                           label=labels[i])
 
     axs[0].set_title(f"95% confidence regions after spike removal")
     axs[0].plot(*offset, 'x', color='red',
@@ -473,6 +472,7 @@ def plot_regions(covs, params, output_dir, spike_removal_durations,
 def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, starting_parameters, sigma2, burn_in=None):
     data = data[indices]
     n = len(indices)
+    times = times[indices]
     print(f"number of timesteps is {n}")
 
     if burn_in is None:
@@ -480,7 +480,7 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, starti
 
     # @njit
     def log_likelihood_func(p):
-        output = solver(p, times, voltages=voltages)[indices]
+        output = solver(p, times, voltages=voltages)
         error = output - data
         SSE = np.sum(error**2)
         ll = -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
