@@ -297,7 +297,7 @@ def main():
                 gkrs = samples[j, :, -1]
                 I_Kr_inf = (gkrs*r_inf*a_inf*(voltage - Erev)).flatten()
                 colnames = ('a_inf', 'tau_a', 'r_inf', 'tau_r', 'I_Kr_inf')
-                vals_df = pd.DataFrame(np.column_stack(a_inf, tau_a, r_inf, tau_r, I_Kr_inf.T), columns=colnames)
+                vals_df = pd.DataFrame(np.column_stack((a_inf, tau_a, r_inf, tau_r, I_Kr_inf.T)), columns=colnames)
 
                 axs[0].set_title(f"{voltage:.2f}mV with {spike_removal_durations[i]:.2f}ms removed after each spike")
                 try:
