@@ -211,8 +211,10 @@ def main():
     std_axs = std_fig.subplots(5)
 
     forward_solver = model.make_hybrid_solver_current()
+
+    print(f"indices_used = {indices_used}")
     # Next, the MCMC version
-    mcmc_samples = [get_mcmc_chains(forward_solver, times, voltages,
+    mcmc_samples = [get_mcmc_chains(forward_solver, times,
                                     index_set, data, args.chain_length,
                                     params, sigma2, burn_in=args.burn_in)
                     for index_set in indices_used]
@@ -469,7 +471,7 @@ def plot_regions(covs, labels, params, output_dir, spike_removal_durations,
         ax.cla()
 
 
-def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, starting_parameters, sigma2, burn_in=None):
+def get_mcmc_chains(solver, times, indices, data, chain_length, starting_parameters, sigma2, burn_in=None):
     data = data[indices]
     n = len(indices)
     times = times[indices]
@@ -478,9 +480,9 @@ def get_mcmc_chains(solver, times, voltages, indices, data, chain_length, starti
     if burn_in is None:
         burn_in = int(chain_length / 10)
 
-    # @njit
+    @njit
     def log_likelihood_func(p):
-        output = solver(p, times, voltages=voltages)
+        output = solver(p, times)
         error = output - data
         SSE = np.sum(error**2)
         ll = -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
@@ -529,7 +531,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
 
     times = model.times
 
-    # @njit
+    @njit
     def log_likelihood(x, y):
         solver_input = np.copy(params)
         solver_input[x_index] = x
@@ -542,17 +544,6 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     fix_parameters = [i for i in range(9) if i not in p_index]
 
     print(f"Fixing parameters {fix_parameters}")
-
-    # mle, _ = common.fit_model(model, data, params, fix_parameters=fix_parameters,
-    #                           max_iterations=2, subset_indices=subset_indices)
-
-    plt.plot(times, data, color='grey', label='data')
-    plt.plot(times, solver(params), label='true_model')
-    # mle_params = np.copy(params)
-    # mle_params[p_index[0]] = mle[0]
-    # mle_params[p_index[1]] = mle[1]
-    # plt.plot(times, solver(mle_params, times), label='mle')
-    plt.legend()
 
     xs, ys = np.meshgrid(xs, ys)
     zs = []
@@ -580,18 +571,27 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     subcov = cov[(x_index, y_index), :][:, (x_index, y_index)]
     common.cov_ellipse(subcov, offset=(params[x_index], params[y_index]), q=[0.95], ax=ax,
                        color='red', label='95% confidence region')
+    ax.plot(mle[p_index[0]], mle[p_index[1]], marker='o', linestyle='None', color='pink', label='mle')
 
     # Draw normal approximation of credible region
     subcov = mle_cov[(x_index, y_index), :][:, (x_index, y_index)]
     common.cov_ellipse(subcov, offset=(mle[x_index], mle[y_index]), q=[0.95], ax=ax,
                        color='pink', label='95% credible region (normal approximation)')
 
+    # Draw 2 param versions
+    mle_2param, _ = common.fit_model(model, data, params, fix_parameters=fix_parameters, subset_indices=subset_indices)
+    _, S1 = model.SimulateForwardModelSensitivities()
+    S1 = S1[subset_indices, [x_index, y_index]]
+    mle_2param_cov = np.linalg.inv(np.dot(S1, S1.T)) * sigma2
+    common.cov_ellipse(mle_2param_cov, offset=mle_2param, q=[0.95], ax=ax,
+                       color='purple', label='Conditional 95% credible region (normal approximation)')
+    ax.plot(*mle_2param, marker='+', linestyle='None', color='purple', label='conditional mle')
+
     ax.set_xlabel(f"p_{p_index[0]+1}")
     ax.set_ylabel(f"p_{p_index[1]+1}")
     ax.axis([ranges[0][0], ranges[0][1], ranges[1][0], ranges[1][1]])
 
     ax.plot(params[p_index[0]], params[p_index[1]], marker='x', color='red', linestyle='None', label='true_params')
-    ax.plot(mle[p_index[0]], mle[p_index[1]], marker='o', linestyle='None', color='pink', label='mle')
 
     ax.legend()
 
