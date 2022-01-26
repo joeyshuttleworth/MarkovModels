@@ -580,8 +580,8 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
 
     # Draw 2 param versions
     mle_2param, _ = common.fit_model(model, data, params, fix_parameters=fix_parameters, subset_indices=subset_indices, solver=solver)
-    _, S1 = model.SimulateForwardModelSensitivities()
-    S1 = S1[subset_indices, [x_index, y_index]]
+    _, S1 = model.SimulateForwardModelSensitivities(times=times[subset_indices])
+    S1 = S1[:, [x_index, y_index]]
     mle_2param_cov = np.linalg.inv(np.dot(S1, S1.T)) * sigma2
     common.cov_ellipse(mle_2param_cov, offset=mle_2param, q=[0.95], ax=ax,
                        color='purple', label='Conditional 95% credible region (normal approximation)')
