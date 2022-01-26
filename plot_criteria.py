@@ -117,7 +117,7 @@ def main():
         fig.savefig(os.path.join(output_dir, f"spike_removal_{time_to_remove:.0f}.png"))
         ax.cla()
 
-        H = np.dot(S1[indices, :].T, S1[indices, :])
+        H = S1[indices, :].T @ S1[indices, :]
 
         D_optimalities.append(np.linalg.det(H))
         A_optimalities.append(np.trace(H))
@@ -585,14 +585,15 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     mle_params[x_index] = mle_2param[0]
     mle_params[y_index] = mle_2param[1]
     _, S1 = model.SimulateForwardModelSensitivities(mle_params, times=times[subset_indices])
-    print(S1.shape)
-    S1 = S1[[x_index, y_index], :]
+    S1 = S1[:, [x_index, y_index]]
     try:
-        mle_2param_cov = np.linalg.inv(np.dot(S1.T, S1)) * sigma2
+        mle_2param_cov = np.linalg.inv(S1 @ S1.T) * sigma2
+        print(mle_2param_cov)
         common.cov_ellipse(mle_2param_cov, offset=mle_2param, q=[0.95], ax=ax,
-                       color='purple', label='Conditional 95% credible region (normal approximation)')
+                           color='purple', label='Conditional 95% credible region (normal approximation)')
     except np.linalg.LinAlgError:
         print("Failed to invert Hessian matrix")
+        print(S1)
 
     ax.plot(*mle_2param, marker='+', linestyle='None', color='purple', label='conditional mle')
 
