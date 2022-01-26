@@ -581,8 +581,10 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     # Draw 2 param versions
     mle_2param, _ = common.fit_model(model, data, params, fix_parameters=fix_parameters,
                                      subset_indices=subset_indices, solver=solver)
-
-    _, S1 = model.SimulateForwardModelSensitivities(times=times[subset_indices])
+    mle_params = params
+    mle_params[x_index] = mle_2param[0]
+    mle_params[y_index] = mle_2param[1]
+    _, S1 = model.SimulateForwardModelSensitivities(mle_params, times=times[subset_indices])
     print(S1.shape)
     S1 = S1[[x_index, y_index], :]
     try:
