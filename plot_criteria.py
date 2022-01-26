@@ -42,7 +42,7 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.unique(list(np.linspace(0, 10, 11)) + list(np.linspace(15, 255, 20)))
+    spike_removal_durations = np.unique(list(np.linspace(0, 10, 11)) + list(np.linspace(15, 255, 10)))
 
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
@@ -226,7 +226,7 @@ def main():
 
     for j, mcmc_sample in enumerate(mcmc_samples):
         for sample in np.random.choice(mcmc_sample.shape[1], 1000):
-            trajectory = solver(mcmc_sample[sample, :], times)
+            trajectory = solver(mcmc_sample[0, sample, :], times)
             traj_ax.plot(times, trajectory, color='grey', alpha=.3)
         traj_fig.savefig(os.path.join(output_dir, f"{j}_mcmc_trajectories.png"))
         traj_ax.cla()
@@ -577,11 +577,12 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     subcov = mle_cov[(x_index, y_index), :][:, (x_index, y_index)]
     common.cov_ellipse(subcov, offset=(mle[x_index], mle[y_index]), q=[0.95], ax=ax,
                        color='pink', label='95% credible region (normal approximation)')
+    ax.plot(params[x_index], params[y_index], marker='x', color='red', linestyle='None', label='true_params')
 
     # Draw 2 param versions
     mle_2param, _ = common.fit_model(model, data, params, fix_parameters=fix_parameters,
                                      subset_indices=subset_indices, solver=solver)
-    mle_params = params
+    mle_params = np.copy(params)
     mle_params[x_index] = mle_2param[0]
     mle_params[y_index] = mle_2param[1]
     _, S1 = model.SimulateForwardModelSensitivities(mle_params, times=times[subset_indices])
@@ -601,7 +602,6 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     ax.set_ylabel(f"p_{p_index[1]+1}")
     ax.axis([ranges[0][0], ranges[0][1], ranges[1][0], ranges[1][1]])
 
-    ax.plot(params[p_index[0]], params[p_index[1]], marker='x', color='red', linestyle='None', label='true_params')
 
     ax.legend()
 
