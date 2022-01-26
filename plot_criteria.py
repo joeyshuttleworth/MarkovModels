@@ -225,9 +225,9 @@ def main():
     indices = np.unique(np.array(list(range(len(times)))[::50] + list(spike_indices)))
 
     for j, mcmc_sample in enumerate(mcmc_samples):
-        for sample in np.random.choice(mcmc_sample[0], 1000):
-            trajectory = solver(sample, times)
-            traj_ax.plot(times[indices], trajectory[indices], color='grey', alpha=.3)
+        for sample in np.random.choice(mcmc_sample.shape[1], 1000):
+            trajectory = solver(mcmc_sample[sample, :], times)
+            traj_ax.plot(times, trajectory, color='grey', alpha=.3)
         traj_fig.savefig(os.path.join(output_dir, f"{j}_mcmc_trajectories.png"))
         traj_ax.cla()
 
