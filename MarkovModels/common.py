@@ -476,13 +476,8 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
                     sim_parameters = np.copy(parameters)
                     for i, j in enumerate(unfixed_parameters):
                         sim_parameters[j] = p[i]
-                    # try:
-                        # Easiest to just ignores times and take a slice of the output
                     sol = solver(sim_parameters, times)
                     return sol
-                    # except Exception as ex:
-                    #     print(str(ex))
-                    #     return np.full(len(subset_indices), np.inf)
             else:
                 def simulate(p, times):
                     try:
