@@ -587,7 +587,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     _, S1 = model.SimulateForwardModelSensitivities(mle_params, times=times[subset_indices])
     S1 = S1[:, [x_index, y_index]]
     try:
-        mle_2param_cov = np.linalg.inv(S1 @ S1.T) * sigma2
+        mle_2param_cov = np.linalg.inv(S1.T @ S1) * sigma2
         print(mle_2param_cov)
         common.cov_ellipse(mle_2param_cov, offset=mle_2param, q=[0.95], ax=ax,
                            color='purple', label='Conditional 95% credible region (normal approximation)')
