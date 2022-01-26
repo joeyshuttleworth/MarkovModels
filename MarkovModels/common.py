@@ -440,18 +440,6 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
         def check(self, parameters):
             '''Check that each rate constant lies in the range 1.67E-5 < A*exp(B*V) < 1E3
             '''
-            if np.any(sim_params) <= 0:
-                return False
-
-            c = 0
-            for i in fix_parameters:
-                if i not in self.fix_parameters:
-                    sim_params[i] = parameters[c]
-                    c += 1
-                if c == len(parameters):
-                    break
-
-            # TODO Rewrite this for other models
             return True
 
         def n_parameters(self):
