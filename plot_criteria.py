@@ -585,9 +585,13 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     _, S1 = model.SimulateForwardModelSensitivities(times=times[subset_indices])
     print(S1.shape)
     S1 = S1[[x_index, y_index], :]
-    mle_2param_cov = np.linalg.inv(np.dot(S1.T, S1)) * sigma2
-    common.cov_ellipse(mle_2param_cov, offset=mle_2param, q=[0.95], ax=ax,
+    try:
+        mle_2param_cov = np.linalg.inv(np.dot(S1.T, S1)) * sigma2
+        common.cov_ellipse(mle_2param_cov, offset=mle_2param, q=[0.95], ax=ax,
                        color='purple', label='Conditional 95% credible region (normal approximation)')
+    except np.linalg.LinAlgError:
+        print("Failed to invert Hessian matrix")
+
     ax.plot(*mle_2param, marker='+', linestyle='None', color='purple', label='conditional mle')
 
     ax.set_xlabel(f"p_{p_index[0]+1}")
