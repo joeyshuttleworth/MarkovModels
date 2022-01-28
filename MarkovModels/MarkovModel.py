@@ -18,8 +18,8 @@ class MarkovModel:
     def get_default_parameters(self):
         raise NotImplementedError
 
-    def __init__(self, symbols, A, B, rates_dict, times, rate_labels, voltage=None,
-                 tolerances=(1e-6, 1e-8)):
+    def __init__(self, symbols, A, B, rates_dict, times, voltage=None,
+                 tolerances=(1e-8, 1e-10)):
 
         self.window_locs = None
         self.protocol_description = None
