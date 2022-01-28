@@ -6,16 +6,18 @@ from MarkovModels import common
 from MarkovModels.BeattieModel import BeattieModel
 
 import os
-import uuid
+import pandas as pd
+import numpy as np
 
 def fit_func(protocol, well):
     default_parameters = None
-    this_output_dir = os.path.join(output_dir, f"fitting_{args.removal_duration}ms_removed", f"{protocol}_{well}")
+    this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
-    common.fit_well_to_data(BeattieModel, well, protocol, args.data_directory,
-                            args.max_iterations, this_output_dir, T=298, K_in=5,
-                            K_out=120, default_parameters=default_parameters,
-                            removal_duration=args.removal_duration, repeats=args.repeats)
+    params = common.fit_well_data(BeattieModel, well, protocol, args.data_directory,
+                                     args.max_iterations, output_dir=this_output_dir, T=298, K_in=5,
+                                     K_out=120, default_parameters=default_parameters,
+                                     removal_duration=args.removal_duration, repeats=args.repeats)
+    return params[0]
 
 def main():
     Erev = common.calculate_reversal_potential(T=298, K_in=120, K_out=5)
@@ -34,11 +36,7 @@ def main():
     global output_dir
     output_dir = args.output
 
-    if output_dir is None:
-        output_dir = os.path.join('output', f"output_{uuid.uuid4()}")
-
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    output_dir = common.setup_output_directory(None, f"fitting_{args.removal_duration:.2f}_removed")
 
     regex = re.compile("^newtonrun4-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$")
 
@@ -62,9 +60,62 @@ def main():
         else:
             tasks.append((protocol, well))
 
-    pool.starmap(fit_func, tasks)
-    print("=============\nfinished\n=============")
+    print(tasks)
+    fitted_params_list = np.row_stack(pool.starmap(fit_func, tasks))
+    print(fitted_params_list)
 
+    wells_rep = [task[1] for task in tasks]
+    protocols_rep = [task[0] for task in tasks]
+
+    print(wells_rep)
+
+    param_names = ['p%i' % i for i in range(1,9)] + ['g_kr']
+
+    params_df = pd.DataFrame(fitted_params_list, columns=param_names)
+
+    params_df['well'] = wells_rep
+    params_df['protocol'] = protocols_rep
+    print(params_df)
+
+    print("=============\nfinished fitting\n=============")
+
+    model = BeattieModel()
+    predictions_df = []
+
+    wells = args.wells
+    for well in wells:
+        for protocol_fitted in protocols:
+            df = params_df[params_df.well==well][params_df.protocol==protocol_fitted]
+            row = df.values
+            assert(row.shape[0]==1)
+            params = row[0, 0:-2].astype(np.float)
+            print(params)
+            for sim_protocol in protocols:
+                prot_func, t_start, t_end, t_step, desc = common.get_ramp_protocol_from_csv(sim_protocol)
+                model.protocol_description = desc
+                model.voltage = prot_func
+
+                times = pd.read_csv(os.path.join(args.data_directory, f"newtonrun4-{sim_protocol}-times.csv"))['time'].values
+                voltages = np.array([prot_func(t) for t in times])
+                spikes, _ = common.detect_spikes(times, voltages, 10)
+                times, _, indices = common.remove_spikes(times, voltages, spikes, args.removal_duration)
+                voltages = voltages[indices]
+                model.times = times
+
+                prediction = model.SimulateForwardModel(params)
+                data = common.get_data(well, sim_protocol, args.data_directory)
+                data = data[indices]
+
+                SSE = np.sum((data - prediction)**2)
+
+                predictions_df.append((well, protocol_fitted, sim_protocol, SSE))
+
+    predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
+                                                                          'prediction_protocol',
+                                                                          'SSE'])
+    print(predictions_df)
+
+    predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
