@@ -13,6 +13,9 @@ import pints
 import regex as re
 import uuid
 from numba import njit
+import subprocess
+import sys
+import datetime
 
 
 def get_protocol_directory():
@@ -659,6 +662,9 @@ def compute_reversal_potential(protocol: str, current: np.array, times, ax=None,
 
     return fitted_poly_func(0)
 
+def get_git_revision_hash() -> str:
+    return subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+
 def setup_output_directory(dirname: str = None, subdir_name: str = None):
     if dirname is None:
         dirname = os.path.join("output", f"output-{uuid.uuid4()}")
@@ -667,5 +673,14 @@ def setup_output_directory(dirname: str = None, subdir_name: str = None):
         dirname = os.path.join(dirname, subdir_name)
     if not os.path.exists(dirname):
         os.makedirs(dirname)
+
+    with open('info.txt', 'w') as description_fout:
+        git_hash = get_git_revision_hash()
+        datetimestr = str(datetime.datetime.now())
+        description_fout.writeline(f"Date: {datetimestr}")
+        description_fout.writeline(f"Commit {git_hash}")
+        command = " ".join(sys.argv)
+        description_fout.writeline(f"Command: {command}")
+
     return dirname
 
