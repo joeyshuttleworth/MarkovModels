@@ -86,7 +86,7 @@ def main():
     logging.info("Getting model sensitivities")
     current, S1 = model.SimulateForwardModelSensitivities(params)
     spike_times, spike_indices = common.detect_spikes(times, voltages,
-                                                      window_size=100)
+                                                      window_size=0)
 
     current_spikes, current_spike_indices = common.detect_spikes(times, current, threshold=max(current) / 100, window_size=100)
 

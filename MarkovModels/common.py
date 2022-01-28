@@ -199,7 +199,7 @@ def remove_spikes(times, voltages, spike_times, time_to_remove):
     for spike in spike_times:
 
         spike_iter = list(filter(lambda v: v[1] > spike, enumerate(lst[:, 0])))
-        end_iter = list(filter(lambda v: v[1] > spike + time_to_remove, enumerate(lst[:, 0])))
+        end_iter = [x + time_to_remove for x in spike_iter]
 
         if len(spike_iter) == 0 or len(end_iter) == 0:
             break
@@ -209,7 +209,7 @@ def remove_spikes(times, voltages, spike_times, time_to_remove):
 
         if spike_index > len(lst) or end_index > len(lst):
             break
-        indices_to_remove.append((spike_index, end_index))
+        indices_to_remove.append((spike_index - 1, end_index))
 
     indices_remaining = np.array(remove_indices(list(range(len(times))), indices_to_remove))
     return lst[indices_remaining, 0], lst[indices_remaining, 1], indices_remaining
@@ -238,7 +238,7 @@ def remove_indices(lst, indices_to_remove):
 
     lsts = []
     for i in range(1, len(indices_to_remove)):
-        lsts.append(lst[indices_to_remove[i - 1][1]: indices_to_remove[i][0] + 1])
+        lsts.append(lst[indices_to_remove[i - 1][1] : indices_to_remove[i][0] + 1])
 
     lsts.append(lst[indices_to_remove[-1][1]:-1])
 
@@ -246,7 +246,7 @@ def remove_indices(lst, indices_to_remove):
     return np.unique(lst)
 
 
-def detect_spikes(x, y, threshold=100, window_size=250):
+def detect_spikes(x, y, threshold=100, window_size=0, earliest=True):
     """
     Find the points where time-series 'jumps' suddenly. This is useful in order
     to find 'capacitive spikes' in protocols.
@@ -262,10 +262,10 @@ def detect_spikes(x, y, threshold=100, window_size=250):
     deriv = dy / dx
     spike_indices = np.argwhere(np.abs(deriv) > threshold)[:, 0]
 
-    spike_indices = [index - window_size + np.argmax(
-        np.abs(y[(index - window_size):(index + window_size)]))
-                     for index in spike_indices]
-    spike_indices = np.unique(spike_indices)
+    if window_size > 0:
+        spike_indices = [index - window_size + np.argmax(
+            np.abs(y[(index - window_size):(index + window_size)])) for index in spike_indices]
+        spike_indices = np.unique(spike_indices)
 
     if(len(spike_indices) == 0):
         return [], np.array([])
@@ -681,6 +681,5 @@ def setup_output_directory(dirname: str = None, subdir_name: str = None):
         description_fout.write(f"Commit {git_hash}\n")
         command = " ".join(sys.argv)
         description_fout.write(f"Command: {command}\n")
-
     return dirname
 
