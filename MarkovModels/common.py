@@ -196,10 +196,10 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
 def remove_spikes(times, voltages, spike_times, time_to_remove):
     lst = np.column_stack((times, voltages))
     indices_to_remove = []
-    for spike in spike_times:
 
-        spike_iter = list(filter(lambda v: v[1] > spike, enumerate(lst[:, 0])))
-        end_iter = [x + time_to_remove for x in spike_iter]
+    for spike in spike_times:
+        spike_iter = [(i, t) for i, t in enumerate(lst[:, 0]) if t > spike]
+        end_iter = [(i, t) for i, t in enumerate(lst[:, 0]) if t > spike + time_to_remove]
 
         if len(spike_iter) == 0 or len(end_iter) == 0:
             break
