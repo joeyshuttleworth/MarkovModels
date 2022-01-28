@@ -677,10 +677,10 @@ def setup_output_directory(dirname: str = None, subdir_name: str = None):
     with open('info.txt', 'w') as description_fout:
         git_hash = get_git_revision_hash()
         datetimestr = str(datetime.datetime.now())
-        description_fout.writeline(f"Date: {datetimestr}")
-        description_fout.writeline(f"Commit {git_hash}")
+        description_fout.write(f"Date: {datetimestr}\n")
+        description_fout.write(f"Commit {git_hash}\n")
         command = " ".join(sys.argv)
-        description_fout.writeline(f"Command: {command}")
+        description_fout.write(f"Command: {command}\n")
 
     return dirname
 
