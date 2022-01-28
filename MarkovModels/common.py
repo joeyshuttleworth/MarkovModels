@@ -606,8 +606,8 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations, o
                 df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params_{i}.csv"))
                 fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit_{i}"))
                 ax.cla()
-            else:
-                plt.show()
+        else:
+            plt.show()
         fitted_params_list.append(fitted_params)
 
     return fitted_params_list
