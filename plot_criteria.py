@@ -247,7 +247,7 @@ def main():
         for ax in param_axs:
             ax.cla()
 
-        pairwise_fig, pairwise_ax = pints.pairwise(samples, kde=True,
+        pairwise_fig, pairwise_ax = pints.plot.pairwise(samples, kde=True,
                                                    parameter_names=['p%i' % i for i in range(1, 9 )]\
                                                    + ['g_kr'])
         pairwise_fig.savefig(output_dir, f"pairwise_plot.png")
