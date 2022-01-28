@@ -42,7 +42,6 @@ class MarkovModel:
         self.times = times
         self.A = A
         self.B = B
-        self.rate_labels = rate_labels
 
         self.rhs_expr = (A @ self.y + B).subs(rates_dict)
 
