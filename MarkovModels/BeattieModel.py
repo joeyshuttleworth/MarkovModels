@@ -57,7 +57,7 @@ class BeattieModel(MarkovModel):
                        ['-k1', 'k3 - k1', '-k2 - k4 - k1']])
         B = sp.Matrix(['k4', 0, 'k1'])
         # Call the constructor of the parent class, MarkovModel
-        super().__init__(symbols, A, B, rates, times, rates, voltage=voltage, *args, **kwargs)
+        super().__init__(symbols, A, B, rates, times, voltage=voltage, *args, **kwargs)
 
     def CreateSymbols(self):
         """
