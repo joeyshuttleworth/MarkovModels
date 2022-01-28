@@ -130,7 +130,7 @@ class MarkovModel:
         # Can be found analytically
         self.rhs_inf_expr = -self.A.LUsolve(self.B).subs(rates_dict)
         # self.rhs_inf = lambda p, v: np.array(self.rhs_inf_expr.subs(dict(zip(self.p, p))).subs('v', v)).astype(np.float64)
-        self.rhs_inf = nb.njit(sp.lambdify((*self.p, 'v'), self.rhs_inf_expr, modules='numpy'))
+        self.rhs_inf = nb.njit(sp.lambdify((self.p, 'v'), self.rhs_inf_expr, modules='numpy'))
 
         self.current_inf_expr = self.auxillary_expression.subs(self.y, self.rhs_inf)
         self.current_inf = lambda p: np.array(self.current_inf_expr.subs(
@@ -276,7 +276,7 @@ class MarkovModel:
                 protocol_description = self.protocol_description
 
         def forward_solver(p, times=times, atol=atol, rtol=rtol):
-            rhs0 = rhs_inf(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], voltage(0)).flatten()
+            rhs0 = rhs_inf(p, voltage(0)).flatten()
             solution = np.empty((len(times), no_states))
             for tstart, tend, vstart, vend in protocol_description:
                 istart = np.argmax(times >= tstart)
@@ -334,7 +334,7 @@ class MarkovModel:
         times = self.times
 
         def hybrid_forward_solve(p, times=times, atol=atol, rtol=rtol):
-            rhs0 = rhs_inf(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], voltage(0)).flatten()
+            rhs0 = rhs_inf(p, voltage(0)).flatten()
 
             solution = np.full((len(times), no_states), np.nan)
             solution[0] = rhs0
@@ -437,7 +437,7 @@ class MarkovModel:
             p = self.get_default_parameters()
         p = np.array(p)
 
-        rhs0 = self.rhs_inf(*p, self.holding_potential)
+        rhs0 = self.rhs_inf(p, self.holding_potential)
 
         sol = solve_ivp(self.rhs,
                         (times[0], times[-1]),
@@ -455,7 +455,7 @@ class MarkovModel:
         if times is None:
             times = self.times
 
-        rhs0 = self.rhs_inf(*p, self.holding_potential).flatten()
+        rhs0 = self.rhs_inf(p, self.holding_potential).flatten()
 
         evals = 0
         rhs_func = self.rhs
@@ -508,7 +508,7 @@ class MarkovModel:
         if times is None:
             times = self.times
 
-        rhs0 = self.rhs_inf(*p, self.holding_potential)
+        rhs0 = self.rhs_inf(p, self.holding_potential)
         drhs0 = self.sensitivity_ics(*p)
 
         ics = np.concatenate(rhs0, drhs0, axis=None)
@@ -534,7 +534,7 @@ class MarkovModel:
         if times is None:
             times = self.times
 
-        rhs0 = np.array(self.rhs_inf(*p, self.holding_potential)).astype(np.float64)
+        rhs0 = np.array(self.rhs_inf(p, self.holding_potential)).astype(np.float64)
         drhs0 = np.array(self.sensitivity_ics(*p)).astype(np.float64)
 
         return solve_ivp(
@@ -556,9 +556,12 @@ class MarkovModel:
     def SimulateForwardModel(self, p=None, times=None):
         if p is None:
             p = self.get_default_parameters()
+        p = np.array(p)
+
         if times is None:
             times = self.times
 
+        print(p, self.voltage(0))
         return self.make_forward_solver_current(njitted=False)(p, times)
 
     def GetStateVariables(self, p=None):
