@@ -375,7 +375,7 @@ class MarkovModel:
 
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve
 
-    def make_hybrid_solver_current(self, protocol_description=None, voltages=None, njitted=True):
+    def make_hybrid_solver_current(self, protocol_description=None, njitted=True):
         hybrid_solver = self.make_hybrid_solver_states(protocol_description=protocol_description, njitted=njitted)
         open_index = self.open_state_index
         Erev = self.Erev
@@ -393,7 +393,7 @@ class MarkovModel:
         atol, rtol = self.solver_tolerances
         voltage_func = self.voltage
 
-        def hybrid_forward_solve(p, times=times, voltages=voltages, atol=atol, rtol=rtol):
+        def hybrid_forward_solve(p, times=times, atol=atol, rtol=rtol):
             voltages = np.empty(len(times))
             for i in range(len(times)):
                 voltages[i] = voltage_func(times[i])
