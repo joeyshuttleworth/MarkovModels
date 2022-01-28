@@ -537,16 +537,20 @@ def get_protocol(protocol_name: str):
             raise Exception("Protocol not found at " + possible_protocol_path)
     return v, t_start, t_end, t_step
 
-
-def fit_well_to_data(model_class, well, protocol, data_directory, max_iterations, output_dir=None, T=298, K_in=120, K_out=5, default_parameters: float = None, removal_duration=5, repeats=1):
-
-    # Ignore files that have been commented out
-    voltage_func, t_start, t_end, t_step, protocol_desc = get_ramp_protocol_from_csv(protocol)
-
+def get_data(well, protocol, data_directory):
     # Find data
     regex = re.compile(f"^newtonrun4-{protocol}-{well}.csv$")
     fname = next(filter(regex.match, os.listdir(data_directory)))
     data = pd.read_csv(os.path.join(data_directory, fname))['current'].values
+    return data
+
+
+def fit_well_data(model_class, well, protocol, data_directory, max_iterations, output_dir=None, T=298, K_in=120, K_out=5, default_parameters: float = None, removal_duration=5, repeats=1):
+
+    # Ignore files that have been commented out
+    voltage_func, t_start, t_end, t_step, protocol_desc = get_ramp_protocol_from_csv(protocol)
+
+    data = get_data(well, protocol, data_directory)
 
     times = pd.read_csv(os.path.join(data_directory, f"newtonrun4-{protocol}-times.csv"))['time'].values
     voltages = np.array([voltage_func(t) for t in times])
