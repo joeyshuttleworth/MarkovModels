@@ -134,7 +134,7 @@ def main():
 
     @njit
     def hybrid_solver(p):
-        return hybrid_solve(p, times, voltages, atol, rtol)
+        return hybrid_solve(p, times, atol, rtol)
 
     samples = np.random.multivariate_normal(mean_params, params_cov, args.no_simulations)
 
