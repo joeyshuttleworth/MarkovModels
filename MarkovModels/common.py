@@ -11,6 +11,7 @@ import math
 import os
 import pints
 import regex as re
+import uuid
 from numba import njit
 
 
@@ -657,3 +658,14 @@ def compute_reversal_potential(protocol: str, current: np.array, times, ax=None,
         fig.savefig(output_path)
 
     return fitted_poly_func(0)
+
+def setup_output_directory(dirname: str = None, subdir_name: str = None):
+    if dirname is None:
+        dirname = os.path.join("output", f"output-{uuid.uuid4()}")
+
+    if subdir_name is not None:
+        dirname = os.path.join(dirname, subdir_name)
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+    return dirname
+
