@@ -674,7 +674,7 @@ def setup_output_directory(dirname: str = None, subdir_name: str = None):
     if not os.path.exists(dirname):
         os.makedirs(dirname)
 
-    with open('info.txt', 'w') as description_fout:
+    with open(os.path.join(dirname, 'info.txt'), 'w') as description_fout:
         git_hash = get_git_revision_hash()
         datetimestr = str(datetime.datetime.now())
         description_fout.write(f"Date: {datetimestr}\n")
