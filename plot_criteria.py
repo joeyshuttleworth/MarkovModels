@@ -34,15 +34,12 @@ def main():
     global args
     args = parser.parse_args()
 
-    if args.output is None:
-        args.output = os.path.join('output', f"output_{uuid.uuid4()}")
-
-    output_dir = os.path.join(args.output, "plot_criteria")
+    output_dir = os.path.join(common.setup_output_directory(args.output), "plot_criteria")
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.unique(list(np.linspace(0, 10, 11)) + list(np.linspace(15, 255, 10)))
+    spike_removal_durations = np.unique(list(np.linspace(0, 10, 11)) + list(np.linspace(15, 255, 10)) + [350, 400])
 
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
@@ -231,7 +228,7 @@ def main():
         traj_fig.savefig(os.path.join(output_dir, f"{j}_mcmc_trajectories.png"))
         traj_ax.cla()
 
-    voltage_list = [-120, -80, -20, 0, 10, 20, 40]
+    voltage_list = [-120, -80, -60, -50, -40, -30, -20, -10, 0, 10, 20, 40]
 
     for i, samples in enumerate(mcmc_samples):
         for j in range(samples.shape[0]):
@@ -257,8 +254,6 @@ def main():
         if not os.path.exists(sub_output_dir):
             os.makedirs(sub_output_dir)
         for i, cov, in enumerate(covs):
-            samples = mcmc_samples[i]
-
             # Normal approximation first
             a_inf, tau_a, r_inf, tau_r, gkr = monte_carlo_tau_inf(
                 params, cov, voltage=voltage, n_samples=args.no_samples)
@@ -267,23 +262,15 @@ def main():
 
             I_Kr_inf = (gkr*r_inf*a_inf*(voltage - Erev)).flatten()
             steady_state_samples.append(I_Kr_inf)
+            colnames = ['a_inf', 'tau_a', 'r_inf', 'tau_r']
 
+            vals_df = pd.DataFrame(data=np.column_stack((a_inf, tau_a, r_inf, tau_r)), columns=colnames)
             try:
-                # axs[0].scatter(a_inf, tau_a, marker='x')
-                sns.kdeplot(data=pd.DataFrame(zip(a_inf, tau_a), columns=[
-                            'a_inf', 'tau_a']), shade=True, fill=True, ax=axs[0], x='a_inf', y='tau_a', common_norm=True)
                 axs[0].set_title(
                     f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed")
-                # axs[1].scatter(r_inf, tau_r, marker='x')
-                sns.kdeplot(data=pd.DataFrame(zip(r_inf, tau_r), columns=[
-                            'r_inf', 'tau_r']), shade=True, ax=axs[1], x='r_inf', y='tau_r', common_norm=True)
-                # r_inf vs a_inf
-                sns.kdeplot(data=pd.DataFrame(zip(r_inf, a_inf), columns=[
-                    'r_inf', 'a_inf']), shade=True, ax=axs[2], x='r_inf', y='a_inf', common_norm=True)
-                sns.kdeplot(data=pd.DataFrame(I_Kr_inf, columns=[
-                    'I_Kr_inf']), shade=True, ax=axs[3], common_norm=True)
+                for k, var in enumerate(colnames):
+                    sns.kdeplot(data=pd.DataFrame(vals_df, columns=[var]), shade=True, fill=True, ax=axs[k], x=var)
 
-                axs[0].set_title(f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed after each spike")
                 fig.savefig(os.path.join(sub_output_dir, f"{i}.png"))
             except Exception as e:
                 print(str(e))
@@ -291,9 +278,8 @@ def main():
             for ax in axs:
                 ax.cla()
 
-            fig = plt.figure(figsize=(18, 14))
-            axs = fig.subplots(4)
-
+            axs = fig.subplots(5)
+            samples = mcmc_samples[i]
             res = compute_tau_inf_from_samples(samples, voltage=voltage)
             for j, (a_inf, tau_a, r_inf, tau_r) in enumerate(zip(*res)):
                 gkrs = samples[j, :, -1]
@@ -570,13 +556,13 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     # Draw confidence region over the heatmap
     subcov = cov[(x_index, y_index), :][:, (x_index, y_index)]
     common.cov_ellipse(subcov, offset=(params[x_index], params[y_index]), q=[0.95], ax=ax,
-                       color='red', label='95% confidence region')
+                       color='red', label='Approximated sampling distribution of MLE (95%)')
     ax.plot(mle[p_index[0]], mle[p_index[1]], marker='o', linestyle='None', color='pink', label='mle')
 
     # Draw normal approximation of credible region
     subcov = mle_cov[(x_index, y_index), :][:, (x_index, y_index)]
     common.cov_ellipse(subcov, offset=(mle[x_index], mle[y_index]), q=[0.95], ax=ax,
-                       color='pink', label='95% credible region (normal approximation)')
+                       color='pink', label='95% confidence region (normal approximation)')
     ax.plot(params[x_index], params[y_index], marker='x', color='red', linestyle='None', label='true_params')
 
     # Draw 2 param versions
@@ -591,7 +577,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
         mle_2param_cov = np.linalg.inv(S1.T @ S1) * sigma2
         print(mle_2param_cov)
         common.cov_ellipse(mle_2param_cov, offset=mle_2param, q=[0.95], ax=ax,
-                           color='purple', label='Conditional 95% credible region (normal approximation)')
+                           color='purple', label='Conditional 95% confidence region (normal approximation)')
     except np.linalg.LinAlgError:
         print("Failed to invert Hessian matrix")
         print(S1)
