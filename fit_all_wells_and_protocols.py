@@ -18,7 +18,7 @@ def fit_func(protocol, well):
                                   K_out=120, default_parameters=default_parameters,
                                   removal_duration=args.removal_duration, repeats=args.repeats,
                                   infer_E_rev=True)
-    return params[np.argmax(scores), :].flatten()
+    return params[np.argmin(scores), :].flatten()
 
 def main():
     Erev = common.calculate_reversal_potential(T=298, K_in=120, K_out=5)
@@ -113,8 +113,8 @@ def main():
 
                 predictions_df.append((well, protocol_fitted, sim_protocol, RMSE))
 
-    predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'validation_protocol',
-                                                                     'prediction_protocol',
+    predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
+                                                                     'validation_protocol',
                                                                      'RMSE'])
     print(predictions_df)
 
