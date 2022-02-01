@@ -53,12 +53,14 @@ def main():
     print(args.wells, protocols)
 
     tasks = []
+    protocols_list = []
     for f in filter(regex.match, os.listdir(args.data_directory)):
         protocol, well = re.search(regex, f).groups()
         if protocol not in protocols or well not in args.wells:
             continue
         else:
             tasks.append((protocol, well))
+            protocols_list.append(protocol)
 
     print(tasks)
     fitted_params_list = np.row_stack(pool.starmap(fit_func, tasks))
@@ -90,7 +92,7 @@ def main():
             assert(row.shape[0]==1)
             params = row[0, 0:-2].astype(np.float)
             print(params)
-            for sim_protocol in protocols:
+            for sim_protocol in protocols_list:
                 prot_func, t_start, t_end, t_step, desc = common.get_ramp_protocol_from_csv(sim_protocol)
                 model.protocol_description = desc
                 model.voltage = prot_func

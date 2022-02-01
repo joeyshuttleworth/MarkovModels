@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import pints
+import pints.plot
 import uuid
 
 from MarkovModels.BeattieModel import BeattieModel
@@ -39,7 +40,7 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.unique(list(np.linspace(0, 10, 11)) + list(np.linspace(15, 155, 10)))
+    spike_removal_durations = np.unique(list(np.linspace(0, 10, 11)) + list(np.linspace(10, 100, 30))[1:])
 
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
@@ -225,6 +226,9 @@ def main():
         for sample in np.random.choice(mcmc_sample.shape[1], 1000):
             trajectory = solver(mcmc_sample[0, sample, :], times)
             traj_ax.plot(times, trajectory, color='grey', alpha=.3)
+        traj_ax.set_title(f"{n} MCMC sampled trajectories {spike_removal_durations[j]:.2f}ms removed")
+        traj_ax.plot(times, current, color='red')
+        traj_ax.set_ylims = [np.min(current), np.max(current)]
         traj_fig.savefig(os.path.join(output_dir, f"{j}_mcmc_trajectories.png"))
         traj_ax.cla()
 
@@ -248,9 +252,10 @@ def main():
             ax.cla()
 
         pairwise_fig, pairwise_ax = pints.plot.pairwise(samples, kde=True,
-                                                   parameter_names=['p%i' % i for i in range(1, 9 )]\
-                                                   + ['g_kr'])
-        pairwise_fig.savefig(output_dir, f"pairwise_plot.png")
+                                                        parameter_names=['p%i' % i for i in range(1, 9 )]\
+                                                        + ['g_kr'])
+
+        pairwise_fig.savefig(output_dir, f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png")
         pairwise_fig.close()
 
     for voltage in voltage_list:
@@ -528,7 +533,10 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
         solver_input = np.copy(params)
         solver_input[x_index] = x
         solver_input[y_index] = y
-        output = solver(solver_input, times)
+        try:
+            output = solver(solver_input, times)
+        except:
+            output = np.full(times.shape, np.nan)
         error = output[subset_indices] - data[subset_indices]
         SSE = np.sum(error**2)
         return -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
@@ -593,7 +601,6 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     ax.set_xlabel(f"p_{p_index[0]+1}")
     ax.set_ylabel(f"p_{p_index[1]+1}")
     ax.axis([ranges[0][0], ranges[0][1], ranges[1][0], ranges[1][1]])
-
 
     ax.legend()
 
