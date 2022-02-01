@@ -112,9 +112,9 @@ def main():
 
                 predictions_df.append((well, protocol_fitted, sim_protocol, SSE))
 
-    predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
-                                                                          'prediction_protocol',
-                                                                          'SSE'])
+    predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'validation_protocol',
+                                                                     'prediction_protocol',
+                                                                     'SSE'])
     print(predictions_df)
 
     predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
