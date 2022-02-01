@@ -115,6 +115,7 @@ def main():
 
         # Plot the observations under consideration
         axs[1].scatter(times[indices], data[indices], marker='x')
+        axs[1].plot(times, current)
         axs[1].set_xlabel('time / ms')
         axs[0].set_ylabel('current / nA')
         axs[1].set_ylabel('current / nA')
