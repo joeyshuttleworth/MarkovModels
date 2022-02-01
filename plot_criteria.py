@@ -108,12 +108,17 @@ def main():
 
         # Plot the observations being removed
         fig.clf()
-        ax = fig.subplots()
-        ax.plot(times, voltages)
+        axs = fig.subplots(2)
+        axs[0].plot(times, voltages)
         for t in spike_times:
-            ax.axvspan(t, t + time_to_remove, alpha=0.4, color='red', lw=0)
+            axs[0].axvspan(t, t + time_to_remove, alpha=0.4, color='red', lw=0)
+
+        # Plot the observations under consideration
+        axs[1].plot(times[indices], data[indices], linestyle=None, marker='x')
+
         fig.savefig(os.path.join(output_dir, f"spike_removal_{time_to_remove:.0f}.png"))
-        ax.cla()
+        for ax in axs:
+            ax.cla()
 
         H = S1[indices, :].T @ S1[indices, :]
 
@@ -246,6 +251,10 @@ def main():
                 except Exception as e:
                     print(str(e))
         param_axs[0].set_title(f"{spike_removal_durations[i]:.2f}ms removed after each spike")
+
+        for j, ax in enumerate(param_axs):
+            ax.plot_vline(params[j])
+
         param_fig.savefig(os.path.join(output_dir, f"mcmc_params_{i}.png"))
 
         for ax in param_axs:
