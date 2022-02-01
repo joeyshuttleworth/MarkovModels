@@ -545,7 +545,7 @@ def get_data(well, protocol, data_directory):
     return data
 
 
-def fit_well_data(model_class, well, protocol, data_directory, max_iterations, output_dir=None, T=298, K_in=120, K_out=5, default_parameters: float = None, removal_duration=5, repeats=1):
+def fit_well_data(model_class, well, protocol, data_directory, max_iterations, output_dir=None, T=298, K_in=120, K_out=5, default_parameters: float = None, removal_duration=5, repeats=1, infer_E_rev=False):
 
     # Ignore files that have been commented out
     voltage_func, t_start, t_end, t_step, protocol_desc = get_ramp_protocol_from_csv(protocol)
@@ -553,19 +553,21 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations, o
     data = get_data(well, protocol, data_directory)
 
     times = pd.read_csv(os.path.join(data_directory, f"newtonrun4-{protocol}-times.csv"))['time'].values
+
+    if infer_E_rev:
+        Erev = infer_reversal_potential(protocol, data, times)
+    else:
+        Erev = calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
+
     voltages = np.array([voltage_func(t) for t in times])
     spikes, _ = detect_spikes(times, voltages, 10)
     times, _, indices = remove_spikes(times, voltages, spikes, removal_duration)
     voltages = voltages[indices]
     data = data[indices]
 
-    Erev = calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
-
-    model = model_class(voltage_func, times, parameters=default_parameters)
+    model = model_class(voltage_func, times, parameters=default_parameters, Erev=Erev)
     model.set_tolerances(1e-5, 1e-7)
     model.protocol_description = protocol_desc
-
-    model.Erev = Erev
 
     initial_gkr = np.max(data) / 10
 
@@ -589,6 +591,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations, o
     print(f"initial_gkr is {initial_gkr}")
 
     fitted_params_list = []
+    scores = []
 
     for i in range(repeats):
         fitted_params, score = fit_model(model, data, starting_parameters=initial_params, max_iterations=max_iterations)
@@ -609,8 +612,9 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations, o
         else:
             plt.show()
         fitted_params_list.append(fitted_params)
+        scores.append(score)
 
-    return fitted_params_list
+    return np.vstack(fitted_params_list), np.array(scores)
 
 
 def get_all_wells_in_directory(data_dir, regex="^newtonrun4-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$", group=1):
@@ -624,7 +628,7 @@ def get_all_wells_in_directory(data_dir, regex="^newtonrun4-([a-z|A-Z|0-9]*)-([A
     return wells
 
 
-def compute_reversal_potential(protocol: str, current: np.array, times, ax=None, output_path=None):
+def infer_reversal_potential(protocol: str, current: np.array, times, ax=None, output_path=None):
 
     protocol_func, _, _, _, protocol_desc = get_ramp_protocol_from_csv(protocol)
 
@@ -666,8 +670,10 @@ def compute_reversal_potential(protocol: str, current: np.array, times, ax=None,
 
     return fitted_poly_func(0)
 
+
 def get_git_revision_hash() -> str:
     return subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+
 
 def setup_output_directory(dirname: str = None, subdir_name: str = None):
     if dirname is None:

@@ -13,11 +13,12 @@ def fit_func(protocol, well):
     default_parameters = None
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
-    params = common.fit_well_data(BeattieModel, well, protocol, args.data_directory,
-                                     args.max_iterations, output_dir=this_output_dir, T=298, K_in=5,
-                                     K_out=120, default_parameters=default_parameters,
-                                     removal_duration=args.removal_duration, repeats=args.repeats)
-    return params[0]
+    params, scores = common.fit_well_data(BeattieModel, well, protocol, args.data_directory,
+                                  args.max_iterations, output_dir=this_output_dir, T=298, K_in=5,
+                                  K_out=120, default_parameters=default_parameters,
+                                  removal_duration=args.removal_duration, repeats=args.repeats,
+                                  infer_E_rev=True)
+    return params[np.argmax(scores), :].flatten()
 
 def main():
     Erev = common.calculate_reversal_potential(T=298, K_in=120, K_out=5)
