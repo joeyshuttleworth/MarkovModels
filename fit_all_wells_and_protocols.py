@@ -108,13 +108,13 @@ def main():
                 data = common.get_data(well, sim_protocol, args.data_directory)
                 data = data[indices]
 
-                SSE = np.sum((data - prediction)**2)
+                RMSE = np.sqrt(np.mean((data - prediction)**2))
 
-                predictions_df.append((well, protocol_fitted, sim_protocol, SSE))
+                predictions_df.append((well, protocol_fitted, sim_protocol, RMSE))
 
     predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'validation_protocol',
                                                                      'prediction_protocol',
-                                                                     'SSE'])
+                                                                     'RMSE'])
     print(predictions_df)
 
     predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))

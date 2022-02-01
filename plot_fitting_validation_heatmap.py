@@ -29,8 +29,8 @@ def main():
     for well in df['well'].unique():
         ax = fig.subplots()
         sub_df = df[df.well == well].pivot(index='fitting_protocol', columns='validation_protocol',
-                                           values='SSE')
-        sns.heatmap(sub_df, ax=ax, cbar_kws={'label': 'SSE'})
+                                           values='RMSE')
+        sns.heatmap(sub_df, ax=ax, cbar_kws={'label': 'RMSE'})
 
         ax.set_title(f"well {well}")
 
