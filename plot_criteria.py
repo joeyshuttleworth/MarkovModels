@@ -257,7 +257,7 @@ def main():
         param_axs[0].set_title(f"{spike_removal_durations[i]:.2f}ms removed after each spike")
 
         for j, ax in enumerate(param_axs):
-            ax.plot_vline(params[j])
+            ax.axvline(params[j])
 
         param_fig.savefig(os.path.join(output_dir, f"mcmc_params_{i}.png"))
 
