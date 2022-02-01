@@ -234,7 +234,7 @@ def main():
         for sample in np.random.choice(mcmc_sample.shape[1], 1000):
             trajectory = solver(mcmc_sample[0, sample, :], times)
             traj_ax.plot(times, trajectory, color='grey', alpha=.3)
-        traj_ax.set_title(f"{n} MCMC sampled trajectories {spike_removal_durations[j]:.2f}ms removed")
+        traj_ax.set_title(f"{args.chain_length} MCMC sampled trajectories {spike_removal_durations[j]:.2f}ms removed")
         traj_ax.plot(times, current, color='red')
         traj_ax.set_ylims = [np.min(current), np.max(current)]
         traj_fig.savefig(os.path.join(output_dir, f"{j}_mcmc_trajectories.png"))

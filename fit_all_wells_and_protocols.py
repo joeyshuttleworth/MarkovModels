@@ -90,9 +90,9 @@ def main():
         for protocol_fitted in protocols:
             df = params_df[params_df.well==well][params_df.protocol==protocol_fitted]
             row = df.values
-            assert(row.shape[0]==1)
             params = row[0, 0:-2].astype(np.float)
             print(params)
+
             for sim_protocol in protocols_list:
                 prot_func, t_start, t_end, t_step, desc = common.get_ramp_protocol_from_csv(sim_protocol)
                 model.protocol_description = desc
