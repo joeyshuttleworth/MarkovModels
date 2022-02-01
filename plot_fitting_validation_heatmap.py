@@ -30,7 +30,7 @@ def main():
         ax = fig.subplots()
         sub_df = df[df.well == well].pivot(index='fitting_protocol', columns='validation_protocol',
                                            values='RMSE')
-        sns.heatmap(sub_df, ax=ax, cbar_kws={'label': 'RMSE'})
+        sns.heatmap(sub_df, ax=ax, cbar_kws={'label': 'RMSE'}, vmin=0)
 
         ax.set_title(f"well {well}")
 
