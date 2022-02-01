@@ -114,7 +114,10 @@ def main():
             axs[0].axvspan(t, t + time_to_remove, alpha=0.4, color='red', lw=0)
 
         # Plot the observations under consideration
-        axs[1].plot(times[indices], data[indices], linestyle=None, marker='x')
+        axs[1].scatter(times[indices], data[indices], marker='x')
+        axs[1].set_xlabel('time / ms')
+        axs[0].set_ylabel('current / nA')
+        axs[1].set_ylabel('current / nA')
 
         fig.savefig(os.path.join(output_dir, f"spike_removal_{time_to_remove:.0f}.png"))
         for ax in axs:
