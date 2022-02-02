@@ -148,7 +148,7 @@ def main():
         logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
 
 
-        args_list = [(BeattieModel, times, cov, output_dir, time_to_remove, params, indices)
+        args_list = [(BeattieModel, times, data, cov, output_dir, time_to_remove, params, indices)
                      for cov, indices in zip(covs, indices)]
         pool.map(draw_heatmaps, *zip(*args_list))
 
@@ -649,7 +649,7 @@ def mcmc_chain_func(model_class, protocol, times, data, params, index_set):
                            sigma2, burn_in=args.burn_in)
 
 
-def draw_heatmaps(model_class, times, cov, output_dir, time_to_remove, params, indices):
+def draw_heatmaps(model_class, times, data, cov, output_dir, time_to_remove, params, indices):
     protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
 
     times = np.linspace(tstart, tend, int((tend - tstart) / tstep))
