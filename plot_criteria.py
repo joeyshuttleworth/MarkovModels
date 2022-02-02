@@ -8,8 +8,8 @@ import pandas as pd
 import seaborn as sns
 import pints
 import pints.plot
-import uuid
-from pathos.multiprocessing import ProcessingPool as Pool
+from pathos.multiprocessing import ThreadPool as Pool
+import dill
 
 from MarkovModels.BeattieModel import BeattieModel
 
@@ -94,11 +94,10 @@ def main():
     spike_times, spike_indices = common.detect_spikes(times, voltages,
                                                       window_size=0)
 
+    print(f"Spike locations are: {spike_times}")
+
     current_spikes, current_spike_indices = common.detect_spikes(times, current, threshold=max(current) / 100,
                                                                  window_size=100)
-
-    print(f"spike locations are{current_spikes}")
-
     covs = []
     indices_used = []
 
@@ -161,6 +160,7 @@ def main():
                 y = params[y_index]
 
                 ranges = [[x - width, x + width], [y - height, y + height]]
+                solver = model.make_hybrid_solver_current()
                 draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data,
                                         sigma2, ranges, args.heatmap_size, subset_indices=indices,
                                         p_index=(x_index, y_index), output_dir=output_dir,
@@ -168,9 +168,8 @@ def main():
                                         title=f"log likelihood heatmap with {time_to_remove:.2f}ms removed")
 
     if args.heatmap_size > 0:
-            pool.map(draw_heatmaps, indices_used)
-
-    logging.info("Finished drawing heatmaps")
+        pool.map(draw_heatmaps, indices_used)
+        logging.info("Finished drawing heatmaps")
 
     for time_to_remove, cov in zip(spike_removal_durations, covs):
         plot_sample_trajectories(solver, full_times, voltages, time_to_remove, params, cov, sample_axs,
@@ -231,12 +230,11 @@ def main():
     std_fig = plt.figure(figsize=(22, 20))
     std_axs = std_fig.subplots(5)
 
-    forward_solver = model.make_hybrid_solver_current()
-
     print(f"indices_used = {indices_used}")
 
     # Next, the MCMC version. Can be time consuming so perform this in parallel
     def mcmc_chain_func(index_set):
+        forward_solver = model.make_hybrid_solver_current()
         get_mcmc_chains(forward_solver, times, index_set, data, args.chain_length, params, sigma2, burn_in=args.burn_in)
 
     mcmc_samples = pool.map(mcmc_chain_func, indices_used)
