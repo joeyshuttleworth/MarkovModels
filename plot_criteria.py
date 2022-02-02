@@ -662,7 +662,7 @@ def mcmc_chain_func(model_class, protocol, times, data, params, index_set):
     model.window_locs = [t for t, _, _, _ in protocol_desc]
 
     params = model.get_default_parameters()
-    get_mcmc_chains(model.make_hybrid_solver_current(), times, index_set, data, args.chain_length, params, sigma2, burn_in=args.burn_in)
+    return get_mcmc_chains(model.make_hybrid_solver_current(), times, index_set, data, args.chain_length, params, sigma2, burn_in=args.burn_in)
 
 
 if __name__ == "__main__":
