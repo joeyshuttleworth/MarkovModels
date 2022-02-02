@@ -265,7 +265,7 @@ def main():
             ax.cla()
 
         pairwise_fig, pairwise_ax = pints.plot.pairwise(samples, kde=True,
-                                                        parameter_names=['p%i' % i for i in range(1, 9 )]\
+                                                        parameter_names=['p%i' % i for i in range(1, 8)]\
                                                         + ['g_kr'])
 
         pairwise_fig.savefig(output_dir, f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png")
