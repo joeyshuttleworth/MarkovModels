@@ -145,29 +145,13 @@ def main():
 
     if args.heatmap_size > 0:
 
-        def draw_heatmaps(indices):
-            model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
-            model.protocol_description = protocol_desc
-            solver = model.make_hybrid_solver_current()
-            mle, _ = common.fit_model(model, data, params, subset_indices=indices, solver=solver)
-            _, S1_tmp = model.SimulateForwardModelSensitivities(mle)
-            mle_cov = sigma2 * np.linalg.inv(np.dot(S1_tmp[indices, :].T, S1_tmp[indices, :]))
-            for x_index, y_index in [(4, 6), (5, 7), (4, 7)]:
-                width = np.sqrt(cov[x_index, x_index]) * 3
-                height = np.sqrt(cov[y_index, y_index]) * 3
-                x = params[x_index]
-                y = params[y_index]
-
-                ranges = [[x - width, x + width], [y - height, y + height]]
-                draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data,
-                                        sigma2, ranges, args.heatmap_size, subset_indices=indices,
-                                        p_index=(x_index, y_index), output_dir=output_dir,
-                                        filename=f"heatmap_{x_index+1}_{y_index+1}_{int(time_to_remove):d}ms_removed.png",
-                                        title=f"log likelihood heatmap with {time_to_remove:.2f}ms removed")
-
         logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
-        # pool.map(draw_heatmaps, indices_used)
-        pool.map(draw_heatmaps, indices_used)
+
+
+        args_list = [(BeattieModel, times, cov, output_dir, time_to_remove, params, indices)
+                     for cov, indices in zip(covs, indices)]
+        pool.map(draw_heatmaps, *zip(*args_list))
+
         logging.info("Finished drawing heatmaps")
 
     for time_to_remove, cov in zip(spike_removal_durations, covs):
@@ -661,8 +645,37 @@ def mcmc_chain_func(model_class, protocol, times, data, params, index_set):
     model.protocol_description = protocol_desc
     model.window_locs = [t for t, _, _, _ in protocol_desc]
 
-    params = model.get_default_parameters()
-    return get_mcmc_chains(model.make_hybrid_solver_current(), times, index_set, data, args.chain_length, params, sigma2, burn_in=args.burn_in)
+    return get_mcmc_chains(model.make_hybrid_solver_current(), times, index_set, data, args.chain_length, params,
+                           sigma2, burn_in=args.burn_in)
+
+
+def draw_heatmaps(model_class, times, cov, output_dir, time_to_remove, params, indices):
+    protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
+
+    times = np.linspace(tstart, tend, int((tend - tstart) / tstep))
+    Erev = common.calculate_reversal_potential(310.15)
+
+    model = model_class(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
+    model.protocol_description = protocol_desc
+    model.window_locs = [t for t, _, _, _ in protocol_desc]
+
+    solver = model.make_hybrid_solver_current()
+    mle, _ = common.fit_model(model, data, params, subset_indices=indices, solver=solver)
+    _, S1_tmp = model.SimulateForwardModelSensitivities(mle)
+    mle_cov = sigma2 * np.linalg.inv(np.dot(S1_tmp[indices, :].T, S1_tmp[indices, :]))
+    for x_index, y_index in [(4, 6), (5, 7), (4, 7)]:
+        width = np.sqrt(cov[x_index, x_index]) * 3
+        height = np.sqrt(cov[y_index, y_index]) * 3
+        x = params[x_index]
+        y = params[y_index]
+
+        ranges = [[x - width, x + width], [y - height, y + height]]
+        draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data,
+                                sigma2, ranges, args.heatmap_size, subset_indices=indices,
+                                p_index=(x_index, y_index), output_dir=output_dir,
+                                filename=f"heatmap_{x_index+1}_{y_index+1}_{int(time_to_remove):d}ms_removed.png",
+                                title=f"log likelihood heatmap with {time_to_remove:.2f}ms removed")
+
 
 
 if __name__ == "__main__":
