@@ -38,7 +38,7 @@ def main():
     args = parser.parse_args()
 
     # Setup a pool for parallel computation
-    pool = multiprocessing.pool(args.cpus)
+    pool = multiprocessing.Pool(args.cpus)
 
     output_dir = os.path.join(common.setup_output_directory(args.output), "plot_criteria")
 
