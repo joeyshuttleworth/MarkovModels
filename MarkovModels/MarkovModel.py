@@ -543,7 +543,8 @@ class MarkovModel:
 
         # Solving for each step in the protocol is faster and more accurate
         for tstart, tend in zip(self.window_locs, self.window_locs[1:]):
-            t_eval = [t >= tstart and t < tend for t in times] + [tend]
+            t_eval = [tstart] + [t for t in times if t >= tstart and t < tend] + [tend]
+            t_eval = np.unique(t_eval)
             step_sol = solve_ivp(
                 self.drhs,
                 (tstart, tend),
@@ -553,10 +554,38 @@ class MarkovModel:
                 rtol=self.solver_tolerances[1],
                 jac=self.jdrhs,
                 method='LSODA',
-                args=(p,))
-            solution.append(step_sol[:-1])
-            step_rhs0 = step_sol['y'].T[-1, :]
+                args=(p,))['y'].T
 
+            if t_eval[0] != tstart:
+                step_sol = step_sol[1:, :]
+
+            if t_eval[-1] != tend:
+                step_sol = step_sol[:-2, :]
+            else:
+                step_sol = step_sol[:-1, :]
+
+            solution.append(step_sol[:-1])
+            step_rhs0 = step_sol[-1, :]
+
+        t_eval = [t for t in times if t > self.window_locs[-1]]
+
+        if len(t_eval) > 0:
+            step_sol = solve_ivp(
+                self.drhs,
+                (tstart, times[-1]),
+                step_rhs0,
+                t_eval=t_eval,
+                atol=self.solver_tolerances[0],
+                rtol=self.solver_tolerances[1],
+                jac=self.jdrhs,
+                method='LSODA',
+                args=(p,))['y'].T
+            solution.append(step_sol)
+
+        else:
+            solution.append(step_rhs0[None, :])
+
+        solution = np.concatenate(solution, axis=0)
         return solution
 
     def voltage(self, t):

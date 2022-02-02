@@ -123,7 +123,7 @@ def main():
         axs[1].set_xlabel('time / ms')
         axs[0].set_ylabel('current / nA')
         axs[1].set_ylabel('current / nA')
-        axs[1].set_ylims([0, times[-1]])
+        axs[1].set_xlim([0, times[-1]])
 
         fig.savefig(os.path.join(output_dir, f"spike_removal_{time_to_remove:.0f}.png"))
         for ax in axs:
@@ -140,7 +140,7 @@ def main():
                 lambda row: row @ cov @ row.T,
                 1, S1)))
 
-        cov = sigma2 * cov
+        cov = sigma2 * co
         covs.append(cov)
 
         if args.heatmap_size > 0:
@@ -242,7 +242,7 @@ def main():
             traj_ax.plot(times, trajectory, color='grey', alpha=.3)
         traj_ax.set_title(f"{args.chain_length} MCMC sampled trajectories {spike_removal_durations[j]:.2f}ms removed")
         traj_ax.plot(times, current, color='red')
-        traj_ax.set_ylims = [np.min(current), np.max(current)]
+        traj_ax.set_ylim([np.min(current), np.max(current)])
         traj_fig.savefig(os.path.join(output_dir, f"{j}_mcmc_trajectories.png"))
         traj_ax.cla()
 
@@ -269,8 +269,10 @@ def main():
         for ax in param_axs:
             ax.cla()
 
+        # Concatenate chains together using Fortran ordering i.e first index moves fastest
+        samples = samples.reshape(samples.shape[0]*samples.shape[1], -1, order='F')
         pairwise_fig, pairwise_ax = pints.plot.pairwise(samples, kde=True,
-                                                        parameter_names=['p%i' % i for i in range(1, 8)]
+                                                        parameter_names=['p%i' % i for i in range(1, 9)]
                                                         + ['g_kr'])
 
         pairwise_fig.savefig(output_dir, f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png")
