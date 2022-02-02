@@ -144,7 +144,6 @@ def main():
         covs.append(cov)
 
     def draw_heatmaps(indices):
-
         model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
         model.protocol_description = protocol_desc
         if args.heatmap_size > 0:
@@ -160,7 +159,6 @@ def main():
                 y = params[y_index]
 
                 ranges = [[x - width, x + width], [y - height, y + height]]
-                solver = model.make_hybrid_solver_current()
                 draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data,
                                         sigma2, ranges, args.heatmap_size, subset_indices=indices,
                                         p_index=(x_index, y_index), output_dir=output_dir,
