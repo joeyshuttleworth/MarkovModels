@@ -47,6 +47,8 @@ def main():
 
     protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
     times = np.linspace(tstart, tend, int((tend - tstart) / tstep))
+    full_times = times
+
     Erev = common.calculate_reversal_potential(310.15)
     model = BeattieModel(times=times,
                          voltage=protocol_func,
@@ -56,7 +58,7 @@ def main():
     model.protocol_description = protocol_desc
     model.window_locs = [t for t, _, _, _ in protocol_desc]
 
-    solver = model.make_hybrid_solver_current(params, times=times)
+    solver = model.make_hybrid_solver_current()
 
     voltages = model.GetVoltage()
 
@@ -117,10 +119,11 @@ def main():
 
         # Plot the observations under consideration
         axs[1].scatter(times[indices], data[indices], marker='x')
-        axs[1].plot(times, current)
+        axs[1].plot(times, solver(params))
         axs[1].set_xlabel('time / ms')
         axs[0].set_ylabel('current / nA')
         axs[1].set_ylabel('current / nA')
+        axs[1].set_ylims([0, times[-1]])
 
         fig.savefig(os.path.join(output_dir, f"spike_removal_{time_to_remove:.0f}.png"))
         for ax in axs:
@@ -161,7 +164,7 @@ def main():
             logging.info("Finished drawing heatmaps")
 
     for time_to_remove, cov in zip(spike_removal_durations, covs):
-        plot_sample_trajectories(solver, times, voltages, time_to_remove, params, cov, sample_axs,
+        plot_sample_trajectories(solver, full_times, voltages, time_to_remove, params, cov, sample_axs,
                                  args.no_samples, spike_indices)
         sample_fig.savefig(os.path.join(output_dir, f"sample_trajectories_{time_to_remove:.2f}.png"))
         for ax in sample_axs:
@@ -235,7 +238,7 @@ def main():
 
     for j, mcmc_sample in enumerate(mcmc_samples):
         for sample in np.random.choice(mcmc_sample.shape[1], 1000):
-            trajectory = solver(mcmc_sample[0, sample, :], times)
+            trajectory = solver(mcmc_sample[0, sample, :], full_times)
             traj_ax.plot(times, trajectory, color='grey', alpha=.3)
         traj_ax.set_title(f"{args.chain_length} MCMC sampled trajectories {spike_removal_durations[j]:.2f}ms removed")
         traj_ax.plot(times, current, color='red')
@@ -259,7 +262,7 @@ def main():
         param_axs[0].set_title(f"{spike_removal_durations[i]:.2f}ms removed after each spike")
 
         for j, ax in enumerate(param_axs):
-            ax.axvline(params[j])
+            ax.axvline(params[j], color='grey', linestyle='--')
 
         param_fig.savefig(os.path.join(output_dir, f"mcmc_params_{i}.png"))
 
@@ -267,7 +270,7 @@ def main():
             ax.cla()
 
         pairwise_fig, pairwise_ax = pints.plot.pairwise(samples, kde=True,
-                                                        parameter_names=['p%i' % i for i in range(1, 8)]\
+                                                        parameter_names=['p%i' % i for i in range(1, 8)]
                                                         + ['g_kr'])
 
         pairwise_fig.savefig(output_dir, f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png")
