@@ -8,8 +8,7 @@ import pandas as pd
 import seaborn as sns
 import pints
 import pints.plot
-from pathos.multiprocessing import ThreadPool as Pool
-import dill
+from pathos.multiprocessing import ProcessPool as Pool
 
 from MarkovModels.BeattieModel import BeattieModel
 
@@ -143,15 +142,15 @@ def main():
         cov = sigma2 * cov
         covs.append(cov)
 
-    def draw_heatmaps(indices):
-        model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
-        model.protocol_description = protocol_desc
-        if args.heatmap_size > 0:
-            logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
+    if args.heatmap_size > 0:
+
+        def draw_heatmaps(indices):
+            model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
+            model.protocol_description = protocol_desc
+            solver = model.make_hybrid_solver_current()
             mle, _ = common.fit_model(model, data, params, subset_indices=indices, solver=solver)
             _, S1_tmp = model.SimulateForwardModelSensitivities(mle)
             mle_cov = sigma2 * np.linalg.inv(np.dot(S1_tmp[indices, :].T, S1_tmp[indices, :]))
-
             for x_index, y_index in [(4, 6), (5, 7), (4, 7)]:
                 width = np.sqrt(cov[x_index, x_index]) * 3
                 height = np.sqrt(cov[y_index, y_index]) * 3
@@ -165,7 +164,8 @@ def main():
                                         filename=f"heatmap_{x_index+1}_{y_index+1}_{int(time_to_remove):d}ms_removed.png",
                                         title=f"log likelihood heatmap with {time_to_remove:.2f}ms removed")
 
-    if args.heatmap_size > 0:
+        logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
+        # pool.map(draw_heatmaps, indices_used)
         pool.map(draw_heatmaps, indices_used)
         logging.info("Finished drawing heatmaps")
 
@@ -235,7 +235,8 @@ def main():
         forward_solver = model.make_hybrid_solver_current()
         get_mcmc_chains(forward_solver, times, index_set, data, args.chain_length, params, sigma2, burn_in=args.burn_in)
 
-    mcmc_samples = pool.map(mcmc_chain_func, indices_used)
+    mcmc_samples = map(mcmc_chain_func, indices_used)
+    # mcmc_samples = pool.map(mcmc_chain_func, indices_used)
 
     # Now, for each mcmc run plot some sample trajectories
     traj_fig = plt.figure(figsize=(18, 12))
