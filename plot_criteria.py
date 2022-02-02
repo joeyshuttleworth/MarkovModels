@@ -22,7 +22,6 @@ mpl.rcParams["axes.formatter.useoffset"] = False
 
 sigma2 = 0.01**2
 
-
 def main():
     plt.style.use('classic')
 
@@ -50,12 +49,12 @@ def main():
                        4.75E-2, 2.51E-2, 3.33E-2])
 
     protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
+
     times = np.linspace(tstart, tend, int((tend - tstart) / tstep))
     full_times = times
-
     Erev = common.calculate_reversal_potential(310.15)
-    model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
 
+    model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
     model.protocol_description = protocol_desc
     model.window_locs = [t for t, _, _, _ in protocol_desc]
 
@@ -68,6 +67,8 @@ def main():
     print(times[np.argwhere(np.isnan(sample_mean))])
 
     noise = np.random.normal(0, np.sqrt(sigma2), times.shape)
+
+    global data
     data = sample_mean + noise
 
     fig = plt.figure(figsize=(20, 18))
@@ -230,13 +231,8 @@ def main():
 
     print(f"indices_used = {indices_used}")
 
-    # Next, the MCMC version. Can be time consuming so perform this in parallel
-    def mcmc_chain_func(index_set):
-        forward_solver = model.make_hybrid_solver_current()
-        get_mcmc_chains(forward_solver, times, index_set, data, args.chain_length, params, sigma2, burn_in=args.burn_in)
-
-    mcmc_samples = map(mcmc_chain_func, indices_used)
-    # mcmc_samples = pool.map(mcmc_chain_func, indices_used)
+    args_list = [(BeattieModel, "staircase", times, data, params, index_set) for index_set in indices_used]
+    mcmc_samples = pool.map(mcmc_chain_func, *zip(*args_list))
 
     # Now, for each mcmc run plot some sample trajectories
     traj_fig = plt.figure(figsize=(18, 12))
@@ -652,6 +648,21 @@ def compute_tau_inf_from_samples(samples, voltage=40):
     tau_r = 1 / (k3 + k4)
 
     return a_inf, tau_a, r_inf, tau_r
+
+
+# Next, the MCMC version. Can be time consuming so perform this in parallel
+def mcmc_chain_func(model_class, protocol, times, data, params, index_set):
+    protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
+
+    times = np.linspace(tstart, tend, int((tend - tstart) / tstep))
+    Erev = common.calculate_reversal_potential(310.15)
+
+    model = model_class(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
+    model.protocol_description = protocol_desc
+    model.window_locs = [t for t, _, _, _ in protocol_desc]
+
+    params = model.get_default_parameters()
+    get_mcmc_chains(model.make_hybrid_solver_current(), times, index_set, data, args.chain_length, params, sigma2, burn_in=args.burn_in)
 
 
 if __name__ == "__main__":
