@@ -537,18 +537,27 @@ class MarkovModel:
         rhs0 = np.array(self.rhs_inf(p, self.holding_potential)).astype(np.float64)
         drhs0 = np.array(self.sensitivity_ics(*p)).astype(np.float64)
 
-        return solve_ivp(
-            self.drhs,
-            (times[0], times[-1]),
-            np.concatenate((rhs0, drhs0), axis=None).astype(np.float64),
-            t_eval=times,
-            atol=self.solver_tolerances[0],
-            rtol=self.solver_tolerances[1],
-            jac=self.jdrhs,
-            method='LSODA',
-            args=(
-                p,
-            ))
+        step_rhs0 = np.concatenate((rhs0, drhs0), axis=None).astype(np.float64)
+
+        solution = []
+
+        # Solving for each step in the protocol is faster and more accurate
+        for tstart, tend in zip(self.window_locs, self.window_locs[1:]):
+            t_eval = [t >= tstart and t < tend for t in times] + [tend]
+            step_sol = solve_ivp(
+                self.drhs,
+                (tstart, tend),
+                step_rhs0,
+                t_eval=t_eval,
+                atol=self.solver_tolerances[0],
+                rtol=self.solver_tolerances[1],
+                jac=self.jdrhs,
+                method='LSODA',
+                args=(p,))
+            solution.append(step_sol[:-1])
+            step_rhs0 = step_sol['y'].T[-1, :]
+
+        return solution
 
     def voltage(self, t):
         raise NotImplementedError
@@ -593,13 +602,12 @@ class MarkovModel:
 
         Returns the state variables and current sensitivities at every timestep
 
-        Used by pints
         """
 
         if p is None:
             p = self.get_default_parameters()
 
-        solution = self.solve_drhs_full(p, times=times)['y'].T
+        solution = self.solve_drhs_full(p, times=times)
 
         # Get the open state sensitivities for each parameter
         index_sensitivities = self.n_state_vars + self.open_state_index + \
@@ -616,29 +624,6 @@ class MarkovModel:
         values[:, self.GKr_index] += o * (voltages - self.Erev)
 
         return current, values
-
-    def GetErrorSensitivities(self, params, data):
-        """Solve the model for a given set of parameters
-
-        Returns the state variables and the sensitivities of the error measure
-        with respect to each parameter at each timestep
-
-        """
-        solution = self.solve_drhs_full(p)
-        index_sensitivities = self.open_state_index + \
-            self.n_state_vars * np.array(range(self.n_params))
-
-        # Get the open state sensitivities for each parameter
-        sensitivites = solution[:, index_sensitivities]
-        o = self.solve_rhs(p)[:, self.open_state_index]
-        voltages = self.GetVoltage()
-        current = params[self.GKr_index] * o * (voltages - self.Erev)
-
-        # Compute the sensitivities of the error measure (chain rule)
-        error_sensitivity = np.stack(
-            [2 * (current - data) * current * sensitivity for sensitivity in sensitivites.T])
-
-        return current, current_sensitivies
 
     def get_no_parameters(self):
         return len(self.get_default_parameters())

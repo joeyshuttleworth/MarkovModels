@@ -56,10 +56,12 @@ def main():
     model.protocol_description = protocol_desc
     model.window_locs = [t for t, _, _, _ in protocol_desc]
 
+    solver = model.make_hybrid_solver_current(params, times=times)
+
     voltages = model.GetVoltage()
 
     # Plot representative sample from DGP
-    sample_mean = model.make_hybrid_solver_current(njitted=False)(params, times)
+    sample_mean = solver(params, times)
     print(times[np.argwhere(np.isnan(sample_mean))])
 
     noise = np.random.normal(0, np.sqrt(sigma2), times.shape)
@@ -78,14 +80,14 @@ def main():
     fig.savefig(os.path.join(output_dir, "synthetic_data"))
     fig.clf()
 
-    solver = model.make_hybrid_solver_current(njitted=True)
     # Plot heatmaps
     D_optimalities = []
     A_optimalities = []
     G_optimalities = []
 
     logging.info("Getting model sensitivities")
-    current, S1 = model.SimulateForwardModelSensitivities(params)
+    _, S1 = model.SimulateForwardModelSensitivities(params)
+    current = solver(params)
     spike_times, spike_indices = common.detect_spikes(times, voltages,
                                                       window_size=0)
 
@@ -141,7 +143,7 @@ def main():
         if args.heatmap_size > 0:
             logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
             mle, _ = common.fit_model(model, data, params, subset_indices=indices, solver=solver)
-            _, S1_tmp = model.SimulateForwardModelSensitivities(mle)
+            _, S1_tmp = solver(mle)
             mle_cov = sigma2 * np.linalg.inv(np.dot(S1_tmp[indices, :].T, S1_tmp[indices, :]))
 
             for x_index, y_index in [(4, 6), (5, 7), (4, 7)]:
