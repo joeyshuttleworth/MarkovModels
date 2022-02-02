@@ -9,6 +9,7 @@ import seaborn as sns
 import pints
 import pints.plot
 import uuid
+import multiprocessing
 
 from MarkovModels.BeattieModel import BeattieModel
 
@@ -25,15 +26,19 @@ sigma2 = 0.01**2
 
 def main():
     plt.style.use('classic')
+
     parser = common.get_parser(description="Plot various optimality criteria")
     parser.add_argument("-n", "--no_samples", type=int, default=1000)
     parser.add_argument("-N", "--no_chains", type=int, default=4)
     parser.add_argument("-l", "--chain_length", type=int, default=1000)
     parser.add_argument("-b", "--burn-in", type=int, default=None)
     parser.add_argument("-H", "--heatmap_size", type=int, default=0)
-
+    parser.add_argument("-c", "--cpus", type=int, default=1)
     global args
     args = parser.parse_args()
+
+    # Setup a pool for parallel computation
+    pool = multiprocessing.pool(args.cpus)
 
     output_dir = os.path.join(common.setup_output_directory(args.output), "plot_criteria")
 
@@ -82,7 +87,6 @@ def main():
     fig.savefig(os.path.join(output_dir, "synthetic_data"))
     fig.clf()
 
-    # Plot heatmaps
     D_optimalities = []
     A_optimalities = []
     G_optimalities = []
@@ -109,7 +113,6 @@ def main():
                                           int(spike + time_to_remove / tstep))
                                          for spike in spike_indices])
         indices_used.append(indices)
-
         # Plot the observations being removed
         fig.clf()
         axs = fig.subplots(2)
@@ -140,9 +143,10 @@ def main():
                 lambda row: row @ cov @ row.T,
                 1, S1)))
 
-        cov = sigma2 * co
+        cov = sigma2 * cov
         covs.append(cov)
 
+    def draw_heatmaps(indices):
         if args.heatmap_size > 0:
             logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
             mle, _ = common.fit_model(model, data, params, subset_indices=indices, solver=solver)
@@ -161,7 +165,9 @@ def main():
                                         p_index=(x_index, y_index), output_dir=output_dir,
                                         filename=f"heatmap_{x_index+1}_{y_index+1}_{int(time_to_remove):d}ms_removed.png",
                                         title=f"log likelihood heatmap with {time_to_remove:.2f}ms removed")
-            logging.info("Finished drawing heatmaps")
+
+    pool.map(draw_heatmaps, indices_used)
+    logging.info("Finished drawing heatmaps")
 
     for time_to_remove, cov in zip(spike_removal_durations, covs):
         plot_sample_trajectories(solver, full_times, voltages, time_to_remove, params, cov, sample_axs,
@@ -225,13 +231,14 @@ def main():
     forward_solver = model.make_hybrid_solver_current()
 
     print(f"indices_used = {indices_used}")
-    # Next, the MCMC version
-    mcmc_samples = [get_mcmc_chains(forward_solver, times,
-                                    index_set, data, args.chain_length,
-                                    params, sigma2, burn_in=args.burn_in)
-                    for index_set in indices_used]
 
-    # For each mcmc run plot some sample trajectories
+    # Next, the MCMC version. Can be time consuming so perform this in parallel
+    def mcmc_chain_func(index_set):
+        get_mcmc_chains(forward_solver, times, index_set, data, args.chain_length, params, sigma2, burn_in=args.burn_in)
+
+    mcmc_samples = pool.map(mcmc_chain_func, indices_used)
+
+    # Now, for each mcmc run plot some sample trajectories
     traj_fig = plt.figure(figsize=(18, 12))
     traj_ax = traj_fig.subplots()
     indices = np.unique(np.array(list(range(len(times)))[::50] + list(spike_indices)))

@@ -14,10 +14,10 @@ def fit_func(protocol, well):
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
     params, scores = common.fit_well_data(BeattieModel, well, protocol, args.data_directory,
-                                  args.max_iterations, output_dir=this_output_dir, T=298, K_in=5,
-                                  K_out=120, default_parameters=default_parameters,
-                                  removal_duration=args.removal_duration, repeats=args.repeats,
-                                  infer_E_rev=True)
+                                          args.max_iterations, output_dir=this_output_dir, T=298, K_in=5,
+                                          K_out=120, default_parameters=default_parameters,
+                                          removal_duration=args.removal_duration, repeats=args.repeats,
+                                          infer_E_rev=True)
     return params[np.argmin(scores), :].flatten()
 
 def main():
