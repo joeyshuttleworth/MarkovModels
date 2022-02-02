@@ -55,10 +55,7 @@ def main():
     full_times = times
 
     Erev = common.calculate_reversal_potential(310.15)
-    model = BeattieModel(times=times,
-                         voltage=protocol_func,
-                         Erev=Erev,
-                         parameters=params)
+    model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
 
     model.protocol_description = protocol_desc
     model.window_locs = [t for t, _, _, _ in protocol_desc]
@@ -97,7 +94,8 @@ def main():
     spike_times, spike_indices = common.detect_spikes(times, voltages,
                                                       window_size=0)
 
-    current_spikes, current_spike_indices = common.detect_spikes(times, current, threshold=max(current) / 100, window_size=100)
+    current_spikes, current_spike_indices = common.detect_spikes(times, current, threshold=max(current) / 100,
+                                                                 window_size=100)
 
     print(f"spike locations are{current_spikes}")
 
@@ -147,10 +145,13 @@ def main():
         covs.append(cov)
 
     def draw_heatmaps(indices):
+
+        model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
+        model.protocol_description = protocol_desc
         if args.heatmap_size > 0:
             logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
             mle, _ = common.fit_model(model, data, params, subset_indices=indices, solver=solver)
-            _, S1_tmp = solver(mle)
+            _, S1_tmp = model.SimulateForwardModelSensitivities(mle)
             mle_cov = sigma2 * np.linalg.inv(np.dot(S1_tmp[indices, :].T, S1_tmp[indices, :]))
 
             for x_index, y_index in [(4, 6), (5, 7), (4, 7)]:
@@ -166,7 +167,9 @@ def main():
                                         filename=f"heatmap_{x_index+1}_{y_index+1}_{int(time_to_remove):d}ms_removed.png",
                                         title=f"log likelihood heatmap with {time_to_remove:.2f}ms removed")
 
-    pool.map(draw_heatmaps, indices_used)
+    if args.heatmap_size > 0:
+            pool.map(draw_heatmaps, indices_used)
+
     logging.info("Finished drawing heatmaps")
 
     for time_to_remove, cov in zip(spike_removal_durations, covs):
