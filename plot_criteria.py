@@ -9,7 +9,7 @@ import seaborn as sns
 import pints
 import pints.plot
 import uuid
-import multiprocessing
+from pathos.multiprocessing import ProcessingPool as Pool
 
 from MarkovModels.BeattieModel import BeattieModel
 
@@ -38,7 +38,7 @@ def main():
     args = parser.parse_args()
 
     # Setup a pool for parallel computation
-    pool = multiprocessing.Pool(args.cpus)
+    pool = Pool(args.cpus)
 
     output_dir = os.path.join(common.setup_output_directory(args.output), "plot_criteria")
 
