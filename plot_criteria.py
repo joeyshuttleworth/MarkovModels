@@ -263,7 +263,8 @@ def main():
                                                         parameter_names=['p%i' % i for i in range(1, 9)]
                                                         + ['g_kr'])
 
-        pairwise_fig.savefig(output_dir, f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png")
+        pairwise_fig.savefig(os.path.join(output_dir,
+                                          f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png"))
         pairwise_fig.close()
 
     for voltage in voltage_list:
