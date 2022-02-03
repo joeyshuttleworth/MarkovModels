@@ -147,9 +147,8 @@ def main():
 
         logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
 
-
         args_list = [(BeattieModel, times, data, cov, output_dir, time_to_remove, params, indices)
-                     for cov, indices in zip(covs, indices)]
+                     for cov, indices in zip(covs, indices_used)]
         pool.map(draw_heatmaps, *zip(*args_list))
 
         logging.info("Finished drawing heatmaps")
@@ -664,12 +663,14 @@ def draw_heatmaps(model_class, times, data, cov, output_dir, time_to_remove, par
     Erev = common.calculate_reversal_potential(310.15)
 
     model = model_class(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
-    model.protocol_description = protocol_desc
     model.window_locs = [t for t, _, _, _ in protocol_desc]
+    model.protocol_description = protocol_desc
 
     solver = model.make_hybrid_solver_current()
+
     mle, _ = common.fit_model(model, data, params, subset_indices=indices, solver=solver)
     _, S1_tmp = model.SimulateForwardModelSensitivities(mle)
+
     mle_cov = sigma2 * np.linalg.inv(np.dot(S1_tmp[indices, :].T, S1_tmp[indices, :]))
     for x_index, y_index in [(4, 6), (5, 7), (4, 7)]:
         width = np.sqrt(cov[x_index, x_index]) * 3
@@ -683,7 +684,6 @@ def draw_heatmaps(model_class, times, data, cov, output_dir, time_to_remove, par
                                 p_index=(x_index, y_index), output_dir=output_dir,
                                 filename=f"heatmap_{x_index+1}_{y_index+1}_{int(time_to_remove):d}ms_removed.png",
                                 title=f"log likelihood heatmap with {time_to_remove:.2f}ms removed")
-
 
 
 if __name__ == "__main__":
