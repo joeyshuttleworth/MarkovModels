@@ -270,7 +270,7 @@ def main():
 
         pairwise_fig.savefig(os.path.join(output_dir,
                                           f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png"))
-        pairwise_ax.cla()
+        pairwise_fig.clf()
 
     for voltage in voltage_list:
         steady_state_samples = []
