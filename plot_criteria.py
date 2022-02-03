@@ -259,9 +259,15 @@ def main():
 
         # Concatenate chains together using Fortran ordering i.e first index moves fastest
         samples = samples.reshape(samples.shape[0]*samples.shape[1], -1, order='F')
-        pairwise_fig, pairwise_ax = pints.plot.pairwise(samples, kde=True,
+
+        try:
+            pairwise_fig, pairwise_ax = pints.plot.pairwise(samples, kde=True,
                                                         parameter_names=['p%i' % i for i in range(1, 9)]
                                                         + ['g_kr'])
+
+        except np.linalg.LinAlgError as ex:
+            print("failed to produce pairwise plot")
+            print(str(ex))
 
         pairwise_fig.savefig(os.path.join(output_dir,
                                           f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png"))
