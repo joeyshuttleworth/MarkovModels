@@ -223,11 +223,12 @@ def main():
     traj_ax = traj_fig.subplots()
     indices = np.unique(np.array(list(range(len(times)))[::50] + list(spike_indices)))
 
+    no_subsamples = 1000
     for j, mcmc_sample in enumerate(mcmc_samples):
-        for sample in np.random.choice(mcmc_sample.shape[1], 1000):
+        for sample in np.random.choice(mcmc_sample.shape[1], no_subsamples):
             trajectory = solver(mcmc_sample[0, sample, :], full_times)
             traj_ax.plot(times, trajectory, color='grey', alpha=.3)
-        traj_ax.set_title(f"{args.chain_length} MCMC sampled trajectories {spike_removal_durations[j]:.2f}ms removed")
+        traj_ax.set_title(f"{no_subsamples} MCMC sampled trajectories {spike_removal_durations[j]:.2f}ms removed")
         traj_ax.plot(times, current, color='red')
         traj_ax.set_ylim([np.min(current), np.max(current)])
         traj_fig.savefig(os.path.join(output_dir, f"{j}_mcmc_trajectories.png"))
