@@ -88,7 +88,9 @@ def main():
     wells = args.wells
     for well in wells:
         for protocol_fitted in protocols_list:
-            df = params_df[params_df.well == well][params_df.protocol == protocol_fitted]
+            df = params_df[params_df.well == well]
+            df = [df.protocol == protocol_fitted]
+
             row = df.values
             params = row[0, 0:-2].astype(np.float)
             print(params)
