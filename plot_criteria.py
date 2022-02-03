@@ -262,8 +262,8 @@ def main():
 
         try:
             pairwise_fig, pairwise_ax = pints.plot.pairwise(samples, kde=True,
-                                                        parameter_names=['p%i' % i for i in range(1, 9)]
-                                                        + ['g_kr'])
+                                                            parameter_names=['p%i' % i for i in range(1, 9)]
+                                                            + ['g_kr'])
 
         except np.linalg.LinAlgError as ex:
             print("failed to produce pairwise plot")
@@ -271,7 +271,7 @@ def main():
 
         pairwise_fig.savefig(os.path.join(output_dir,
                                           f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png"))
-        pairwise_fig.close()
+        pairwise_ax.cla()
 
     for voltage in voltage_list:
         steady_state_samples = []
