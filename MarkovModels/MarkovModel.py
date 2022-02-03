@@ -586,6 +586,8 @@ class MarkovModel:
             solution.append(step_rhs0[None, :])
 
         solution = np.concatenate(solution, axis=0)
+
+        assert(solution.shape[0] == len(times))
         return solution
 
     def voltage(self, t):
@@ -635,6 +637,9 @@ class MarkovModel:
 
         if p is None:
             p = self.get_default_parameters()
+
+        if times is None:
+            times = self.times
 
         solution = self.solve_drhs_full(p, times=times)
 
