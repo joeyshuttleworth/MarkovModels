@@ -118,8 +118,9 @@ def main():
                 model.times = times
 
                 prediction = model.SimulateForwardModel(params)
-                data = common.get_data(well, sim_protocol, args.data_directory)
-                data = data[indices]
+
+                full_data = common.get_data(well, sim_protocol, args.data_directory)
+                data = full_data[indices]
 
                 RMSE = np.sqrt(np.mean((data - prediction)**2))
 
@@ -127,8 +128,6 @@ def main():
 
                 # Output trace
                 trace_ax.plot(times, prediction, label='prediction')
-
-                data = common.get_data(well, protocol, args.data_directory)
 
                 trace_ax.plot(times, data, label='data')
                 trace_ax.set_xlabel("time / ms")
