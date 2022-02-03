@@ -124,10 +124,10 @@ def main():
             subtracted_trace = before_subtracted - after_subtracted
 
             reversal_ax.cla()
-            fitted_E_rev = common.compute_reversal_potential(protocol, subtracted_trace,
-                                                            observation_times,
-                                                            output_path=os.path.join(output, f"reversal_potential_{protocol}_{well}"),
-                                                            ax=reversal_ax)
+            fitted_E_rev = common.calculate_reversal_potential(protocol, subtracted_trace,
+                                                               observation_times,
+                                                               output_path=os.path.join(output, f"reversal_potential_{protocol}_{well}"),
+                                                               ax=reversal_ax)
 
             subtracted_trace_df = pd.DataFrame(np.column_stack(
                 (observation_times, subtracted_trace)), columns=('time', 'current'))
