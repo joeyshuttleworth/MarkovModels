@@ -25,7 +25,7 @@ def main():
 
     output_dir = common.setup_output_directory(args.output_dir)
 
-    # Iterate over wells
+    # Iterate over wells for heatmap
     for well in df['well'].unique():
         ax = fig.subplots()
         sub_df = df[df.well == well].pivot(index='fitting_protocol', columns='validation_protocol',

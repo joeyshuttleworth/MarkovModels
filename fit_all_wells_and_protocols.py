@@ -2,12 +2,14 @@
 
 import multiprocessing
 import regex as re
+import matplotlib.pyplot as plt
 from MarkovModels import common
 from MarkovModels.BeattieModel import BeattieModel
 
 import os
 import pandas as pd
 import numpy as np
+
 
 def fit_func(protocol, well):
     default_parameters = None
@@ -86,6 +88,10 @@ def main():
     predictions_df = []
 
     wells = args.wells
+
+    trace_fig = plt.figure(figsize=(16, 12))
+    trace_ax = trace_fig.subplots()
+
     for well in wells:
         for protocol_fitted in protocols_list:
             df = params_df[params_df.well == well]
@@ -94,6 +100,10 @@ def main():
             row = df.values
             params = row[0, 0:-2].astype(np.float)
             print(params)
+
+            sub_dir = os.path.join(output_dir, f"{well}_{protocol}_predictions")
+            if not os.path.exists(sub_dir):
+                os.makedirs(sub_dir)
 
             for sim_protocol in protocols_list:
                 prot_func, t_start, t_end, t_step, desc = common.get_ramp_protocol_from_csv(sim_protocol)
@@ -115,9 +125,21 @@ def main():
 
                 predictions_df.append((well, protocol_fitted, sim_protocol, RMSE))
 
-    predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
-                                                                     'validation_protocol',
-                                                                     'RMSE'])
+                # Output trace
+                trace_ax.plot(times, prediction, label='prediction')
+
+                data = common.get_data(well, protocol, args.data_directory)
+
+                trace_ax.plot(times, data, label='data')
+                trace_ax.set_xlabel("time / ms")
+                trace_ax.set_ylabel("current / nA")
+                trace_ax.legend()
+                trace_fig.savefig(os.path.join(sub_dir, f"{protocol}_prediction.png"))
+                trace_ax.cla()
+
+        predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
+                                                                         'validation_protocol',
+                                                                         'RMSE'])
     print(predictions_df)
 
     predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
