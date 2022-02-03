@@ -148,7 +148,7 @@ def main():
         logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
 
         args_list = [(BeattieModel, times, data, cov, output_dir, time_to_remove, params, indices)
-                     for cov, indices in zip(covs, indices_used)]
+                     for time_to_remove, cov, indices in zip(spike_removal_durations, covs, indices_used)]
         pool.map(draw_heatmaps, *zip(*args_list))
 
         logging.info("Finished drawing heatmaps")

@@ -324,8 +324,6 @@ class MarkovModel:
                 protocol_description = self.protocol_description
 
         crhs = self.get_cfunc_rhs()
-        crhs_ptr = crhs.address
-
         no_states = len(self.B)
         analytic_solver = self.get_analytic_solver()
         rhs_inf = self.rhs_inf
@@ -334,6 +332,9 @@ class MarkovModel:
         times = self.times
 
         def hybrid_forward_solve(p, times=times, atol=atol, rtol=rtol):
+            # Having the pointer inside the function allows the function to be pickled
+            crhs_ptr = crhs.address
+
             rhs0 = rhs_inf(p, voltage(0)).flatten()
 
             solution = np.full((len(times), no_states), np.nan)
