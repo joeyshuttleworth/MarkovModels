@@ -449,7 +449,7 @@ def plot_regions(covs, labels, params, output_dir, spike_removal_durations,
     # removed)
     first_rotation = np.arctan2(*eigvecs[::-1, 0])
 
-    for i, cov in reversed(list(enumerate(covs))):
+    for i, cov in reversed(list(enumerate(covs[0:10]))):
         sub_cov = cov[p_of_interest, :]
         sub_cov = sub_cov[:, p_of_interest]
         eigvals, eigvecs = np.linalg.eigh(sub_cov)
