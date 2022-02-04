@@ -149,7 +149,7 @@ def main():
 
         args_list = [(BeattieModel, times, data, cov, output_dir, time_to_remove, params, indices)
                      for time_to_remove, cov, indices in zip(spike_removal_durations, covs, indices_used)]
-        pool.map(draw_heatmaps, *zip(*args_list))
+        pool.map(draw_heatmaps, *zip(*args_list[0:20]))
 
         logging.info("Finished drawing heatmaps")
 
@@ -627,6 +627,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     fig.colorbar(c, label="log likelihood of data")
     fig.savefig(os.path.join(output_dir, filename))
 
+    ax.images[-1].colorbar.remove()
     ax.cla()
 
     # Plot MLE trajectories

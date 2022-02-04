@@ -80,7 +80,6 @@ def main():
 
     params_df['well'] = wells_rep
     params_df['protocol'] = protocols_rep
-    print(params_df)
 
     print("=============\nfinished fitting\n=============")
 
@@ -99,7 +98,6 @@ def main():
 
             row = df.values
             params = row[0, 0:-2].astype(np.float)
-            print(params)
 
             sub_dir = os.path.join(output_dir, f"{well}_{protocol}_predictions")
             if not os.path.exists(sub_dir):
