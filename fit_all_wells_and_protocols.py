@@ -67,7 +67,6 @@ def main():
 
     print(tasks)
     fitted_params_list = np.row_stack(pool.starmap(fit_func, tasks))
-    print(fitted_params_list)
 
     wells_rep = [task[1] for task in tasks]
     protocols_rep = [task[0] for task in tasks]
@@ -92,30 +91,30 @@ def main():
     trace_ax = trace_fig.subplots()
 
     for well in wells:
-        for protocol_fitted in protocols_list:
-            df = params_df[params_df.well == well]
-            df = df[df.protocol == protocol_fitted]
+        for sim_protocol in protocols_list:
+            prot_func, t_start, t_end, t_step, desc = common.get_ramp_protocol_from_csv(sim_protocol)
+            model.protocol_description = desc
+            model.voltage = prot_func
+            times = pd.read_csv(os.path.join(args.data_directory, f"newtonrun4-{sim_protocol}-times.csv"))['time'].values
+            voltages = np.array([prot_func(t) for t in times])
+            spikes, _ = common.detect_spikes(times, voltages, 10)
+            times, _, indices = common.remove_spikes(times, voltages, spikes, args.removal_duration)
+            voltages = voltages[indices]
+            model.times = times
+            solver = model.make_hybrid_solver_current()
 
-            row = df.values
-            params = row[0, 0:-2].astype(np.float)
+            for protocol_fitted in protocols_list:
+                df = params_df[params_df.well == well]
+                df = df[df.protocol == protocol_fitted]
 
-            sub_dir = os.path.join(output_dir, f"{well}_{protocol}_predictions")
-            if not os.path.exists(sub_dir):
-                os.makedirs(sub_dir)
+                row = df.values
+                params = row[0, 0:-2].astype(np.float)
 
-            for sim_protocol in protocols_list:
-                prot_func, t_start, t_end, t_step, desc = common.get_ramp_protocol_from_csv(sim_protocol)
-                model.protocol_description = desc
-                model.voltage = prot_func
+                sub_dir = os.path.join(output_dir, f"{well}_{protocol}_predictions")
+                if not os.path.exists(sub_dir):
+                    os.makedirs(sub_dir)
 
-                times = pd.read_csv(os.path.join(args.data_directory, f"newtonrun4-{sim_protocol}-times.csv"))['time'].values
-                voltages = np.array([prot_func(t) for t in times])
-                spikes, _ = common.detect_spikes(times, voltages, 10)
-                times, _, indices = common.remove_spikes(times, voltages, spikes, args.removal_duration)
-                voltages = voltages[indices]
-                model.times = times
-
-                prediction = model.SimulateForwardModel(params)
+                prediction = solver(params)
 
                 full_data = common.get_data(well, sim_protocol, args.data_directory)
                 data = full_data[indices]
@@ -140,6 +139,7 @@ def main():
     print(predictions_df)
 
     predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
+
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
