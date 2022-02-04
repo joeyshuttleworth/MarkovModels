@@ -603,7 +603,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     mle_params = np.copy(params)
     mle_params[x_index] = mle_2param[0]
     mle_params[y_index] = mle_2param[1]
-    _, S1 = model.SimulateForwardModelSensitivities(mle_params, times=times[subset_indices])
+    _, S1 = model.SimulateForwardModelSensitivities(mle_params, times=times)
     S1 = S1[:, [x_index, y_index]]
     try:
         mle_2param_cov = np.linalg.inv(S1.T @ S1) * sigma2
