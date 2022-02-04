@@ -32,6 +32,7 @@ def main():
     parser.add_argument("-b", "--burn-in", type=int, default=None)
     parser.add_argument("-H", "--heatmap_size", type=int, default=0)
     parser.add_argument("-c", "--cpus", type=int, default=1)
+    parser.add_argument("-i", "--max_iterations", type=int, default=None)
     global args
     args = parser.parse_args()
 
@@ -44,6 +45,7 @@ def main():
         os.makedirs(output_dir)
 
     spike_removal_durations = np.unique(list(np.linspace(0, 10, 11)) + list(np.linspace(10, 100, 30))[1:])
+    spike_removal_durations = [0, 10]
 
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
@@ -540,7 +542,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
 
     print(f"Modifying variables {x_index} and {y_index}")
 
-    times = model.times
+    times = model.times[subset_indices]
 
     @njit
     def log_likelihood(x, y):
@@ -595,7 +597,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
 
     # Draw 2 param versions
     mle_2param, _ = common.fit_model(model, data, params, fix_parameters=fix_parameters,
-                                     subset_indices=subset_indices, solver=solver)
+                                     subset_indices=subset_indices, solver=solver, max_iterations=args.max_iterations)
     mle_params = np.copy(params)
     mle_params[x_index] = mle_2param[0]
     mle_params[y_index] = mle_2param[1]
@@ -603,7 +605,6 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     S1 = S1[:, [x_index, y_index]]
     try:
         mle_2param_cov = np.linalg.inv(S1.T @ S1) * sigma2
-        print(mle_2param_cov)
         common.cov_ellipse(mle_2param_cov, offset=mle_2param, q=[0.95], ax=ax,
                            color='purple', label='Conditional 95% confidence region (normal approximation)')
     except np.linalg.LinAlgError:
@@ -623,6 +624,17 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
 
     fig.colorbar(c, label="log likelihood of data")
     fig.savefig(os.path.join(output_dir, filename))
+
+    ax.cla()
+
+    # Plot MLE trajectories
+    ax.plot(model.times, solver(mle, model.times), label='MLE trajectory')
+    ax.plot(model.times, data, label='data')
+    ax.plot(model.times, solver(mle_params, model.times), label='conditional MLE trajectory')
+    ax.legend()
+    fig.savefig(os.path.join(output_dir, f"{filename}_traces.png"))
+    ax.cla()
+
     return
 
 
@@ -668,7 +680,8 @@ def draw_heatmaps(model_class, times, data, cov, output_dir, time_to_remove, par
 
     solver = model.make_hybrid_solver_current()
 
-    mle, _ = common.fit_model(model, data, params, subset_indices=indices, solver=solver)
+    mle, _ = common.fit_model(model, data, params, subset_indices=indices,
+                              solver=solver, max_iterations=args.max_iterations)
     _, S1_tmp = model.SimulateForwardModelSensitivities(mle)
 
     mle_cov = sigma2 * np.linalg.inv(np.dot(S1_tmp[indices, :].T, S1_tmp[indices, :]))
