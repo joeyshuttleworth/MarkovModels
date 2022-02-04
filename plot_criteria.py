@@ -627,10 +627,10 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     fig.colorbar(c, label="log likelihood of data")
     fig.savefig(os.path.join(output_dir, filename))
 
-    ax.images[-1].colorbar.remove()
-    ax.cla()
+    fig.clf()
 
     # Plot MLE trajectories
+    ax = fig.subplots()
     ax.plot(model.times, solver(mle, model.times), label='MLE trajectory')
     ax.plot(model.times, data, label='data')
     ax.plot(model.times, solver(mle_params, model.times), label='conditional MLE trajectory')
