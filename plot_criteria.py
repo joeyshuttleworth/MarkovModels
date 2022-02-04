@@ -343,8 +343,12 @@ def main():
         print(f"dataframe is {steady_states_df}")
 
         for i, var in enumerate(('IKr', 'a_inf', 'tau_a', 'r_inf', 'tau_r')):
-            sns.kdeplot(data=steady_states_df, x=var, ax=axs[i], shade=False, common_norm=True,
-                        hue='removal_duration', palette='viridis', legend=(i==0))
+            try:
+                df = df[np.isfinite(df).all(1)]
+                sns.kdeplot(data=steady_states_df, x=var, ax=axs[i], shade=False, common_norm=True,
+                            hue='removal_duration', palette='viridis', legend=(i == 0))
+            except Exception as ex:
+                print(f"Failed to plot densities {str(ex)}")
 
         plot_x_lims = np.quantile(steady_state_samples[-1], (.05, .95))
         x_window_size = plot_x_lims[1] - plot_x_lims[0]
