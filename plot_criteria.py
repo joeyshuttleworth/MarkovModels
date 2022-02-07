@@ -533,7 +533,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
         filename = f"log_likelihood_heatmap_{p_index[0]}_{p_index[1]}"
 
     if subset_indices is None:
-        subset_indices = range(len(data))
+        subset_indices = list(range(len(data)))
 
     n = len(subset_indices)
     xs = np.linspace(ranges[0][0], ranges[0][1], no_points)
@@ -555,7 +555,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
             output = solver(solver_input, times)
         except:
             output = np.full(times.shape, np.nan)
-        error = output[subset_indices] - data[subset_indices]
+        error = output - data[subset_indices]
         SSE = np.sum(error**2)
         return -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
 
@@ -589,14 +589,14 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     subcov = cov[(x_index, y_index), :][:, (x_index, y_index)]
     common.cov_ellipse(subcov, offset=(params[x_index], params[y_index]), q=[0.95], ax=ax,
                        color='red', label='Approximated sampling distribution of MLE (95%)')
+    ax.plot(params[x_index], params[y_index], marker='x', color='red', linestyle='None', label='true_params')
+
     ax.plot(mle[p_index[0]], mle[p_index[1]], marker='o', linestyle='None', color='pink', label='mle')
 
     # Draw normal approximation of credible region
     subcov = mle_cov[(x_index, y_index), :][:, (x_index, y_index)]
     common.cov_ellipse(subcov, offset=(mle[x_index], mle[y_index]), q=[0.95], ax=ax,
                        color='pink', label='95% confidence region (normal approximation)')
-    ax.plot(params[x_index], params[y_index], marker='x', color='red', linestyle='None', label='true_params')
-
     # Draw 2 param versions
     mle_2param, _ = common.fit_model(model, data, params, fix_parameters=fix_parameters,
                                      subset_indices=subset_indices, solver=solver, max_iterations=args.max_iterations)
@@ -682,7 +682,8 @@ def draw_heatmaps(model_class, times, data, cov, output_dir, time_to_remove, par
 
     mle, _ = common.fit_model(model, data, params, subset_indices=indices,
                               solver=solver, max_iterations=args.max_iterations)
-    _, S1_tmp = model.SimulateForwardModelSensitivities(mle, times[indices])
+
+    _, S1_tmp = model.SimulateForwardModelSensitivities(mle, times)[indices]
     mle_cov = sigma2 * np.linalg.inv(np.dot(S1_tmp.T, S1_tmp))
 
     for x_index, y_index in [(4, 6), (5, 7), (4, 7)]:
