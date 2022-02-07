@@ -93,7 +93,7 @@ def main():
     trace_fig = plt.figure(figsize=(16, 12))
     trace_ax = trace_fig.subplots()
 
-    for sim_protocol in protocols:
+    for sim_protocol in protocols_list:
         prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
         model.protocol_description = desc
         model.voltage = prot_func
