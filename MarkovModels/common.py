@@ -601,11 +601,19 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations, o
         ax.plot(times, data)
         ax.plot(times, model.SimulateForwardModel(fitted_params))
 
+        if infer_E_rev:
+            fitted_params = np.append(fitted_params, Erev)
+
         if output_dir is not None:
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
 
-                df = pd.DataFrame(np.column_stack((fitted_params[None, :], [score])), columns=model.parameter_labels + ['SSE'])
+                columns = model.parameter_labels
+
+                if infer_E_rev:
+                    columns.append("E_rev")
+
+                df = pd.DataFrame(np.column_stack((fitted_params[None, :], [score])), columns=columns + ['RMSE'])
                 df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params_{i}.csv"))
                 fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit_{i}"))
                 ax.cla()

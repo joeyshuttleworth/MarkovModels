@@ -600,8 +600,6 @@ class MarkovModel:
 
         if times is None:
             times = self.times
-
-        print(p, self.voltage(0))
         return self.make_forward_solver_current(njitted=False)(p, times)
 
     def GetStateVariables(self, p=None):

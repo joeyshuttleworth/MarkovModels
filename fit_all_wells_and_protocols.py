@@ -32,6 +32,7 @@ def main():
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--removal_duration', '-r', default=5, type=int)
+    parser.add_argument('--cores', '-c', default=1, type=int)
 
     global args
     args = parser.parse_args()
@@ -51,7 +52,7 @@ def main():
     else:
         protocols = args.protocols
 
-    pool = multiprocessing.Pool(processes=os.cpu_count())
+    pool = multiprocessing.Pool(args.cores)
 
     print(args.wells, protocols)
 
@@ -66,16 +67,18 @@ def main():
             protocols_list.append(protocol)
 
     print(tasks)
-    fitted_params_list = np.row_stack(pool.starmap(fit_func, tasks))
+
+    params = pool.starmap(fit_func, tasks)
+    fitted_params_list = np.row_stack(params)
 
     wells_rep = [task[1] for task in tasks]
     protocols_rep = [task[0] for task in tasks]
 
-    print(wells_rep)
-
-    param_names = ['p%i' % i for i in range(1,9)] + ['g_kr']
+    # Reversal potential added to back of parameter vector
+    param_names = ['p%i' % i for i in range(1, 9)] + ['g_kr', 'E_rev']
 
     params_df = pd.DataFrame(fitted_params_list, columns=param_names)
+    print(params_df)
 
     params_df['well'] = wells_rep
     params_df['protocol'] = protocols_rep
@@ -90,37 +93,33 @@ def main():
     trace_fig = plt.figure(figsize=(16, 12))
     trace_ax = trace_fig.subplots()
 
-    for well in wells:
-        for sim_protocol in protocols_list:
-            prot_func, t_start, t_end, t_step, desc = common.get_ramp_protocol_from_csv(sim_protocol)
-            model.protocol_description = desc
-            model.voltage = prot_func
-            times = pd.read_csv(os.path.join(args.data_directory, f"newtonrun4-{sim_protocol}-times.csv"))['time'].values
-            voltages = np.array([prot_func(t) for t in times])
-            spikes, _ = common.detect_spikes(times, voltages, 10)
-            times, _, indices = common.remove_spikes(times, voltages, spikes, args.removal_duration)
-            voltages = voltages[indices]
-            model.times = times
-            solver = model.make_hybrid_solver_current()
+    for sim_protocol in protocols:
+        prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
+        model.protocol_description = desc
+        model.voltage = prot_func
+        times = pd.read_csv(os.path.join(args.data_directory, f"newtonrun4-{sim_protocol}-times.csv"))['time'].values
+        model.times = times
+        # solver = model.make_hybrid_solver_current()
 
+        for well in wells:
             for protocol_fitted in protocols_list:
                 df = params_df[params_df.well == well]
                 df = df[df.protocol == protocol_fitted]
 
                 row = df.values
-                params = row[0, 0:-2].astype(np.float)
+                params = row[0, 0:-3].astype(np.float64)
 
-                sub_dir = os.path.join(output_dir, f"{well}_{protocol}_predictions")
+                # Set reversal potential
+                model.Erev = float(row[0, -3])
+
+                sub_dir = os.path.join(output_dir, f"{well}_{sim_protocol}_predictions")
                 if not os.path.exists(sub_dir):
                     os.makedirs(sub_dir)
 
-                prediction = solver(params)
+                prediction = model.SimulateForwardModel(params, times)
 
-                full_data = common.get_data(well, sim_protocol, args.data_directory)
-                data = full_data[indices]
-
+                data = common.get_data(well, sim_protocol, args.data_directory)
                 RMSE = np.sqrt(np.mean((data - prediction)**2))
-
                 predictions_df.append((well, protocol_fitted, sim_protocol, RMSE))
 
                 # Output trace
@@ -130,12 +129,12 @@ def main():
                 trace_ax.set_xlabel("time / ms")
                 trace_ax.set_ylabel("current / nA")
                 trace_ax.legend()
-                trace_fig.savefig(os.path.join(sub_dir, f"{protocol}_prediction.png"))
+                trace_fig.savefig(os.path.join(sub_dir, f"{protocol_fitted}_fit_predition.png"))
                 trace_ax.cla()
 
-        predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
-                                                                         'validation_protocol',
-                                                                         'RMSE'])
+    predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
+                                                                     'validation_protocol',
+                                                                     'RMSE'])
     print(predictions_df)
 
     predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))

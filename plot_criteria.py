@@ -683,7 +683,7 @@ def draw_heatmaps(model_class, times, data, cov, output_dir, time_to_remove, par
     mle, _ = common.fit_model(model, data, params, subset_indices=indices,
                               solver=solver, max_iterations=args.max_iterations)
     _, S1_tmp = model.SimulateForwardModelSensitivities(mle, times[indices])
-    mle_cov = sigma2 * np.linalg.inv(np.dot(S1_tmp[indices, :].T, S1_tmp[indices, :]))
+    mle_cov = sigma2 * np.linalg.inv(np.dot(S1_tmp.T, S1_tmp))
 
     for x_index, y_index in [(4, 6), (5, 7), (4, 7)]:
         width = np.sqrt(cov[x_index, x_index]) * 3
