@@ -41,7 +41,7 @@ class BeattieModel(MarkovModel):
         if times is None:
             times = np.linspace(0, 15000, 1000)
 
-        self.state_labels = ['C', 'O', 'I']
+        self.state_labels = ['C', 'O', 'I', 'IC']
         self.parameter_labels = [f"p{i+1}" for i in range(len(self.default_parameters) - 1)] + ['Gkr']
 
         p = symbols['p']
@@ -57,7 +57,13 @@ class BeattieModel(MarkovModel):
                        ['-k1', 'k3 - k1', '-k2 - k4 - k1']])
         B = sp.Matrix(['k4', 0, 'k1'])
         # Call the constructor of the parent class, MarkovModel
-        super().__init__(symbols, A, B, rates, times, voltage=voltage, *args, **kwargs)
+
+        Q = np.matrix([[-('k3 + k1'), 'k2', 0, 'k4'],
+                       ['k1', '-k2 - k3', 'k4', 0],
+                       [0, 'k3', '-k2 - k4', 'k3'],
+                       ['k3', 0, 'k3', '-k4 - k1']])
+
+        super().__init__(symbols, A, B, rates, times, voltage=voltage, Q=Q, *args, **kwargs)
 
     def CreateSymbols(self):
         """

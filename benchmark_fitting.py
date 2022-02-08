@@ -125,6 +125,7 @@ def main():
     rtol = model.solver_tolerances[1]
 
     mms_solver_func = model.make_forward_solver_current()
+    mms_ida_solver_func = model.make_dae_solver_current(model.make_dae_solver_states)
 
     @njit
     def mms_solver(p):
@@ -144,6 +145,7 @@ def main():
     mms_res = simulate_samples(subsamples, mms_solver)
     mk_res = simulate_samples(subsamples, mk_solver)
     hybrid_res = simulate_samples(subsamples, hybrid_solver)
+    dae_res = simulate_samples(subsamples, mms_ida_solver_func)
 
     print("compiled hybrid solver")
 
@@ -152,6 +154,7 @@ def main():
     ax.plot(times, np.array(mk_res[0]['membrane.I_Kr']), label="myokit solution")
     ax.plot(times, mms_res[0], label="MarkovModels LSODA solution")
     ax.plot(times, hybrid_res[0], label="hybrid solver solution")
+    ax.plot(times, dae_res[0], label="IDA solver solution")
     ax.legend()
     fig.savefig(os.path.join('benchmark_solver_comparison'))
     ax.cla()
@@ -175,6 +178,7 @@ def main():
     plt.plot(times, hybrid_solver(subsamples[arg_max_error]), label="hybrid")
     plt.plot(times, mms_solver(subsamples[arg_max_error]), label="mms")
     plt.plot(times, mk_solver(subsamples[arg_max_error])['membrane.I_Kr'], label="myokit")
+    plt.plot(times, mms_ida_solver_func(subsamples[arg_max_error])['membrane.I_Kr'], label="myokit")
     plt.legend()
     plt.savefig(os.path.join(output_dir, "biggest_mms_error"))
 
@@ -202,6 +206,11 @@ def main():
     def func3():
         return simulate_samples(samples, hybrid_solver)
     cProfile.run('func3()')
+
+    global func4
+    def func4():
+        return simulate_samples(samples, mms_ida_solver_func)
+    cProfile.run('func4()')
 
 
 def get_mk_solver(mk_protocol, times, atol, rtol):

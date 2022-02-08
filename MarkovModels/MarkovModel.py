@@ -5,6 +5,7 @@ from scipy.integrate import solve_ivp
 from NumbaLSODA import lsoda_sig, lsoda
 from numba import njit, cfunc, literal_unroll
 import numba as nb
+import NumbaIDA
 
 
 class MarkovModel:
@@ -19,7 +20,7 @@ class MarkovModel:
         raise NotImplementedError
 
     def __init__(self, symbols, A, B, rates_dict, times, voltage=None,
-                 tolerances=(1e-8, 1e-10)):
+                 tolerances=(1e-8, 1e-10), Q=None):
 
         self.window_locs = None
         self.protocol_description = None
@@ -215,6 +216,71 @@ class MarkovModel:
         # solution = (C@K@np.exp(times*eigenvalues[:,None]) + X2[:, None]).T
 
         return C @ K, eigenvalues, X2
+
+    def make_Q_func(self, njitted=True):
+        rates = self.rates_dict.keys()
+        Q_func = sp.lambdify(rates, self.Q)
+
+        return njit(Q_func) if njitted else Q_func
+
+    def make_dae_residual_func(self, njitted=True):
+        if self.Q is None:
+            Exception("Q Matrix not defined")
+
+        Q_func = self.make_Q_func(njitted)
+        rates_func = self.get_rates_func(njitted)
+
+        voltage_func = self.voltage
+
+        neq = self.get_no_states()
+
+        def residual_func(t, y, dy, res, p):
+            y_vec = nb.carray(y, neq)
+            p_vec = nb.carray(p, neq)
+
+            V = voltage_func(t)
+            rates = rates_func(p_vec, V)
+            Q = Q_func(rates)
+
+            # Calculate derivatives
+            derivs = Q.T @ y_vec
+
+            for i in range(neq):
+                res[i] = derivs[i] - dy[i]
+
+            res[neq] = 1 - y_vec.sum()
+            return None
+
+        return njit(residual_func) if njit else residual_func
+
+    def make_dae_solver_states(self, njitted=True):
+        res_func = self.make_dae_residual_func()
+        n = self.Q.shape[0]
+        nres = n + 1
+        rhs_inf = self.rhs_inf
+
+        voltage = self.voltage
+        Q_func = self.make_Q_func(njitted)
+
+        func_ptr = res_func.address
+        rates_func = self.get_rates_func(njitted)
+
+        def solver(p=self.get_default_parameters(), times=self.times,
+                   atol=self.tolerances[0], rtol=self.tolerances[1]):
+            u0 = rhs_inf(p, voltage(0)).flatten()
+            u0 = np.append(u0, 1 - np.sum(u0))
+
+            rates = rates_func(p, voltage(0))
+            du0 = Q_func(rates) @ u0
+
+            sol, _ = NumbaIDA.ida(
+                func_ptr, u0, du0, nres, times, p, jac_ptr=None, atol=atol, rtol=rtol)
+            return sol
+
+        if njitted:
+            solver = njit(solver)
+
+        return solver
 
     def get_rates_func(self, njitted=True):
 
@@ -427,6 +493,30 @@ class MarkovModel:
             return ((states[:, open_index] * p[gkr_index]) * (voltages - Erev)).flatten()
 
         return njit(forward_solver) if njitted else forward_solver
+
+    def make_solver_current(self, solver_states, voltages=None, atol=None, rtol=None, njitted=True):
+        if atol is None:
+            atol = self.solver_tolerances[0]
+
+        if rtol is None:
+            rtol = self.solver_tolerances[1]
+
+        gkr_index = self.GKr_index
+        open_index = self.open_state_index
+        Erev = self.Erev
+
+        if voltages is None:
+            voltages = self.GetVoltage()
+
+        times = self.times
+
+        def forward_solver(p, times=times, voltages=voltages, atol=atol, rtol=rtol):
+            states = solver_states(p, times, atol, rtol)
+            return ((states[:, open_index] * p[gkr_index]) * (voltages - Erev)).flatten()
+
+        return njit(forward_solver) if njitted else forward_solver
+
+
 
     def solve_rhs(self, p=None, times=None):
         """ Solve the RHS of the system and return the open state probability at each timestep
