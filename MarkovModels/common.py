@@ -466,7 +466,7 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
                     sim_parameters = np.copy(parameters)
                     for i, j in enumerate(unfixed_parameters):
                         sim_parameters[j] = p[i]
-                    sol = solver(sim_parameters, times)
+                    sol = solver(sim_parameters)[subset_indices]
                     return sol
             else:
                 def simulate(p, times):

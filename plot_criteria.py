@@ -167,6 +167,8 @@ def main():
 
         args_list = [(BeattieModel, times, data, output_dir, time_to_remove, params, indices)
                      for time_to_remove, indices in zip(spike_removal_durations, indices_used)]
+
+        args_list = args_list if args.short else args_list[0:20]
         pool.map(draw_heatmaps, *zip(*args_list[0:20]))
 
         logging.info("Finished drawing heatmaps")
@@ -208,6 +210,7 @@ def main():
     conf_axs = conf_fig.subplots(2)
 
     labels = [f"{duration:.2f}ms removed" for duration in spike_removal_durations[::4]]
+    region_covs = covs if args.short else covs[::4]
     plot_regions(covs[::4], labels, params, output_dir,
                  spike_removal_durations, conf_fig, conf_axs, sigma2, p_of_interest=(4, 6))
     plot_regions(covs[::4], labels, params, output_dir,
@@ -606,6 +609,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     common.cov_ellipse(subcov, offset=(mle[x_index], mle[y_index]), q=[0.95], ax=ax,
                        color='pink', label='95% confidence region (normal approximation)')
     # Draw 2 param versions
+    # Use NelderMead for 2d problem
     mle_2param, _ = common.fit_model(model, data, params, fix_parameters=fix_parameters,
                                      subset_indices=subset_indices, solver=solver,
                                      max_iterations=args.max_iterations,
