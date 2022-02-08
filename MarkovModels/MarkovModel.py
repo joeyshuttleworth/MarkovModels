@@ -166,7 +166,7 @@ class MarkovModel:
         B_vector = np.array(self.B.subs(self.rates_dict).subs(self.v, voltage).subs(param_dict)).astype(np.float64)
 
         cond = np.linalg.cond(A_matrix)
-        logging.info("A matrix condition number is {} for voltage = {}".format(cond, voltage))
+
         if cond > 1e6:
             logging.warning("Condition number is {} for voltage = {}".format(cond, voltage))
 
@@ -393,7 +393,8 @@ class MarkovModel:
         atol, rtol = self.solver_tolerances
         voltage_func = self.voltage
 
-        def hybrid_forward_solve(p, times=times, atol=atol, rtol=rtol):
+        params = self.get_default_parameters()
+        def hybrid_forward_solve(p=params, times=times, atol=atol, rtol=rtol):
             voltages = np.empty(len(times))
             for i in range(len(times)):
                 voltages[i] = voltage_func(times[i])

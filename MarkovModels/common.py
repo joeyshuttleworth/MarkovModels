@@ -471,7 +471,7 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
             else:
                 def simulate(p, times):
                     try:
-                        return solver(p, times)
+                        return solver(p)[subset_indices]
                     except Exception:
                         return np.full(times.shape, np.inf)
 

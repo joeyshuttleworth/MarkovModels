@@ -33,6 +33,8 @@ def main():
     parser.add_argument("-H", "--heatmap_size", type=int, default=0)
     parser.add_argument("-c", "--cpus", type=int, default=1)
     parser.add_argument("-i", "--max_iterations", type=int, default=None)
+    parser.add_argument("-s", "--short", help="run with a reduced set of removal times", action='store_true')
+
     global args
     args = parser.parse_args()
 
@@ -45,6 +47,10 @@ def main():
         os.makedirs(output_dir)
 
     spike_removal_durations = np.unique(list(np.linspace(0, 10, 11)) + list(np.linspace(10, 100, 30))[1:])
+
+    if args.short:
+        spike_removal_durations = np.array([0, 1])
+
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
 
@@ -64,11 +70,8 @@ def main():
 
     # Plot representative sample from DGP
     sample_mean = solver(params, times)
-    print(times[np.argwhere(np.isnan(sample_mean))])
 
     noise = np.random.normal(0, np.sqrt(sigma2), times.shape)
-
-    global data
     data = sample_mean + noise
 
     fig = plt.figure(figsize=(20, 18))
@@ -134,21 +137,24 @@ def main():
         D_optimalities.append(np.linalg.det(H))
         A_optimalities.append(np.trace(H))
 
-        cov = np.linalg.inv(H)
+        H_inv = np.linalg.inv(H)
         G_optimalities.append(np.sum(
             np.apply_along_axis(
-                lambda row: row @ cov @ row.T,
+                lambda row: row @ H_inv @ row.T,
                 1, S1)))
 
-        cov = sigma2 * cov
+        cov = sigma2 * H_inv
         covs.append(cov)
+
+        # SSE = np.sum((solver()[indices] - data[indices])**2)
+        # print(f"{time_to_remove:.2f}ms removed: SSE is {SSE}")
 
     if args.heatmap_size > 0:
 
         logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
 
-        args_list = [(BeattieModel, times, data, cov, output_dir, time_to_remove, params, indices)
-                     for time_to_remove, cov, indices in zip(spike_removal_durations, covs, indices_used)]
+        args_list = [(BeattieModel, times, data, output_dir, time_to_remove, params, indices)
+                     for time_to_remove, indices in zip(spike_removal_durations, indices_used)]
         pool.map(draw_heatmaps, *zip(*args_list[0:20]))
 
         logging.info("Finished drawing heatmaps")
@@ -211,8 +217,6 @@ def main():
 
     std_fig = plt.figure(figsize=(22, 20))
     std_axs = std_fig.subplots(5)
-
-    print(f"indices_used = {indices_used}")
 
     args_list = [(BeattieModel, "staircase", times, data, params, index_set) for index_set in indices_used]
     mcmc_samples = pool.map(mcmc_chain_func, *zip(*args_list))
@@ -487,9 +491,7 @@ def plot_regions(covs, labels, params, output_dir, spike_removal_durations,
 
 
 def get_mcmc_chains(solver, times, indices, data, chain_length, starting_parameters, sigma2, burn_in=None):
-    data = data[indices]
     n = len(indices)
-    times = times[indices]
     print(f"number of timesteps is {n}")
 
     if burn_in is None:
@@ -497,8 +499,8 @@ def get_mcmc_chains(solver, times, indices, data, chain_length, starting_paramet
 
     @njit
     def log_likelihood_func(p):
-        output = solver(p, times)
-        error = output - data
+        output = solver(p, times)[indices]
+        error = output - data[indices]
         SSE = np.sum(error**2)
         ll = -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
         return ll
@@ -533,18 +535,19 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
         filename = f"log_likelihood_heatmap_{p_index[0]}_{p_index[1]}"
 
     if subset_indices is None:
-        subset_indices = list(range(len(data)))
-
-    n = len(subset_indices)
-    xs = np.linspace(ranges[0][0], ranges[0][1], no_points)
-    ys = np.linspace(ranges[1][0], ranges[1][1], no_points)
+        subset_indices = list(range(len(model.times)))
 
     x_index = p_index[0]
     y_index = p_index[1]
 
+    xs = np.linspace(ranges[0][0], ranges[0][1], no_points)
+    ys = np.linspace(ranges[1][0], ranges[1][1], no_points)
+
     print(f"Modifying variables {x_index} and {y_index}")
 
     times = model.times[subset_indices]
+
+    n = len(subset_indices)
 
     @njit
     def log_likelihood(x, y):
@@ -552,7 +555,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
         solver_input[x_index] = x
         solver_input[y_index] = y
         try:
-            output = solver(solver_input, times)
+            output = solver(solver_input)[subset_indices]
         except:
             output = np.full(times.shape, np.nan)
         error = output - data[subset_indices]
@@ -593,7 +596,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
 
     ax.plot(mle[p_index[0]], mle[p_index[1]], marker='o', linestyle='None', color='pink', label='mle')
 
-    # Draw normal approximation of credible region
+    # Draw normal approximation of 95% confidence region (marginal)
     subcov = mle_cov[(x_index, y_index), :][:, (x_index, y_index)]
     common.cov_ellipse(subcov, offset=(mle[x_index], mle[y_index]), q=[0.95], ax=ax,
                        color='pink', label='95% confidence region (normal approximation)')
@@ -603,7 +606,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     mle_params = np.copy(params)
     mle_params[x_index] = mle_2param[0]
     mle_params[y_index] = mle_2param[1]
-    _, S1 = model.SimulateForwardModelSensitivities(mle_params, times=times)
+    S1 = model.SimulateForwardModelSensitivities(mle_params)[1][subset_indices]
     S1 = S1[:, [x_index, y_index]]
     try:
         mle_2param_cov = np.linalg.inv(S1.T @ S1) * sigma2
@@ -632,11 +635,16 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     # Plot MLE trajectories
     ax = fig.subplots()
     ax.plot(model.times, solver(mle, model.times), label='MLE trajectory')
-    ax.plot(model.times, data, label='data')
-    ax.plot(model.times, solver(mle_params, model.times), label='conditional MLE trajectory')
+    ax.plot(model.times, data, label='data', alpha=0.1)
+    ax.plot(model.times, solver(mle_params, model.times), label='conditional MLE trajectory (conditional)')
+    ax.plot(model.times, solver(mle, model.times), label='conditional MLE trajectory')
     ax.legend()
     fig.savefig(os.path.join(output_dir, f"{filename}_traces.png"))
     ax.cla()
+
+    print(f"RMSE of true params = {((solver(params) - data)**2)[subset_indices].mean()}")
+    print(f"RMSE of MLE params = {((solver(mle) - data)**2)[subset_indices].mean()}")
+    print(f"RMSE of conditional MLE params = {((solver(mle_params) - data)**2)[subset_indices].mean()}")
 
     return
 
@@ -671,7 +679,13 @@ def mcmc_chain_func(model_class, protocol, times, data, params, index_set):
                            sigma2, burn_in=args.burn_in)
 
 
-def draw_heatmaps(model_class, times, data, cov, output_dir, time_to_remove, params, indices):
+def draw_heatmaps(model_class, times, data, output_dir, time_to_remove, params, indices=None):
+
+    if indices is None:
+        indices = list(range(len(times)))
+
+    print(f"using {len(indices)} indices")
+
     protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
 
     Erev = common.calculate_reversal_potential(310.15)
@@ -680,22 +694,26 @@ def draw_heatmaps(model_class, times, data, cov, output_dir, time_to_remove, par
     model.protocol_description = protocol_desc
     solver = model.make_hybrid_solver_current()
 
+    _, S1 = model.SimulateForwardModelSensitivities(params, times[indices])
+    cov = sigma2 * np.linalg.inv(S1.T @ S1)
+
     mle, _ = common.fit_model(model, data, params, subset_indices=indices,
                               solver=solver, max_iterations=args.max_iterations)
 
     _, S1_tmp = model.SimulateForwardModelSensitivities(mle, times[indices])
-    mle_cov = sigma2 * np.linalg.inv(np.dot(S1_tmp.T, S1_tmp))
+    mle_cov = sigma2 * np.linalg.inv(S1_tmp.T @ S1_tmp)
 
     for x_index, y_index in [(4, 6), (5, 7), (4, 7)]:
         width = np.sqrt(cov[x_index, x_index]) * 3
         height = np.sqrt(cov[y_index, y_index]) * 3
+
         x = params[x_index]
         y = params[y_index]
 
         ranges = [[x - width, x + width], [y - height, y + height]]
         draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data,
-                                sigma2, ranges, args.heatmap_size, subset_indices=indices,
-                                p_index=(x_index, y_index), output_dir=output_dir,
+                                sigma2, ranges, args.heatmap_size, p_index=(x_index, y_index),
+                                subset_indices=indices, output_dir=output_dir,
                                 filename=f"heatmap_{x_index+1}_{y_index+1}_{int(time_to_remove):d}ms_removed.png",
                                 title=f"log likelihood heatmap with {time_to_remove:.2f}ms removed")
 
