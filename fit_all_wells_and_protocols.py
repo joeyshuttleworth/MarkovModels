@@ -88,10 +88,11 @@ def main():
     model = BeattieModel()
     predictions_df = []
 
-    wells = args.wells
-
     trace_fig = plt.figure(figsize=(16, 12))
     trace_ax = trace_fig.subplots()
+
+    all_models_fig = plt.figure(figsize=(16,12))
+    all_models_ax  = all_models_fig.subplots()
 
     for sim_protocol in protocols_list:
         prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
@@ -99,9 +100,9 @@ def main():
         model.voltage = prot_func
         times = pd.read_csv(os.path.join(args.data_directory, f"newtonrun4-{sim_protocol}-times.csv"))['time'].values
         model.times = times
-        # solver = model.make_hybrid_solver_current()
+        solver = model.make_hybrid_solver_current()
 
-        for well in wells:
+        for well in params_df['well'].unique():
             for protocol_fitted in protocols_list:
                 df = params_df[params_df.well == well]
                 df = df[df.protocol == protocol_fitted]
@@ -116,7 +117,7 @@ def main():
                 if not os.path.exists(sub_dir):
                     os.makedirs(sub_dir)
 
-                prediction = model.SimulateForwardModel(params, times)
+                prediction = solver(params)
 
                 data = common.get_data(well, sim_protocol, args.data_directory)
                 RMSE = np.sqrt(np.mean((data - prediction)**2))
@@ -131,6 +132,15 @@ def main():
                 trace_ax.legend()
                 trace_fig.savefig(os.path.join(sub_dir, f"{protocol_fitted}_fit_predition.png"))
                 trace_ax.cla()
+
+                all_models_ax.plot(times, data, label='data')
+                all_models_ax.plot(times, prediction, label=protocol_fitted)
+
+            all_models_ax.set_xlabel("time / ms")
+            all_models_ax.set_ylabel("current / nA")
+            all_models_ax.legend()
+            all_models_fig.savefig(os.path.join(sub_dir, f"all_fit_predition.png"))
+            all_models_ax.cla()
 
     predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
                                                                      'validation_protocol',

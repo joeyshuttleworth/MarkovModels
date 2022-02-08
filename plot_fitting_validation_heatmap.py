@@ -32,7 +32,7 @@ def main():
         sub_df = df[df.well == well]
         print(sub_df)
         pivot_df = sub_df.pivot(index='fitting_protocol', columns='validation_protocol',
-                              values='log RMSE')
+                                values='log RMSE')
 
         cmap = sns.cm.rocket_r
         sns.heatmap(pivot_df, ax=ax, cbar_kws={'label': 'log RMSE'}, vmin=None, vmax=args.vmax, cmap=cmap)
