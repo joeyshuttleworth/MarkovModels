@@ -71,9 +71,12 @@ def main():
     full_times = times
     Erev = common.calculate_reversal_potential(310.15)
 
-    model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
     if args.linear_model:
         model = LinearModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
+        model_class = LinearModel
+    else:
+        model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
+        model_class = BeattieModel
 
     model.protocol_description = protocol_desc
     model.window_locs = [t for t, _, _, _ in protocol_desc]
@@ -165,7 +168,7 @@ def main():
 
         logging.info(f"Drawing {args.heatmap_size} x {args.heatmap_size} likelihood heatmap")
 
-        args_list = [(BeattieModel, times, data, output_dir, time_to_remove, params, indices)
+        args_list = [(model_class, times, data, output_dir, time_to_remove, params, indices)
                      for time_to_remove, indices in zip(spike_removal_durations, indices_used)]
 
         args_list = args_list if args.short else args_list[0:20]
@@ -233,7 +236,7 @@ def main():
     std_fig = plt.figure(figsize=(22, 20))
     std_axs = std_fig.subplots(5)
 
-    args_list = [(BeattieModel, "staircase", times, data, params, index_set) for index_set in indices_used]
+    args_list = [(model_class, "staircase", times, data, params, index_set) for index_set in indices_used]
     mcmc_samples = pool.map(mcmc_chain_func, *zip(*args_list))
 
     # Now, for each mcmc run plot some sample trajectories

@@ -45,6 +45,9 @@ class LinearModel():
         # Return design matrix
         return np.column_stack(vecs) + np.eye(len(self.times), self.n_params)
 
+    def get_no_parameters(self):
+        return self.n_params
+
     def GetStateVariables(self, p=None, times=None):
         if p is None:
             p = self.get_default_parameters()
