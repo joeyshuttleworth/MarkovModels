@@ -29,10 +29,13 @@ def main():
     for well in df['well'].unique():
         ax = fig.subplots()
         df['log RMSE'] = np.log(df['RMSE'])
-        sub_df = df[df.well == well].pivot(index='fitting_protocol', columns='validation_protocol',
-                                           values='log RMSE')
+        sub_df = df[df.well == well]
+        print(sub_df)
+        pivot_df = sub_df.pivot(index='fitting_protocol', columns='validation_protocol',
+                              values='log RMSE')
+
         cmap = sns.cm.rocket_r
-        sns.heatmap(sub_df, ax=ax, cbar_kws={'label': 'log RMSE'}, vmin=None, vmax=args.vmax, cmap=cmap)
+        sns.heatmap(pivot_df, ax=ax, cbar_kws={'label': 'log RMSE'}, vmin=None, vmax=args.vmax, cmap=cmap)
 
         ax.set_title(f"well {well}")
         ax.set_ylabel("Fitting protocol")
