@@ -107,6 +107,9 @@ def main():
                 df = params_df[params_df.well == well]
                 df = df[df.protocol == protocol_fitted]
 
+                if df.empty:
+                    pass
+
                 row = df.values
                 params = row[0, 0:-3].astype(np.float64)
 
@@ -119,17 +122,20 @@ def main():
 
                 prediction = solver(params)
 
+                if np.any(not np.isfinite(prediction)):
+                    pass
+
                 data = common.get_data(well, sim_protocol, args.data_directory)
                 RMSE = np.sqrt(np.mean((data - prediction)**2))
                 predictions_df.append((well, protocol_fitted, sim_protocol, RMSE))
 
                 # Output trace
                 trace_ax.plot(times, prediction, label='prediction')
-
                 trace_ax.plot(times, data, label='data')
+
                 trace_ax.set_xlabel("time / ms")
                 trace_ax.set_ylabel("current / nA")
-                trace_ax.legend()
+                # trace_ax.legend()
                 trace_fig.savefig(os.path.join(sub_dir, f"{protocol_fitted}_fit_predition.png"))
                 trace_ax.cla()
 
@@ -139,7 +145,7 @@ def main():
             all_models_ax.set_xlabel("time / ms")
             all_models_ax.set_ylabel("current / nA")
             all_models_ax.legend()
-            all_models_fig.savefig(os.path.join(sub_dir, f"all_fit_predition.png"))
+            all_models_fig.savefig(os.path.join(sub_dir, "all_fits.png"))
             all_models_ax.cla()
 
     predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
