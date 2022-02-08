@@ -701,14 +701,14 @@ def draw_heatmaps(model_class, times, data, output_dir, time_to_remove, params, 
     model.protocol_description = protocol_desc
     solver = model.make_hybrid_solver_current()
 
-    _, S1 = model.SimulateForwardModelSensitivities(params, times[indices])
+    S1 = model.SimulateForwardModelSensitivities(params)[1][indices]
     cov = sigma2 * np.linalg.inv(S1.T @ S1)
 
     mle, _ = common.fit_model(model, data, params, subset_indices=indices,
                               solver=solver, max_iterations=args.max_iterations,
                               method=optimiser)
 
-    _, S1_tmp = model.SimulateForwardModelSensitivities(mle, times[indices])
+    S1_tmp = model.SimulateForwardModelSensitivities(mle)[1][indices]
     mle_cov = sigma2 * np.linalg.inv(S1_tmp.T @ S1_tmp)
 
     for x_index, y_index in [(4, 6), (5, 7), (4, 7)]:
