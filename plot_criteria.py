@@ -352,13 +352,6 @@ def main():
             except Exception as ex:
                 print(f"Failed to plot densities {str(ex)}")
 
-        plot_x_lims = np.quantile(steady_state_samples[-1], (.05, .95))
-        x_window_size = plot_x_lims[1] - plot_x_lims[0]
-
-        plot_x_lims = np.mean(steady_state_samples[0]) + np.array([-x_window_size, x_window_size]) * .5
-
-        ax.set_xlim(*plot_x_lims)
-
         fig.savefig(os.path.join(output_dir, f"steady_state_prediction_comparison_{voltage}mV.png"))
         for ax in axs:
             ax.cla()
