@@ -11,6 +11,7 @@ import pints.plot
 from pathos.multiprocessing import ProcessPool as Pool
 
 from MarkovModels.BeattieModel import BeattieModel
+from MarkovModels.LinearModel import LinearModel
 
 from numba import njit
 
@@ -21,6 +22,7 @@ import matplotlib as mpl
 mpl.rcParams["axes.formatter.useoffset"] = False
 
 sigma2 = 0.01**2
+
 
 def main():
     plt.style.use('classic')
@@ -34,9 +36,17 @@ def main():
     parser.add_argument("-c", "--cpus", type=int, default=1)
     parser.add_argument("-i", "--max_iterations", type=int, default=None)
     parser.add_argument("-s", "--short", help="run with a reduced set of removal times", action='store_true')
+    parser.add_argument("-L", "--linear_model", help="Run with a simple linear model\
+    instead (debugging)", action='store_true')
 
     global args
     args = parser.parse_args()
+
+    global optimiser
+    optimiser = pints.CMAES
+
+    if args.linear_model:
+        optimiser = pints.NelderMead
 
     # Setup a pool for parallel computation
     pool = Pool(args.cpus)
@@ -57,19 +67,23 @@ def main():
     protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
 
     times = np.linspace(tstart, tend, int((tend - tstart) / tstep))
+
     full_times = times
     Erev = common.calculate_reversal_potential(310.15)
 
     model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
+    if args.linear_model:
+        model = LinearModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
+
     model.protocol_description = protocol_desc
     model.window_locs = [t for t, _, _, _ in protocol_desc]
 
     solver = model.make_hybrid_solver_current()
 
-    voltages = model.GetVoltage()
+    voltages = np.array([protocol_func(t) for t in times])
 
     # Plot representative sample from DGP
-    sample_mean = solver(params, times)
+    sample_mean = solver()
 
     noise = np.random.normal(0, np.sqrt(sigma2), times.shape)
     data = sample_mean + noise
@@ -99,8 +113,6 @@ def main():
 
     print(f"Spike locations are: {spike_times}")
 
-    current_spikes, current_spike_indices = common.detect_spikes(times, current, threshold=max(current) / 100,
-                                                                 window_size=100)
     covs = []
     indices_used = []
 
@@ -495,7 +507,7 @@ def get_mcmc_chains(solver, times, indices, data, chain_length, starting_paramet
         output = solver(p, times)[indices]
         error = output - data[indices]
         SSE = np.sum(error**2)
-        ll = -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
+        ll = 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
         return ll
 
     class pints_likelihood(pints.LogPDF):
@@ -553,7 +565,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
             output = np.full(times.shape, np.nan)
         error = output - data[subset_indices]
         SSE = np.sum(error**2)
-        return -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
+        return 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
 
     fix_parameters = [i for i in range(9) if i not in p_index]
 
@@ -595,7 +607,9 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
                        color='pink', label='95% confidence region (normal approximation)')
     # Draw 2 param versions
     mle_2param, _ = common.fit_model(model, data, params, fix_parameters=fix_parameters,
-                                     subset_indices=subset_indices, solver=solver, max_iterations=args.max_iterations)
+                                     subset_indices=subset_indices, solver=solver,
+                                     max_iterations=args.max_iterations,
+                                     method=optimiser)
     mle_params = np.copy(params)
     mle_params[x_index] = mle_2param[0]
     mle_params[y_index] = mle_2param[1]
@@ -691,7 +705,8 @@ def draw_heatmaps(model_class, times, data, output_dir, time_to_remove, params, 
     cov = sigma2 * np.linalg.inv(S1.T @ S1)
 
     mle, _ = common.fit_model(model, data, params, subset_indices=indices,
-                              solver=solver, max_iterations=args.max_iterations)
+                              solver=solver, max_iterations=args.max_iterations,
+                              method=optimiser)
 
     _, S1_tmp = model.SimulateForwardModelSensitivities(mle, times[indices])
     mle_cov = sigma2 * np.linalg.inv(S1_tmp.T @ S1_tmp)
