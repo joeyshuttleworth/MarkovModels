@@ -507,7 +507,7 @@ def get_mcmc_chains(solver, times, indices, data, chain_length, starting_paramet
         output = solver(p, times)[indices]
         error = output - data[indices]
         SSE = np.sum(error**2)
-        ll = 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
+        ll = -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
         return ll
 
     class pints_likelihood(pints.LogPDF):
@@ -565,7 +565,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
             output = np.full(times.shape, np.nan)
         error = output - data[subset_indices]
         SSE = np.sum(error**2)
-        return 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
+        return - n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
 
     fix_parameters = [i for i in range(9) if i not in p_index]
 
