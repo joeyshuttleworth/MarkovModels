@@ -122,7 +122,7 @@ def main():
 
                 prediction = solver(params)
 
-                if np.any(not np.isfinite(prediction)):
+                if np.all(np.isfinite(prediction)):
                     pass
 
                 data = common.get_data(well, sim_protocol, args.data_directory)
