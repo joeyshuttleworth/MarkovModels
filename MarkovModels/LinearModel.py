@@ -5,6 +5,8 @@ from scipy.integrate import odeint
 from . MarkovModel import MarkovModel
 from . import common
 
+from numba import njit
+
 
 class LinearModel():
     """
@@ -58,13 +60,13 @@ class LinearModel():
 
         return p[None, :] * self.get_design_matrix()
 
-    def make_hybrid_solver_current(self):
+    def make_hybrid_solver_current(self, njitted=True):
         # Design matrix
         X = self.get_design_matrix()
 
         def solver(p=self.default_parameters, times=self.times):
             return X @ p
-        return solver
+        return njit(solver) if njitted else solver
 
     def SimulateForwardModelSensitivities(self, p=None, times=None):
         X = self.get_design_matrix()
