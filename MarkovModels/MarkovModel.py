@@ -640,7 +640,8 @@ class MarkovModel:
         if times is None:
             times = self.times
 
-        solution = self.solve_drhs_full(p, times=times)
+        indices  = np.array(range(len(self.times)))[self.times in times]
+        solution = self.solve_drhs_full(p)[indices]
 
         # Get the open state sensitivities for each parameter
         index_sensitivities = self.n_state_vars + self.open_state_index + \
