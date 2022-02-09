@@ -17,38 +17,43 @@ def main():
     By default a new directory will be generated", default=None)
     parser.add_argument("--normalise_diagonal", action="store_true")
 
-    parser.add_argument("--vmax", "-m", default=None)
+    parser.add_argument("--vmax", "-m", default=None, type=float)
 
     args = parser.parse_args()
     df = pd.read_csv(args.input_file)
+    df = df.drop_duplicates(subset=['well', 'fitting_protocol', 'validation_protocol'], keep='first')
+    print(len(df))
 
     fig = plt.figure(figsize=(14, 10))
 
     output_dir = common.setup_output_directory(args.output_dir)
-
-    protocol_list = df['fitting_protocol'].unqiue()
+    protocol_list = df['fitting_protocol'].unique()
 
     # Iterate over wells for heatmap
     for well in df['well'].unique():
         ax = fig.subplots()
-        df['log RMSE'] = np.log(df['RMSE'])
-        sub_df = df[df.well == well]
-        print(sub_df)
-        pivot_df = sub_df.pivot(index='fitting_protocol', columns='validation_protocol',
-                                values='log RMSE')
-        index_df = df.set_index(('fitting_protocol', 'validation_protocol'))
+        sub_df = df[df.well == well].copy()
 
         if args.normalise_diagonal:
-            sub_df = sub_df.set_index(('fitting_protocol', 'validation_protocol'))
-            diagonals = {protocol : sub_df[protocol, protocol]['RMSE'] for protocol in protocol_list}
+            index_df = sub_df.set_index(['fitting_protocol', 'validation_protocol'])
+            diagonals = {protocol: index_df.loc[(protocol, protocol), 'RMSE'] for protocol in protocol_list}
+            sub_df['normalised log RMSE'] = [
+                np.log(row['RMSE'] /
+                       diagonals[row['fitting_protocol']]) for _, row in sub_df.iterrows()]
+            value_col = 'normalised log RMSE'
+        else:
+            df['log RMSE'] = np.log(df['RMSE'])
+            value_col = 'log RMSE'
 
-        pivot_df['normalised log RMSE'] = np.log(pivot_df['RMSE'] /
-                                                 diagonals[diagonals[pivot_df['fitting_protocol']]])
+        pivot_df = sub_df.pivot(index='fitting_protocol', columns='validation_protocol',
+                                values=value_col)
 
-        pivot_df = pivot_df[np.isfinite(pivot_df)]
+        # pivot_df = pivot_df[np.isfinite(pivot_df)]
 
         cmap = sns.cm.rocket_r
-        sns.heatmap(pivot_df, ax=ax, cbar_kws={'label': 'log RMSE'}, vmin=None, vmax=args.vmax, cmap=cmap)
+
+        vmax = min(args.vmax, np.min(pivot_df.values))
+        sns.heatmap(pivot_df, ax=ax, cbar_kws={'label': value_col}, vmin=None, vmax=vmax, cmap=cmap)
 
         ax.set_title(f"well {well}")
         ax.set_ylabel("Fitting protocol")
