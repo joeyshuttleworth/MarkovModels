@@ -58,10 +58,10 @@ class BeattieModel(MarkovModel):
         B = sp.Matrix(['k4', 0, 'k1'])
         # Call the constructor of the parent class, MarkovModel
 
-        Q = np.matrix([[-('k3 + k1'), 'k2', 0, 'k4'],
-                       ['k1', '-k2 - k3', 'k4', 0],
-                       [0, 'k3', '-k2 - k4', 'k3'],
-                       ['k3', 0, 'k3', '-k4 - k1']])
+        Q = sp.Matrix([['-k3 - k1', 'k2', .0, 'k4'],
+                       ['k1', '-k2 - k3', 'k4', .0],
+                       [.0, 'k3', '-k2 - k4', 'k3'],
+                       ['k3', .0, 'k2', '-k4 - k1']]).T
 
         super().__init__(symbols, A, B, rates, times, voltage=voltage, Q=Q, *args, **kwargs)
 
