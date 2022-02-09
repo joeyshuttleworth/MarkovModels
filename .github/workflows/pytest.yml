@@ -17,8 +17,12 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
+        sudo apt update
+        sudo apt install -y clang-tidy
         python -m pip install --upgrade pip
         python -m pip install .[test]
+        python -m pip install scikit-build
+        python -m pip install -e NumbaIDA[test]
         pip uninstall myokit -y
         pip install git+https://github.com/MichaelClerx/myokit
     - name: Install Sundials ${{ matrix.sundials-version }}

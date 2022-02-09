@@ -56,7 +56,9 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.unique(list(np.linspace(0, 10, 11)) + list(np.linspace(10, 100, 30))[1:])
+    spike_removal_durations = np.unique(list(np.linspace(0, 10, 11))
+                                        + list(np.linspace(10, 100, 45))
+                                        + list(np.linspace(100, 250, 10)))
 
     if args.short:
         spike_removal_durations = np.array([0, 1])
@@ -231,7 +233,6 @@ def main():
     # Sample steady states and timescales
     print("Sampling steady states and timescales")
     param_fig = plt.figure(figsize=(18, 14))
-    param_axs = param_fig.subplots(model.get_no_parameters())
 
     std_fig = plt.figure(figsize=(22, 20))
     std_axs = std_fig.subplots(5)
@@ -246,6 +247,7 @@ def main():
 
     no_subsamples = 1000
     for j, mcmc_sample in enumerate(mcmc_samples):
+        param_axs = param_fig.subplots(model.get_no_parameters())
         for sample in np.random.choice(mcmc_sample.shape[1], no_subsamples):
             trajectory = solver(mcmc_sample[0, sample, :], full_times)
             traj_ax.plot(times, trajectory, color='grey', alpha=.3)
@@ -274,9 +276,8 @@ def main():
             ax.axvline(params[j], color='grey', linestyle='--')
 
         param_fig.savefig(os.path.join(output_dir, f"mcmc_params_{i}.png"))
+        param_fig.clf()
 
-        for ax in param_axs:
-            ax.cla()
 
         # Concatenate chains together using Fortran ordering i.e first index moves fastest
         samples = samples.reshape(samples.shape[0]*samples.shape[1], -1, order='F')

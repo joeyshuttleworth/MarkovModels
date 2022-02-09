@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from BeattieModel import BeattieModel
 import argparse
 import os

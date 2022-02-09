@@ -5,6 +5,7 @@ from scipy.integrate import solve_ivp
 from NumbaLSODA import lsoda_sig, lsoda
 from numba import njit, cfunc, literal_unroll
 import numba as nb
+from NumbaIDA import ida_sig, ida
 
 
 class MarkovModel:
@@ -19,10 +20,12 @@ class MarkovModel:
         raise NotImplementedError
 
     def __init__(self, symbols, A, B, rates_dict, times, voltage=None,
-                 tolerances=(1e-8, 1e-10)):
+                 tolerances=(1e-3, 1e-5), Q=None):
 
         self.window_locs = None
         self.protocol_description = None
+
+        self.Q = Q
 
         try:
             self.y = symbols['y']
@@ -178,7 +181,7 @@ class MarkovModel:
         return steady_state
 
     def get_no_states(self):
-        return len(self.y)
+        return self.n_states
 
     def get_analytic_solution(self):
         """get_analytic_solution
@@ -208,7 +211,7 @@ class MarkovModel:
         # Then Z = (e^{-D_i,i})_i and X=CKZ is the general homogenous solution to the system
         # dX/dt = AX because dX/dt = CKdZ/dt = CKDZ = KCC^-1ACZ = KACZ = AKX
 
-        IC = sp.Matrix(['rhs%i' % i for i in range(self.get_no_states())])
+        IC = sp.Matrix(['rhs%i' % i for i in range(self.get_no_states() - 1)])
         IC_KZ = C.LUsolve(IC - X2)
         K = sp.matrices.diag(*IC_KZ)
 
@@ -216,10 +219,114 @@ class MarkovModel:
 
         return C @ K, eigenvalues, X2
 
+    def make_Q_func(self, njitted=True):
+        rates = tuple(self.rates_dict.keys())
+        Q_func = sp.lambdify((rates,), self.Q, modules='numpy')
+
+        return njit(Q_func) if njitted else Q_func
+
+    def make_dae_residual_func(self):
+        if self.Q is None:
+            Exception("Q Matrix not defined")
+
+        Q_func = self.make_Q_func()
+        rates_func = self.get_rates_func()
+
+        voltage_func = self.voltage
+
+        neq = self.get_no_states()
+
+        np = len(self.get_default_parameters())
+
+        @cfunc(ida_sig)
+        def residual_func(t, y, dy, res, p):
+            y_vec = nb.carray(y, neq)
+            dy_vec = nb.carray(dy, neq)
+            p_vec = nb.carray(p, np)
+            res_vec = nb.carray(res, neq + 1)
+
+            V = voltage_func(t)
+            rates = rates_func(p_vec, V).flatten()
+            Q = Q_func(rates)
+
+            # Calculate derivatives
+            derivs = Q.T @ y_vec
+            res_vec[0:-1] = derivs - dy_vec
+
+            res_vec[-1] = 1 - sum(y_vec)
+
+            return None
+
+        return residual_func
+
+    def make_dae_solver_states(self, njitted=True):
+        res_func = self.make_dae_residual_func()
+        n = self.Q.shape[0]
+        nres = n + 1
+        rhs_inf = self.rhs_inf
+
+        voltage = self.voltage
+        Q_func = self.make_Q_func(njitted)
+
+        rates_func = self.get_rates_func(njitted)
+
+        atol, rtol = self.solver_tolerances
+
+        times = self.times
+        func_ptr = res_func.address
+        p = self.get_default_parameters()
+
+        neq = self.get_no_states()
+
+        protocol_description = self.protocol_description
+
+        if protocol_description is None:
+            Exception("No protocol defined")
+
+        def solver(p=p, times=times,
+                   atol=atol, rtol=rtol):
+            rhs0 = np.empty(neq)
+            rhs0[0:-1] = rhs_inf(p, voltage(0)).flatten()
+            rhs0[-1] = 1 - np.sum(rhs0)
+
+            res = np.empty(nres)
+
+            solution = np.empty((len(times), neq))
+            for tstart, tend, vstart, vend in protocol_description:
+                istart = np.argmax(times >= tstart)
+                iend = np.argmax(times >= tend)
+                if iend == 0:
+                    step_times = times[istart:]
+                    iend = len(times)
+                else:
+                    iend += 1
+                    step_times = times[istart:iend + 1]
+                rates = rates_func(p, voltage(step_times[0])).flatten()
+                du0 = (Q_func(rates).T @ rhs0).flatten()
+                step_sol, success = ida(
+                    func_ptr, rhs0, du0, res, step_times, p, atol=atol, rtol=rtol)
+
+                if not success:
+                    break
+
+                if iend == len(times):
+                    solution[istart:, ] = step_sol[:, ]
+                    break
+
+                else:
+                    rhs0 = step_sol[-1, :]
+                    rhs0[-1] = 1 - sum(rhs0[:-1])
+                    solution[istart:iend, ] = step_sol[:-1, ]
+
+            return solution
+
+        if njitted:
+            solver = njit(solver)
+
+        return solver
+
     def get_rates_func(self, njitted=True):
-
         n = len(self.rates_dict)
-
         inputs = (self.p, self.v)
         rates_expr = sp.Matrix(list(self.rates_dict.values()))
 
@@ -232,7 +339,7 @@ class MarkovModel:
 
         rates_func = self.get_rates_func()
 
-        rhs_names = ["rhs%i" % i for i in range(self.get_no_states())]
+        rhs_names = ["rhs%i" % i for i in range(self.get_no_states() - 1)]
 
         args = (sp.Matrix(list(self.rates_dict.keys())), sp.Matrix(rhs_names))
 
@@ -258,14 +365,14 @@ class MarkovModel:
             rtol = self.solver_tolerances[1]
 
         crhs = self.get_cfunc_rhs()
-
         crhs_ptr = crhs.address
 
         rhs_inf = self.rhs_inf
 
         voltage = self.voltage
 
-        no_states = self.get_no_states()
+        # Number of state variables
+        no_states = self.get_no_states() - 1
 
         times = self.times
 
@@ -394,6 +501,7 @@ class MarkovModel:
         voltage_func = self.voltage
 
         params = self.get_default_parameters()
+
         def hybrid_forward_solve(p=params, times=times, atol=atol, rtol=rtol):
             voltages = np.empty(len(times))
             for i in range(len(times)):
@@ -412,6 +520,28 @@ class MarkovModel:
             rtol = self.solver_tolerances[1]
 
         solver_states = self.make_forward_solver_states(atol=atol, rtol=rtol, njitted=True)
+
+        gkr_index = self.GKr_index
+        open_index = self.open_state_index
+        Erev = self.Erev
+
+        if voltages is None:
+            voltages = self.GetVoltage()
+
+        times = self.times
+
+        def forward_solver(p, times=times, voltages=voltages, atol=atol, rtol=rtol):
+            states = solver_states(p, times, atol, rtol)
+            return ((states[:, open_index] * p[gkr_index]) * (voltages - Erev)).flatten()
+
+        return njit(forward_solver) if njitted else forward_solver
+
+    def make_solver_current(self, solver_states, voltages=None, atol=None, rtol=None, njitted=True):
+        if atol is None:
+            atol = self.solver_tolerances[0]
+
+        if rtol is None:
+            rtol = self.solver_tolerances[1]
 
         gkr_index = self.GKr_index
         open_index = self.open_state_index
