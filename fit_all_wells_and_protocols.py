@@ -20,6 +20,8 @@ def fit_func(protocol, well):
                                           K_out=120, default_parameters=default_parameters,
                                           removal_duration=args.removal_duration, repeats=args.repeats,
                                           infer_E_rev=True)
+    print(params, scores)
+    params, scores = np.array(zip(*[(param, score) for param, score in zip(params, scores) if np.isfinite(score)]))
     return params[np.argmin(scores), :].flatten()
 
 def main():
@@ -66,6 +68,8 @@ def main():
             tasks.append((protocol, well))
             protocols_list.append(protocol)
 
+
+    protocols_list = np.unique(protocols_list)
     print(tasks)
 
     params = pool.starmap(fit_func, tasks)
@@ -94,7 +98,7 @@ def main():
     all_models_fig = plt.figure(figsize=(16,12))
     all_models_ax  = all_models_fig.subplots()
 
-    for sim_protocol in protocols_list:
+    for sim_protocol in np.unique(protocols_list):
         prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
         model.protocol_description = desc
         model.voltage = prot_func
@@ -103,7 +107,7 @@ def main():
         solver = model.make_hybrid_solver_current()
 
         for well in params_df['well'].unique():
-            for protocol_fitted in protocols_list:
+            for protocol_fitted in np.unique(protocols_list):
                 df = params_df[params_df.well == well]
                 df = df[df.protocol == protocol_fitted]
 
@@ -135,7 +139,7 @@ def main():
 
                 trace_ax.set_xlabel("time / ms")
                 trace_ax.set_ylabel("current / nA")
-                # trace_ax.legend()
+                trace_ax.legend()
                 trace_fig.savefig(os.path.join(sub_dir, f"{protocol_fitted}_fit_predition.png"))
                 trace_ax.cla()
 
