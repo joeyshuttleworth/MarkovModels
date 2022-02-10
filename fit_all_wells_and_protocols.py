@@ -20,15 +20,21 @@ def fit_func(protocol, well):
                                           K_out=120, default_parameters=default_parameters,
                                           removal_duration=args.removal_duration, repeats=args.repeats,
                                           infer_E_rev=True)
+
+    if params is None or len(params) == 0:
+        return None
     print(params, scores)
-    params, scores = np.array(zip(*[(param, score) for param, score in zip(params, scores) if np.isfinite(score)]))
-    return params[np.argmin(scores), :].flatten()
+    params, scores = np.array([(param, score) for param, score in zip(params, scores) if np.isfinite(score)]).T
+    print(params)
+    return params[np.argmin(scores)].flatten()
 
 def main():
     Erev = common.calculate_reversal_potential(T=298, K_in=120, K_out=5)
     print(f"Erev is {Erev}")
     parser = common.get_parser(
-        data_reqd=True, description="Fit a given well to the data from each of the protocols. Output the resulting parameters to a file for later use")
+        data_reqd=True, description="Fit a given well to the data from each\
+        of the protocols. Output the resulting parameters to a file for later use")
+
     parser.add_argument('--max_iterations', '-i', type=int, default="100000")
     parser.add_argument('--repeats', type=int, default=8)
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
@@ -68,9 +74,12 @@ def main():
             tasks.append((protocol, well))
             protocols_list.append(protocol)
 
+    print(f"fitting tasks are {tasks}")
+
+    assert(len(tasks) > 0)
+    #"no valid protocol/well combinations provided"
 
     protocols_list = np.unique(protocols_list)
-    print(tasks)
 
     params = pool.starmap(fit_func, tasks)
     fitted_params_list = np.row_stack(params)
