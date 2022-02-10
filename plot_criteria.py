@@ -230,13 +230,13 @@ def main():
     fig = plt.figure(figsize=(18, 14))
     axs = fig.subplots(3)
 
-    # Sample steady states and timescales
-    print("Sampling steady states and timescales")
     param_fig = plt.figure(figsize=(18, 14))
+    param_axs = param_fig.subplots(model.get_no_parameters())
 
     std_fig = plt.figure(figsize=(22, 20))
     std_axs = std_fig.subplots(5)
 
+    print("Start MCMC sampling")
     args_list = [(model_class, "staircase", times, data, params, index_set) for index_set in indices_used]
     mcmc_samples = pool.map(mcmc_chain_func, *zip(*args_list))
 
@@ -247,7 +247,6 @@ def main():
 
     no_subsamples = 1000
     for j, mcmc_sample in enumerate(mcmc_samples):
-        param_axs = param_fig.subplots(model.get_no_parameters())
         for sample in np.random.choice(mcmc_sample.shape[1], no_subsamples):
             trajectory = solver(mcmc_sample[0, sample, :], full_times)
             traj_ax.plot(times, trajectory, color='grey', alpha=.3)
@@ -276,8 +275,9 @@ def main():
             ax.axvline(params[j], color='grey', linestyle='--')
 
         param_fig.savefig(os.path.join(output_dir, f"mcmc_params_{i}.png"))
-        param_fig.clf()
 
+        for ax in param_axs:
+            ax.cla()
 
         # Concatenate chains together using Fortran ordering i.e first index moves fastest
         samples = samples.reshape(samples.shape[0]*samples.shape[1], -1, order='F')
