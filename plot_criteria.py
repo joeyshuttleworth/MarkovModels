@@ -245,7 +245,8 @@ def main():
     traj_ax = traj_fig.subplots()
     indices = np.unique(np.array(list(range(len(times)))[::50] + list(spike_indices)))
 
-    no_subsamples = 1000
+    # Sample with replacement from the chain.
+    no_subsamples = 5000
     for j, mcmc_sample in enumerate(mcmc_samples):
         for sample in np.random.choice(mcmc_sample.shape[1], no_subsamples):
             trajectory = solver(mcmc_sample[0, sample, :], full_times)
