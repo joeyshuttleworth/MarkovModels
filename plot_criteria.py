@@ -253,7 +253,7 @@ def main():
             traj_ax.plot(times, trajectory, color='grey', alpha=.3)
         traj_ax.set_title(f"{no_subsamples} MCMC sampled trajectories {spike_removal_durations[j]:.2f}ms removed")
         traj_ax.plot(times, current, color='red')
-        traj_ax.set_ylim([np.min(current), np.max(current)])
+        traj_ax.set_ylim([1.5 * np.min(current), 1.5 * np.max(current)])
         traj_fig.savefig(os.path.join(output_dir, f"{j}_mcmc_trajectories.png"))
         traj_ax.cla()
 
@@ -296,6 +296,7 @@ def main():
                                           f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png"))
         pairwise_fig.clf()
 
+    axs = fig.subplots(5)
     for voltage in voltage_list:
         steady_state_samples = []
         voi_samples = []
@@ -327,7 +328,6 @@ def main():
             for ax in axs:
                 ax.cla()
 
-            axs = fig.subplots(5)
             samples = mcmc_samples[i]
             res = compute_tau_inf_from_samples(samples, voltage=voltage)
             for j, (a_inf, tau_a, r_inf, tau_r) in enumerate(zip(*res)):
@@ -341,7 +341,7 @@ def main():
                     axs[0].set_title(
                         f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed (MCMC)")
                     for k, var in enumerate(colnames):
-                        sns.kdeplot(data=pd.DataFrame(vals_df, columns=[var]), shade=True, fill=True, ax=axs[k], x=var)
+                        sns.kdeplot(data=pd.DataFrame(vals_df, columns=[var]), shade=False, fill=True, ax=axs[k], x=var)
 
                 except Exception as e:
                     print(str(e))
@@ -349,10 +349,8 @@ def main():
             fig.savefig(os.path.join(sub_output_dir, f"mcmc_{i}.png"))
             for ax in axs:
                 ax.cla()
-        # Plot steady states on one axis for comparison
-        fig = plt.figure(figsize=(24, 22))
-        axs = fig.subplots(5)
 
+        # Use the same axes for the Monte Carlo estimations of these variables
         steady_states_df = pd.DataFrame(columns=('IKr', 'a_inf', 'tau_a', 'r_inf',
                                                  'tau_r', 'removal_duration'))
         for i in range(len(steady_state_samples)):
