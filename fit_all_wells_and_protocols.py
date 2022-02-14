@@ -143,17 +143,18 @@ def main():
                 predictions_df.append((well, protocol_fitted, sim_protocol, RMSE))
 
                 # Output trace
-                trace_ax.plot(times, prediction, label='prediction')
-                trace_ax.plot(times, data, label='data')
+                if np.isfinite(prediction):
+                    trace_ax.plot(times, prediction, label='prediction')
+                    trace_ax.plot(times, data, label='data')
 
-                trace_ax.set_xlabel("time / ms")
-                trace_ax.set_ylabel("current / nA")
-                trace_ax.legend()
-                trace_fig.savefig(os.path.join(sub_dir, f"{protocol_fitted}_fit_predition.png"))
-                trace_ax.cla()
+                    trace_ax.set_xlabel("time / ms")
+                    trace_ax.set_ylabel("current / nA")
+                    trace_ax.legend()
+                    trace_fig.savefig(os.path.join(sub_dir, f"{protocol_fitted}_fit_predition.png"))
+                    trace_ax.cla()
 
-                all_models_ax.plot(times, data, label='data')
-                all_models_ax.plot(times, prediction, label=protocol_fitted)
+                    all_models_ax.plot(times, data, label='data')
+                    all_models_ax.plot(times, prediction, label=protocol_fitted)
 
             all_models_ax.set_xlabel("time / ms")
             all_models_ax.set_ylabel("current / nA")
