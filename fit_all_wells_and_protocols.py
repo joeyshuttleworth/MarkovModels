@@ -24,7 +24,10 @@ def fit_func(protocol, well):
     if params is None or len(params) == 0:
         return None
     print(params, scores)
-    params, scores = np.array([(param, score) for param, score in zip(params, scores) if np.isfinite(score)]).T
+    params, scores = np.array([(param, score)
+                               for param, score in zip(params, scores)
+                               if np.isfinite(score)],
+                              dtype=object).T
     print(params)
     return params[np.argmin(scores)].flatten()
 
@@ -104,30 +107,43 @@ def main():
     trace_fig = plt.figure(figsize=(16, 12))
     trace_ax = trace_fig.subplots()
 
-    all_models_fig = plt.figure(figsize=(16,12))
-    all_models_ax  = all_models_fig.subplots()
+    all_models_fig = plt.figure(figsize=(16, 12))
+    all_models_ax = all_models_fig.subplots()
 
     for sim_protocol in np.unique(protocols_list):
         prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
-        model.protocol_description = desc
         model.voltage = prot_func
-        times = pd.read_csv(os.path.join(args.data_directory, f"newtonrun4-{sim_protocol}-times.csv"))['time'].values
-        model.times = times
-        solver = model.make_hybrid_solver_current()
+        times = pd.read_csv(os.path.join(args.data_directory, f"newtonrun4-{sim_protocol}-times.csv"))['time'].values.flatten()
+
+        print(times)
+
+        data = common.get_data(well, sim_protocol, args.data_directory)
+
+        Erev = common.infer_reversal_potential(sim_protocol, data, times)
+
+        voltages = np.array([prot_func(t) for t in times])
+        spikes, _ = common.detect_spikes(times, voltages, 10)
+        times, _, indices = common.remove_spikes(times, voltages, spikes, args.removal_duration)
+        voltages = voltages[indices]
+        data = data[indices]
+
+        model = BeattieModel(prot_func,
+                             times=times,
+                             Erev=Erev)
+
+        model.protocol_description = desc
+        solver = model.make_forward_solver_current(njitted=True)
 
         for well in params_df['well'].unique():
-            for protocol_fitted in np.unique(protocols_list):
+            for protocol_fitted in params_df['protocol'].unique():
                 df = params_df[params_df.well == well]
                 df = df[df.protocol == protocol_fitted]
 
                 if df.empty:
-                    pass
+                    continue
 
                 row = df.values
                 params = row[0, 0:-3].astype(np.float64)
-
-                # Set reversal potential
-                model.Erev = float(row[0, -3])
 
                 sub_dir = os.path.join(output_dir, f"{well}_{sim_protocol}_predictions")
                 if not os.path.exists(sub_dir):
@@ -136,11 +152,11 @@ def main():
                 prediction = solver(params)
 
                 if not np.all(np.isfinite(prediction)):
-                    pass
+                    continue
 
-                data = common.get_data(well, sim_protocol, args.data_directory)
                 RMSE = np.sqrt(np.mean((data - prediction)**2))
                 predictions_df.append((well, protocol_fitted, sim_protocol, RMSE))
+
 
                 # Output trace
                 if np.isfinite(prediction).all():

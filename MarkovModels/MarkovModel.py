@@ -469,8 +469,12 @@ class MarkovModel:
 
                 # numerical solve
                 else:
-                    step_sol, _ = lsoda(crhs_ptr, rhs0, step_times, data=p,
-                                        rtol=rtol, atol=atol)
+                    if tstart == step_times[0]:
+                        step_sol[1:] = lsoda(crhs_ptr, rhs0, step_times[1:], data=p,
+                                             rtol=rtol, atol=atol)[0][1:]
+                    else:
+                        step_sol, _ = lsoda(crhs_ptr, rhs0, step_times, data=p,
+                                            rtol=rtol, atol=atol)
                 if iend == len(times):
                     solution[istart:, ] = step_sol[1:-1, ]
                     break

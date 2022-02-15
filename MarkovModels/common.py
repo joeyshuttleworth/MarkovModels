@@ -559,16 +559,11 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations, o
     else:
         Erev = calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
 
-    voltages = np.array([voltage_func(t) for t in times])
-    spikes, _ = detect_spikes(times, voltages, 10)
-    times, _, indices = remove_spikes(times, voltages, spikes, removal_duration)
-    voltages = voltages[indices]
-    data = data[indices]
 
     model = model_class(voltage_func, times, parameters=default_parameters, Erev=Erev)
-    model.set_tolerances(1e-5, 1e-7)
     model.protocol_description = protocol_desc
 
+    # Try fitting G_Kr on its own first
     initial_gkr = np.max(data) / 10
 
     initial_params = model.get_default_parameters()
@@ -636,7 +631,10 @@ def get_all_wells_in_directory(data_dir, regex="^newtonrun4-([a-z|A-Z|0-9]*)-([A
     return wells
 
 
-def infer_reversal_potential(protocol: str, current: np.array, times, ax=None, output_path=None):
+def infer_reversal_potential(protocol: str, current: np.array, times, ax=None, output_path=None, plot=False):
+
+    if ax or output_path:
+        plot = True
 
     protocol_func, _, _, _, protocol_desc = get_ramp_protocol_from_csv(protocol)
 
@@ -658,23 +656,23 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None, o
 
     voltages = np.array([protocol_func(t) for t in times])
 
-    # Now plot current vs voltage
-    plt.plot(voltages, current, 'x', markersize=2, color='grey')
-
     fitted_poly = np.polyfit(current, voltages, 6)
     fitted_poly_func = np.poly1d(fitted_poly)
 
-    if ax is None:
-        fig = plt.figure()
-        ax = fig.subplots()
+    if plot:
+        if ax is None:
+            fig = plt.figure()
+            ax = fig.subplots()
 
-    ax.plot(fitted_poly_func(current), current)
-    ax.set_xlabel('voltage mV')
-    ax.set_ylabel('current nA')
+        ax.plot(fitted_poly_func(current), current)
+        ax.set_xlabel('voltage mV')
+        ax.set_ylabel('current nA')
+        # Now plot current vs voltage
+        plt.plot(voltages, current, 'x', markersize=2, color='grey')
 
-    if output_path is not None:
-        fig = ax.figure
-        fig.savefig(output_path)
+        if output_path is not None:
+            fig = ax.figure
+            fig.savefig(output_path)
 
     return fitted_poly_func(0)
 

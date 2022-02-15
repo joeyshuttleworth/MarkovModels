@@ -127,7 +127,7 @@ def main():
             fitted_E_rev = common.infer_reversal_potential(protocol, subtracted_trace,
                                                            observation_times,
                                                            output_path=os.path.join(output, f"reversal_potential_{protocol}_{well}"),
-                                                           ax=reversal_ax)
+                                                           ax=reversal_ax, plot=True)
 
             subtracted_trace_df = pd.DataFrame(np.column_stack(
                 (observation_times, subtracted_trace)), columns=('time', 'current'))
