@@ -143,7 +143,7 @@ def main():
                 predictions_df.append((well, protocol_fitted, sim_protocol, RMSE))
 
                 # Output trace
-                if np.isfinite(prediction):
+                if np.isfinite(prediction).all():
                     trace_ax.plot(times, prediction, label='prediction')
                     trace_ax.plot(times, data, label='data')
 
