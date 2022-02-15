@@ -307,7 +307,7 @@ def main():
         sub_output_dir = os.path.join(output_dir, f"{voltage}mV")
         if not os.path.exists(sub_output_dir):
             os.makedirs(sub_output_dir)
-        for i, cov, in enumerate(covs):
+        for i, cov, in enumerate(covs)[0:20]:
             # Normal approximation first
             a_inf, tau_a, r_inf, tau_r, gkr = monte_carlo_tau_inf(
                 params, cov, voltage=voltage, n_samples=args.no_samples)
@@ -316,9 +316,9 @@ def main():
 
             I_Kr_inf = (gkr*r_inf*a_inf*(voltage - Erev)).flatten()
             steady_state_samples.append(I_Kr_inf)
-            colnames = ['a_inf', 'tau_a', 'r_inf', 'tau_r']
+            colnames = ['a_inf', 'tau_a', 'r_inf', 'tau_r', 'I_Kr_inf']
 
-            vals_df = pd.DataFrame(data=np.column_stack((a_inf, tau_a, r_inf, tau_r)), columns=colnames)
+            vals_df = pd.DataFrame(data=np.column_stack((a_inf, tau_a, r_inf, tau_r, I_Kr_inf)), columns=colnames)
             try:
                 axs[0].set_title(
                     f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed")
