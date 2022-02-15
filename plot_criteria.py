@@ -267,7 +267,9 @@ def main():
         for j, p in [(j, "p%i" % (j + 1)) for j in range(model.get_no_parameters())]:
             for row in samples:
                 try:
-                    sns.kdeplot(data=pd.DataFrame(row[:, j], columns=[p]), shade=False, ax=param_axs[j])
+                    sns.kdeplot(data=pd.DataFrame(row[:, j], columns=[p]),
+                                shade=False, ax=param_axs[j], common_norm=True,
+                                color='blue')
                 except Exception as e:
                     print(str(e))
         param_axs[0].set_title(f"{spike_removal_durations[i]:.2f}ms removed after each spike")
@@ -275,6 +277,7 @@ def main():
         for j, ax in enumerate(param_axs):
             ax.axvline(params[j], color='grey', linestyle='--')
 
+        param_fig.tight_layout()
         param_fig.savefig(os.path.join(output_dir, f"mcmc_params_{i}.png"))
 
         for ax in param_axs:
@@ -292,6 +295,7 @@ def main():
             print("failed to produce pairwise plot")
             print(str(ex))
 
+        pairwise_fig.tight_layout()
         pairwise_fig.savefig(os.path.join(output_dir,
                                           f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png"))
         pairwise_fig.clf()
@@ -319,8 +323,12 @@ def main():
                 axs[0].set_title(
                     f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed")
                 for k, var in enumerate(colnames):
-                    sns.kdeplot(data=pd.DataFrame(vals_df, columns=[var]), shade=True, fill=True, ax=axs[k], x=var)
+                    sns.kdeplot(data=pd.DataFrame(vals_df, columns=[var]),
+                                shade=True, fill=True, ax=axs[k], x=var,
+                                common_norm=True,
+                                color='blue')
 
+                fig.tight_layout()
                 fig.savefig(os.path.join(sub_output_dir, f"{i}.png"))
             except Exception as e:
                 print(str(e))
@@ -341,11 +349,14 @@ def main():
                     axs[0].set_title(
                         f"{voltage}mV with {spike_removal_durations[i]:.2f}ms removed (MCMC)")
                     for k, var in enumerate(colnames):
-                        sns.kdeplot(data=pd.DataFrame(vals_df, columns=[var]), shade=False, fill=True, ax=axs[k], x=var)
+                        sns.kdeplot(data=pd.DataFrame(vals_df, columns=[var]),
+                                    shade=False, ax=axs[k], x=var, common_norm=True,
+                                    color='blue')
 
                 except Exception as e:
                     print(str(e))
 
+            fig.tight_layout()
             fig.savefig(os.path.join(sub_output_dir, f"mcmc_{i}.png"))
             for ax in axs:
                 ax.cla()
@@ -365,8 +376,11 @@ def main():
         for i, var in enumerate(('IKr', 'a_inf', 'tau_a', 'r_inf', 'tau_r')):
             try:
                 df = df[np.isfinite(df).all(1)]
-                sns.kdeplot(data=steady_states_df, x=var, ax=axs[i], shade=False, common_norm=True,
-                            hue='removal_duration', palette='viridis', legend=(i == 0))
+                sns.kdeplot(data=steady_states_df, x=var, ax=axs[i],
+                            shade=False, common_norm=True,
+                            hue='removal_duration', palette='viridis',
+                            legend=(i == 0), color='blue')
+
             except Exception as ex:
                 print(f"Failed to plot densities {str(ex)}")
 
