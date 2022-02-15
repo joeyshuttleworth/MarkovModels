@@ -127,6 +127,8 @@ def main():
         voltages = voltages[indices]
         data = data[indices]
 
+        trace_ax.plot(times, data, label='data', alpha=0.25, col='grey')
+
         model = BeattieModel(prot_func,
                              times=times,
                              Erev=Erev)
@@ -161,7 +163,6 @@ def main():
                 # Output trace
                 if np.isfinite(prediction).all():
                     trace_ax.plot(times, prediction, label='prediction')
-                    trace_ax.plot(times, data, label='data')
 
                     trace_ax.set_xlabel("time / ms")
                     trace_ax.set_ylabel("current / nA")
