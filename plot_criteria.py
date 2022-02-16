@@ -292,7 +292,7 @@ def main():
                                                             + ['g_kr'])
 
         except np.linalg.LinAlgError as ex:
-            print("failed to produce pairwise plot")
+           print("failed to produce pairwise plot")
             print(str(ex))
 
         pairwise_fig.tight_layout()
@@ -300,6 +300,7 @@ def main():
                                           f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png"))
         pairwise_fig.clf()
 
+    fig.clf()
     axs = fig.subplots(5)
     for voltage in voltage_list:
         steady_state_samples = []
@@ -352,6 +353,9 @@ def main():
                         sns.kdeplot(data=pd.DataFrame(vals_df, columns=[var]),
                                     shade=False, ax=axs[k], x=var, common_norm=True,
                                     color='blue')
+                    # Plot true values
+                    for k, val in enumerate(compute_tau_inf_from_params(params, voltage=voltage)):
+                        ax.axvline(val, color='grey', linestyle='--')
 
                 except Exception as e:
                     print(str(e))
@@ -383,6 +387,10 @@ def main():
 
             except Exception as ex:
                 print(f"Failed to plot densities {str(ex)}")
+
+        # Plot true values
+        for k, val in enumerate(compute_tau_inf_from_params(params, voltage=voltage)):
+            ax.axvline(val, color='grey', linestyle='--')
 
         fig.savefig(os.path.join(output_dir, f"steady_state_prediction_comparison_{voltage}mV.png"))
         for ax in axs:
@@ -691,6 +699,20 @@ def compute_tau_inf_from_samples(samples, voltage=40):
 
     return a_inf, tau_a, r_inf, tau_r
 
+
+def compute_tau_inf_from_params(params, voltage=40):
+    k1 = params[0] * np.exp(params[1] * voltage)
+    k2 = params[2] * np.exp(-params[3] * voltage)
+    k3 = params[4] * np.exp(params[5] * voltage)
+    k4 = params[6] * np.exp(-params[7] * voltage)
+
+    a_inf = k1 / (k1 + k2)
+    tau_a = 1 / (k1 + k2)
+
+    r_inf = k4 / (k3 + k4)
+    tau_r = 1 / (k3 + k4)
+
+    return a_inf, tau_a, r_inf, tau_r
 
 # Next, the MCMC version. Can be time consuming so perform this in parallel
 def mcmc_chain_func(model_class, protocol, times, data, params, index_set):
