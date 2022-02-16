@@ -471,7 +471,7 @@ class MarkovModel:
                 else:
                     if tstart == step_times[0]:
                         step_sol[1:] = lsoda(crhs_ptr, rhs0, step_times[1:], data=p,
-                                             rtol=rtol, atol=atol)[0][1:]
+                                             rtol=rtol, atol=atol)[0]
                     else:
                         step_sol, _ = lsoda(crhs_ptr, rhs0, step_times, data=p,
                                             rtol=rtol, atol=atol)
