@@ -469,7 +469,9 @@ class MarkovModel:
 
                 # numerical solve
                 else:
-                    if tstart == step_times[0]:
+                    if tstart == step_times[1]:
+                        # First point is duplicated so ignore it
+                        step_sol = np.empty(step_times.shape)
                         step_sol[1:] = lsoda(crhs_ptr, rhs0, step_times[1:], data=p,
                                              rtol=rtol, atol=atol)[0]
                     else:
