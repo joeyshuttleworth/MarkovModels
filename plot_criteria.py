@@ -290,9 +290,8 @@ def main():
             pairwise_fig, pairwise_ax = pints.plot.pairwise(samples, kde=True,
                                                             parameter_names=['p%i' % i for i in range(1, 9)]
                                                             + ['g_kr'])
-
         except np.linalg.LinAlgError as ex:
-           print("failed to produce pairwise plot")
+            print("failed to produce pairwise plot")
             print(str(ex))
 
         pairwise_fig.tight_layout()
