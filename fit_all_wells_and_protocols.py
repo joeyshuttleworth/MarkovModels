@@ -127,8 +127,6 @@ def main():
         voltages = voltages[indices]
         data = data[indices]
 
-        trace_ax.plot(times, data, label='data', alpha=0.25, color='grey')
-
         model = BeattieModel(prot_func,
                              times=times,
                              Erev=Erev)
@@ -166,11 +164,11 @@ def main():
 
                     trace_ax.set_xlabel("time / ms")
                     trace_ax.set_ylabel("current / nA")
+                    trace_ax.plot(times, data, label='data', alpha=0.25, color='grey')
                     trace_ax.legend()
                     trace_fig.savefig(os.path.join(sub_dir, f"{protocol_fitted}_fit_predition.png"))
                     trace_ax.cla()
 
-                    all_models_ax.plot(times, data, label='data')
                     all_models_ax.plot(times, prediction, label=protocol_fitted)
 
             all_models_ax.set_xlabel("time / ms")
@@ -178,6 +176,7 @@ def main():
             all_models_ax.legend()
             all_models_fig.savefig(os.path.join(sub_dir, "all_fits.png"))
             all_models_ax.cla()
+            all_models_ax.plot(times, data, label='data')
 
     predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
                                                                      'validation_protocol',
