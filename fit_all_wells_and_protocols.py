@@ -51,7 +51,7 @@ def main():
     global output_dir
     output_dir = args.output
 
-    output_dir = common.setup_output_directory(args.output_dir, f"fitting_{args.removal_duration:.2f}_removed")
+    output_dir = common.setup_output_directory(args.output, f"fitting_{args.removal_duration:.2f}_removed")
 
     regex = re.compile("^newtonrun4-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$")
 
