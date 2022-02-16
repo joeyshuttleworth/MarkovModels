@@ -127,7 +127,7 @@ def main():
         voltages = voltages[indices]
         data = data[indices]
 
-        trace_ax.plot(times, data, label='data', alpha=0.25, col='grey')
+        trace_ax.plot(times, data, label='data', alpha=0.25, color='grey')
 
         model = BeattieModel(prot_func,
                              times=times,

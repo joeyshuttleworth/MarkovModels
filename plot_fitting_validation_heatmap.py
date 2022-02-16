@@ -22,7 +22,6 @@ def main():
     args = parser.parse_args()
     df = pd.read_csv(args.input_file)
     df = df.drop_duplicates(subset=['well', 'fitting_protocol', 'validation_protocol'], keep='first')
-    print(len(df))
 
     fig = plt.figure(figsize=(14, 10))
 
@@ -37,10 +36,10 @@ def main():
         if args.normalise_diagonal:
             index_df = sub_df.set_index(['fitting_protocol', 'validation_protocol'])
             diagonals = {protocol: index_df.loc[(protocol, protocol), 'RMSE'] for protocol in protocol_list}
-            sub_df['normalised log RMSE'] = [
+            sub_df['log normalised RMSE'] = [
                 np.log(row['RMSE'] /
-                       diagonals[row['fitting_protocol']]) for _, row in sub_df.iterrows()]
-            value_col = 'normalised log RMSE'
+                       diagonals[row['validation_protocol']]) for _, row in sub_df.iterrows()]
+            value_col = 'log normalised RMSE'
         else:
             df['log RMSE'] = np.log(df['RMSE'])
             value_col = 'log RMSE'
@@ -52,7 +51,7 @@ def main():
 
         cmap = sns.cm.rocket_r
 
-        vmax = min(args.vmax, np.min(pivot_df.values))
+        vmax = min(args.vmax, np.max(pivot_df.values))
         sns.heatmap(pivot_df, ax=ax, cbar_kws={'label': value_col}, vmin=None, vmax=vmax, cmap=cmap)
 
         ax.set_title(f"well {well}")
