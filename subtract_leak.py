@@ -18,7 +18,8 @@ import uuid
 
 Erev = common.calculate_reversal_potential(T=298.15, K_in=120, K_out=5)
 
-protocol_chrono_order = ['staircase_before',
+# Order in which the experiments were performed.
+protocol_chrono_order = ['staircaseramp1',
                          'sis',
                          'rtovmaxdiff',
                          'rvotmaxdiff',
@@ -30,7 +31,7 @@ protocol_chrono_order = ['staircase_before',
                          'hhsobol3step',
                          'wangbrute3gstep',
                          'wangsobol3step',
-                         'staircase_after']
+                         'staircaseramp2']
 
 
 def get_wells_list(input_dir):
@@ -48,7 +49,7 @@ def main():
     parser = argparse.ArgumentParser(description)
 
     parser.add_argument('data_directory', type=str, help="path to the directory containing the raw data")
-    parser.add_argument('--wells', '-w', action='append', default=None)
+    parser.add_argument('--wells', '-w', nargs='+', default=None)
     parser.add_argument('--output', '-o', default=None)
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--percentage_to_remove', default=0, type=float)
@@ -60,11 +61,7 @@ def main():
         args.output = os.path.join('output', f"output-{uuid.uuid4()}")
 
     if len(args.protocols) == 0:
-        default_protocol_list = ["sis", "longap", "rtovmaxdiff", "rvotmaxdiff", "spacefill10",
-                                 "spacefill19", "spacefill26", "hhsobol3step", "hhbrute3gstep",
-                                 "wangsobol3step", "wangbrute3gstep"]
-
-        args.protocols = default_protocol_list
+        args.protocols = protocol_chrono_order
 
     output = os.path.join(args.output, f"subtract_leak_{args.extra_points[0]}_{args.extra_points[1]}")
 

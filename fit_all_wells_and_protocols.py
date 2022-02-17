@@ -176,7 +176,7 @@ def main():
             all_models_ax.legend()
             all_models_fig.savefig(os.path.join(sub_dir, "all_fits.png"))
             all_models_ax.cla()
-            all_models_ax.plot(times, data, label='data')
+            all_models_ax.plot(times, data, color='grey', linestyle='--', label='data')
 
     predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
                                                                      'validation_protocol',
