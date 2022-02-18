@@ -673,19 +673,9 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None, o
         # Now plot current vs voltage
         plt.plot(voltages, current, 'x', markersize=2, color='grey')
 
-        fig2 = plt.figure(figsize=(16, 12))
-        axs = fig2.subplots(2)
-
-        axs[0].plot(orig_times, [protocol_func(t) for t in orig_times])
-        axs[1].plot(orig_times, orig_current)
-
-        axs[0].axvspan(times[0], times[-1], alpha=0.5, color='red')
-        axs[1].axvspan(times[0], times[-1], alpha=0.5, color='red')
-
         if output_path is not None:
             fig = ax.figure
             fig.savefig(output_path)
-            fig2.savefig(output_path + "_times_used")
 
     roots = np.unique([np.real(root) for root in fitted_poly.roots()
                        if root > np.min(voltages) and root < np.max(voltages)])
@@ -696,10 +686,9 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None, o
     if len(roots) == 0:
         return np.nan
 
-    print(fitted_poly.deriv())
     deriv = fitted_poly.deriv()(roots[-1])
 
-    if deriv > 0:
+    if deriv < 0:
         return np.nan
 
     return roots[-1]
