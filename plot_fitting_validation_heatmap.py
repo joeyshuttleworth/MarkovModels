@@ -8,6 +8,19 @@ import seaborn as sns
 import argparse
 import matplotlib.pyplot as plt
 
+protocol_chrono_order = ['staircaseramp1',
+                         'sis',
+                         'rtovmaxdiff',
+                         'rvotmaxdiff',
+                         'spacefill10',
+                         'spacefill19',
+                         'spacefill26',
+                         'longap',
+                         'hhbrute3gstep',
+                         'hhsobol3step',
+                         'wangbrute3gstep',
+                         'wangsobol3step',
+                         'staircaseramp2']
 
 def main():
     description = ""
@@ -22,6 +35,11 @@ def main():
     args = parser.parse_args()
     df = pd.read_csv(args.input_file)
     df = df.drop_duplicates(subset=['well', 'fitting_protocol', 'validation_protocol'], keep='first')
+
+    # Set order of protocols
+    df['fitting_protocol'] = pd.Categorical(df['fitting_protocol'], protocol_chrono_order)
+    df['validation_protocol'] = pd.Categorical(df['validation_protocol'], protocol_chrono_order)
+
 
     fig = plt.figure(figsize=(14, 10))
 
