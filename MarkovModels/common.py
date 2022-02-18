@@ -16,6 +16,7 @@ from numba import njit
 import subprocess
 import sys
 import datetime
+import numpy.polynomial.polynomial as poly
 
 
 def get_protocol_directory():
@@ -633,6 +634,9 @@ def get_all_wells_in_directory(data_dir, regex="^newtonrun4-([a-z|A-Z|0-9]*)-([A
 
 def infer_reversal_potential(protocol: str, current: np.array, times, ax=None, output_path=None, plot=False):
 
+    orig_times = times
+    orig_current = current
+
     if ax or output_path:
         plot = True
 
@@ -656,25 +660,49 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None, o
 
     voltages = np.array([protocol_func(t) for t in times])
 
-    fitted_poly = np.polyfit(current, voltages, 6)
-    fitted_poly_func = np.poly1d(fitted_poly)
+    fitted_poly = poly.Polynomial.fit(voltages, current, 4)
 
     if plot:
         if ax is None:
             fig = plt.figure()
             ax = fig.subplots()
 
-        ax.plot(fitted_poly_func(current), current)
+        ax.plot(*fitted_poly.linspace())
         ax.set_xlabel('voltage mV')
         ax.set_ylabel('current nA')
         # Now plot current vs voltage
         plt.plot(voltages, current, 'x', markersize=2, color='grey')
 
+        fig2 = plt.figure(figsize=(16, 12))
+        axs = fig2.subplots(2)
+
+        axs[0].plot(orig_times, [protocol_func(t) for t in orig_times])
+        axs[1].plot(orig_times, orig_current)
+
+        axs[0].axvspan(times[0], times[-1], alpha=0.5, color='red')
+        axs[1].axvspan(times[0], times[-1], alpha=0.5, color='red')
+
         if output_path is not None:
             fig = ax.figure
             fig.savefig(output_path)
+            fig2.savefig(output_path + "_times_used")
 
-    return fitted_poly_func(0)
+    roots = np.unique([np.real(root) for root in fitted_poly.roots()
+                       if root > np.min(voltages) and root < np.max(voltages)])
+
+    # It makes sense to take the last root. This should be the first time that
+    # the current crosses 0 and where the ion-channel kinetics are too slow to
+    # play a role
+    if len(roots) == 0:
+        return np.nan
+
+    print(fitted_poly.deriv())
+    deriv = fitted_poly.deriv()(roots[-1])
+
+    if deriv > 0:
+        return np.nan
+
+    return roots[-1]
 
 
 def get_git_revision_hash() -> str:

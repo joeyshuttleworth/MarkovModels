@@ -166,6 +166,7 @@ def fit(model, values, times, N=3):
 
 def fit_leak_lr(staircase_protocol, current, percentage_to_remove=0, V_full=[-120, -80],
                 ramp_start=300, ramp_end=700, dt=1e-1, extra_points=[]):
+
     # Fitting leak during the first ramp in staircaseramp prt
     #
     # staircase_protocol: full staircase ramp protocol

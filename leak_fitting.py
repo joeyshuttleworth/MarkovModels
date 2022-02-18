@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
-import common
+from MarkovModels import common
 import logging
 import os
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from MarkovModel import MarkovModel
-from BeattieModel import BeattieModel
+from MarkovModels import MarkovModel
+from MarkovModels import BeattieModel
 from quality_control.leak_fit import fit_leak_lr
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
@@ -31,24 +31,21 @@ def main():
     parser = argparse.ArgumentParser(description)
 
     parser.add_argument('data_directory', type=str, help="path to the directory containing the raw data")
-    parser.add_argument('--wells', '-w', action='append', default=None)
-    parser.add_argument('--output', '-o', default='output')
+    parser.add_argument('--wells', '-w', nargs='+', default=None)
+    parser.add_argument('--output', '-o', default=None)
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--percentage_to_remove', default=0, type=float)
     parser.add_argument('-e', '--extra_points', nargs=2, default=(0, 0), type=int)
     parser.add_argument('--plot', '-p', action="store_true")
 
     args = parser.parse_args()
-    # args.extra_points = 0
 
     if len(args.protocols) == 0:
         default_protocol_list = ["sis", "longap", "rtovmaxdiff", "rvotmaxdiff", "spacefill10",
                                  "spacefill19", "spacefill26", "hhsobol3step", "hhbrute3gstep", "wangsobol3step", "wangbrute3gstep"]
         args.protocols = default_protocol_list
 
-    output_dir = os.path.join(args.output, f"leak_fitting_{args.percentage_to_remove:.0f}_{args.extra_points}")
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    output_dir = common.setup_output_directory(args.output, f"leak_fitting_{args.percentage_to_remove:.0f}_{args.extra_points}")
 
     if args.wells is None:
         args.wells = get_wells_list(args.data_directory)
@@ -88,12 +85,12 @@ def main():
             before_trace = pd.read_csv(os.path.join(args.data_directory, before_filename)).values.flatten()
             after_trace = pd.read_csv(os.path.join(args.data_directory, after_filename)).values.flatten()
             df.append([f"{protocol}", "before", well] + list(fit_leak_lr(protocol_voltages, before_trace,
-                      dt=5e-4, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps))[0:5])
+                      dt=t_step, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps))[0:5])
             df.append([f"{protocol}", "after", well] + list(fit_leak_lr(protocol_voltages, after_trace,
-                      dt=5e-4, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps))[0:5])
+                      dt=t_step, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps))[0:5])
 
             g_leak, E_leak, _, s_alpha, s_beta, x, y = fit_leak_lr(
-                protocol_voltages, before_trace, dt=dt, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
+                protocol_voltages, before_trace, dt=t_step, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
             before_leak_current = (protocol_voltages - E_leak) * g_leak
             fit_axs[2].scatter(x, y, marker='s', color='grey', s=2)
             n = len(x)
@@ -118,7 +115,7 @@ def main():
             fit_axs[2].set_xlabel("voltage mV")
             fit_axs[2].set_ylabel("before current")
             g_leak, E_leak, _, s_alpha, s_beta, x, y = fit_leak_lr(
-                protocol_voltages, after_trace, dt=dt, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
+                protocol_voltages, after_trace, dt=t_step, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
             predictions = (xpred - E_leak) * g_leak
             msres = (((x - E_leak) * g_leak - y)**2 / (n - 2)).sum()
             confidence_region = np.sqrt(msres * (1 / n + (xpred - x.mean())**2 / ((x**2).sum())))

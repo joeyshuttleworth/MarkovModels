@@ -54,6 +54,7 @@ def main():
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--percentage_to_remove', default=0, type=float)
     parser.add_argument('-e', '--extra_points', nargs=2, default=(0, 0), type=int)
+    parser.add_argument('--selection_file', default=None, type=str)
 
     args = parser.parse_args()
 
@@ -70,6 +71,11 @@ def main():
 
     if args.wells is None:
         args.wells = get_wells_list(args.data_directory)
+
+    if args.selection_file is not None:
+        with open(args.selection_file) as fin:
+            selected_wells = fin.read().splitlines()
+        args.wells = [well for well in args.wells if well in selected_wells]
 
     print(args.wells, args.protocols)
 
@@ -88,14 +94,13 @@ def main():
 
     for well in args.wells:
         for protocol in args.protocols:
-            protocol_func, t_start, t_end, t_step = common.get_protocol_from_csv(protocol)
+            protocol_func, t_start, t_end, _ = common.get_protocol_from_csv(protocol)
             observation_times = pd.read_csv(os.path.join(
                 args.data_directory, f"newtonrun4-{protocol}-times.csv")).values.flatten() * 1e3
-            dt = (observation_times[1] - observation_times[0])
-            extra_points = [int(val / dt) for val in args.extra_points]
             protocol_voltages = np.array([protocol_func(t) for t in observation_times])
-
             dt = observation_times[1] - observation_times[0]
+
+            extra_points = [int(val / dt) for val in args.extra_points]
 
             # Find first few steps where voltage is big
             if args.extra_points[1] > 0:
@@ -110,10 +115,27 @@ def main():
             before_trace = pd.read_csv(os.path.join(args.data_directory, before_filename)).values.flatten()
             after_trace = pd.read_csv(os.path.join(args.data_directory, after_filename)).values.flatten()
 
-            g_leak_before, E_leak_before, _, _, _, _, _ = fit_leak_lr(
-                protocol_voltages, before_trace, dt=dt, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
-            g_leak_after, E_leak_after, _, _, _, _, _ = fit_leak_lr(
-                protocol_voltages, after_trace, dt=dt, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
+            g_leak_before, E_leak_before, _, _, _, x, y = fit_leak_lr(
+                protocol_voltages, before_trace, dt=dt,
+                percentage_to_remove=args.percentage_to_remove,
+                extra_points=extra_steps)
+
+            n = len(x)
+
+            msres = (((x - E_leak_before) * g_leak_before - y)**2 / (n - 2)).sum()
+            sd = np.sqrt(msres * (1 / n + (x - x.mean())**2 / ((x**2).sum())))
+            before_sd = sd[-1]
+
+            g_leak_after, E_leak_after, _, _, _, x, y = fit_leak_lr(
+                protocol_voltages, after_trace, dt=dt,
+                percentage_to_remove=args.percentage_to_remove,
+                extra_points=extra_steps)
+
+            n = len(x)
+
+            msres = (((x - E_leak_before) * g_leak_before - y)**2 / (n - 2)).sum()
+            sd = np.sqrt(msres * (1 / n + (x - x.mean())**2 / ((x**2).sum())))
+            after_sd = sd[-1]
 
             before_subtracted = before_trace - (g_leak_before * (protocol_voltages - E_leak_before))
             after_subtracted = after_trace - (g_leak_after * (protocol_voltages - E_leak_after))
@@ -145,38 +167,23 @@ def main():
             # Ignore first few timesteps
             first_step_indices = lst[10:-10]
 
-            xpred = np.linspace(-120, 40, 1000)
-
-            g_leak, E_leak, _, _, _, x, y = fit_leak_lr(
-                protocol_voltages, before_trace, dt=dt, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
-            n = len(x)
-            before_leak_current = (protocol_voltages - E_leak) * g_leak
-            predictions = (xpred - E_leak) * g_leak
-            msres = (((x - E_leak) * g_leak - y)**2 / (n - 2)).sum()
-            sd = np.sqrt(msres * (1 / n + (x - x.mean())**2 / ((x**2).sum())))
-            before_sd = sd[-1]
-
-            g_leak, E_leak, _, _, _, x, y = fit_leak_lr(
-                protocol_voltages, after_trace, dt=dt, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
-            after_leak_current = (protocol_voltages - E_leak) * g_leak
-            before_leak_current = (protocol_voltages - E_leak) * g_leak
-            predictions = (xpred - E_leak) * g_leak
-            msres = (((x - E_leak) * g_leak - y)**2 / (n - 2)).sum()
-            sd = np.sqrt(msres * (1 / n + (x - x.mean())**2 / ((x**2).sum())))
-            after_mean = predictions[-1]
-            after_sd = sd[-1]
-
-            window = list(range(int(1 / dt)))
             axs[0].plot(observation_times, before_trace)
+            axs[0].plot(observation_times, g_leak_before * (protocol_voltages - E_leak_before), label='fitted leak current')
             axs[0].set_title("Before drug raw trace")
+
             axs[1].plot(observation_times, after_trace)
+            axs[1].plot(observation_times, g_leak_after * (protocol_voltages - E_leak_after), label='fitted leak current')
             axs[1].set_title("After drug raw trace")
+
             axs[2].plot(observation_times, before_subtracted)
             axs[2].set_title("Before drug leak_corrected trace")
+
             axs[3].plot(observation_times, after_subtracted)
-            axs[2].set_title("After drug leak_corrected trace")
+            axs[3].set_title("After drug leak_corrected trace")
+
             axs[4].plot(observation_times, subtracted_trace)
             axs[4].set_title("Subtracted trace")
+
             axs[5].plot(observation_times, protocol_voltages)
             axs[5].set_title("Voltage protocol")
 
@@ -186,6 +193,7 @@ def main():
             axs[5].set_ylabel(f"Voltage /mV")
             axs[5].set_xlabel("time /ms")
 
+            fig.tight_layout()
             fig.savefig(os.path.join(output, f"{well}_{protocol}_traces_from_leak_subtraction"))
             for ax in axs:
                 ax.cla()
