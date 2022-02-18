@@ -307,7 +307,7 @@ def main():
         sub_output_dir = os.path.join(output_dir, f"{voltage}mV")
         if not os.path.exists(sub_output_dir):
             os.makedirs(sub_output_dir)
-        for i, cov, in enumerate(covs)[0:20]:
+        for i, cov, in enumerate(covs[0:20]):
             # Normal approximation first
             a_inf, tau_a, r_inf, tau_r, gkr = monte_carlo_tau_inf(
                 params, cov, voltage=voltage, n_samples=args.no_samples)
