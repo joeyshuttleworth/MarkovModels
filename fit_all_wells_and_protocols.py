@@ -115,17 +115,12 @@ def main():
         model.voltage = prot_func
         times = pd.read_csv(os.path.join(args.data_directory, f"newtonrun4-{sim_protocol}-times.csv"))['time'].values.flatten()
 
-        print(times)
-
-        data = common.get_data(well, sim_protocol, args.data_directory)
-
         Erev = common.infer_reversal_potential(sim_protocol, data, times)
 
         voltages = np.array([prot_func(t) for t in times])
         spikes, _ = common.detect_spikes(times, voltages, 10)
         times, _, indices = common.remove_spikes(times, voltages, spikes, args.removal_duration)
         voltages = voltages[indices]
-        data = data[indices]
 
         model = BeattieModel(prot_func,
                              times=times,
@@ -135,6 +130,9 @@ def main():
         solver = model.make_forward_solver_current(njitted=True)
 
         for well in params_df['well'].unique():
+            data = common.get_data(well, sim_protocol, args.data_directory)
+            data = data[indices]
+
             for protocol_fitted in params_df['protocol'].unique():
                 df = params_df[params_df.well == well]
                 df = df[df.protocol == protocol_fitted]
@@ -175,6 +173,9 @@ def main():
             all_models_ax.set_ylabel("current / nA")
             all_models_ax.plot(times, data, color='grey', alpha=0.5, label='data')
             all_models_ax.legend()
+            all_models_ax.set_title(f"{well} {sim_protocol} fits comparison")
+            all_models_ax.set_xlabel(f"Time /ms")
+            all_models_ax.set_ylabel(f"Current / nA")
             all_models_fig.savefig(os.path.join(sub_dir, "all_fits.png"))
             all_models_ax.cla()
 
