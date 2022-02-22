@@ -112,12 +112,12 @@ def main():
     for sim_protocol in np.unique(protocols_list):
         prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
         model.voltage = prot_func
-        times = pd.read_csv(os.path.join(args.data_directory,
+        full_times = pd.read_csv(os.path.join(args.data_directory,
                                          f"newtonrun4-{sim_protocol}-times.csv"))['time'].values.flatten()
 
-        voltages = np.array([prot_func(t) for t in times])
-        spikes, _ = common.detect_spikes(times, voltages, 10)
-        times, _, indices = common.remove_spikes(times, voltages, spikes, args.removal_duration)
+        voltages = np.array([prot_func(t) for t in full_times])
+        spikes, _ = common.detect_spikes(full_times, voltages, 10)
+        times, _, indices = common.remove_spikes(ful_times, voltages, spikes, args.removal_duration)
         voltages = voltages[indices]
 
         model = BeattieModel(prot_func,
@@ -125,12 +125,12 @@ def main():
                              Erev=Erev)
 
         for well in params_df['well'].unique():
-            data = common.get_data(well, sim_protocol, args.data_directory)
-            data = data[indices]
+            full_data = common.get_data(well, sim_protocol, args.data_directory)
+            data = full_data[indices]
 
             # Probably not worth compiling solver
             model.protocol_description = desc
-            Erev = common.infer_reversal_potential(sim_protocol, data, times)
+            Erev = common.infer_reversal_potential(sim_protocol, full_data, full_times)
             solver = model.make_forward_solver_current(njitted=False)
 
             for protocol_fitted in params_df['protocol'].unique():
