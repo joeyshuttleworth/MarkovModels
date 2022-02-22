@@ -117,7 +117,7 @@ def main():
 
         voltages = np.array([prot_func(t) for t in full_times])
         spikes, _ = common.detect_spikes(full_times, voltages, 10)
-        times, _, indices = common.remove_spikes(ful_times, voltages, spikes, args.removal_duration)
+        times, _, indices = common.remove_spikes(full_times, voltages, spikes, args.removal_duration)
         voltages = voltages[indices]
 
         model = BeattieModel(prot_func,
