@@ -10,6 +10,8 @@ import os
 import pandas as pd
 import numpy as np
 
+param_labels = BeattieModel().parameter_labels + ['E_Kr']
+
 
 def fit_func(protocol, well):
     default_parameters = None
@@ -24,12 +26,14 @@ def fit_func(protocol, well):
     if params is None or len(params) == 0:
         return None
     print(params, scores)
-    params, scores = np.array([(param, score)
-                               for param, score in zip(params, scores)
-                               if np.isfinite(score)],
-                              dtype=object).T
-    print(params)
-    return params[np.argmin(scores)].flatten()
+
+    fits_df = pd.DataFrame(np.column_stack((scores, params)),
+                           columns=['score']+param_labels)
+
+    fits_df['well'] = well
+    fits_df['protocol'] = protocol
+
+    return fits_df
 
 def main():
     Erev = common.calculate_reversal_potential(T=298, K_in=120, K_out=5)
@@ -83,22 +87,23 @@ def main():
 
     protocols_list = np.unique(protocols_list)
 
-    params = pool.starmap(fit_func, tasks)
-    fitted_params_list = np.row_stack(params)
+    fitting_df = pd.concat(pool.starmap(fit_func, tasks), ignore_index=True)
+    print("=============\nfinished fitting\n=============")
 
     wells_rep = [task[1] for task in tasks]
     protocols_rep = [task[0] for task in tasks]
 
-    # Reversal potential added to back of parameter vector
-    param_names = ['p%i' % i for i in range(1, 9)] + ['g_kr', 'E_rev']
+    best_param_locs = []
+    for protocol in np.unique(protocols_list):
+        for well in np.unique(wells_rep):
+            sub_df = fitting_df[(fitting_df['well'] == well)
+                                & (fitting_df['protocol'] == protocol)]
 
-    params_df = pd.DataFrame(fitted_params_list, columns=param_names)
-    print(params_df)
+            # Get index of min score
+            best_param_locs.append(sub_df.score.idxmin())
 
-    params_df['well'] = wells_rep
-    params_df['protocol'] = protocols_rep
 
-    print("=============\nfinished fitting\n=============")
+    params_df = fitting_df.loc[best_param_locs]
 
     model = BeattieModel()
     predictions_df = []
@@ -140,8 +145,9 @@ def main():
                 if df.empty:
                     continue
 
-                row = df.values
-                params = row[0, 0:-3].astype(np.float64)
+                params = df.iloc[0][param_labels[:-1]].values\
+                                                      .astype(np.float64)\
+                                                      .flatten()
 
                 sub_dir = os.path.join(output_dir, f"{well}_{sim_protocol}_predictions")
                 if not os.path.exists(sub_dir):
@@ -154,7 +160,6 @@ def main():
 
                 RMSE = np.sqrt(np.mean((data - prediction)**2))
                 predictions_df.append((well, protocol_fitted, sim_protocol, RMSE))
-
 
                 # Output trace
                 if np.isfinite(prediction).all():
@@ -183,7 +188,6 @@ def main():
                                                                      'validation_protocol',
                                                                      'RMSE'])
     print(predictions_df)
-
     predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
 
 
