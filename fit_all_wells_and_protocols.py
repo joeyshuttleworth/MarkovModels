@@ -92,25 +92,24 @@ def main():
     fitting_df = pd.concat(pool.starmap(fit_func, tasks))
     print("=============\nfinished fitting\n=============")
 
-    # Select best params
-    fitted_params_list = []
-
     wells_rep = [task[1] for task in tasks]
     protocols_rep = [task[0] for task in tasks]
 
+    best_param_locs = []
     for protocol in np.unique(protocols_list):
         for well in np.unique(wells_rep):
             sub_df = fitting_df[(fitting_df['well'] == well)
                                 & (fitting_df['protocol'] == protocol)].sort_values('score')
-            fitted_params_list.append(sub_df.head(1)[param_labels + ['score']].values.flatten())
+
+            # Get min score
+            best_param_locs.append(sub_df.score.idxmin())
 
 
     print(fitting_df)
-    params_df = pd.DataFrame(fitted_params_list, columns=param_labels + ['score'])
-    print(params_df)
 
-    params_df['well'] = wells_rep
-    params_df['protocol'] = protocols_rep
+    params_df = fitting_df.iloc[best_param_locs]
+
+    print(params_df)
 
     model = BeattieModel()
     predictions_df = []
