@@ -102,7 +102,7 @@ def main():
         for well in np.unique(wells_rep):
             sub_df = fitting_df[(fitting_df['well'] == well)
                                 & (fitting_df['protocol'] == protocol)].sort_values('score')
-            fitted_params_list.append(np.flatten(sub_df.head(1)[param_labels]))
+            fitted_params_list.append(sub_df.head(1)[param_labels].values.flatten())
 
     # Reversal potential added to back of parameter vector
     param_names = ['p%i' % i for i in range(1, 9)] + ['g_kr', 'E_rev']
