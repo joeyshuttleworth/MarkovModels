@@ -106,7 +106,7 @@ def main():
             fitted_params_list.append(sub_df.head(1)[param_labels].values.flatten())
 
 
-    print(fitting_df
+    print(fitting_df)
     params_df = pd.DataFrame(fitted_params_list, columns=param_labels + ['score'])
     print(params_df)
 
