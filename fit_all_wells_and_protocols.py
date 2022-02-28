@@ -28,7 +28,7 @@ def fit_func(protocol, well):
     print(params, scores)
 
     fits_df = pd.DataFrame(np.column_stack((scores, params)),
-                           columns=['score']+param_labels).sort(by='score')
+                           columns=['score']+param_labels).sort_values(by='score')
 
     return fits_df
 
@@ -98,7 +98,7 @@ def main():
     for protocol in np.unique(protocols_list):
         for well in np.unqiqe(wells_rep):
             sub_df = fitting_df[fitting_df.well == well
-                                and fitting_df.protocol == protocol].sort('score')
+                                and fitting_df.protocol == protocol].sort_values('score')
             fitted_params_list.append(np.flatten(sub_df.head(1)[param_labels]))
 
     # Reversal potential added to back of parameter vector
