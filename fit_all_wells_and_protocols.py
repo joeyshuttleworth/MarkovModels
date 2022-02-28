@@ -96,7 +96,7 @@ def main():
     protocols_rep = [task[0] for task in tasks]
 
     for protocol in np.unique(protocols_list):
-        for well in np.unqiqe(wells_rep):
+        for well in np.unique(wells_rep):
             sub_df = fitting_df[fitting_df.well == well
                                 and fitting_df.protocol == protocol].sort_values('score')
             fitted_params_list.append(np.flatten(sub_df.head(1)[param_labels]))
