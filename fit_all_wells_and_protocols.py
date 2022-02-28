@@ -27,8 +27,8 @@ def fit_func(protocol, well):
 
     param_labels = BeattieModel().parameter_labels
 
-    fits_df = pd.DataFrame(np.column_stack((scores, params),
-                                           columns=['score']+param_labels)).sort(by='score')
+    fits_df = pd.DataFrame(np.column_stack((scores, params)),
+                           columns=['score']+param_labels).sort(by='score')
 
     return fits_df
 
