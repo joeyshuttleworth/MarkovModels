@@ -49,8 +49,6 @@ def main():
     parser.add_argument('--removal_duration', '-r', default=5, type=int)
     parser.add_argument('--cores', '-c', default=1, type=int)
 
-    param_labels = BeattieModel().parameter_labels
-
     global args
     args = parser.parse_args()
 
@@ -105,13 +103,7 @@ def main():
             best_param_locs.append(sub_df.score.idxmin())
 
 
-    print(fitting_df)
-
-    print(best_param_locs)
-
     params_df = fitting_df.loc[best_param_locs]
-
-    print(params_df)
 
     model = BeattieModel()
     predictions_df = []
@@ -153,7 +145,9 @@ def main():
                 if df.empty:
                     continue
 
-                params = df.iloc[0][param_labels[:-1]].values.astype(np.float64).flatten()
+                params = df.iloc[0][param_labels[:-1]].values\
+                                                      .astype(np.float64)\
+                                                      .flatten()
 
                 sub_dir = os.path.join(output_dir, f"{well}_{sim_protocol}_predictions")
                 if not os.path.exists(sub_dir):
@@ -166,7 +160,6 @@ def main():
 
                 RMSE = np.sqrt(np.mean((data - prediction)**2))
                 predictions_df.append((well, protocol_fitted, sim_protocol, RMSE))
-
 
                 # Output trace
                 if np.isfinite(prediction).all():
@@ -195,7 +188,6 @@ def main():
                                                                      'validation_protocol',
                                                                      'RMSE'])
     print(predictions_df)
-
     predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
 
 
