@@ -28,7 +28,7 @@ def fit_func(protocol, well):
     print(params, scores)
 
     fits_df = pd.DataFrame(np.column_stack((scores, params)),
-                           columns=['score']+param_labels).sort_values(by='score')
+                           columns=['score']+param_labels)
 
     fits_df['well'] = well
     fits_df['protocol'] = protocol
@@ -89,7 +89,7 @@ def main():
 
     protocols_list = np.unique(protocols_list)
 
-    fitting_df = pd.concat(pool.starmap(fit_func, tasks))
+    fitting_df = pd.concat(pool.starmap(fit_func, tasks), ignore_index=True)
     print("=============\nfinished fitting\n=============")
 
     wells_rep = [task[1] for task in tasks]
@@ -101,7 +101,7 @@ def main():
             sub_df = fitting_df[(fitting_df['well'] == well)
                                 & (fitting_df['protocol'] == protocol)]
 
-            # Get min score
+            # Get index of min score
             best_param_locs.append(sub_df.score.idxmin())
 
 
