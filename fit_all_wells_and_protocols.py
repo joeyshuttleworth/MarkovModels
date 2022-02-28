@@ -24,12 +24,13 @@ def fit_func(protocol, well):
     if params is None or len(params) == 0:
         return None
     print(params, scores)
-    params, scores = np.array([(param, score)
-                               for param, score in zip(params, scores)
-                               if np.isfinite(score)],
-                              dtype=object).T
-    print(params)
-    return params[np.argmin(scores)].flatten()
+
+    param_labels = BeattieModel().parameter_labels
+
+    fits_df = pd.DataFrame(np.column_stack((scores, params),
+                                           columns=['score']+param_labels)).sort(by='score')
+
+    return fits_df
 
 def main():
     Erev = common.calculate_reversal_potential(T=298, K_in=120, K_out=5)
@@ -44,6 +45,8 @@ def main():
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--removal_duration', '-r', default=5, type=int)
     parser.add_argument('--cores', '-c', default=1, type=int)
+
+    param_labels = BeattieModel().parameter_labels
 
     global args
     args = parser.parse_args()
@@ -83,11 +86,20 @@ def main():
 
     protocols_list = np.unique(protocols_list)
 
-    params = pool.starmap(fit_func, tasks)
-    fitted_params_list = np.row_stack(params)
+    fitting_df = pd.concat(pool.starmap(fit_func, tasks))
+    print("=============\nfinished fitting\n=============")
+
+    # Select best params
+    fitted_params_list = []
 
     wells_rep = [task[1] for task in tasks]
     protocols_rep = [task[0] for task in tasks]
+
+    for protocol in np.unique(protocols_list):
+        for well in np.unqiqe(wells_rep):
+            sub_df = fitting_df[fitting_df.well == well
+                                and fitting_df.protocol == protocol].sort('score')
+            fitted_params_list.append(np.flatten(sub_df.head(1)[param_labels]))
 
     # Reversal potential added to back of parameter vector
     param_names = ['p%i' % i for i in range(1, 9)] + ['g_kr', 'E_rev']
@@ -97,8 +109,6 @@ def main():
 
     params_df['well'] = wells_rep
     params_df['protocol'] = protocols_rep
-
-    print("=============\nfinished fitting\n=============")
 
     model = BeattieModel()
     predictions_df = []
