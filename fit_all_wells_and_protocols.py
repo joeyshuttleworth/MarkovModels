@@ -102,7 +102,7 @@ def main():
         for well in np.unique(wells_rep):
             sub_df = fitting_df[(fitting_df['well'] == well)
                                 & (fitting_df['protocol'] == protocol)].sort_values('score')
-            fitted_params_list.append(sub_df.head(1)[param_labels + 'score'].values.flatten())
+            fitted_params_list.append(sub_df.head(1)[param_labels + ['score']].values.flatten())
 
 
     print(fitting_df)
