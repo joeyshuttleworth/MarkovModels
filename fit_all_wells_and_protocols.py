@@ -10,6 +10,8 @@ import os
 import pandas as pd
 import numpy as np
 
+param_labels = BeattieModel().parameter_labels + ['E_Kr']
+
 
 def fit_func(protocol, well):
     default_parameters = None
@@ -24,8 +26,6 @@ def fit_func(protocol, well):
     if params is None or len(params) == 0:
         return None
     print(params, scores)
-
-    param_labels = BeattieModel().parameter_labels
 
     fits_df = pd.DataFrame(np.column_stack((scores, params)),
                            columns=['score']+param_labels).sort(by='score')
