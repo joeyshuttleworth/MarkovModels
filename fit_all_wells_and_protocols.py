@@ -99,7 +99,7 @@ def main():
     for protocol in np.unique(protocols_list):
         for well in np.unique(wells_rep):
             sub_df = fitting_df[(fitting_df['well'] == well)
-                                & (fitting_df['protocol'] == protocol)].sort_values('score')
+                                & (fitting_df['protocol'] == protocol)]
 
             # Get min score
             best_param_locs.append(sub_df.score.idxmin())
@@ -107,7 +107,9 @@ def main():
 
     print(fitting_df)
 
-    params_df = fitting_df.iloc[best_param_locs]
+    print(best_param_locs)
+
+    params_df = fitting_df.loc[best_param_locs]
 
     print(params_df)
 
