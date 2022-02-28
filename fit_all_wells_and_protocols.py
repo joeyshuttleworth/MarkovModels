@@ -32,6 +32,7 @@ def fit_func(protocol, well):
 
     fits_df['well'] = well
     fits_df['protocol'] = protocol
+    fits_df['SSE']
 
     return fits_df
 
@@ -104,10 +105,9 @@ def main():
                                 & (fitting_df['protocol'] == protocol)].sort_values('score')
             fitted_params_list.append(sub_df.head(1)[param_labels].values.flatten())
 
-    # Reversal potential added to back of parameter vector
-    param_names = ['p%i' % i for i in range(1, 9)] + ['g_kr', 'E_rev']
 
-    params_df = pd.DataFrame(fitted_params_list, columns=param_names)
+    print(fitting_df
+    params_df = pd.DataFrame(fitted_params_list, columns=param_labels + ['score'])
     print(params_df)
 
     params_df['well'] = wells_rep
