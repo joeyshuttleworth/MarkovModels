@@ -30,6 +30,9 @@ def fit_func(protocol, well):
     fits_df = pd.DataFrame(np.column_stack((scores, params)),
                            columns=['score']+param_labels).sort_values(by='score')
 
+    fits_df['well'] = well
+    fits_df['protocol'] = protocol
+
     return fits_df
 
 def main():
