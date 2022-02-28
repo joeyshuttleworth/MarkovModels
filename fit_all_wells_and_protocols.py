@@ -100,8 +100,8 @@ def main():
 
     for protocol in np.unique(protocols_list):
         for well in np.unique(wells_rep):
-            sub_df = fitting_df[fitting_df.well == well
-                                and fitting_df.protocol == protocol].sort_values('score')
+            sub_df = fitting_df[fitting_df['well'] == well
+                                & fitting_df['protocol'] == protocol].sort_values('score')
             fitted_params_list.append(np.flatten(sub_df.head(1)[param_labels]))
 
     # Reversal potential added to back of parameter vector
