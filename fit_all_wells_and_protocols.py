@@ -153,8 +153,7 @@ def main():
                 if df.empty:
                     continue
 
-                row = df.values
-                params = row[0, 0:-3].astype(np.float64)
+                params = df.iloc[0][param_labels[:-1].astype(np.float64).flatten()
 
                 sub_dir = os.path.join(output_dir, f"{well}_{sim_protocol}_predictions")
                 if not os.path.exists(sub_dir):
