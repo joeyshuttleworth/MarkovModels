@@ -72,6 +72,7 @@ def main():
 
     full_times = times
     Erev = common.calculate_reversal_potential(310.15)
+    print(f"Reversal potential is {Erev}")
 
     if args.linear_model:
         model = LinearModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
@@ -150,11 +151,11 @@ def main():
             ax.cla()
 
         H = S1[indices, :].T @ S1[indices, :]
-
-        D_optimalities.append(np.linalg.det(H))
-        A_optimalities.append(np.trace(H))
-
         H_inv = np.linalg.inv(H)
+
+        D_optimalities.append(np.linalg.det(H_inv))
+        A_optimalities.append(np.trace(H_inv))
+
         G_optimalities.append(np.sum(
             np.apply_along_axis(
                 lambda row: row @ H_inv @ row.T,
@@ -178,7 +179,7 @@ def main():
 
         logging.info("Finished drawing heatmaps")
 
-    for time_to_remove, cov in zip(spike_removal_durations, covs):
+    for time_to_remove, cov in zip(spike_removal_durations, covs)[0:10]:
         plot_sample_trajectories(solver, full_times, voltages, time_to_remove, params, cov, sample_axs,
                                  args.no_samples, spike_indices)
         sample_fig.savefig(os.path.join(output_dir, f"sample_trajectories_{time_to_remove:.2f}.png"))
@@ -197,25 +198,25 @@ def main():
                                        # Bayesian_D_optimalities,
                                        np.log(D_optimalities),
                                        np.log(A_optimalities),
-                                       np.log(A_optimalities))),
+                                       np.log(G_optimalities))),
                       columns=('time removed after spikes /ms',
                                # "Bayesian D-optimality",
                                "normalised log D-optimality",
                                "normalised log A-optimality",
-                               "normalised log G-optimality"))
+                               "normalised log I-optimality"))
 
     df.set_index('time removed after spikes /ms', inplace=True)
 
     df.plot(legend=True, subplots=True)
 
     fig = plt.gcf()
+    print("plotting criteria")
     fig.savefig(os.path.join(output_dir, "criteria.pdf"))
 
     conf_fig = plt.figure(figsize=(16, 12))
     conf_axs = conf_fig.subplots(2)
 
     labels = [f"{duration:.2f}ms removed" for duration in spike_removal_durations[::4]]
-    region_covs = covs if args.short else covs[::4]
     plot_regions(covs[::4], labels, params, output_dir,
                  spike_removal_durations, conf_fig, conf_axs, sigma2, p_of_interest=(4, 6))
     plot_regions(covs[::4], labels, params, output_dir,
