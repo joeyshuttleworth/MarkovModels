@@ -32,7 +32,7 @@ def fit_func(protocol, well):
 
     fits_df['well'] = well
     fits_df['protocol'] = protocol
-    fits_df['SSE']
+    fits_df['SSE'] = scores
 
     return fits_df
 
