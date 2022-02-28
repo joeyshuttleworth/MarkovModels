@@ -29,6 +29,9 @@ def main():
     parser.add_argument("--output_dir", "-o", help="Directory to output plots to.\
     By default a new directory will be generated", default=None)
     parser.add_argument("--normalise_diagonal", action="store_true")
+    parser.add_argument("-s", "--sort", action='store_true')
+    parser.add_argument("--sort_wells", action='store_true')
+    parser.add_argument("-l", "--log_scale", action='store_true')
 
     parser.add_argument("--vmax", "-m", default=None, type=float)
 
@@ -36,10 +39,24 @@ def main():
     df = pd.read_csv(args.input_file)
     df = df.drop_duplicates(subset=['well', 'fitting_protocol', 'validation_protocol'], keep='first')
 
-    # Set order of protocols
-    df['fitting_protocol'] = pd.Categorical(df['fitting_protocol'], protocol_chrono_order)
-    df['validation_protocol'] = pd.Categorical(df['validation_protocol'], protocol_chrono_order)
+    if args.sort:
 
+        protocols = df['fitting_protocol'].unique()
+
+        # Rank protocols
+        def score(protocol):
+            return df[df.fitting_protocol == protocol]['RMSE'].sum()
+        scores = [score(protocol) for protocol in protocols]
+
+        order = protocols[np.argsort(scores)]
+        score_df = pd.DataFrame(np.column_stack((protocols, scores)), columns=('protocol', 'score'))
+        score_df['protocol'] = pd.Categorical(score_df['protocol'], order)
+
+        # Change order of protocols
+        df['fitting_protocol'] = pd.Categorical(df['fitting_protocol'], categories=order)
+        df['validation_protocol'] = pd.Categorical(df['validation_protocol'], categories=order)
+
+    order = protocol_chrono_order
 
     fig = plt.figure(figsize=(14, 10))
 
@@ -49,18 +66,45 @@ def main():
     # Iterate over wells for heatmap
     for well in df['well'].unique():
         ax = fig.subplots()
+
         sub_df = df[df.well == well].copy()
+        if args.sort_wells:
+
+            protocols = df['fitting_protocol'].unique()
+
+            # Rank protocols
+            def score(protocol):
+                return sub_df[sub_df.fitting_protocol == protocol]['RMSE'].sum()
+            scores = [score(protocol) for protocol in protocols]
+
+            order = protocols[np.argsort(scores)]
+            print(order)
+            score_df = pd.DataFrame(np.column_stack((protocols, scores)), columns=('protocol', 'score'))
+            score_df['protocol'] = pd.Categorical(score_df['protocol'], order)
+            print(f"well {well}\n", score_df)
+
+            # Change order of protocols
+            sub_df['fitting_protocol'] = pd.Categorical(sub_df['fitting_protocol'], categories=order)
+            sub_df['validation_protocol'] = pd.Categorical(sub_df['validation_protocol'], categories=order)
 
         if args.normalise_diagonal:
             index_df = sub_df.set_index(['fitting_protocol', 'validation_protocol'])
             diagonals = {protocol: index_df.loc[(protocol, protocol), 'RMSE'] for protocol in protocol_list}
-            sub_df['log normalised RMSE'] = [
-                np.log(row['RMSE'] /
-                       diagonals[row['validation_protocol']]) for _, row in sub_df.iterrows()]
-            value_col = 'log normalised RMSE'
-        else:
-            df['log RMSE'] = np.log(df['RMSE'])
+            sub_df['normalised RMSE'] = [
+                row['RMSE'] /
+                diagonals[row['validation_protocol']] for _, row in sub_df.iterrows()]
+            sub_df['log normalised RMSE']
+            if args.log_scale:
+                value_col = 'log normalised RMSE'
+            else:
+                value_col = 'normalised RMSE'
+
+        elif args.log_scale:
+            sub_df['log RMSE'] = np.log(sub_df['RMSE'])
             value_col = 'log RMSE'
+
+        else:
+            value_col = 'RMSE'
 
         pivot_df = sub_df.pivot(index='fitting_protocol', columns='validation_protocol',
                                 values=value_col)
@@ -69,7 +113,8 @@ def main():
 
         cmap = sns.cm.rocket_r
 
-        vmax = min(args.vmax, np.max(pivot_df.values))
+        vmax = min(args.vmax, np.max(pivot_df.values)) if args.vmax else None
+
         sns.heatmap(pivot_df, ax=ax, cbar_kws={'label': value_col}, vmin=None, vmax=vmax, cmap=cmap)
 
         ax.set_title(f"well {well}")
