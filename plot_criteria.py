@@ -390,7 +390,7 @@ def main():
 
         # Plot true values
         for k, val in enumerate(compute_tau_inf_from_params(params, voltage=voltage)):
-            ax.axvline(val, color='grey', linestyle='--')
+            axs[k].axvline(val, color='grey', linestyle='--')
 
         fig.savefig(os.path.join(output_dir, f"steady_state_prediction_comparison_{voltage}mV.png"))
         for ax in axs:
