@@ -17,23 +17,17 @@ def fit_func(protocol, well):
     default_parameters = None
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
-    params, scores = common.fit_well_data(BeattieModel, well, protocol, args.data_directory,
-                                          args.max_iterations, output_dir=this_output_dir, T=298, K_in=5,
-                                          K_out=120, default_parameters=default_parameters,
-                                          removal_duration=args.removal_duration, repeats=args.repeats,
-                                          infer_E_rev=True)
+    res_df = common.fit_well_data(BeattieModel, well, protocol, args.data_directory,
+                                  args.max_iterations, output_dir=this_output_dir, T=298, K_in=5,
+                                  K_out=120, default_parameters=default_parameters,
+                                  removal_duration=args.removal_duration, repeats=args.repeats,
+                                  infer_E_rev=True)
 
-    if params is None or len(params) == 0:
-        return None
-    print(params, scores)
+    res_df['well'] = well
+    res_df['protocol'] = protocol
 
-    fits_df = pd.DataFrame(np.column_stack((scores, params)),
-                           columns=['score']+param_labels)
+    return res_df
 
-    fits_df['well'] = well
-    fits_df['protocol'] = protocol
-
-    return fits_df
 
 def main():
     Erev = common.calculate_reversal_potential(T=298, K_in=120, K_out=5)
@@ -91,7 +85,7 @@ def main():
     print("=============\nfinished fitting\n=============")
 
     wells_rep = [task[1] for task in tasks]
-    protocols_rep = [task[0] for task in tasks]
+    # protocols_rep = [task[0] for task in tasks]
 
     best_param_locs = []
     for protocol in np.unique(protocols_list):
@@ -102,8 +96,9 @@ def main():
             # Get index of min score
             best_param_locs.append(sub_df.score.idxmin())
 
-
     params_df = fitting_df.loc[best_param_locs]
+
+    params_df.to_csv(os.path.join(output_dir, "fitting.csv"))
 
     model = BeattieModel()
     predictions_df = []
@@ -118,7 +113,7 @@ def main():
         prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
         model.voltage = prot_func
         full_times = pd.read_csv(os.path.join(args.data_directory,
-                                         f"newtonrun4-{sim_protocol}-times.csv"))['time'].values.flatten()
+                                              f"newtonrun4-{sim_protocol}-times.csv"))['time'].values.flatten()
 
         voltages = np.array([prot_func(t) for t in full_times])
         spikes, _ = common.detect_spikes(full_times, voltages, 10)
