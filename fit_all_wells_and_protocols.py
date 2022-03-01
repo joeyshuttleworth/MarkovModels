@@ -87,6 +87,8 @@ def main():
     wells_rep = [task[1] for task in tasks]
     # protocols_rep = [task[0] for task in tasks]
 
+    fitting_df.to_csv(os.path.join(output_dir, "fitting.csv"))
+
     best_param_locs = []
     for protocol in np.unique(protocols_list):
         for well in np.unique(wells_rep):
@@ -98,7 +100,7 @@ def main():
 
     params_df = fitting_df.loc[best_param_locs]
 
-    params_df.to_csv(os.path.join(output_dir, "fitting.csv"))
+    params_df.to_csv(os.path.join(output_dir, "best_fitting.csv"))
 
     model = BeattieModel()
     predictions_df = []
