@@ -546,7 +546,9 @@ def get_data(well, protocol, data_directory):
     return data
 
 
-def fit_well_data(model_class, well, protocol, data_directory, max_iterations, output_dir=None, T=298, K_in=120, K_out=5, default_parameters: float = None, removal_duration=5, repeats=1, infer_E_rev=False):
+def fit_well_data(model_class, well, protocol, data_directory, max_iterations, output_dir=None,
+                  T=298, K_in=120, K_out=5, default_parameters: float = None,
+                  removal_duration=5, repeats=1, infer_E_rev=False):
 
     # Ignore files that have been commented out
     voltage_func, t_start, t_end, t_step, protocol_desc = get_ramp_protocol_from_csv(protocol)
@@ -560,7 +562,6 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations, o
     else:
         Erev = calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
 
-
     model = model_class(voltage_func, times, parameters=default_parameters, Erev=Erev)
     model.protocol_description = protocol_desc
 
@@ -573,24 +574,31 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations, o
     initial_score = ((model.SimulateForwardModel() - data)**2).sum()
     print(f"initial score is {initial_score}")
 
-    # First fit only Gkr
-    def gkr_opt_func(gkr):
-        p = model.get_default_parameters()
-        p[8] = gkr
-        return ((model.SimulateForwardModel(p) - data)**2).sum()
+    # # First fit only Gkr
+    # def gkr_opt_func(gkr):
+    #     p = model.get_default_parameters()
+    #     p[8] = gkr
+    #     return ((model.SimulateForwardModel(p) - data)**2).sum()
 
-    if initial_gkr <= 0:
-        initial_gkr = 1
+    # if initial_gkr <= 0:
+    #     initial_gkr = 1
 
-    initial_params[8] = initial_gkr
+    # initial_params[8] = initial_gkr
 
     print(f"initial_gkr is {initial_gkr}")
 
     fitted_params_list = []
     scores = []
 
+    columns = model.parameter_labels
+
+    if infer_E_rev:
+        columns.append("E_rev")
+
+    dfs = []
     for i in range(repeats):
-        fitted_params, score = fit_model(model, data, starting_parameters=initial_params, max_iterations=max_iterations)
+        fitted_params, scores = fit_model(model, data, starting_parameters=initial_params,
+                                          max_iterations=max_iterations)
 
         fig = plt.figure(figsize=(14, 12))
         ax = fig.subplots(1)
@@ -600,25 +608,21 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations, o
         if infer_E_rev:
             fitted_params = np.append(fitted_params, Erev)
 
-        if output_dir is not None:
-            if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
+        dfs.append(pd.DataFrame(np.column_stack((*fitted_params.T, scores.T)), columns=columns + ['score']))
 
-                columns = model.parameter_labels
+    df = pd.concat(dfs, ignore_index=True)
 
-                if infer_E_rev:
-                    columns.append("E_rev")
+    if output_dir is not None:
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
 
-                df = pd.DataFrame(np.column_stack((fitted_params[None, :], [score])), columns=columns + ['RMSE'])
-                df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params_{i}.csv"))
-                fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit_{i}"))
-                ax.cla()
-        else:
-            plt.show()
-        fitted_params_list.append(fitted_params)
-        scores.append(score)
+            df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params_{i}.csv"))
+            fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit_{i}"))
+            ax.cla()
+    else:
+        plt.show()
 
-    return np.vstack(fitted_params_list), np.array(scores)
+    return df
 
 
 def get_all_wells_in_directory(data_dir, regex="^newtonrun4-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$", group=1):
