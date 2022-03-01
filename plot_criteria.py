@@ -179,7 +179,7 @@ def main():
 
         logging.info("Finished drawing heatmaps")
 
-    for time_to_remove, cov in zip(spike_removal_durations, covs)[0:10]:
+    for time_to_remove, cov in list(zip(spike_removal_durations, covs))[0:10]:
         plot_sample_trajectories(solver, full_times, voltages, time_to_remove, params, cov, sample_axs,
                                  args.no_samples, spike_indices)
         sample_fig.savefig(os.path.join(output_dir, f"sample_trajectories_{time_to_remove:.2f}.png"))
