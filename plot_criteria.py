@@ -355,7 +355,7 @@ def main():
                                     color='blue')
                     # Plot true values
                     for k, val in enumerate(compute_tau_inf_from_params(params, voltage=voltage)):
-                        ax.axvline(val, color='grey', linestyle='--')
+                        axs[k].axvline(val, color='grey', linestyle='--')
 
                 except Exception as e:
                     print(str(e))
