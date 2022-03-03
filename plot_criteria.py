@@ -247,12 +247,13 @@ def main():
     args_list = [(model_class, "staircase", times, data, params, index_set) for index_set in indices_used]
     mcmc_samples = pool.map(mcmc_chain_func, *zip(*args_list))
 
-    rhats = [rhat for _, rhat in mcmc_samples]
+    rhats = np.array([rhat for _, rhat in mcmc_samples])
     mcmc_samples = [chain for chain, _ in mcmc_samples]
 
     # output rhats
-    pd.DataFrame(np.column_stack(spike_removal_durations, rhats),
-                 columns=('removal_duration', 'rhat')).to_csv(os.path.join(output_dir, "rhats.csv"))
+    pd.DataFrame(np.column_stack((spike_removal_durations, rhats)),
+                 columns=['removal_duration'] + ['rhat_%i' % i
+                                                 for i in range(rhats.shape[1])]).to_csv(os.path.join(output_dir, "rhats.csv"))
 
     # Now, for each mcmc run plot some sample trajectories
     traj_fig = plt.figure(figsize=(18, 12))
