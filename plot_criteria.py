@@ -56,9 +56,15 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.unique(list(np.linspace(0, 10, 11))
-                                        + list(np.linspace(10, 100, 45))
-                                        + list(np.linspace(100, 250, 10)))
+    spike_removal_durations = np.unique(np.concatenate((np.linspace(0, 10, 11),
+                                        np.linspace(10, 100, 45),
+                                        np.linspace(100, 250, 10))))
+
+    # Write durations to file
+    pd.DataFrame(spike_removal_durations[:, None],
+                 columns=('removal_duration',)).to_csv(os.path.join(output_dir, "removal_durations"))
+
+    print(spike_removal_durations)
 
     if args.short:
         spike_removal_durations = np.array([0, 1])
@@ -287,18 +293,19 @@ def main():
         # Concatenate chains together using Fortran ordering i.e first index moves fastest
         samples = samples.reshape(samples.shape[0]*samples.shape[1], -1, order='F')
 
-        try:
-            pairwise_fig, pairwise_ax = pints.plot.pairwise(samples, kde=True,
+        if i < 20:
+            try:
+                pairwise_fig, pairwise_ax = pints.plot.pairwise(samples, kde=True,
                                                             parameter_names=['p%i' % i for i in range(1, 9)]
                                                             + ['g_kr'])
-        except np.linalg.LinAlgError as ex:
-            print("failed to produce pairwise plot")
-            print(str(ex))
+            except np.linalg.LinAlgError as ex:
+                print("failed to produce pairwise plot")
+                print(str(ex))
 
-        pairwise_fig.tight_layout()
-        pairwise_fig.savefig(os.path.join(output_dir,
-                                          f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png"))
-        pairwise_fig.clf()
+                pairwise_fig.tight_layout()
+                pairwise_fig.savefig(os.path.join(output_dir,
+                                                  f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png"))
+                pairwise_fig.clf()
 
     fig.clf()
     axs = fig.subplots(5)
