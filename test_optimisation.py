@@ -33,9 +33,6 @@ def main():
     global optimiser
     optimiser = pints.CMAES
 
-    if args.linear_model:
-        optimiser = pints.NelderMead
-
     # Setup a pool for parallel computation
     pool = Pool(args.cpus)
 
@@ -49,14 +46,15 @@ def main():
     model = BeattieModel(voltage=protocol_func, times=times)
     model.protocol_description = desc
 
-    solver = model.make_hybrid_solver_current()
+    starting_positions = list(10**(np.random.uniform(-9, 1, (args.no_samples, model.get_no_parameters())))) +\
+    [model.get_default_parameters()]
 
-    starting_positions = 10**(np.random.uniform(-9, 1, (args.no_samples, model.get_no_parameters()))).append(model.get_default_parameters())
+    print(starting_positions)
 
     data = model.SimulateForwardModel() + np.random.normal(0, np.sqrt(sigma2), times.shape)
-    arg_list = [(model, data, pos, [], args.max_iterations, None, pints.CMAES, solver) for pos in starting_positions]
+    arg_list = [(pos, data) for pos in starting_positions]
 
-    fits = pool.map(common.fit_model, *zip(*arg_list))
+    fits = pool.map(fit_func, *zip(*arg_list))
 
     found_parameters, scores = list(zip(*fits))
     found_parameters = np.row_stack(found_parameters)
@@ -72,3 +70,17 @@ def main():
     print(fits_df)
 
     fits_df.to_csv(os.path.join(output_dir, "optimsation_results"))
+
+
+def fit_func(starting_position, data):
+    protocol_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv('staircase')
+    print(starting_position)
+    times = np.linspace(tstart, tend, int((tend-tstart)/tstep))
+    model = BeattieModel(voltage=protocol_func, times=times)
+    model.protocol_description = desc
+
+    return common.fit_model(model, data, starting_position)
+
+
+if __name__ == "__main__":
+    main()
