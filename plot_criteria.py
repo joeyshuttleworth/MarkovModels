@@ -247,6 +247,13 @@ def main():
     args_list = [(model_class, "staircase", times, data, params, index_set) for index_set in indices_used]
     mcmc_samples = pool.map(mcmc_chain_func, *zip(*args_list))
 
+    rhats = [rhat for _, rhat in mcmc_samples]
+    mcmc_samples = [chain for chain, _ in mcmc_samples]
+
+    # output rhats
+    pd.DataFrame(np.column_stack(spike_removal_durations, rhats),
+                 columns=('removal_duration', 'rhat')).to_csv(os.path.join(output_dir, "rhats.csv"))
+
     # Now, for each mcmc run plot some sample trajectories
     traj_fig = plt.figure(figsize=(18, 12))
     traj_ax = traj_fig.subplots()
@@ -721,6 +728,7 @@ def compute_tau_inf_from_params(params, voltage=40):
 
     return a_inf, tau_a, r_inf, tau_r
 
+
 # Next, the MCMC version. Can be time consuming so perform this in parallel
 def mcmc_chain_func(model_class, protocol, times, data, params, index_set):
     protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
@@ -732,8 +740,10 @@ def mcmc_chain_func(model_class, protocol, times, data, params, index_set):
     model.protocol_description = protocol_desc
     model.window_locs = [t for t, _, _, _ in protocol_desc]
 
-    return get_mcmc_chains(model.make_hybrid_solver_current(), times, index_set, data, args.chain_length, params,
-                           sigma2, burn_in=args.burn_in)
+    chains = get_mcmc_chains(model.make_hybrid_solver_current(), times, index_set, data, args.chain_length, params,
+                             sigma2, burn_in=args.burn_in)
+    rhat = pints.rhat(chains)
+    return chains, rhat
 
 
 def draw_heatmaps(model_class, times, data, output_dir, time_to_remove, params, indices=None):
