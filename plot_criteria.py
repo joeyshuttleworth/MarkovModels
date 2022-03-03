@@ -62,7 +62,7 @@ def main():
 
     # Write durations to file
     pd.DataFrame(spike_removal_durations[:, None],
-                 columns=('removal_duration',)).to_csv(os.path.join(output_dir, "removal_durations"))
+                 columns=('removal_duration',)).to_csv(os.path.join(output_dir, "removal_durations.csv"))
 
     print(spike_removal_durations)
 
