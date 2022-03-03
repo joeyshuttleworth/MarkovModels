@@ -405,7 +405,7 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
 
 def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
               max_iterations=None, subset_indices=None, method=pints.CMAES,
-              solver=None):
+              solver=None, log_transform=True):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -427,6 +427,11 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
     returns: A pair containing the optimal parameters and the corresponding sum of square errors.
 
     """
+
+    if log_transform:
+        transformation = pints.LogTransformation(mm.get_no_parameters())
+    else:
+        transformation = None
 
     if solver is None:
         solver = mm.make_forward_solver_current()
@@ -496,13 +501,25 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
             len(starting_parameters)) if i not in fix_parameters]
     else:
         params_not_fixed = starting_parameters
+
     controller = pints.OptimisationController(
-        error, params_not_fixed, boundaries=boundaries, method=method)
+        error, params_not_fixed, boundaries=boundaries, method=method, transformation=transformation)
     if max_iterations is not None:
         print("Setting max iterations = {}".format(max_iterations))
         controller.set_max_iterations(max_iterations)
 
     found_parameters, found_value = controller.run()
+
+    # Now run with Nelder-Mead
+    controller = pints.OptimisationController(
+        error, params_not_fixed, boundaries=boundaries, method=pints.NelderMead,
+        transformation=transformation)
+
+    if max_iterations:
+        controller.set_max_iterations(max_iterations)
+
+    found_parameters, found_value = controller.run()
+
     return found_parameters, found_value
 
 
@@ -703,6 +720,7 @@ def get_git_revision_hash() -> str:
 
 
 def setup_output_directory(dirname: str = None, subdir_name: str = None):
+
     if dirname is None:
         dirname = os.path.join("output", f"output-{uuid.uuid4()}")
 
@@ -718,5 +736,5 @@ def setup_output_directory(dirname: str = None, subdir_name: str = None):
         description_fout.write(f"Commit {git_hash}\n")
         command = " ".join(sys.argv)
         description_fout.write(f"Command: {command}\n")
-    return dirname
 
+    return dirname
