@@ -720,7 +720,7 @@ def get_git_revision_hash() -> str:
 def setup_output_directory(dirname: str = None, subdir_name: str = None):
 
     if dirname is None:
-        dirname = os.path.join("output", f"output-{uuid.uuid4()}")
+        dirname = os.path.join("output", f"{subdir_name}-{uuid.uuid4()}")
 
     if subdir_name is not None:
         dirname = os.path.join(dirname, subdir_name)
