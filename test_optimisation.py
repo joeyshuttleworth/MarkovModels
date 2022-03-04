@@ -23,7 +23,7 @@ def main():
     plt.style.use('classic')
 
     parser = common.get_parser(description="Fit a synthetic model many times to check for convergence")
-    parser.add_argument("-n", "--no_samples", type=int, default=1000)
+    parser.add_argument("-n", "--no_samples", type=int, default=250)
     parser.add_argument("-c", "--cpus", type=int, default=1)
     parser.add_argument("-i", "--max_iterations", type=int, default=None)
 
@@ -59,7 +59,7 @@ def main():
     found_parameters, scores = list(zip(*fits))
     found_parameters = np.row_stack(found_parameters)
 
-    param_labels = model.param_labels
+    param_labels = model.parameter_labels
 
     columns = ["initial_%s" % lab for lab in param_labels]\
         + ["fitted_%s" % lab for lab in param_labels]\
