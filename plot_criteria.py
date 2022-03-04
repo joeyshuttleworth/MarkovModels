@@ -56,7 +56,7 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.unique(np.concatenate((np.linspace(0, 10, 11),
+    spike_removal_durations = np.unique(np.concatenate((np.linspace(0, 10, 25),
                                         np.linspace(10, 100, 45),
                                         np.linspace(100, 250, 10))))
 
@@ -196,9 +196,9 @@ def main():
     A_optimalities = np.array(A_optimalities)
     G_optimalities = np.array(G_optimalities)
 
-    D_optimalities = D_optimalities / D_optimalities.max()
-    A_optimalities = A_optimalities / A_optimalities.max()
-    G_optimalities = G_optimalities / G_optimalities.max()
+    D_optimalities = D_optimalities / D_optimalities.min()
+    A_optimalities = A_optimalities / A_optimalities.min()
+    G_optimalities = G_optimalities / G_optimalities.min()
 
     df = pd.DataFrame(np.column_stack((spike_removal_durations,
                                        # Bayesian_D_optimalities,
@@ -213,9 +213,10 @@ def main():
 
     df.set_index('time removed after spikes /ms', inplace=True)
 
-    df.plot(legend=True, subplots=True)
+    fig = plt.figure(figsize=(16, 12))
+    ax = fig.subplots()
+    df.plot(legend=True, subplots=True, ax=ax)
 
-    fig = plt.gcf()
     print("plotting criteria")
     fig.savefig(os.path.join(output_dir, "criteria.pdf"))
 
@@ -249,6 +250,8 @@ def main():
 
     rhats = np.array([rhat for _, rhat in mcmc_samples])
     mcmc_samples = [chain for chain, _ in mcmc_samples]
+
+    np.save(np.stack(os.path.join(output_dir, "mcmc_samples_all.npy", mcmc_samples)))
 
     # output rhats
     pd.DataFrame(np.column_stack((spike_removal_durations, rhats)),
