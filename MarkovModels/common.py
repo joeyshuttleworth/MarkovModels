@@ -379,8 +379,6 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
     for start, end in windows:
         start_t = start * t_diff
         end_t = end * t_diff
-        if np.abs(voltages[start + 1] - voltages[end - 1]) <= threshold:
-            voltages[end] = voltages[start]
         lst.append((start_t, end_t, voltages[start + 1], voltages[end - 1]))
 
     lst.append((end_t, np.inf, voltages[-1], voltages[-1]))
