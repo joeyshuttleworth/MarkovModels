@@ -46,8 +46,13 @@ def main():
     model = BeattieModel(voltage=protocol_func, times=times)
     model.protocol_description = desc
 
-    starting_positions = list(10**(np.random.uniform(-9, 1, (args.no_samples, model.get_no_parameters())))) +\
-    [model.get_default_parameters()]
+    params = model.get_default_parameters()
+
+    # Randomly multiply default parameters to get pertubed starting points
+    starting_positions = np.random.uniform(1e-6, 1e2, (args.no_samples, len(params)))\
+        * params[None, :]
+
+    starting_positions = np.append(starting_positions, params, axis=0)
 
     print(starting_positions)
 
@@ -69,7 +74,7 @@ def main():
 
     print(fits_df)
 
-    fits_df.to_csv(os.path.join(output_dir, "optimsation_results"))
+    fits_df.to_csv(os.path.join(output_dir, "optimsation_results.csv"))
 
 
 def fit_func(starting_position, data):
