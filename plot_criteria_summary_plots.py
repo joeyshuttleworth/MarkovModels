@@ -40,6 +40,9 @@ def read_chains(chain_dir, flatten_chains=True):
         attr.append((spike_index, chain, f))
 
     df = pd.DataFrame(attr, columns=('spike_index', 'chain', 'fname'))
+    print(df)
+
+    df['spike_index'] = df['spike_index'].astype(np.float64)
 
     # chains_indices = df['chain'].unique()
     # no_chains = len(chains_indices)
@@ -50,14 +53,16 @@ def read_chains(chain_dir, flatten_chains=True):
         sub_df = df[df.spike_index == spike_index].sort_values('chain')
 
         fnames = sub_df['fname']
-        chains = np.array([pd.read_csv(os.path.join(chain_dir, fname)).values for fname in fnames])
+        print(fnames)
+        chains = [pd.read_csv(os.path.join(chain_dir, fname)).values for fname in fnames]
+        chains = np.stack(chains)
         if flatten_chains:
             chains = np.concatenate(chains)
         all_chains.append(chains)
 
     param_labels = pd.read_csv(os.path.join(chain_dir, fnames.iloc[0])).columns.tolist()
 
-    return np.array(all_chains), param_labels
+    return np.stack(all_chains), param_labels
 
 
 def main():
@@ -68,25 +73,29 @@ def main():
     args = parser.parse_args()
 
     output_dir = common.setup_output_directory(args.output,
-                                               "plot_criteria_standard_errors")
+                                               "plot_criteria_summary_plots")
 
     # Get chains
     all_chains, param_names = read_chains(args.chain_dir)
+    print(all_chains)
     all_chains = all_chains[:, :, 1:]
     param_names = param_names[1:]
     # all_chains[spike_indicies, sample, parameter]
 
-    # Plot standard errors of parameters
-    standard_errors = np.log10(all_chains.std(axis=1)/params)
+    # Plot standard deviation of parameter estimates
+    standard_devs = np.log10(all_chains.std(axis=1)/params)
 
-    removal_durations = pd.read_csv(os.path.join(args.chain_dir),
-                                    'removal_durations.csv')['removal_durations'].values.flatten()
+    removal_durations = pd.read_csv(os.path.join(args.chain_dir,
+                                    'removal_durations.csv'))['removal_duration'].values.flatten()
 
     fig = plt.figure(figsize=(16, 12))
     ax = fig.subplots()
-    ax.plot(removal_durations, standard_errors, label=param_names)
+    ax.plot(removal_durations, standard_devs, label=param_names)
     ax.legend()
-    fig.savefig(os.path.join(output_dir, "param_standard_errors.png"))
+
+    ax.set_ylabel('std / true value')
+    ax.set_xlabel('time removed from each spike / ms')
+    fig.savefig(os.path.join(output_dir, "param_summary.png"))
 
     fig.clf()
 
@@ -94,7 +103,7 @@ def main():
 
     voltages = np.linspace(-120, 40, 25)
     for j, voltage in enumerate(voltages):
-        col = plt.cm.jet(j/voltages.shape[0])
+        sm = plt.cm.ScalarMappable(cmap=plt.cm.viridis, norm=plt.Normalize(vmin=voltages[0], vmax=voltages[-1]))
 
         true_vals = compute_tau_inf(params[None, :], voltage)
 
@@ -102,14 +111,18 @@ def main():
 
         for i in range(all_chains.shape[0]):
             voi = np.array(compute_tau_inf(all_chains[i, :, :], voltage))
-            voi = voi.std(axis=1)/true_vals.flatten()
-            vois[i, :] = voi
+            voi = voi.std(axis=1)
+            vois[i, :] = voi #/ true_vals[0, :]
 
-        voi_labels = ('a_inf', 'tau_a', 'r_inf', 'tau_r')
+        voi_labels = ('a_inf', 'tau_a / ms', 'r_inf', 'tau_r / ms')
 
         for i in range(4):
-            axs[i].plot(removal_durations, np.log10(vois[:, i]), color=col)
-            axs[i].set_ylabel(removal_durations, voi_labels[i])
+            axs[i].plot(removal_durations, np.log10(vois[:, i]), color=sm.to_rgba(voltage))
+            axs[i].set_ylabel(voi_labels[i])
+
+    fig.colorbar(sm, label='voltage /mV')
+
+    axs[-1].set_xlabel('time removed from each spike / ms')
 
     fig.savefig(os.path.join(output_dir, "voi_plot.png"))
 
