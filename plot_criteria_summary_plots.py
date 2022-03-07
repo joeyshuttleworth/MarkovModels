@@ -97,6 +97,10 @@ def main():
     ax.set_xlabel('time removed from each spike / ms')
     fig.savefig(os.path.join(output_dir, "param_summary.png"))
 
+    # Zoomed in version
+    ax.set_xlim([0,25])
+    fig.savefig(os.path.join(output_dir, "param_summary_zoomed.png"))
+
     fig.clf()
 
     axs = fig.subplots(4)
@@ -125,6 +129,11 @@ def main():
     axs[-1].set_xlabel('time removed from each spike / ms')
 
     fig.savefig(os.path.join(output_dir, "voi_plot.png"))
+
+    for ax in axs:
+        ax.set_xlim((0, 25))
+
+    fig.savefig(os.path.join(output_dir, "voi_plot_zoomed.png"))
 
 
 if __name__ == "__main__":

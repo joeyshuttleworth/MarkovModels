@@ -196,9 +196,10 @@ def main():
     A_optimalities = np.array(A_optimalities)
     G_optimalities = np.array(G_optimalities)
 
-    D_optimalities = D_optimalities / D_optimalities.min()
-    A_optimalities = A_optimalities / A_optimalities.min()
-    G_optimalities = G_optimalities / G_optimalities.min()
+    # Normalise with respect to first score i.e 0 ms removed
+    D_optimalities = D_optimalities / D_optimalities[0]
+    A_optimalities = A_optimalities / A_optimalities[0]
+    G_optimalities = G_optimalities / G_optimalities[0]
 
     df = pd.DataFrame(np.column_stack((spike_removal_durations,
                                        # Bayesian_D_optimalities,
@@ -219,6 +220,11 @@ def main():
 
     print("plotting criteria")
     fig.savefig(os.path.join(output_dir, "criteria.pdf"))
+
+    # Now plot it zoomed in on the first 25ms
+    ax.setxlim([0, 25])
+    fig.savefig(os.path.join(output_dir, "criteria_zoomed_in.pdf"))
+
 
     conf_fig = plt.figure(figsize=(16, 12))
     conf_axs = conf_fig.subplots(2)
