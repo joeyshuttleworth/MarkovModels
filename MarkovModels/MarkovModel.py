@@ -2,7 +2,7 @@ import numpy as np
 import sympy as sp
 import logging
 from scipy.integrate import solve_ivp
-from NumbaLSODA import lsoda_sig, lsoda
+from numbalsoda import lsoda_sig, lsoda
 from numba import njit, cfunc, literal_unroll
 import numba as nb
 # from NumbaIDA import ida_sig, ida
@@ -51,12 +51,12 @@ class MarkovModel:
         if voltage is not None:
             self.voltage = voltage
 
-        # Inputs for RHS ODEs
-        inputs = list(self.y) + list(self.p) + [self.v]
-
         # Create RHS function
         frhs = np.array([e for e in self.rhs_expr])
-        self.func_rhs = sp.lambdify(inputs, frhs)
+
+        inputs = list(self.y) + list(self.p) + [self.v]
+
+        self.func_rhs = sp.lambdify((self.y, self.p, self.v), frhs)
 
         # Create Jacobian of the RHS function
         jrhs = sp.Matrix(self.rhs_expr).jacobian(self.y)
@@ -143,7 +143,7 @@ class MarkovModel:
         self.sensitivity_ics_expr = sp.Matrix([sp.diff(self.rhs_inf_expr[i].subs(
             'v', self.holding_potential), self.p[j]) for j in range(self.n_params) for i in range(self.n_state_vars)])
 
-        self.sensitivity_ics = sp.lambdify(self.p, self.sensitivity_ics_expr)
+        self.sensitivity_ics = sp.lambdify(self.p, self.sensitivity_ics_expr, cse=True)
 
     def rhs(self, t, y, p):
         """ Evaluates the RHS of the model (including sensitivities)
@@ -165,6 +165,7 @@ class MarkovModel:
             parameters = self.get_default_parameters()
 
         param_dict = dict(zip(self.symbols['p'], parameters))
+
         A_matrix = np.array(self.A.subs(self.rates_dict).subs(self.v, voltage).subs(param_dict)).astype(np.float64)
         B_vector = np.array(self.B.subs(self.rates_dict).subs(self.v, voltage).subs(param_dict)).astype(np.float64)
 
@@ -414,8 +415,8 @@ class MarkovModel:
 
         @cfunc(lsoda_sig)
         def crhs(t, y, dy, p):
-            res = rhs(y[0], y[1], y[2],
-                      p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8],
+            res = rhs(y,
+                      p,
                       voltage(t))
             for i in range(3):
                 dy[i] = res[i]
@@ -525,7 +526,7 @@ class MarkovModel:
         if rtol is None:
             rtol = self.solver_tolerances[1]
 
-        solver_states = self.make_forward_solver_states(atol=atol, rtol=rtol, njitted=True)
+        solver_states = self.make_forward_solver_states(atol=atol, rtol=rtol, njitted=njitted)
 
         gkr_index = self.GKr_index
         open_index = self.open_state_index

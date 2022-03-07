@@ -2,20 +2,23 @@
 
 from MarkovModels import common
 from MarkovModels.BeattieModel import BeattieModel
+from MarkovModels.KempModel import KempModel
 
 import argparse
 import numpy as np
 import pandas as pd
 import os
+import matplotlib.pyplot as plt
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--parameters", default=None)
-    parser.add_argument("--model", default='BeattieModel')
+    parser.add_argument("--model", default='Beattie')
     parser.add_argument("--output", "-o", default=None)
     parser.add_argument("--prefix", default='synthetic')
-    parser.add_argument('-p', '--protocols', default=None)
+    parser.add_argument('-P', '--protocols', default=None)
+    parser.add_argument('-p', '--plot', action='store_true', default=False)
     parser.add_argument('--noise', default=0.01)
     parser.add_argument('--Erev', '-e', default=None)
 
@@ -34,8 +37,10 @@ def main():
 
     sigma = args.noise
 
-    if args.model == 'BeattieModel':
+    if args.model == 'Beattie':
         model_class = BeattieModel
+    elif args.model == 'Kemp':
+        model_class = KempModel
     else:
         assert False
 
@@ -44,6 +49,9 @@ def main():
         else args.protocols
 
     print(protocols)
+
+    fig = plt.figure()
+    ax = plt.subplots()
 
     for protocol in protocols:
         prot, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(protocol)
@@ -57,11 +65,19 @@ def main():
         model = model_class(prot, times, Erev=Erev, parameters=parameters)
         model.protocol_description = desc
 
-        data = model.SimulateForwardModel() + np.random.normal(0, sigma, times.shape)
+        mean = model.SimulateForwardModel()
+        data = mean + np.random.normal(0, sigma, times.shape)
 
         # Output data
         out_fname = os.path.join(output_dir, f"{args.prefix}-{protocol}-A01.csv")
         pd.DataFrame(data.T, columns=('current',)).to_csv(out_fname)
+
+        if args.plot:
+            ax.plot(times, mean, label='mean')
+            ax.plot(times, data, label='data', color='grey', alpha='0.5')
+            ax.legend()
+            fig.savefig(os.path.join(output_dir, f"%s_plot.png" % protocol))
+
 
 
 if __name__ == "__main__":
