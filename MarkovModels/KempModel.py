@@ -20,7 +20,7 @@ class KempModel(MarkovModel):
 
         mc = construct_kemp_model()
 
-        self.default_parameters = [val.astype(np.float64)
+        self.default_parameters = [val
                                    for key, val in mc.default_values.items()
                                    if str(key) != 'E_Kr']
 
