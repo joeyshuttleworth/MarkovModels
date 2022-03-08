@@ -42,7 +42,7 @@ def main():
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--removal_duration', '-r', default=5, type=int)
     parser.add_argument('--cores', '-c', default=1, type=int)
-    parser.add_argument('--model', '-m', 'Beattie', type=str)
+    parser.add_argument('--model', '-m', default='Beattie', type=str)
 
     global args
     args = parser.parse_args()
