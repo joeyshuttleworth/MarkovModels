@@ -56,7 +56,7 @@ class MarkovModel:
 
         inputs = list(self.y) + list(self.p) + [self.v]
 
-        self.func_rhs = sp.lambdify((self.y, self.p, self.v), frhs)
+        self.func_rhs = sp.lambdify((self.y, self.p, self.v), self.rhs_expr, cse=True)
 
         # Create Jacobian of the RHS function
         jrhs = sp.Matrix(self.rhs_expr).jacobian(self.y)
@@ -109,12 +109,12 @@ class MarkovModel:
 
         # Concatenate RHS and 1st order sensitivities
         Ss = np.concatenate((list(self.y), Ss))
-        fS1 = np.concatenate((frhs, fS1))
+        fS1 = sp.Matrix(np.concatenate((frhs, fS1)))
 
         self.func_S1 = sp.lambdify(inputs, fS1)
 
         # Create Jacobian of the 1st order sensitivities function
-        jS1 = sp.Matrix(fS1).jacobian(Ss)
+        jS1 = fS1.jacobian(Ss)
         self.jfunc_S1 = sp.lambdify(inputs, jS1)
 
         # Set the initial conditions of the model and the initial sensitivities
@@ -413,12 +413,17 @@ class MarkovModel:
         rhs = nb.njit(self.func_rhs)
         voltage = self.voltage
 
+        ny = len(self.state_labels) - 1
+        np = len(self.get_default_parameters())
         @cfunc(lsoda_sig)
         def crhs(t, y, dy, p):
+            y = nb.carray(y, ny)
+            dy = nb.carray(dy, ny)
+            p = nb.carray(p, np)
             res = rhs(y,
                       p,
-                      voltage(t))
-            for i in range(3):
+                      voltage(t)).flatten()
+            for i in range(ny):
                 dy[i] = res[i]
 
         return crhs

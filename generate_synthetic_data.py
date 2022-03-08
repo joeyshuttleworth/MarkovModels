@@ -39,7 +39,7 @@ def main():
         parameters = None
 
     global output_dir
-    output_dir = common.setup_output_directory(args.output, 'synthetic_data')
+    output_dir = common.setup_output_directory(args.output, 'synthetic_data_%s' % args.model)
 
     global sigma
     sigma = args.noise
