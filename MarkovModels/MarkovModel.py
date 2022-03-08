@@ -141,7 +141,7 @@ class MarkovModel:
 
         # Find sensitivity steady states at holding potential
         self.sensitivity_ics_expr = sp.Matrix([sp.diff(self.rhs_inf_expr[i].subs(
-            'v', self.holding_potential), self.p[j]) for j in range(self.n_params) for i in range(self.n_state_vars)])
+            'v', self.voltage(0)), self.p[j]) for j in range(self.n_params) for i in range(self.n_state_vars)])
 
         self.sensitivity_ics = sp.lambdify(self.p, self.sensitivity_ics_expr, cse=True)
 
@@ -160,7 +160,7 @@ class MarkovModel:
 
     def get_linear_system(self, voltage=None, parameters=None):
         if voltage is None:
-            voltage = self.holding_potential
+            voltage = self.voltage(0)
         if parameters is None:
             parameters = self.get_default_parameters()
 
@@ -575,7 +575,7 @@ class MarkovModel:
             p = self.get_default_parameters()
         p = np.array(p)
 
-        rhs0 = self.rhs_inf(p, self.holding_potential)
+        rhs0 = self.rhs_inf(p, self.voltage(0))
 
         sol = solve_ivp(self.rhs,
                         (times[0], times[-1]),
@@ -593,7 +593,7 @@ class MarkovModel:
         if times is None:
             times = self.times
 
-        rhs0 = self.rhs_inf(p, self.holding_potential).flatten()
+        rhs0 = self.rhs_inf(p, self.voltage(0)).flatten()
 
         evals = 0
         rhs_func = self.rhs
@@ -646,7 +646,7 @@ class MarkovModel:
         if times is None:
             times = self.times
 
-        rhs0 = self.rhs_inf(p, self.holding_potential)
+        rhs0 = self.rhs_inf(p, self.voltage(0))
         drhs0 = self.sensitivity_ics(*p)
 
         ics = np.concatenate(rhs0, drhs0, axis=None)
@@ -672,7 +672,7 @@ class MarkovModel:
         if times is None:
             times = self.times
 
-        rhs0 = np.array(self.rhs_inf(p, self.holding_potential)).astype(np.float64)
+        rhs0 = np.array(self.rhs_inf(p, self.voltage(0))).astype(np.float64)
         drhs0 = np.array(self.sensitivity_ics(*p)).astype(np.float64)
 
         step_rhs0 = np.concatenate((rhs0, drhs0), axis=None).astype(np.float64)
