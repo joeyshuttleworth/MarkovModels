@@ -33,7 +33,7 @@ def main():
     else:
         parameters = None
 
-    output_dir = common.setup_output_directory(args.output, 'synthetic_data')
+    output_dir = common.setup_output_directory(args.output, 'synthetic_data_%s' % args.model)
 
     sigma = args.noise
 
