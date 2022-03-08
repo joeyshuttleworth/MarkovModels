@@ -10,10 +10,31 @@ import pandas as pd
 import math
 import os
 import pints
-import symengine as se
+import regex as re
+import uuid
+from numba import njit
+import subprocess
+import sys
+import datetime
+import numpy.polynomial.polynomial as poly
+
 
 def get_protocol_directory():
-    return os.path.join(os.path.dirname( os.path.realpath(__file__)), "protocols")
+    return os.path.join(os.path.dirname(os.path.realpath(__file__)), "protocols")
+
+
+def get_protocol_list():
+    directory = get_protocol_directory()
+
+    files = os.listdir(directory)
+    regex = re.compile("^([a-z|0-9]*)\.csv$")
+
+    protocols = []
+    for fname in filter(regex.match, files):
+        name = re.search(regex, fname).group(1)
+        protocols.append(name)
+    return protocols
+
 
 def get_args(data_reqd=False, description=None):
     """Get command line arguments from using get_parser
@@ -59,7 +80,7 @@ def get_parser(data_reqd=False, description=None):
     parser = argparse.ArgumentParser(description=description)
     if data_reqd:
         parser.add_argument(
-            "data_file_path",
+            "data_directory",
             help="path to csv data for the model to be fit to",
             default=False)
     parser.add_argument(
@@ -70,40 +91,36 @@ def get_parser(data_reqd=False, description=None):
         default=False)
     parser.add_argument("--dpi", type=int, default=100,
                         help="what DPI to use for figures")
-    parser.add_argument("-o", "--output", type=str, default="output",
-                        help="The directory to output figures and data to")
+    parser.add_argument("-o", "--output", type=str, help="The directory to output figures and data to")
     return parser
 
 
-def calculate_reversal_potential(temp=20):
+def calculate_reversal_potential(T=293.15, K_in=120, K_out=5):
     """
     Compute the Nernst potential of a potassium channel.
-
-    Params:
-
-    temp : temperature in degrees celcius, this defaults to 20
 
     """
     # E is the Nernst potential for potassium ions across the membrane
     # Gas constant R, temperature T, Faradays constat F
-    R = 8314.55
-    T = temp + 273.15
+    R = 8.31455
     F = 96485
-
-    # Intracellular and extracellular concentrations of potassium.
-    K_out = 4
-    K_in = 130
 
     # valency of ions (1 in the case of K^+)
     z = 1
 
     # Nernst potential
     E = R * T / (z * F) * np.log(K_out / K_in)
-    return E
+
+    # Convert to mV
+    return E * 1e3
 
 
 def cov_ellipse(cov, offset=[0, 0], q=None,
-                nsig=None, new_figure=True):
+                nsig=None, ax: plt.axes = None,
+                label: str = None,
+                rotate: float = None,
+                resize_axes: bool = False,
+                color: str = None):
     """
     copied from stackoverflow
     Parameters
@@ -112,7 +129,7 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
 
     cov : (2, 2) array
         Covariance matrix.
-    q : float, optional
+    q : array of floats, optional
         Confidence level, should be in (0, 1)
     nsig : int, optional
         Confidence level in unit of standard deviations.
@@ -127,62 +144,76 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
 
     if q is not None:
         q = np.asarray(q)
+        qs = np.sort(q)
     elif nsig is not None:
         q = 2 * scipy.stats.norm.cdf(nsig) - 1
+        qs = [q]
     else:
         raise ValueError('One of `q` and `nsig` should be specified.')
 
-    qs = np.sort(q)
-
-    if not new_figure:
-        fig = plt.gcf()
+    if ax is None:
         ax = plt.gca()
-    else:
-        fig = plt.figure(0)
-        ax = fig.add_subplot(111)
 
+    if color is None:
+        color = np.random.rand(3)
+
+    val, vec = np.linalg.eigh(cov)
     for q in qs:
         r2 = scipy.stats.chi2.ppf(q, 2)
-        val, vec = np.linalg.eigh(cov)
         width, height = 2 * np.sqrt(val[:, None] * r2)
-        rotation = np.arctan2(*vec[::-1, 0])
-
-        # print("width, height, rotation = {}, {}, {}".format(width, height, math.degrees(rotation)))
+        rotate = np.arctan2(*vec[::-1, 0]) if rotate is None else rotate
+        if label is None:
+            label = "{}% confidence region".format(int(q * 100))
+        else:
+            label = label
 
         e = matplotlib.patches.Ellipse(offset,
                                        width[0],
                                        height[0],
-                                       math.degrees(rotation),
-                                       color=np.random.rand(3),
+                                       math.degrees(rotate),
                                        fill=False,
-                                       label="{}% confidence region".format(int(q * 100)))
+                                       label=label,
+                                       color=color)
         ax.add_patch(e)
         e.set_clip_box(ax.bbox)
 
-        window_width = np.abs(width[0] * np.cos(rotation) * 1.5)
-        window_height = np.abs(height[0] * np.sin(rotation) * 1.5)
-        max_dim = max(window_width, window_height)
+        window_width = max(np.abs(width[0] * math.cos(rotate)), np.abs(height[0] * math.sin(rotate)))
+        window_height = max(np.abs(width[0] * math.sin(rotate)), np.abs(height[0] * math.cos(rotate)))
+        # window_height = np.abs(height[0] * np.sin(rotate))
+        # max_dim = max(window_width, window_height)
 
-    if new_figure:
-        ax.set_xlim(offset[0] - max_dim, offset[0] + max_dim)
-        ax.set_ylim(offset[1] - max_dim, offset[1] + max_dim)
-    return fig, ax
+    # Change plot extents
+    if resize_axes:
+        if rotate != 0:
+            ax.set_xlim(offset[0] - window_width, offset[0] + window_width)
+            ax.set_ylim(offset[1] - window_height, offset[1] + window_height)
+        else:
+            ax.set_xlim(offset[0] - width / 2, offset[0] + width / 2)
+            ax.set_ylim(offset[1] - height / 2, offset[1] + height / 2)
+
+    return ax
 
 
-def extract_times(lst, time_ranges, step):
-    """
-    Take values from a list, lst which are indexes between the upper and lower
-    bounds provided by time_ranges. Each element of time_ranges specifies an
-    upper and lower bound.
+def remove_spikes(times, voltages, spike_times, time_to_remove):
+    lst = np.column_stack((times, voltages))
+    indices_to_remove = []
 
-    Returns a 2d numpy array containing all of the relevant data points
-    """
-    if time_ranges is None:
-        return lst
-    ret_lst = []
-    for time_range in time_ranges:
-        ret_lst.extend(lst[time_range[0]:time_range[1]:step].tolist())
-    return np.array(ret_lst)
+    for spike in spike_times:
+        spike_iter = [(i, t) for i, t in enumerate(lst[:, 0]) if t > spike]
+        end_iter = [(i, t) for i, t in enumerate(lst[:, 0]) if t > spike + time_to_remove]
+
+        if len(spike_iter) == 0 or len(end_iter) == 0:
+            break
+
+        spike_index = spike_iter[0][0]
+        end_index = end_iter[0][0]
+
+        if spike_index > len(lst) or end_index > len(lst):
+            break
+        indices_to_remove.append((spike_index - 1, end_index))
+
+    indices_remaining = np.array(remove_indices(list(range(len(times))), indices_to_remove))
+    return lst[indices_remaining, 0], lst[indices_remaining, 1], indices_remaining
 
 
 def remove_indices(lst, indices_to_remove):
@@ -199,6 +230,8 @@ def remove_indices(lst, indices_to_remove):
     returns a new list
 
     """
+    if len(indices_to_remove) == 0:
+        return lst
     if indices_to_remove is None:
         return lst
 
@@ -206,15 +239,15 @@ def remove_indices(lst, indices_to_remove):
 
     lsts = []
     for i in range(1, len(indices_to_remove)):
-        lsts.append(lst[indices_to_remove[i - 1][1]: indices_to_remove[i][0] + 1])
+        lsts.append(lst[indices_to_remove[i - 1][1] : indices_to_remove[i][0] + 1])
 
     lsts.append(lst[indices_to_remove[-1][1]:-1])
 
-    lst = first_lst + [index for lst in lsts for index in lst]
-    return lst
+    lst = list(first_lst) + [index for lst in lsts for index in lst]
+    return np.unique(lst)
 
 
-def detect_spikes(x, y):
+def detect_spikes(x, y, threshold=100, window_size=0, earliest=True):
     """
     Find the points where time-series 'jumps' suddenly. This is useful in order
     to find 'capacitive spikes' in protocols.
@@ -228,9 +261,17 @@ def detect_spikes(x, y):
     dy = np.diff(y)
 
     deriv = dy / dx
-    spike_indices = np.argwhere(np.abs(deriv) > 10000)[:, 0]
+    spike_indices = np.argwhere(np.abs(deriv) > threshold)[:, 0]
 
-    return x[spike_indices]
+    if window_size > 0:
+        spike_indices = [index - window_size + np.argmax(
+            np.abs(y[(index - window_size):(index + window_size)])) for index in spike_indices]
+        spike_indices = np.unique(spike_indices)
+
+    if(len(spike_indices) == 0):
+        return [], np.array([])
+
+    return x[spike_indices], np.array(spike_indices)
 
 
 def beattie_sine_wave(t):
@@ -275,7 +316,7 @@ def beattie_sine_wave(t):
     return V
 
 
-def get_protocol_from_csv(protocol_name : str, directory=None, holding_potential=-80):
+def get_protocol_from_csv(protocol_name: str, directory=None, holding_potential=-80):
     """Generate a function by interpolating
     time-series data.
 
@@ -292,105 +333,86 @@ def get_protocol_from_csv(protocol_name : str, directory=None, holding_potential
     if directory is None:
         directory = get_protocol_directory()
 
-    protocol = pd.read_csv(os.path.join(directory, protocol_name+".csv"))
+    protocol = pd.read_csv(os.path.join(directory, protocol_name + ".csv"))
 
-    times = 1000 * protocol["time"].values
-    voltages = protocol["voltage"].values
+    times = protocol["time"].values.flatten()
+    voltages = protocol["voltage"].values.flatten()
 
-    spikes = 1000 * detect_spikes(protocol["time"], protocol["voltage"])
+    def staircase_protocol_safe(t):
+        return np.interp([t], times, voltages)[0] if t < times[-1] and t > times[0] else holding_potential
 
-    staircase_protocol = scipy.interpolate.interp1d(
-        times, voltages, kind="linear")
-
-    def staircase_protocol_safe(t): return staircase_protocol(
-    t) if t < times[-1] and t > times[0] else holding_potential
-    return staircase_protocol_safe
+    return staircase_protocol_safe, times[0], times[-1], times[1] - times[0]
 
 
-def draw_cov_ellipses(S1=None, sigma2=None, cov=None, plot_dir=None):
-    """Plot confidence intervals using a sensitivity matrix or covariance matrix.
-
-    In the case of a sensitivity matrix, i.i.d Guassian additive errors are
-    assumed with variance sigma2. Exactly one of cov and S1 must not be None.
-    In the case that S1 is provided, the confidence regions are calculated
-    under the assumption that all other variables are fixed. However, if cov is
-    provided, the confidence regions correspond a marginal distribution.
+def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_potential=-80, threshold=0.001):
+    """Generate a function by interpolating
+    time-series data.
 
     Params:
+    Holding potential: the value to return for times outside of the
+    range
 
-    S1: A sensitivity matrix where S_i,j corresponds to the derivative
-    of the (scalar) observation at the ith timepoint with respect to the jth
-    parameter.
-
-    sigma2: The variance of the Gaussian additive noise - only required if S1
-    is provided
-
-    cov: A covariance matrix
-
-    plot_dir: The directory to store the plots in. When this defaults to None, the
-    plots will be displayed using plt.show()
+    :returns: a Tuple containg float->float which returns the voltage (in mV) at any given time t (in ms), tstart, tend, tstep and a Tuple describing the protocol.
 
     """
 
-    # TODO improve exception handling
-    if S1 is not None:
-        if cov is not None:
-            Raise()
-        else:
-            n_params = S1.shape[1]
-    else:
-        if cov is None:
-            Raise()
-        if sigma2 is not None:
-            Raise()
-        else:
-            n_params = cov.shape[0]
+    if directory is None:
+        directory = get_protocol_directory()
 
-    for j in range(0, n_params - 1):
-        for i in range(j + 1, n_params):
-            if S1 is not None:
-                if sigma2 is None:
-                    raise
-                sub_sens = S1[:, [i, j]]
-                sub_cov = sigma2 * np.linalg.inv(np.dot(sub_sens.T, sub_sens))
-            # Else use cov
-            else:
-                sub_cov = cov[parameters_to_view[:, None], np.array((i,j))]
-            eigen_val, eigen_vec = np.linalg.eigh(sub_cov)
-            eigen_val = eigen_val.real
-            if eigen_val[0] > 0 and eigen_val[1] > 0:
-                # Parameters have been normalised to 1
-                cov_ellipse(sub_cov, q=[0.5, 0.95], offset=[1, 1])
-                plt.ylabel("parameter {}".format(i + 1))
-                plt.xlabel("parameter {}".format(j + 1))
-                plt.legend()
-                if plot_dir is None:
-                    plt.show()
+    protocol = pd.read_csv(os.path.join(directory, protocol_name + ".csv"))
+
+    times = protocol["time"].values.flatten()
+    voltages = protocol["voltage"].values.flatten()
+
+    # Find gradient changes
+    diff2 = np.abs(np.diff(voltages, n=2))
+    # diff1 = np.abs(np.diff(voltages, n=1))
+
+    windows = np.argwhere(diff2 > threshold).flatten()
+    window_locs = np.unique(windows)
+    window_locs = np.array([val for val in window_locs if val + 1 not in window_locs]) + 1
+
+    windows = zip([0] + list(window_locs), list(window_locs) + [len(voltages) - 1])
+
+    lst = []
+    t_diff = times[1] - times[0]
+    for start, end in windows:
+        start_t = start * t_diff
+        end_t = end * t_diff
+        lst.append((start_t, end_t, voltages[start + 1], voltages[end - 1]))
+
+    lst.append((end_t, np.inf, voltages[-1], voltages[-1]))
+
+    protocol = tuple(lst)
+
+    @njit
+    def protocol_func(t):
+        if t < 0 or t >= protocol[-1][1]:
+            return holding_potential
+
+        for i in range(len(protocol)):
+            if t < protocol[i][1]:
+                if np.abs(protocol[i][3] - protocol[i][2]) > threshold:
+                    return protocol[i][2] + (t - protocol[i][0]) * (protocol[i][3] - protocol[i][2]) / (protocol[i][1] - protocol[i][0])
                 else:
-                    plt.savefig(
-                        os.path.join(
-                            plot_dir,
-                            "covariance_for_parameters_{}_{}".format(
-                                j + 1,
-                                i + 1)))
-                plt.clf()
-            else:
-                print(
-                    "COV_{},{} : negative eigenvalue: {}".format(
-                        i, j, eigen_val))
+                    return protocol[i][3]
+
+        raise Exception()
+    return protocol_func, times[0], times[-1], times[1] - times[0], protocol
 
 
-def fit_model(funcs, data, starting_parameters, fix_parameters=None,
-              max_iterations=None, method=pints.CMAES):
+def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
+              max_iterations=None, subset_indices=None, method=pints.CMAES,
+              solver=None, log_transform=True):
     """
     Fit a MarkovModel to some dataset using pints.
 
     Params:
 
-    funcs: A MarkovModel
+    mm: A MarkovModel
 
     data: The data set to fit to: a (1,n) numpy array
-    consiting of observations corresponding to the times in funcs.times.
+    consiting of observations corresponding to the times in mm.times.
 
     starting_parameters: An initial guess for the optimal parameters
 
@@ -403,6 +425,21 @@ def fit_model(funcs, data, starting_parameters, fix_parameters=None,
     returns: A pair containing the optimal parameters and the corresponding sum of square errors.
 
     """
+
+    if log_transform:
+        transformation = pints.LogTransformation(mm.get_no_parameters())
+    else:
+        transformation = None
+
+    if solver is None:
+        solver = mm.make_forward_solver_current()
+
+    if subset_indices is None:
+        subset_indices = np.array(list(range(len(mm.times))))
+
+    if starting_parameters is None:
+        starting_parameters = mm.get_default_parameters()
+
     class Boundaries(pints.Boundaries):
         def __init__(self, parameters, fix_parameters=None):
             self.fix_parameters = fix_parameters
@@ -411,112 +448,80 @@ def fit_model(funcs, data, starting_parameters, fix_parameters=None,
         def check(self, parameters):
             '''Check that each rate constant lies in the range 1.67E-5 < A*exp(B*V) < 1E3
             '''
-            # TODO Reimplement checks
             return True
-            sim_params = np.copy(self.parameters)
-            c = 0
-            for i, parameter in enumerate(self.parameters):
-                if i not in self.fix_parameters:
-                    sim_params[i] = parameters[c]
-                    c += 1
-                if c == len(parameters):
-                    break
-            for i in range(0, 4):
-                alpha = sim_params[2 * i]
-                beta = sim_params[2 * i + 1]
-
-                vals = [0, 0]
-                vals[0] = alpha * np.exp(beta * -90 * 1E-3)
-                vals[1] = alpha * np.exp(beta * 50 * 1E-3)
-
-                for val in vals:
-                    if val < 1E-7 or val > 1E3:
-                        return False
-            # Check maximal conductance
-            if sim_params[8] > 0 and sim_params[8] < 2:
-                return True
-            else:
-                return False
 
         def n_parameters(self):
             return 9 - \
                 len(self.fix_parameters) if self.fix_parameters is not None else 9
 
     class PintsWrapper(pints.ForwardModelS1):
-        def __init__(self, funcs, parameters, fix_parameters=None):
-            self.funcs = funcs
-            self.parameters = parameters
+        def __init__(self, mm, parameters, fix_parameters=None):
+            self.mm = mm
+            self.parameters = np.array(parameters)
+
             self.fix_parameters = fix_parameters
-            if fix_parameters is not None:
-                self.free_parameters = [i for i in range(
-                    0, len(starting_parameters)) if i not in fix_parameters]
+
+            unfixed_parameters = tuple([i for i in range(len(parameters)) if i not in fix_parameters])
+            if fix_parameters is None:
+                fix_parameters = tuple()
+
+            if len(fix_parameters) > 0:
+                def simulate(p, times):
+                    sim_parameters = np.copy(parameters)
+                    for i, j in enumerate(unfixed_parameters):
+                        sim_parameters[j] = p[i]
+                    sol = solver(sim_parameters)[subset_indices]
+                    return sol
             else:
-                self.free_parameters = range(0, len(starting_parameters))
+                def simulate(p, times):
+                    try:
+                        return solver(p)[subset_indices]
+                    except Exception:
+                        return np.full(times.shape, np.inf)
+
+            self.simulate = simulate
 
         def n_parameters(self):
-            if self.fix_parameters is not None:
-                return len(self.parameters) - len(self.fix_parameters)
-            else:
-                return len(self.parameters)
-
-        def simulate(self, parameters, times):
-            self.funcs.times = times
-            if self.fix_parameters is None:
-                return self.funcs.SimulateForwardModel(parameters, times)
-            else:
-                sim_params = np.copy(self.parameters)
-                c = 0
-                for i, parameter in enumerate(self.parameters):
-                    if i not in self.fix_parameters:
-                        sim_params[i] = parameters[c]
-                        c += 1
-                    if c == len(parameters):
-                        break
-                return self.funcs.SimulateForwardModel(sim_params, times)
+            return len(self.parameters) - len(self.fix_parameters)
 
         def simulateS1(self, parameters, times):
-            if fix_parameters is None:
-                return self.funcs.SimulateForwardModelSensitivities(parameters)
-            else:
-                sim_params = np.copy(self.parameters)
-                c = 0
-                for i, parameter in enumerate(self.parameters):
-                    if i not in fix_parameters:
-                        sim_params[i] = parameters[c]
-                        c += 1
-                    if c == len(parameters):
-                        break
-                current, sens = self.funcs.SimulateForwardModelSensitivities(
-                    sim_params, times)
-                print(sim_params)
-                sens = sens[:, self.free_parameters]
-                return current, sens
+            raise NotImplementedError()
 
-    model = PintsWrapper(funcs, starting_parameters,
+    model = PintsWrapper(mm, starting_parameters,
                          fix_parameters=fix_parameters)
-    problem = pints.SingleOutputProblem(model, funcs.times, data)
+
+    problem = pints.SingleOutputProblem(model, mm.times[subset_indices], data[subset_indices])
     error = pints.SumOfSquaresError(problem)
     boundaries = Boundaries(starting_parameters, fix_parameters)
-
-    print("data size is {}".format(data.shape))
 
     if fix_parameters is not None:
         params_not_fixed = [starting_parameters[i] for i in range(
             len(starting_parameters)) if i not in fix_parameters]
     else:
         params_not_fixed = starting_parameters
-    print(params_not_fixed)
+
     controller = pints.OptimisationController(
-        error, params_not_fixed, boundaries=boundaries, method=method)
+        error, params_not_fixed, boundaries=boundaries, method=method, transformation=transformation)
     if max_iterations is not None:
         print("Setting max iterations = {}".format(max_iterations))
         controller.set_max_iterations(max_iterations)
 
     found_parameters, found_value = controller.run()
+
+    # Now run with Nelder-Mead
+    controller = pints.OptimisationController(
+        error, params_not_fixed, boundaries=boundaries, method=pints.NelderMead,
+        transformation=transformation)
+
+    if max_iterations:
+        controller.set_max_iterations(max_iterations)
+
+    found_parameters, found_value = controller.run()
+
     return found_parameters, found_value
 
 
-def get_protocol(protocol_name : str):
+def get_protocol(protocol_name: str):
     """Returns a function describing the voltage trace.
 
     params:
@@ -530,17 +535,207 @@ def get_protocol(protocol_name : str):
     v = None
     if protocol_name == "sine-wave":
         v = beattie_sine_wave
+        t_start = 0
+        t_end = 15000
+        t_step = 0.1
     else:
         # Check the protocol folders for a protocol with the same name
         protocol_dir = get_protocol_directory()
-        possible_protocol_path = os.path.join(protocol_dir, protocol_name+".csv")
+        possible_protocol_path = os.path.join(protocol_dir, protocol_name + ".csv")
         if os.path.exists(possible_protocol_path):
             try:
-                v = get_protocol_from_csv(protocol_name)
+                v, t_start, t_end, t_step, _ = get_ramp_protocol_from_csv(protocol_name)
             except:
                 # TODO
                 raise
         else:
             # Protocol not found
             raise Exception("Protocol not found at " + possible_protocol_path)
-    return v
+    return v, t_start, t_end, t_step
+
+def get_data(well, protocol, data_directory):
+    # Find data
+    regex = re.compile(f"^newtonrun4-{protocol}-{well}.csv$")
+    fname = next(filter(regex.match, os.listdir(data_directory)))
+    data = pd.read_csv(os.path.join(data_directory, fname))['current'].values
+    return data
+
+
+def fit_well_data(model_class, well, protocol, data_directory, max_iterations, output_dir=None,
+                  T=298, K_in=120, K_out=5, default_parameters: float = None,
+                  removal_duration=5, repeats=1, infer_E_rev=False):
+
+    # Ignore files that have been commented out
+    voltage_func, t_start, t_end, t_step, protocol_desc = get_ramp_protocol_from_csv(protocol)
+
+    data = get_data(well, protocol, data_directory)
+
+    times = pd.read_csv(os.path.join(data_directory, f"newtonrun4-{protocol}-times.csv"))['time'].values
+
+    if infer_E_rev:
+        Erev = infer_reversal_potential(protocol, data, times)
+    else:
+        Erev = calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
+
+    model = model_class(voltage_func, times, parameters=default_parameters, Erev=Erev)
+    model.protocol_description = protocol_desc
+
+    # Try fitting G_Kr on its own first
+    initial_gkr = np.max(data) / 10
+
+    initial_params = model.get_default_parameters()
+    initial_params[model.GKr_index] = initial_gkr
+
+    initial_score = ((model.SimulateForwardModel() - data)**2).sum()
+    print(f"initial score is {initial_score}")
+
+    # # First fit only Gkr
+    # def gkr_opt_func(gkr):
+    #     p = model.get_default_parameters()
+    #     p[8] = gkr
+    #     return ((model.SimulateForwardModel(p) - data)**2).sum()
+
+    # if initial_gkr <= 0:
+    #     initial_gkr = 1
+
+    # initial_params[8] = initial_gkr
+
+    print(f"initial_gkr is {initial_gkr}")
+
+    fitted_params_list = []
+    scores = []
+
+    columns = model.parameter_labels
+
+    if infer_E_rev:
+        columns.append("E_rev")
+
+    dfs = []
+    for i in range(repeats):
+        fitted_params, scores = fit_model(model, data, starting_parameters=initial_params,
+                                          max_iterations=max_iterations)
+
+        fig = plt.figure(figsize=(14, 12))
+        ax = fig.subplots(1)
+        ax.plot(times, data)
+        ax.plot(times, model.SimulateForwardModel(fitted_params))
+
+        if infer_E_rev:
+            fitted_params = np.append(fitted_params, Erev)
+
+        dfs.append(pd.DataFrame(np.column_stack((*fitted_params.T, scores.T)), columns=columns + ['score']))
+
+    df = pd.concat(dfs, ignore_index=True)
+
+    if output_dir is not None:
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+            df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params_{i}.csv"))
+            fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit_{i}"))
+            ax.cla()
+    else:
+        plt.show()
+
+    return df
+
+
+def get_all_wells_in_directory(data_dir, regex="^newtonrun4-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$", group=1):
+    regex = re.compile(regex)
+    wells = []
+
+    for f in filter(regex.match, os.listdir(data_dir)):
+        well = re.search(regex, f).groups()[group]
+        wells.append(well)
+
+    return wells
+
+
+def infer_reversal_potential(protocol: str, current: np.array, times, ax=None, output_path=None, plot=False):
+
+    orig_times = times
+    orig_current = current
+
+    if ax or output_path:
+        plot = True
+
+    protocol_func, _, _, _, protocol_desc = get_ramp_protocol_from_csv(protocol)
+
+    tstart = times[0]
+    tstep = times[1] - times[0]
+
+    # First, find the reversal ramp. Search backwards along the protocol until we find a >= 40mV step
+    step = next(filter(lambda x: x[2] >= -74, reversed(protocol_desc)))
+
+    if step[1] - step[0] > 200 or step[1] - step[0] < 50:
+        raise Exception("Failed to find reversal ramp in protocol")
+
+    # Next extract steps
+    istart = int((step[0] + tstart) / tstep)
+    iend = int((step[1] + tstart) / tstep)
+
+    times = times[istart:iend]
+    current = current[istart:iend]
+
+    voltages = np.array([protocol_func(t) for t in times])
+
+    fitted_poly = poly.Polynomial.fit(voltages, current, 4)
+
+    if plot:
+        if ax is None:
+            fig = plt.figure()
+            ax = fig.subplots()
+
+        ax.plot(*fitted_poly.linspace())
+        ax.set_xlabel('voltage mV')
+        ax.set_ylabel('current nA')
+        # Now plot current vs voltage
+        plt.plot(voltages, current, 'x', markersize=2, color='grey')
+
+        if output_path is not None:
+            fig = ax.figure
+            fig.savefig(output_path)
+
+    roots = np.unique([np.real(root) for root in fitted_poly.roots()
+                       if root > np.min(voltages) and root < np.max(voltages)])
+
+    # It makes sense to take the last root. This should be the first time that
+    # the current crosses 0 and where the ion-channel kinetics are too slow to
+    # play a role
+    if len(roots) == 0:
+        return np.nan
+
+    deriv = fitted_poly.deriv()(roots[-1])
+
+    if deriv < 0:
+        return np.nan
+
+    return roots[-1]
+
+
+def get_git_revision_hash() -> str:
+    return subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+
+
+def setup_output_directory(dirname: str = None, subdir_name: str = None):
+
+    if dirname is None:
+        if subdir_name:
+            dirname = os.path.join("output", f"{subdir_name}-{uuid.uuid4()}")
+        else:
+            dirname = os.path.join("output", f"output-{uuid.uuid4()}")
+
+    if subdir_name is not None:
+        dirname = os.path.join(dirname, subdir_name)
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+
+    with open(os.path.join(dirname, 'info.txt'), 'w') as description_fout:
+        git_hash = get_git_revision_hash()
+        datetimestr = str(datetime.datetime.now())
+        description_fout.write(f"Date: {datetimestr}\n")
+        description_fout.write(f"Commit {git_hash}\n")
+        command = " ".join(sys.argv)
+        description_fout.write(f"Command: {command}\n")
+
+    return dirname

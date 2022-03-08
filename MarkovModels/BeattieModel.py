@@ -3,9 +3,7 @@ import sympy as sp
 from scipy.integrate import odeint
 
 from . MarkovModel import MarkovModel
-from . MarkovChain import MarkovChain
-from . common import *
-from . settings import settings
+from . import common
 
 
 class BeattieModel(MarkovModel):
@@ -15,45 +13,57 @@ class BeattieModel(MarkovModel):
 
     n_params = 9
     n_states = 4
-    n_state_vars = n_states-1
+    n_state_vars = n_states - 1
     GKr_index = 8
-    open_state_index = 0
-    Erev = calculate_reversal_potential()
+    open_state_index = 1
     holding_potential = -80
 
     def get_default_parameters(self):
-        return np.array([2.07E-3, 7.17E-2, 3.44E-5, -6.18E-2, 20, 2.58E-2, 2,
-                         2.51E-2, 3.33E-2])
+        return self.default_parameters
 
-    def __init__(self, protocol=None, times=None):
+    def __init__(self, voltage=None, times=None, Erev: float = None,
+                 parameters=None, *args, **kwargs):
         # Create symbols for symbolic functions
         symbols = self.CreateSymbols()
+
+        if parameters is None:
+            self.default_parameters = np.array((2.26E-4, 6.99E-2, 3.44E-5, 5.460E-2, 0.0873,
+                                                8.91E-3, 5.15E-3, 0.003158, 0.1524))
+
+        else:
+            self.default_parameters = parameters
+
+        if Erev is None:
+            self.Erev = common.calculate_reversal_potential()
+        else:
+            self.Erev = Erev
 
         if times is None:
             times = np.linspace(0, 15000, 1000)
 
-        mc = MarkovChain()
-        rates = ['k{}'.format(i) for i in [1,2,3,4]]
-        mc.add_rates(rates)
-        states = [('O', True) , ('C', False), ('I', False), ('IC', False)]
-        mc.add_states(states)
+        self.state_labels = ['C', 'O', 'I', 'IC']
+        self.parameter_labels = [f"p{i+1}" for i in range(len(self.default_parameters) - 1)] + ['Gkr']
 
-        rates = [('O', 'C', 'k2', 'k1'), ('I', 'IC', 'k1', 'k2'), ('IC', 'I', 'k1', 'k2'), ('O', 'I', 'k3', 'k4'), ('C', 'IC', 'k3', 'k4')]
+        p = symbols['p']
+        v = symbols['v']
 
-        for r in rates:
-            mc.add_both_transitions(*r)
+        rates = {"k%i" % (i + 1):
+                 p[2 * i] * sp.exp((-1)**i * p[2 * i + 1] * v)
+                 for i in range(int(self.n_params / 2))}
 
-        A, B = mc.eliminate_state_from_transition_matrix(['C', 'O', 'I'])
-
-        rates=dict([("k{}".format(i+1), symbols['p'][2*i]*sp.exp(symbols['p'][2*i+1]*symbols['v'])) for i in range(int(self.n_params/2))])
-
-        A = A.subs(rates)
-        B = B.subs(rates)
-
+        # Notation is consistent between the two papers
+        A = sp.Matrix([['-k1 - k3 - k4', 'k2 - k4', '-k4'],
+                       ['k1', '-k2 - k3', 'k4'],
+                       ['-k1', 'k3 - k1', '-k2 - k4 - k1']])
+        B = sp.Matrix(['k4', 0, 'k1'])
         # Call the constructor of the parent class, MarkovModel
-        super().__init__(symbols, A, B, times, rates, voltage=protocol)
 
+        Q = sp.Matrix([['-k3 - k1', 'k2', .0, 'k4'],
+                       ['k1', '-k2 - k3', 'k4', .0],
+                       [.0, 'k3', '-k2 - k4', 'k3'],
+                       ['k3', .0, 'k2', '-k4 - k1']]).T
 
+        super().__init__(symbols, A, B, rates, times, voltage=voltage, Q=Q, *args, **kwargs)
 
     def CreateSymbols(self):
         """
@@ -61,9 +71,9 @@ class BeattieModel(MarkovModel):
         These are used to generate functions for the right hand side and Jacobian
         """
         # Create parameter symbols
-        p = [sp.symbols('p%d' % j) for j in range(self.n_params)]
+        p = sp.Matrix([sp.symbols('p%d' % j) for j in range(self.n_params)])
         # Create state variable symbols
         y = sp.Matrix([sp.symbols('y%d' % i) for i in range(self.n_state_vars)])
         # Create voltage symbol
         v = sp.symbols('v')
-        return {'p' : p, 'y' : y, 'v' : v}
+        return {'p': p, 'y': y, 'v': v}
