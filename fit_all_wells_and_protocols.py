@@ -5,6 +5,8 @@ import regex as re
 import matplotlib.pyplot as plt
 from MarkovModels import common
 from MarkovModels.BeattieModel import BeattieModel
+from MarkovModels.ClosedOpenModel import ClosedOpenModel
+from MarkovModels.KempModel import KempModel
 
 import os
 import pandas as pd
@@ -42,6 +44,7 @@ def main():
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--removal_duration', '-r', default=5, type=int)
     parser.add_argument('--cores', '-c', default=1, type=int)
+    parser.add_argument('--model', '-m', 'Beattie', type=str)
 
     global args
     args = parser.parse_args()
@@ -49,7 +52,17 @@ def main():
     global output_dir
     output_dir = args.output
 
-    output_dir = common.setup_output_directory(args.output, f"fitting_{args.removal_duration:.2f}_removed")
+    output_dir = common.setup_output_directory(args.output, f"fitting_{args.removal_duration:.2f}_removed_{args.model}")
+
+    global model_class
+    if args.model == 'Beattie':
+        model_class = BeattieModel
+    elif args.model == 'Kemp':
+        model_class = KempModel
+    elif args.model == 'CO':
+        model_class = ClosedOpenModel
+    else:
+        assert False
 
     regex = re.compile("^newtonrun4-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$")
 
