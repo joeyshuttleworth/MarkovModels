@@ -440,8 +440,6 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
     if starting_parameters is None:
         starting_parameters = mm.get_default_parameters()
 
-    print(mm.get_default_parameters())
-
     class Boundaries(pints.Boundaries):
         def __init__(self, parameters, fix_parameters=None):
             self.fix_parameters = fix_parameters
