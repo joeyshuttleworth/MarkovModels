@@ -113,7 +113,6 @@ def main():
 
     params_df.to_csv(os.path.join(output_dir, "best_fitting.csv"))
 
-    model = model_class()
     predictions_df = []
 
     trace_fig = plt.figure(figsize=(16, 12))
@@ -124,7 +123,6 @@ def main():
 
     for sim_protocol in np.unique(protocols_list):
         prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
-        model.voltage = prot_func
         full_times = pd.read_csv(os.path.join(args.data_directory,
                                               f"newtonrun4-{sim_protocol}-times.csv"))['time'].values.flatten()
 
@@ -154,10 +152,9 @@ def main():
                     continue
 
                 param_labels = model.parameter_labels
-                params = df.iloc[0][param_labels[:-1]].values\
-                                                      .astype(np.float64)\
-                                                      .flatten()
-
+                params = df.iloc[0][param_labels].values\
+                                                 .astype(np.float64)\
+                                                 .flatten()
                 sub_dir = os.path.join(output_dir, f"{well}_{sim_protocol}_predictions")
                 if not os.path.exists(sub_dir):
                     os.makedirs(sub_dir)
