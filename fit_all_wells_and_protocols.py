@@ -12,14 +12,12 @@ import os
 import pandas as pd
 import numpy as np
 
-param_labels = BeattieModel().parameter_labels + ['E_Kr']
 
-
-def fit_func(protocol, well):
+def fit_func(protocol, well, model_class):
     default_parameters = None
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
-    res_df = common.fit_well_data(BeattieModel, well, protocol, args.data_directory,
+    res_df = common.fit_well_data(model_class, well, protocol, args.data_directory,
                                   args.max_iterations, output_dir=this_output_dir, T=298, K_in=5,
                                   K_out=120, default_parameters=default_parameters,
                                   removal_duration=args.removal_duration, repeats=args.repeats,
@@ -85,7 +83,7 @@ def main():
         if protocol not in protocols or well not in args.wells:
             continue
         else:
-            tasks.append((protocol, well))
+            tasks.append((protocol, well, model_class))
             protocols_list.append(protocol)
 
     print(f"fitting tasks are {tasks}")
@@ -115,7 +113,7 @@ def main():
 
     params_df.to_csv(os.path.join(output_dir, "best_fitting.csv"))
 
-    model = BeattieModel()
+    model = model_class()
     predictions_df = []
 
     trace_fig = plt.figure(figsize=(16, 12))
@@ -135,7 +133,7 @@ def main():
         times, _, indices = common.remove_spikes(full_times, voltages, spikes, args.removal_duration)
         voltages = voltages[indices]
 
-        model = BeattieModel(prot_func,
+        model = model_class(prot_func,
                              times=times,
                              Erev=Erev)
 
@@ -155,6 +153,7 @@ def main():
                 if df.empty:
                     continue
 
+                param_labels = model.parameter_labels
                 params = df.iloc[0][param_labels[:-1]].values\
                                                       .astype(np.float64)\
                                                       .flatten()
