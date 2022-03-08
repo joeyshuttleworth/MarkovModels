@@ -20,8 +20,8 @@ class KempModel(MarkovModel):
 
         mc = construct_kemp_model()
 
-        self.default_parameters = np.fromiter(mc.default_values.values(),
-                                              dtype='float')
+        self.default_parameters = [val.astype(np.float64)
+                                   for key, val in list(mc.default_values) if key is not 'E_Kr']
 
         if parameters is not None:
             self.default_parameters = parameters
