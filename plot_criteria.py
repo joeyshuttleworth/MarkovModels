@@ -51,7 +51,7 @@ def main():
     # Setup a pool for parallel computation
     pool = Pool(args.cpus)
 
-    output_dir = os.path.join(common.setup_output_directory(args.output), "plot_criteria")
+    output_dir = common.setup_output_directory(args.output, "plot_criteria")
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)

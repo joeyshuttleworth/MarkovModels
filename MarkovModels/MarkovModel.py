@@ -785,6 +785,8 @@ class MarkovModel:
 
         """
 
+        self.setup_sensitivities()
+
         if p is None:
             p = self.get_default_parameters()
 
