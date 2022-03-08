@@ -3,6 +3,7 @@
 from MarkovModels import common
 from MarkovModels.BeattieModel import BeattieModel
 from MarkovModels.KempModel import KempModel
+from MarkovModels.ClosedOpenModel import ClosedOpenModel
 
 import argparse
 import numpy as np
@@ -18,9 +19,9 @@ def main():
     parser.add_argument("--model", default='Beattie')
     parser.add_argument("--output", "-o", default=None)
     parser.add_argument("--prefix", default='synthetic')
-    parser.add_argument('-P', '--protocols', default=None)
+    parser.add_argument('-P', '--protocols', nargs='+', default=None)
     parser.add_argument('-p', '--plot', action='store_true', default=False)
-    parser.add_argument('--noise', default=0.01)
+    parser.add_argument('--noise', default=0.01, type=float)
     parser.add_argument('--Erev', '-e', default=None)
     parser.add_argument('--cpus', '-c', default=1, type=int)
 
@@ -49,6 +50,8 @@ def main():
         model_class = BeattieModel
     elif args.model == 'Kemp':
         model_class = KempModel
+    elif args.model == 'CO':
+        model_class = ClosedOpenModel
     else:
         assert False
 
@@ -56,11 +59,8 @@ def main():
         if args.protocols is None\
         else args.protocols
 
-    print(protocols)
-
     with multiprocessing.Pool(args.cpus) as pool:
         pool.map(generate_data, protocols)
-
 
 def generate_data(protocol):
     prot, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(protocol)
@@ -81,15 +81,19 @@ def generate_data(protocol):
     out_fname = os.path.join(output_dir, f"{args.prefix}-{protocol}-A01.csv")
     pd.DataFrame(data.T, columns=('current',)).to_csv(out_fname)
 
-    fig = plt.figure(figsie=(14, 12))
-    ax = fig.subplots()
-
     if args.plot:
-        ax.plot(times, mean, label='mean')
-        ax.plot(times, data, label='data', color='grey', alpha='0.5')
-        ax.legend()
+        fig = plt.figure(figsize=(14, 12))
+        axs = fig.subplots(3)
+        axs[0].plot(times, mean, label='mean')
+        axs[0].plot(times, data, label='data', color='grey', alpha=0.5)
+        axs[1].plot(times, model.GetStateVariables())
+        axs[1].legend(model.state_labels)
+        axs[0].legend()
+        axs[1].set_xlabel('time / ms')
+        axs[0].set_ylabel('current / nA')
+        axs[2].plot(times, [model.voltage(t) for t in times], label='voltage / mV')
         fig.savefig(os.path.join(output_dir, f"%s_plot.png" % protocol))
-        fig.close()
+        plt.close(fig)
 
 
 

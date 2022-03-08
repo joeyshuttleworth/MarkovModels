@@ -53,6 +53,7 @@ class MarkovModel:
 
         # Create RHS function
         frhs = np.array([e for e in self.rhs_expr])
+        self.frhs = frhs
 
         inputs = list(self.y) + list(self.p) + [self.v]
 
@@ -61,7 +62,35 @@ class MarkovModel:
         # Create Jacobian of the RHS function
         jrhs = sp.Matrix(self.rhs_expr).jacobian(self.y)
         self.jfunc_rhs = sp.lambdify(inputs, jrhs)
+        # Set the initial conditions of the model and the initial sensitivities
+        # by finding the steady state of the model
 
+        # TODO:
+        # Check that a steady state exists for this system at this
+        # voltage
+        # dx/dt = Ax+B
+
+        A_matrix, _ = self.get_linear_system()
+
+        # eigvals = np.linalg.eig(A_matrix)[0]
+        # assert(np.all(eigvals < 0))
+
+        # Can be found analytically
+        self.rhs_inf_expr = -self.A.LUsolve(self.B).subs(rates_dict)
+        self.rhs_inf = nb.njit(sp.lambdify((self.p, self.v), self.rhs_inf_expr,
+                                           modules='numpy', cse=True))
+
+        self.auxillary_expression = self.p[self.GKr_index] * \
+            self.y[self.open_state_index] * (self.v - self.Erev)
+
+        self.current_inf_expr = self.auxillary_expression.subs(self.y, self.rhs_inf)
+        self.current_inf = lambda p: np.array(self.current_inf_expr.subs(
+            dict(zip(self.p, p))).evalf()).astype(np.float64)
+
+
+    def setup_sensitivities(self):
+
+        inputs = list(self.y) + list(self.p) + [self.v]
         # Create symbols for 1st order sensitivities
         dydp = [
             [
@@ -97,9 +126,6 @@ class MarkovModel:
         [[Ss.append(S[i][j]) for i in range(self.n_state_vars)]
          for j in range(self.n_params)]
 
-        self.auxillary_expression = self.p[self.GKr_index] * \
-            self.y[self.open_state_index] * (self.v - self.Erev)
-
         # dI/do
         self.dIdo = sp.diff(self.auxillary_expression, self.y[self.open_state_index])
 
@@ -109,7 +135,7 @@ class MarkovModel:
 
         # Concatenate RHS and 1st order sensitivities
         Ss = np.concatenate((list(self.y), Ss))
-        fS1 = sp.Matrix(np.concatenate((frhs, fS1)))
+        fS1 = sp.Matrix(np.concatenate((self.frhs, fS1)))
 
         self.func_S1 = sp.lambdify(inputs, fS1)
 
@@ -117,39 +143,21 @@ class MarkovModel:
         jS1 = fS1.jacobian(Ss)
         self.jfunc_S1 = sp.lambdify(inputs, jS1)
 
-        # Set the initial conditions of the model and the initial sensitivities
-        # by finding the steady state of the model
-
-        # TODO:
-        # Check that a steady state exists for this system at this
-        # voltage
-        # dx/dt = Ax+B
-
-        A_matrix, _ = self.get_linear_system()
-
-        # eigvals = np.linalg.eig(A_matrix)[0]
-        # assert(np.all(eigvals < 0))
-
-        # Can be found analytically
-        self.rhs_inf_expr = -self.A.LUsolve(self.B).subs(rates_dict)
-        # self.rhs_inf = lambda p, v: np.array(self.rhs_inf_expr.subs(dict(zip(self.p, p))).subs('v', v)).astype(np.float64)
-        self.rhs_inf = nb.njit(sp.lambdify((self.p, 'v'), self.rhs_inf_expr, modules='numpy'))
-
-        self.current_inf_expr = self.auxillary_expression.subs(self.y, self.rhs_inf)
-        self.current_inf = lambda p: np.array(self.current_inf_expr.subs(
-            dict(zip(self.p, p))).evalf()).astype(np.float64)
-
         # Find sensitivity steady states at holding potential
         self.sensitivity_ics_expr = sp.Matrix([sp.diff(self.rhs_inf_expr[i].subs(
-            'v', self.voltage(0)), self.p[j]) for j in range(self.n_params) for i in range(self.n_state_vars)])
+            self.v, self.voltage(0)), self.p[j]) for j in range(self.n_params) for i in range(self.n_state_vars)])
 
         self.sensitivity_ics = sp.lambdify(self.p, self.sensitivity_ics_expr, cse=True)
+
+
+
+
 
     def rhs(self, t, y, p):
         """ Evaluates the RHS of the model (including sensitivities)
 
         """
-        return self.func_rhs(*(*y, *p, self.voltage(t)))
+        return self.func_rhs(y, p, self.voltage(t))
 
     def jrhs(self, t, y, p):
         """ Evaluates the jacobian of the RHS
@@ -541,8 +549,9 @@ class MarkovModel:
             voltages = self.GetVoltage()
 
         times = self.times
+        params = self.get_default_parameters()
 
-        def forward_solver(p, times=times, voltages=voltages, atol=atol, rtol=rtol):
+        def forward_solver(p=params, times=times, voltages=voltages, atol=atol, rtol=rtol):
             states = solver_states(p, times, atol, rtol)
             return ((states[:, open_index] * p[gkr_index]) * (voltages - Erev)).flatten()
 

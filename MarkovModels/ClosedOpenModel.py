@@ -1,15 +1,12 @@
 import numpy as np
 import sympy as sp
-from markov_builder.example_models import construct_kemp_model
+import markov_builder
 from scipy.integrate import odeint
 
 from . MarkovModel import MarkovModel
 from . import common
 
-class KempModel(MarkovModel):
-    """The model described in https://doi.org/10.1085/jgp.202112923
-    constructed using Markov_builder
-    """
+class ClosedOpenModel(MarkovModel):
 
     def get_default_parameters(self):
         return self.default_parameters
@@ -18,7 +15,18 @@ class KempModel(MarkovModel):
                  parameters=None, *args, **kwargs):
         # Create symbols for symbolic functions
 
-        mc = construct_kemp_model()
+        mc = markov_builder.MarkovChain(name='closed_open')
+        mc.add_state('O', open_state=True)
+        mc.add_state('C')
+
+        mc.add_both_transitions('O', 'C', 'b', 'a')
+
+        rates_dict = {
+            'b': markov_builder.rate_expressions.negative_rate_expr + ((2.26E-4, 6.99E-2),),
+            'a': markov_builder.rate_expressions.positive_rate_expr + ((3.44E-5, 5.46E-2),)
+        }
+
+        mc.parameterise_rates(rates_dict, shared_variables=('V',))
 
         self.default_parameters = np.fromiter(mc.default_values.values(),
                                               dtype='float')
@@ -43,18 +51,18 @@ class KempModel(MarkovModel):
 
         symbols = {}
         symbols['v'] = sp.sympify('V')
-        symbols['p'] = sp.Matrix([sp.sympify(p) for p in self.parameter_labels])
+        symbols['p'] = [sp.sympify(p) for p in self.parameter_labels]
         symbols['y'] = sp.Matrix([mc.get_state_symbol(s)
                                   for s in self.state_labels[:-1]])
 
         self.n_params = len(self.parameter_labels)
         self.n_states = len(symbols['y']) + 1
         self.n_state_vars = self.n_states - 1
-        self.GKr_index = self.parameter_labels.index('g_Kr')
+        self.GKr_index = -1
         self.open_state_index = 0
 
-        super().__init__(symbols, A, B, mc.rate_expressions, times,
-                         voltage=voltage, Q=Q, *args, **kwargs)
+        super().__init__(symbols, A, B, mc.rate_expressions, times, voltage=voltage,
+                         Q=Q, *args, **kwargs)
 
     def CreateSymbols(self):
         """
