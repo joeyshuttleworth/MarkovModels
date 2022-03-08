@@ -21,7 +21,8 @@ class KempModel(MarkovModel):
         mc = construct_kemp_model()
 
         self.default_parameters = [val.astype(np.float64)
-                                   for key, val in list(mc.default_values) if key is not 'E_Kr']
+                                   for key, val in mc.default_values.items()
+                                   if str(key) != 'E_Kr']
 
         if parameters is not None:
             self.default_parameters = parameters
