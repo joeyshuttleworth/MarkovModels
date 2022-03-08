@@ -451,8 +451,9 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
             return True
 
         def n_parameters(self):
-            return 9 - \
-                len(self.fix_parameters) if self.fix_parameters is not None else 9
+            return mm.get_no_parameters() - \
+                len(self.fix_parameters) if self.fix_parameters is not None\
+                else mm.get_no_parameters()
 
     class PintsWrapper(pints.ForwardModelS1):
         def __init__(self, mm, parameters, fix_parameters=None):
