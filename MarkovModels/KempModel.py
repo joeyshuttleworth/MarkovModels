@@ -6,6 +6,7 @@ from scipy.integrate import odeint
 from . MarkovModel import MarkovModel
 from . import common
 
+
 class KempModel(MarkovModel):
     """The model described in https://doi.org/10.1085/jgp.202112923
     constructed using Markov_builder
