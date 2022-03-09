@@ -562,9 +562,10 @@ def get_data(well, protocol, data_directory):
     return data
 
 
-def fit_well_data(model_class, well, protocol, data_directory, max_iterations, output_dir=None,
-                  T=298, K_in=120, K_out=5, default_parameters: float = None,
-                  removal_duration=5, repeats=1, infer_E_rev=False):
+def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
+                  output_dir=None, T=298, K_in=120, K_out=5,
+                  default_parameters: float = None, removal_duration=5,
+                  repeats=1, infer_E_rev=False, fit_initial_conductance=True):
 
     # Ignore files that have been commented out
     voltage_func, t_start, t_end, t_step, protocol_desc = get_ramp_protocol_from_csv(protocol)
@@ -590,16 +591,17 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations, o
     initial_score = ((model.SimulateForwardModel() - data)**2).sum()
     print(f"initial score is {initial_score}")
 
-    # # First fit only Gkr
-    # def gkr_opt_func(gkr):
-    #     p = model.get_default_parameters()
-    #     p[8] = gkr
-    #     return ((model.SimulateForwardModel(p) - data)**2).sum()
+    # First fit only Gkr
+    if fit_initial_conductance:
+        def gkr_opt_func(gkr):
+            p = model.get_default_parameters()
+            p[8] = gkr
+            return ((model.SimulateForwardModel(p) - data)**2).sum()
 
-    # if initial_gkr <= 0:
-    #     initial_gkr = 1
+        if initial_gkr <= 0:
+            initial_gkr = 1
 
-    # initial_params[8] = initial_gkr
+            initial_params[8] = initial_gkr
 
     print(f"initial_gkr is {initial_gkr}")
 
