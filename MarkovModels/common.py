@@ -615,7 +615,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
 
     dfs = []
     for i in range(repeats):
-        fitted_params, scores = fit_model(model, data, starting_parameters=initial_params,
+        fitted_params, score = fit_model(model, data, starting_parameters=initial_params,
                                           max_iterations=max_iterations)
 
         fig = plt.figure(figsize=(14, 12))
@@ -626,7 +626,10 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
         if infer_E_rev:
             fitted_params = np.append(fitted_params, Erev)
 
-        dfs.append(pd.DataFrame(np.column_stack((*fitted_params.T, scores.T)), columns=columns + ['score']))
+        print(fitted_params)
+        df = pd.DataFrame(fitted_params[None, :], columns=columns)
+        df['score'] = score
+        dfs.append(df)
 
     df = pd.concat(dfs, ignore_index=True)
 
