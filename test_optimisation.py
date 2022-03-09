@@ -52,7 +52,8 @@ def main():
     starting_positions = np.random.uniform(1e-1, 2, (args.no_samples, len(params)))\
         * params[None, :]
 
-    starting_positions = np.append(starting_positions, params[None, :], axis=0)
+    for i in range(25):
+        starting_positions = np.append(starting_positions, params[None, :], axis=0)
 
     print(starting_positions)
 
