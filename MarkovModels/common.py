@@ -427,7 +427,23 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
     """
 
     if log_transform:
-        transformation = pints.LogTransformation(mm.get_no_parameters())
+        # Assume that the conductance is the last parameter and that the parameters are arranged included
+        # ae^bV pairs
+
+        # Use a-space transformation (Four Ways to Fit...)
+        no_rates = int((mm.get_no_parameters() - 1)/2)
+        log_transformations = [pints.LogTransformation(1) for i in range(no_rates)]
+        identity_transformations = [pints.IdentityTransformation(1) for i in range(no_rates)]
+
+        # Flatten and include conductance on the end  (aiyoooo)
+        transformations = [w for u, v
+                           in zip(log_transformations, identity_transformations)
+                           for w in (u, v)]\
+        + [pints.IdentityTransformation(1)]
+
+        print(transformations)
+        transformation = pints.ComposedTransformation(*transformations)
+
     else:
         transformation = None
 
