@@ -84,16 +84,17 @@ def main():
 
     # Plot standard deviation of parameter estimates
     standard_devs = np.log10(all_chains.std(axis=1)/params)
+    log_MSEs = np.log10(np.mean((all_chains - params[None, :])**2))
 
     removal_durations = pd.read_csv(os.path.join(args.chain_dir,
                                     'removal_durations.csv'))['removal_duration'].values.flatten()
 
     fig = plt.figure(figsize=(16, 12))
     ax = fig.subplots()
-    ax.plot(removal_durations, standard_devs, label=param_names)
+    ax.plot(removal_durations, log_MSEs, label=param_names)
     ax.legend()
 
-    ax.set_ylabel('std / true value')
+    ax.set_ylabel('MSE / true value')
     ax.set_xlabel('time removed from each spike / ms')
     fig.savefig(os.path.join(output_dir, "param_summary.png"))
 
@@ -115,7 +116,7 @@ def main():
 
         for i in range(all_chains.shape[0]):
             voi = np.array(compute_tau_inf(all_chains[i, :, :], voltage))
-            voi = voi.std(axis=1)
+            voi = np.mean((voi - true_vals[None, :])**2)
             vois[i, :] = voi #/ true_vals[0, :]
 
         voi_labels = ('a_inf', 'tau_a / ms', 'r_inf', 'tau_r / ms')
