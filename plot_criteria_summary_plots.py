@@ -155,9 +155,9 @@ def main():
         fig.clf()
         axs = fig.subplots(4)
         # Cmap based on time removed
-        if k==0:
+        if k == 0:
             cm = plt.cm.plasma
-        elif k==1:
+        elif k == 1:
             cm = plt.cm.cividis
 
         sm = plt.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(vmin=0, vmax=durations[-1]))
