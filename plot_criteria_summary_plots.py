@@ -84,8 +84,8 @@ def main():
     # all_chains[spike_indicies, sample, parameter]
 
     # Plot standard deviation of parameter estimates
-    standard_devs = np.log10(all_chains.std(axis=1)/params)
-    log_RMSEs = np.log10(np.sqrt(np.mean((all_chains - params[None, :])**2)) / params[None, :])
+    # standard_devs = np.log10(all_chains.std(axis=1)/params)
+    log_RMSEs = np.log10(np.sqrt(np.mean((all_chains - params[None, :])**2, axis=1) / params[None, :]))
 
     removal_durations = pd.read_csv(os.path.join(args.chain_dir,
                                     'removal_durations.csv'))['removal_duration'].values.flatten()
@@ -118,11 +118,10 @@ def main():
 
         for i in range(all_chains.shape[0]):
             voi = np.array(compute_tau_inf(all_chains[i, :, :], voltage))
-            voi = np.sqrt(np.mean((voi - true_vals[None, :])**2))
-            vois[i, :] = voi #/ true_vals[0, :]
+            voi = np.sqrt(np.mean((voi - true_vals[:, None])**2, axis=1))
             vois[i, :] = voi
 
-        vois = vois / true_vals[None, :] if args.normalise else voi
+        vois = vois / true_vals[None, :] if args.normalise else vois
 
         all_vois.append(vois)
 
@@ -133,14 +132,14 @@ def main():
         for i in range(4):
             axs[i].plot(removal_durations, np.log10(vois[:, i]), color=sm.to_rgba(voltage))
             labels.append(
-                "RMSE of %s estimate %" % voi_labels[i] % units[i] if not args.normalise\
+                f"RMSE of {voi_labels[i]} estimate {units[i]}" if not args.normalise\
                 else "normalised RMSE of %s estimate" % voi_labels[i]
             )
 
             axs[i].set_ylabel(labels[-1])
 
     axs[-1].set_xlabel('time removed from each spike / ms')
-
+    fig.colorbar(sm, label='voltage / mV')
     fig.savefig(os.path.join(output_dir, "voi_plot.png"))
 
     for ax in axs:
