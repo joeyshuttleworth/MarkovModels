@@ -28,8 +28,16 @@ class ClosedOpenModel(MarkovModel):
 
         mc.parameterise_rates(rates_dict, shared_variables=('V',))
 
-        self.default_parameters = np.fromiter(mc.default_values.values(),
-                                              dtype='float')
+        auxiliary_expression = sp.sympify("g_Kr * s_O * (V + E_Kr)")
+
+        mc.define_auxiliary_expression(auxiliary_expression, 'I_kr',
+                                       {
+                                           'g_Kr': 7.05e-02,
+                                           'E_Kr': -88})
+
+        self.default_parameters = [val
+                                   for key, val in mc.default_values.items()
+                                   if str(key) != 'E_Kr']
 
         if parameters is not None:
             self.default_parameters = parameters
@@ -43,7 +51,7 @@ class ClosedOpenModel(MarkovModel):
             times = np.linspace(0, 15000, 1000)
 
         self.state_labels = list(mc.graph)
-        self.parameter_labels = list(mc.default_values)
+        self.parameter_labels = [key for key in mc.default_values if str(key) != 'E_Kr']
 
         A, B = mc.eliminate_state_from_transition_matrix()
 
@@ -58,7 +66,7 @@ class ClosedOpenModel(MarkovModel):
         self.n_params = len(self.parameter_labels)
         self.n_states = len(symbols['y']) + 1
         self.n_state_vars = self.n_states - 1
-        self.GKr_index = -1
+        self.GKr_index = self.parameter_labels.index('g_Kr')
         self.open_state_index = 0
 
         super().__init__(symbols, A, B, mc.rate_expressions, times, voltage=voltage,

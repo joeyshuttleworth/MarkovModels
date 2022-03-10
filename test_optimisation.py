@@ -49,10 +49,11 @@ def main():
     params = model.get_default_parameters()
 
     # Randomly multiply default parameters to get pertubed starting points
-    starting_positions = np.random.uniform(1e-6, 1e2, (args.no_samples, len(params)))\
+    starting_positions = np.random.uniform(1e-1, 2, (args.no_samples, len(params)))\
         * params[None, :]
 
-    starting_positions = np.append(starting_positions, params[None, :], axis=0)
+    for i in range(25):
+        starting_positions = np.append(starting_positions, params[None, :], axis=0)
 
     print(starting_positions)
 

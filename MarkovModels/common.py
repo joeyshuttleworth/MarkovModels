@@ -427,7 +427,23 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
     """
 
     if log_transform:
-        transformation = pints.LogTransformation(mm.get_no_parameters())
+        # Assume that the conductance is the last parameter and that the parameters are arranged included
+        # ae^bV pairs
+
+        # Use a-space transformation (Four Ways to Fit...)
+        no_rates = int((mm.get_no_parameters() - 1)/2)
+        log_transformations = [pints.LogTransformation(1) for i in range(no_rates)]
+        identity_transformations = [pints.IdentityTransformation(1) for i in range(no_rates)]
+
+        # Flatten and include conductance on the end  (aiyoooo)
+        transformations = [w for u, v
+                           in zip(log_transformations, identity_transformations)
+                           for w in (u, v)]\
+        + [pints.IdentityTransformation(1)]
+
+        print(transformations)
+        transformation = pints.ComposedTransformation(*transformations)
+
     else:
         transformation = None
 
@@ -562,9 +578,10 @@ def get_data(well, protocol, data_directory):
     return data
 
 
-def fit_well_data(model_class, well, protocol, data_directory, max_iterations, output_dir=None,
-                  T=298, K_in=120, K_out=5, default_parameters: float = None,
-                  removal_duration=5, repeats=1, infer_E_rev=False):
+def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
+                  output_dir=None, T=298, K_in=120, K_out=5,
+                  default_parameters: float = None, removal_duration=5,
+                  repeats=1, infer_E_rev=False, fit_initial_conductance=True):
 
     # Ignore files that have been commented out
     voltage_func, t_start, t_end, t_step, protocol_desc = get_ramp_protocol_from_csv(protocol)
@@ -590,16 +607,17 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations, o
     initial_score = ((model.SimulateForwardModel() - data)**2).sum()
     print(f"initial score is {initial_score}")
 
-    # # First fit only Gkr
-    # def gkr_opt_func(gkr):
-    #     p = model.get_default_parameters()
-    #     p[8] = gkr
-    #     return ((model.SimulateForwardModel(p) - data)**2).sum()
+    # First fit only Gkr
+    if fit_initial_conductance:
+        def gkr_opt_func(gkr):
+            p = model.get_default_parameters()
+            p[8] = gkr
+            return ((model.SimulateForwardModel(p) - data)**2).sum()
 
-    # if initial_gkr <= 0:
-    #     initial_gkr = 1
+        if initial_gkr <= 0:
+            initial_gkr = 1
 
-    # initial_params[8] = initial_gkr
+            initial_params[8] = initial_gkr
 
     print(f"initial_gkr is {initial_gkr}")
 
@@ -613,7 +631,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations, o
 
     dfs = []
     for i in range(repeats):
-        fitted_params, scores = fit_model(model, data, starting_parameters=initial_params,
+        fitted_params, score = fit_model(model, data, starting_parameters=initial_params,
                                           max_iterations=max_iterations)
 
         fig = plt.figure(figsize=(14, 12))
@@ -624,7 +642,10 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations, o
         if infer_E_rev:
             fitted_params = np.append(fitted_params, Erev)
 
-        dfs.append(pd.DataFrame(np.column_stack((*fitted_params.T, scores.T)), columns=columns + ['score']))
+        print(fitted_params)
+        df = pd.DataFrame(fitted_params[None, :], columns=columns)
+        df['score'] = score
+        dfs.append(df)
 
     df = pd.concat(dfs, ignore_index=True)
 

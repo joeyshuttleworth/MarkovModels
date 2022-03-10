@@ -69,6 +69,8 @@ def main():
     parser = argparse.ArgumentParser(description='')
     parser.add_argument("chain_dir", help="Directory containing MCMC chains")
     parser.add_argument("-o", "--output", help="Directory to output to", default=None)
+    parser.add_argument("-N", "--normalise", help="Divide through by true values",
+                        action='store_true', default=False)
 
     args = parser.parse_args()
 
@@ -77,7 +79,6 @@ def main():
 
     # Get chains
     all_chains, param_names = read_chains(args.chain_dir)
-    print(all_chains)
     all_chains = all_chains[:, :, 1:]
     param_names = param_names[1:]
     # all_chains[spike_indicies, sample, parameter]
@@ -107,10 +108,11 @@ def main():
     axs = fig.subplots(4)
 
     voltages = np.linspace(-120, 40, 25)
+    all_vois = []
     for j, voltage in enumerate(voltages):
         sm = plt.cm.ScalarMappable(cmap=plt.cm.viridis, norm=plt.Normalize(vmin=voltages[0], vmax=voltages[-1]))
 
-        true_vals = compute_tau_inf(params[None, :], voltage)
+        true_vals = compute_tau_inf(params[None, :], voltage).flatten()
 
         vois = np.empty((all_chains.shape[0], 4))
 
@@ -118,14 +120,24 @@ def main():
             voi = np.array(compute_tau_inf(all_chains[i, :, :], voltage))
             voi = np.mean((voi - true_vals[None, :])**2)
             vois[i, :] = voi #/ true_vals[0, :]
+            vois[i, :] = voi
 
-        voi_labels = ('a_inf', 'tau_a / ms', 'r_inf', 'tau_r / ms')
+        vois = vois / true_vals[None, :] if args.normalise else voi
 
+        all_vois.append(vois)
+
+        voi_labels = ('a_inf', 'tau_a', 'r_inf', 'tau_r')
+        units = ("", '/ ms', "", '/ ms')
+
+        labels = []
         for i in range(4):
             axs[i].plot(removal_durations, np.log10(vois[:, i]), color=sm.to_rgba(voltage))
-            axs[i].set_ylabel(voi_labels[i])
+            labels.append(
+                "std of %s estimate %" % voi_labels[i] % units[i] if not args.normalise\
+                else "normalised std of %s estimate" % voi_labels[i]
+            )
 
-    fig.colorbar(sm, label='voltage /mV')
+            axs[i].set_ylabel(labels[-1])
 
     axs[-1].set_xlabel('time removed from each spike / ms')
 
@@ -135,6 +147,38 @@ def main():
         ax.set_xlim((0, 25))
 
     fig.savefig(os.path.join(output_dir, "voi_plot_zoomed.png"))
+
+    # Now plot other way round
+    all_vois = np.stack(all_vois, axis=-1)
+
+    i_end = np.argmax(removal_durations > 25)
+    for k, durations in enumerate([removal_durations, removal_durations[:i_end]]):
+        fig.clf()
+        axs = fig.subplots(4)
+        # Cmap based on time removed
+        if k==0:
+            cm = plt.cm.plasma
+        elif k==1:
+            cm = plt.cm.cividis
+
+        sm = plt.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(vmin=0, vmax=durations[-1]))
+        for i in range(4):
+            axs[i].cla()
+            axs[i].set_ylabel(labels[i])
+
+        # Iterate over time removed
+        for i in range(len(durations)):
+            for j in range(4):
+                time_removed = removal_durations[i]
+                axs[j].plot(voltages, all_vois[i, j, :], color=sm.to_rgba(time_removed))
+
+        axs[-1].set_xlabel('voltage / mV')
+
+        fig.colorbar(sm, label='time removed / ms')
+        if k == 0:
+            fig.savefig(os.path.join(output_dir, "voltage_voi_plot.png"))
+        elif k == 1:
+            fig.savefig(os.path.join(output_dir, "voltage_voi_plot_zoomed.png"))
 
 
 if __name__ == "__main__":

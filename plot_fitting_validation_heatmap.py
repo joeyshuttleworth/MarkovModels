@@ -93,7 +93,9 @@ def main():
             sub_df['normalised RMSE'] = [
                 row['RMSE'] /
                 diagonals[row['validation_protocol']] for _, row in sub_df.iterrows()]
-            sub_df['log normalised RMSE']
+
+            sub_df['log normalised RMSE'] = np.log10(sub_df['normalised RMSE'])
+
             if args.log_scale:
                 value_col = 'log normalised RMSE'
             else:

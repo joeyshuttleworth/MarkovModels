@@ -1,7 +1,7 @@
 #!/usr/bin/env
 
 import matplotlib.pyplot as plt
-import common
+from MarkovModels import common
 import argparse
 import pandas as pd
 import os
@@ -22,8 +22,8 @@ def main():
         fig = plt.figure(figsize=(22, 20))
         ax = fig.subplots()
         df.plot(title=protocol, ax=ax)
-        # fig.savefig(f"{os.path.join(plot_dir, protocol)}.pdf")
-        plt.show()
+        fig.savefig(f"{os.path.join(plot_dir, protocol)}.pdf")
+        fig.clf()
 
 
 if __name__ == "__main__":

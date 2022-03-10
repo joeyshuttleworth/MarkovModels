@@ -6,6 +6,7 @@ from scipy.integrate import odeint
 from . MarkovModel import MarkovModel
 from . import common
 
+
 class KempModel(MarkovModel):
     """The model described in https://doi.org/10.1085/jgp.202112923
     constructed using Markov_builder
@@ -23,6 +24,9 @@ class KempModel(MarkovModel):
         self.default_parameters = [val
                                    for key, val in mc.default_values.items()
                                    if str(key) != 'E_Kr']
+        self.parameter_labels = [key
+                                 for key in mc.default_values
+                                 if str(key) != 'E_Kr']
 
         if parameters is not None:
             self.default_parameters = parameters
@@ -36,7 +40,6 @@ class KempModel(MarkovModel):
             times = np.linspace(0, 15000, 1000)
 
         self.state_labels = list(mc.graph)
-        self.parameter_labels = list(mc.default_values)
 
         A, B = mc.eliminate_state_from_transition_matrix()
 
