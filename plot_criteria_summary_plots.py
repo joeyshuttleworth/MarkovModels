@@ -133,7 +133,7 @@ def main():
             labels.append(
                 "std of %s estimate %" % voi_labels[i] % units[i] if not args.normalise\
                 else "normalised std of %s estimate" % voi_labels[i]
-                )
+            )
 
             axs[i].set_ylabel(labels[-1])
 
@@ -149,23 +149,34 @@ def main():
     # Now plot other way round
     all_vois = np.stack(all_vois, axis=-1)
 
-    # Cmap based on time removed
-    sm = plt.cm.ScalarMappable(cmap=plt.cm.plasma, norm=plt.Normalize(vmin=0, vmax=removal_durations[-1]))
+    i_end = np.argmax(removal_durations > 25)
+    for k, durations in enumerate([removal_durations, removal_durations[:i_end]]):
+        fig.clf()
+        axs = fig.subplots(4)
+        # Cmap based on time removed
+        if k==0:
+            cm = plt.cm.plasma
+        elif k==1:
+            cm = plt.cm.cividis
 
-    for i in range(4):
-        axs[i].cla()
-        axs[i].set_ylabel(labels[i])
+        sm = plt.cm.ScalarMappable(cmap=cm, norm=plt.Normalize(vmin=0, vmax=durations[-1]))
+        for i in range(4):
+            axs[i].cla()
+            axs[i].set_ylabel(labels[i])
 
-    # Iterate over time removed
-    for i in range(all_vois.shape[0]):
-        for j in range(4):
-            time_removed = removal_durations[i]
-            axs[j].plot(voltages, all_vois[i, j, :], color=sm.to_rgba(time_removed))
+        # Iterate over time removed
+        for i in range(len(durations)):
+            for j in range(4):
+                time_removed = removal_durations[i]
+                axs[j].plot(voltages, all_vois[i, j, :], color=sm.to_rgba(time_removed))
 
-    axs[-1].set_xlabel('voltage / mV')
-    fig.colorbar(sm, label='time removed / ms')
+        axs[-1].set_xlabel('voltage / mV')
 
-    fig.savefig(os.path.join(output_dir, "voltage_voi_plot.png"))
+        fig.colorbar(sm, label='time removed / ms')
+        if k == 0:
+            fig.savefig(os.path.join(output_dir, "voltage_voi_plot.png"))
+        elif k == 1:
+            fig.savefig(os.path.join(output_dir, "voltage_voi_plot_zoomed.png"))
 
 
 if __name__ == "__main__":
