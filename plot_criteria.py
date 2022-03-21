@@ -138,7 +138,7 @@ def main():
         indices_used.append(indices)
         # Plot the observations being removed
         fig.clf()
-        axs = fig.subplots(3)
+        axs = fig.subplots(2)
         axs[0].plot(times, voltages)
         for t in spike_times:
             axs[0].axvspan(t, t + time_to_remove, alpha=0.4, color='red', lw=0)
