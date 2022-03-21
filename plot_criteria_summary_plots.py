@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from MarkovModels import common
+from MarkovModels.BeattieModel import BeattieModel
 import os
 import numpy as np
 import pandas as pd
@@ -9,8 +10,12 @@ import argparse
 import matplotlib.pyplot as plt
 import regex as re
 
+figsize = (12, 8)
+
 params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                    4.75E-2, 2.51E-2, 3.33E-2])
+
+Erev = common.calculate_reversal_potential(310.15)
 
 def compute_tau_inf(samples, voltage):
     k1 = samples[:, 0] * np.exp(samples[:,  1] * voltage)
@@ -90,7 +95,7 @@ def main():
     removal_durations = pd.read_csv(os.path.join(args.chain_dir,
                                     'removal_durations.csv'))['removal_duration'].values.flatten()
 
-    fig = plt.figure(figsize=(16, 12))
+    fig = plt.figure(figsize=figsize)
     ax = fig.subplots()
     ax.plot(removal_durations, log_RMSEs, label=param_names)
     ax.legend()
@@ -155,6 +160,7 @@ def main():
         fig.clf()
         axs = fig.subplots(4)
         # Cmap based on time removed
+
         if k == 0:
             cm = plt.cm.plasma
         elif k == 1:
@@ -178,6 +184,108 @@ def main():
             fig.savefig(os.path.join(output_dir, "voltage_voi_plot.png"))
         elif k == 1:
             fig.savefig(os.path.join(output_dir, "voltage_voi_plot_zoomed.png"))
+
+    model = BeattieModel(parameters=params)
+
+    # Plot true IV curve
+    analytic_solver = model.get_analytic_solver()
+    rhs0_func = model.rhs_inf
+
+    IV_voltages = np.linspace(-120, -40, 50)
+    voi_voltages = np.linspace(-120, 40, 100)
+
+    true_peak_Is = get_peak_currents(params, IV_voltages, analytic_solver, rhs0_func, model)
+
+    for i in range(all_chains.shape[0]):
+        fig.clf()
+        ax = fig.subplots()
+
+        peak_Is_list = []
+
+        n_samples = 1000
+        sample_indices = np.random.randint(0, all_chains.shape[-2], size=n_samples)
+
+        for j in range(n_samples):
+            sample_index = sample_indices[j]
+            param_sample = all_chains[i, sample_index, :]
+            peak_Is = get_peak_currents(param_sample, IV_voltages, analytic_solver, rhs0_func, model)
+
+            peak_Is_list.append(peak_Is)
+
+            label = "samples" if j == 0 else None
+            ax.plot(IV_voltages, peak_Is - true_peak_Is, color='grey', alpha=0.1, label=label)
+
+        ax.set_xlabel('voltage / mV')
+        ax.set_ylabel('error in peak current / nA')
+        ax.set_title(f"Sampled IV errors with {removal_durations[i]:.2f}ms removed")
+        ax.legend()
+        fig.savefig(os.path.join(output_dir, f"I_V_plot_errors_plot_{i}.png"))
+
+        fig.clf()
+        ax = fig.subplots()
+
+        for peak_Is in peak_Is_list:
+            label = "samples" if j == 0 else None
+            ax.plot(IV_voltages, peak_Is, color='grey', alpha=0.1, label=label)
+            ax.set_xlabel('voltage / mV')
+            ax.set_ylabel('peak current / nA')
+            ax.set_title(f"Sampled I-V curve with {removal_durations[i]:.2f}ms removed")
+
+        ax.plot(IV_voltages, true_peak_Is, label='true peak current')
+
+        ax.legend()
+        fig.savefig(os.path.join(output_dir, f"I_V_plot_{i}.png"))
+
+        fig.clf()
+        axs = fig.subplots(4)
+
+        voi_labels = ['a_inf', 'tau_a', 'r_inf', 'tau_r']
+
+        voi_units = ['', ' / ms', '', ' / ms']
+
+        for l in range(4):
+            for m in range(n_samples):
+                p = all_chains[i, sample_indices[m], :]
+                vois = get_voi_curves(p, voi_voltages)
+                label = "samples" if m == 0 else None
+                axs[l].plot(voi_voltages, vois[l], color='grey', alpha=0.1, label=label)
+
+            axs[l].set_xlabel('voltage / mV')
+            axs[l].set_ylabel(voi_labels[l] + voi_units[l])
+
+            true_voi = get_voi_curves(params, voi_voltages)
+
+            axs[l].plot(voi_voltages, true_voi[l], label='true %s' % voi_labels[l])
+            axs[l].legend()
+
+        axs[0].set_title(f"timescale and steady state curve samples with {removal_durations[i]:.2f}ms removed")
+        fig.savefig(os.path.join(output_dir, f"VOI_plot_{i}.png"))
+
+
+
+def get_peak_currents(p, voltages, analytic_solver, rhs0_func, model):
+    peaks = np.full(voltages.shape, np.nan)
+    for i, voltage in enumerate(voltages):
+        # Get equilibrium at 40mV
+        rhs0 = rhs0_func(params, 40)
+
+        # solve forwards for 250ms (should be plenty)
+        times = np.linspace(0, 250, 1000)
+
+        sol = analytic_solver(times, voltage, p, rhs0.flatten())
+        current = sol[:, model.open_state_index] * p[-1] * (voltage - Erev)
+
+        peak = current[np.argmax(np.abs(current))]
+
+        peaks[i] = peak
+
+    return peaks
+
+
+def get_voi_curves(p, voltages):
+    a_inf, tau_a, r_inf, tau_r = np.column_stack([compute_tau_inf(p[None, :], v) for v in voltages])
+
+    return a_inf, tau_a, r_inf, tau_r
 
 
 if __name__ == "__main__":
