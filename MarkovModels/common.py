@@ -439,9 +439,9 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
         transformations = [w for u, v
                            in zip(log_transformations, identity_transformations)
                            for w in (u, v)]\
-        + [pints.IdentityTransformation(1)]
+                               + [pints.IdentityTransformation(1)]
 
-        print(transformations)
+        transformations = [t for i, t in enumerate(transformations) if i not in fix_parameters]
         transformation = pints.ComposedTransformation(*transformations)
 
     else:
