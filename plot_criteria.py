@@ -101,7 +101,7 @@ def main():
     data = sample_mean + noise
 
     fig = plt.figure(figsize=(20, 18))
-    axs = fig.subplots(3)
+    axs = fig.subplots(2)
     axs[0].plot(times, data, label='data')
     axs[0].plot(times, sample_mean, label='mean')
     axs[0].legend()
@@ -115,7 +115,6 @@ def main():
 
     D_optimalities = []
     A_optimalities = []
-    G_optimalities = []
 
     logging.info("Getting model sensitivities")
     _, S1 = model.SimulateForwardModelSensitivities(params)
@@ -129,7 +128,7 @@ def main():
     indices_used = []
 
     sample_fig = plt.figure(figsize=(14, 12))
-    sample_axs = sample_fig.subplots(2)
+    sample_axs = sample_fig.subplots(3)
 
     for time_to_remove in spike_removal_durations:
         indices = common.remove_indices(list(range(len(times))),
@@ -161,7 +160,7 @@ def main():
 
         D_optimalities.append(np.linalg.det(H_inv))
         A_optimalities.append(np.trace(H_inv))
-        G_optimalities.append(np.max(np.diag(S1[indices, :] @ H_inv @ S1[indices, :].T)))
+        # G_optimalities.append(np.max(np.diag(S1[indices, :] @ H_inv @ S1[indices, :].T)))
 
         cov = sigma2 * H_inv
         covs.append(cov)
@@ -190,23 +189,21 @@ def main():
 
     D_optimalities = np.array(D_optimalities)
     A_optimalities = np.array(A_optimalities)
-    G_optimalities = np.array(G_optimalities)
 
     # Normalise with respect to first score i.e 0 ms removed
     D_optimalities = D_optimalities / D_optimalities[0]
     A_optimalities = A_optimalities / A_optimalities[0]
-    G_optimalities = G_optimalities / G_optimalities[0]
 
     df = pd.DataFrame(np.column_stack((spike_removal_durations,
                                        # Bayesian_D_optimalities,
                                        np.log(D_optimalities),
-                                       np.log(A_optimalities),
-                                       np.log(G_optimalities))),
+                                       np.log(A_optimalities))),
+                                       # np.log(G_optimalities))),
                       columns=('time removed after spikes /ms',
                                # "Bayesian D-optimality",
                                "normalised log D-optimality",
-                               "normalised log A-optimality",
-                               "normalised log I-optimality"))
+                               "normalised log A-optimality"))
+                               # "normalised log I-optimality"))
 
     df.set_index('time removed after spikes /ms', inplace=True)
 
@@ -218,9 +215,8 @@ def main():
     fig.savefig(os.path.join(output_dir, "criteria.pdf"))
 
     # Now plot it zoomed in on the first 25ms
-    ax.setxlim([0, 25])
+    ax.set_xlim([0, 25])
     fig.savefig(os.path.join(output_dir, "criteria_zoomed_in.pdf"))
-
 
     conf_fig = plt.figure(figsize=(16, 12))
     conf_axs = conf_fig.subplots(2)
