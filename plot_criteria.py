@@ -161,11 +161,7 @@ def main():
 
         D_optimalities.append(np.linalg.det(H_inv))
         A_optimalities.append(np.trace(H_inv))
-
-        G_optimalities.append(np.sum(
-            np.apply_along_axis(
-                lambda row: row @ H_inv @ row.T,
-                1, S1)))
+        G_optimalities.append(np.max(np.diag(S1[indices, :] @ H_inv @ S1[indices, :].T)))
 
         cov = sigma2 * H_inv
         covs.append(cov)
