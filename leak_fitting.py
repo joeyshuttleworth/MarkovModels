@@ -17,13 +17,23 @@ import itertools
 
 
 def get_wells_list(input_dir):
-    regex = re.compile("^newtonrun4-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9])-raw_after.csv$")
+    regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9])-raw_after-sweep1.csv$")
     wells = []
     for f in filter(regex.match, os.listdir(input_dir)):
         well = re.search(regex, f).groups(2)[1]
         if well not in wells:
             wells.append(well)
     return wells
+
+
+def get_protocol_list(input_dir):
+    regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9])-raw_after-sweep1.csv$")
+    protocols = []
+    for f in filter(regex.match, os.listdir(input_dir)):
+        well = re.search(regex, f).groups(3)[0]
+        if protocols not in protocols:
+            protocols.append(well)
+    return protocols
 
 
 def main():
@@ -37,20 +47,26 @@ def main():
     parser.add_argument('--percentage_to_remove', default=0, type=float)
     parser.add_argument('-e', '--extra_points', nargs=2, default=(0, 0), type=int)
     parser.add_argument('--plot', '-p', action="store_true")
+    parser.add_argument('--experiment_name', default='newtonrun4')
+    parser.add_argument('--ramp_start', type=float)
+    parser.add_argument('--ramp_end', type=float)
 
     args = parser.parse_args()
+
+    global experiment_name
+    experiment_name = args.experiment_name
 
     if len(args.protocols) == 0:
         default_protocol_list = ["sis", "longap", "rtovmaxdiff", "rvotmaxdiff", "spacefill10",
                                  "spacefill19", "spacefill26", "hhsobol3step", "hhbrute3gstep", "wangsobol3step", "wangbrute3gstep"]
-        args.protocols = default_protocol_list
 
     output_dir = common.setup_output_directory(args.output, f"leak_fitting_{args.percentage_to_remove:.0f}_{args.extra_points}")
 
     if args.wells is None:
         args.wells = get_wells_list(args.data_directory)
 
-    print(args.wells, args.protocols)
+    if not args.protocols:
+        args.protocols = get_protocol_list(args.data_directory)
 
     fit_fig = plt.figure(figsize=(18, 15), clear=True)
     fit_axs = fit_fig.subplots(4)
@@ -58,18 +74,19 @@ def main():
     scatter_fig = plt.figure()
     scatter_ax = scatter_fig.subplots()
 
-    for well in args.wells:
+    for well in np.unique(args.wells):
         df = []
         fits_dir = os.path.join(output_dir, f"{well}_fits")
 
         if not os.path.exists(fits_dir):
             os.makedirs(fits_dir)
 
-        for protocol in args.protocols:
+        for protocol in np.unique(args.protocols):
             protocol_func, t_start, t_end, t_step = common.get_protocol(protocol)
             observation_times = pd.read_csv(os.path.join(
-                args.data_directory, f"newtonrun4-{protocol}-times.csv")).values.flatten() * 1e3
-            dt = (observation_times[1] - observation_times[0]) * 1e-3
+                args.data_directory, f"{experiment_name}-{protocol}-times.csv")).values.flatten() * 1e3
+            dt = (observation_times[1] - observation_times[0])
+            print(protocol, dt)
             protocol_voltages = np.array([protocol_func(t) for t in observation_times])
 
             # Find first few steps where voltage is big
@@ -79,18 +96,38 @@ def main():
             else:
                 extra_steps = []
 
-            before_filename = f"newtonrun4-{protocol}-{well}-raw_before.csv"
-            after_filename = f"newtonrun4-{protocol}-{well}-raw_after.csv"
+            before_filename = f"{experiment_name}-{protocol}-{well}-raw_before-sweep1.csv"
+            after_filename = f"{experiment_name}-{protocol}-{well}-raw_after-sweep1.csv"
 
-            before_trace = pd.read_csv(os.path.join(args.data_directory, before_filename)).values.flatten()
-            after_trace = pd.read_csv(os.path.join(args.data_directory, after_filename)).values.flatten()
-            df.append([f"{protocol}", "before", well] + list(fit_leak_lr(protocol_voltages, before_trace,
-                      dt=t_step, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps))[0:5])
-            df.append([f"{protocol}", "after", well] + list(fit_leak_lr(protocol_voltages, after_trace,
-                      dt=t_step, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps))[0:5])
+            try:
+                before_trace = pd.read_csv(os.path.join(args.data_directory, before_filename)).values.flatten()
+                after_trace = pd.read_csv(os.path.join(args.data_directory, after_filename)).values.flatten()
+            except FileNotFoundError as exc:
+                print(str(exc))
+                continue
+
+            df.append([f"{protocol}", "before", well] +
+                      list(fit_leak_lr(protocol_voltages, before_trace,
+                                       dt=dt,
+                                       percentage_to_remove=args.percentage_to_remove,
+                                       extra_points=extra_steps,
+                                       ramp_start=args.ramp_start,
+                                       ramp_end=args.ramp_end))[0:5])
+            df.append([f"{protocol}", "after", well] +
+                      list(fit_leak_lr(protocol_voltages, after_trace,
+                                       dt=dt,
+                                       percentage_to_remove=args.percentage_to_remove,
+                                       extra_points=extra_steps,
+                                       ramp_start=args.ramp_start,
+                                       ramp_end=args.ramp_end))[0:5])
 
             g_leak, E_leak, _, s_alpha, s_beta, x, y = fit_leak_lr(
-                protocol_voltages, before_trace, dt=t_step, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
+                protocol_voltages, before_trace, dt=dt,
+                percentage_to_remove=args.percentage_to_remove,
+                extra_points=extra_steps,
+                ramp_start=args.ramp_start,
+                ramp_end=args.ramp_end)
+
             before_leak_current = (protocol_voltages - E_leak) * g_leak
             fit_axs[2].scatter(x, y, marker='s', color='grey', s=2)
             n = len(x)
@@ -114,8 +151,15 @@ def main():
 
             fit_axs[2].set_xlabel("voltage mV")
             fit_axs[2].set_ylabel("before current")
+
             g_leak, E_leak, _, s_alpha, s_beta, x, y = fit_leak_lr(
-                protocol_voltages, after_trace, dt=t_step, percentage_to_remove=args.percentage_to_remove, extra_points=extra_steps)
+                protocol_voltages, after_trace, dt=dt,
+                percentage_to_remove=args.percentage_to_remove,
+                extra_points=extra_steps,
+                ramp_start=args.ramp_start,
+                ramp_end=args.ramp_end
+            )
+
             predictions = (xpred - E_leak) * g_leak
             msres = (((x - E_leak) * g_leak - y)**2 / (n - 2)).sum()
             confidence_region = np.sqrt(msres * (1 / n + (xpred - x.mean())**2 / ((x**2).sum())))
@@ -137,11 +181,26 @@ def main():
             fit_axs[3].set_xlabel("voltage mV")
             fit_axs[3].set_ylabel("after current")
             after_leak_current = (protocol_voltages - E_leak) * g_leak
-            window = list(range(int(1 / dt)))
+
+            # 1 second window
+            window = list(range(int(1e3 / dt)))
             fit_axs[0].plot(observation_times[window], before_leak_current[window])
             fit_axs[0].plot(observation_times[window], before_trace[window], alpha=.5)
             fit_axs[1].plot(observation_times[window], after_leak_current[window])
             fit_axs[1].plot(observation_times[window], after_trace[window], alpha=.5)
+
+            fit_axs[0].fill_between(np.linspace(args.ramp_start, args.ramp_end,
+                                                250),
+                                    np.max(before_trace[window]),
+                                    np.min(before_trace[window]),
+                                    alpha=0.1, color='grey')
+
+            fit_axs[1].fill_between(np.linspace(args.ramp_start, args.ramp_end,
+                                                250),
+                                    np.max(after_trace[window]),
+                                    np.min(after_trace[window]),
+                                    alpha=0.1, color='grey')
+
             fit_axs[0].set_ylabel('before E4031 leak current')
             fit_axs[1].set_ylabel('after E4031 leak current')
             fit_axs[0].set_title(f"{well} {protocol}")
