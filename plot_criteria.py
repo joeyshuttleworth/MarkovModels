@@ -101,7 +101,7 @@ def main():
     data = sample_mean + noise
 
     fig = plt.figure(figsize=(20, 18))
-    axs = fig.subplots(2)
+    axs = fig.subplots(3)
     axs[0].plot(times, data, label='data')
     axs[0].plot(times, sample_mean, label='mean')
     axs[0].legend()
@@ -138,7 +138,7 @@ def main():
         indices_used.append(indices)
         # Plot the observations being removed
         fig.clf()
-        axs = fig.subplots(2)
+        axs = fig.subplots(3)
         axs[0].plot(times, voltages)
         for t in spike_times:
             axs[0].axvspan(t, t + time_to_remove, alpha=0.4, color='red', lw=0)
