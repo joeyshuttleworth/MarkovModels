@@ -65,16 +65,6 @@ class MarkovModel:
         # Set the initial conditions of the model and the initial sensitivities
         # by finding the steady state of the model
 
-        # TODO:
-        # Check that a steady state exists for this system at this
-        # voltage
-        # dx/dt = Ax+B
-
-        A_matrix, _ = self.get_linear_system()
-
-        # eigvals = np.linalg.eig(A_matrix)[0]
-        # assert(np.all(eigvals < 0))
-
         # Can be found analytically
         self.rhs_inf_expr = -self.A.LUsolve(self.B).subs(rates_dict)
         self.rhs_inf = nb.njit(sp.lambdify((self.p, self.v), self.rhs_inf_expr,
@@ -692,6 +682,12 @@ class MarkovModel:
         step_rhs0 = np.concatenate((rhs0, drhs0), axis=None).astype(np.float64)
 
         solution = []
+
+        if not self.window_locs:
+            if not self.protocol_description:
+                assert False
+            else:
+                self.window_locs = [a for a, _, _, _ in self.protocol_description]
 
         # Solving for each step in the protocol is faster and more accurate
         for tstart, tend in zip(self.window_locs, self.window_locs[1:]):
