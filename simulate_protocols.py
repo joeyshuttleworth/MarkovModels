@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from MarkovModels.BeattieModel import BeattieModel
 import argparse
 import os
@@ -31,7 +33,7 @@ def simulate_protocol(model, name, output_dir, params=None):
     axs[1].grid(True)
     axs[1].set_xticklabels([])
     axs[1].set_ylabel('Current (nA)')
-    axs[2].plot(model.times, state_occupancies, label=model.state_labels + ['IC'])
+    axs[2].plot(model.times, state_occupancies, label=model.state_labels)
     axs[2].legend(ncol=4)
     axs[2].grid(True)
     axs[2].set_xticklabels([])
@@ -79,6 +81,8 @@ def main():
 
     if args.parameter_file is not None:
         params = pd.read_csv(args.parameter_file).values.flatten()
+    else:
+        params = None
 
     output_dir = os.path.join('output', 'simulate_protocols')
     if not os.path.exists(output_dir):
@@ -89,7 +93,7 @@ def main():
         if fname[0] == '#':
             continue
         if fname in args.protocols or len(args.protocols) == 0:
-            func(fname, ext, output_dir, args.params)
+            func(fname, ext, output_dir, params)
 
 
 def func(protocol_name, ext, output_dir, params=None):
@@ -99,16 +103,11 @@ def func(protocol_name, ext, output_dir, params=None):
     protocol, t_start, t_end, t_step, protocol_description = common.get_ramp_protocol_from_csv(protocol_name)
     times = np.linspace(t_start, t_end, int((t_end - t_start) / t_step))
     model = BeattieModel(protocol, times, Erev=common.calculate_reversal_potential(298, K_out=130, K_in=5))
-    if params is not None:
-        model.params = params
 
     model.protocol_description = protocol_description
 
-    model.default_parameters = np.array([0.00023215680795174809, 0.07422110165735675,
-                                         2.477501557744992e-05, 0.04414799725791213,
-                                        0.11023652619943154, 0.015996823969951217,
-                                         0.015877336172564104, 0.027816696279347616,
-                                         49.70368237942998])
+    if params:
+        model.default_parameters = params
 
     simulate_protocol(model, protocol_name, output_dir)
 
