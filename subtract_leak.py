@@ -252,7 +252,7 @@ def main():
                 corrected_axs[ax_col].plot(observation_times, after_trace, label='post-drug')
 
                 corrected_axs[ax_col].legend(loc=1)
-                corrected_axs[ax_col].set_title("leak corrected traces")
+                corrected_axs[ax_col].set_title(f"leak corrected traces sweep{sweep}")
 
                 subtracted_ax.plot(observation_times, subtracted_trace, label=f"sweep{sweep}")
 
