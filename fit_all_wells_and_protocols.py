@@ -43,6 +43,7 @@ def main():
     parser.add_argument('--removal_duration', '-r', default=5, type=int)
     parser.add_argument('--cores', '-c', default=1, type=int)
     parser.add_argument('--model', '-m', default='Beattie', type=str)
+    parser.add_argument('--experiment_name', default='newtonrun4', type=str)
 
     global args
     args = parser.parse_args()
@@ -62,7 +63,7 @@ def main():
     else:
         assert False
 
-    regex = re.compile("^newtonrun4-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$")
+    regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$")
 
     if len(args.wells) == 0:
         args.wells = common.get_all_wells_in_directory(args.data_directory, regex=regex, group=1)
@@ -124,7 +125,7 @@ def main():
     for sim_protocol in np.unique(protocols_list):
         prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
         full_times = pd.read_csv(os.path.join(args.data_directory,
-                                              f"newtonrun4-{sim_protocol}-times.csv"))['time'].values.flatten()
+                                              f"{experiment_name}-{sim_protocol}-times.csv"))['time'].values.flatten()
 
         voltages = np.array([prot_func(t) for t in full_times])
         spikes, _ = common.detect_spikes(full_times, voltages, 10)
