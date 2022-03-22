@@ -100,6 +100,8 @@ def main():
     noise = np.random.normal(0, np.sqrt(sigma2), times.shape)
     data = sample_mean + noise
 
+    pd.DataFrame(data, columns=('current')).to_csv(os.path.join(output_dir, "synthetic_data"))
+
     fig = plt.figure(figsize=(20, 18))
     axs = fig.subplots(3)
     axs[0].plot(times, data, label='data')
@@ -128,7 +130,7 @@ def main():
     indices_used = []
 
     sample_fig = plt.figure(figsize=(14, 12))
-    sample_axs = sample_fig.subplots(3)
+    sample_axs = sample_fig.subplots(2)
 
     for time_to_remove in spike_removal_durations:
         indices = common.remove_indices(list(range(len(times))),
