@@ -434,7 +434,7 @@ def main():
 def plot_sample_trajectories(solver, times, voltages, removal_duration, params, cov, axs, n_samples, spike_indices):
 
     mean_param_trajectory = solver(params)
-    axs[0].plot(times, mean_param_trajectory, 'red')
+    # axs[0].plot(times, mean_param_trajectory, 'red')
     axs[0].set_ylim(np.min(mean_param_trajectory) * 1.5, np.max(mean_param_trajectory) * 1.5)
 
     for spike in spike_indices:
