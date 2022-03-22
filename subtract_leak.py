@@ -37,8 +37,9 @@ protocol_chrono_order = ['staircaseramp1',
 
 
 def get_wells_list(input_dir):
-    regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9])-raw_after")
+    regex = re.compile(f"{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9])-after")
     wells = []
+
     for f in filter(regex.match, os.listdir(input_dir)):
         well = re.search(regex, f).groups(2)[1]
         if well not in wells:
@@ -47,7 +48,7 @@ def get_wells_list(input_dir):
 
 
 def get_protocol_list(input_dir):
-    regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9])-raw_after-sweep1.csv$")
+    regex = re.compile(f"{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9])-after")
     protocols = []
     for f in filter(regex.match, os.listdir(input_dir)):
         well = re.search(regex, f).groups(3)[0]
@@ -158,8 +159,8 @@ def main():
                 extra_steps = []
 
             for sweep in (1, 2):
-                before_filename = f"{experiment_name}-{protocol}-{well}-raw_before-sweep{sweep}.csv"
-                after_filename = f"{experiment_name}-{protocol}-{well}-raw_after-sweep{sweep}.csv"
+                before_filename = f"{experiment_name}-{protocol}-{well}-before-sweep{sweep}.csv"
+                after_filename = f"{experiment_name}-{protocol}-{well}-after-sweep{sweep}.csv"
 
                 try:
                     before_trace = pd.read_csv(os.path.join(args.data_directory, before_filename)).values.flatten()
@@ -305,7 +306,10 @@ def main():
     for well in np.unique(df['well'].values):
         failed = False
         for _, row in df.iterrows():
-            if row['well'] == well and row['passed QC6c'] == False:
+            if row['well'] == well and row['passed QC6c'] is False:
+                failed = True
+                break
+            if not np.isfinite(row['fitted_E_rev']):
                 failed = True
                 break
         if not failed:
@@ -313,6 +317,9 @@ def main():
 
     print(f"Wells with all successful traces: {passed_lst}")
 
+    with open(os.path.join(output, "passed_wells.txt"), 'w') as fout:
+        for well in passed_lst:
+            fout.writeline(well)
 
     fig = plt.figure(figsize=(16, 12))
     ax = fig.subplots()
@@ -332,8 +339,8 @@ def main():
         ax.set_xticks(range(len(labels)))
         ax.set_xticklabels(labels, rotation=90)
         ax.set_ylabel('Nernst potential (fitted) / mV')
-        ax.axhline(Erev, ls="--", label='Nernst potential (calculated from concentrations) / mV')
         ax.legend()
+        ax.axhline(Erev, ls="--", label='Nernst potential (calculated from concentrations) / mV')
         fig.savefig(os.path.join(erev_dir, f"{well}_erevs"))
         ax.cla()
 
