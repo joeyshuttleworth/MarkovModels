@@ -525,15 +525,15 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
 
     found_parameters, found_value = controller.run()
 
-    # Now run with Nelder-Mead
-    controller = pints.OptimisationController(
-        error, params_not_fixed, boundaries=boundaries, method=pints.NelderMead,
-        transformation=transformation)
+    # # Now run with Nelder-Mead
+    # controller = pints.OptimisationController(
+    #     error, params_not_fixed, boundaries=boundaries, method=pints.NelderMead,
+    #     transformation=transformation)
 
-    if max_iterations:
-        controller.set_max_iterations(max_iterations)
+    # if max_iterations:
+    #     controller.set_max_iterations(max_iterations)
 
-    found_parameters, found_value = controller.run()
+    # found_parameters, found_value = controller.run()
 
     return found_parameters, found_value
 
@@ -646,18 +646,15 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
         df = pd.DataFrame(fitted_params[None, :], columns=columns)
         df['score'] = score
         dfs.append(df)
+        if output_dir is not None:
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
 
-    df = pd.concat(dfs, ignore_index=True)
-
-    if output_dir is not None:
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-
-            df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params_{i}.csv"))
+            df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params{i}.csv"))
             fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit_{i}"))
             ax.cla()
-    else:
-        plt.show()
+
+    df = pd.concat(dfs, ignore_index=True)
 
     return df
 
