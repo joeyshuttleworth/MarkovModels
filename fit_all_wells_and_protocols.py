@@ -51,7 +51,8 @@ def main():
     global output_dir
     output_dir = args.output
 
-    global experiment_name = args.experiment_name
+    global experiment_name
+    experiment_name = args.experiment_name
 
     output_dir = common.setup_output_directory(args.output, f"fitting_{args.removal_duration:.2f}_removed_{args.model}")
 
