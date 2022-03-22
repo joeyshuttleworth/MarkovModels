@@ -570,9 +570,10 @@ def get_protocol(protocol_name: str):
             raise Exception("Protocol not found at " + possible_protocol_path)
     return v, t_start, t_end, t_step
 
+
 def get_data(well, protocol, data_directory, experiment_name='newtonrun4'):
     # Find data
-    regex = re.compile(f"^experiment_name-{protocol}-{well}.csv$")
+    regex = re.compile(f"^{experiment_name}-{protocol}-{well}.csv$")
     fname = next(filter(regex.match, os.listdir(data_directory)))
     data = pd.read_csv(os.path.join(data_directory, fname))['current'].values
     return data
@@ -587,7 +588,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     # Ignore files that have been commented out
     voltage_func, t_start, t_end, t_step, protocol_desc = get_ramp_protocol_from_csv(protocol)
 
-    data = get_data(well, protocol, data_directory)
+    data = get_data(well, protocol, data_directory, experiment_name)
 
     times = pd.read_csv(os.path.join(data_directory, f"{experiment_name}-{protocol}-times.csv"))['time'].values
 
@@ -622,9 +623,6 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
 
     print(f"initial_gkr is {initial_gkr}")
 
-    fitted_params_list = []
-    scores = []
-
     columns = model.parameter_labels
 
     if infer_E_rev:
@@ -632,8 +630,9 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
 
     dfs = []
     for i in range(repeats):
-        fitted_params, score = fit_model(model, data, starting_parameters=initial_params,
-                                          max_iterations=max_iterations)
+        fitted_params, score = fit_model(model, data,
+                                         starting_parameters=initial_params,
+                                         max_iterations=max_iterations)
 
         fig = plt.figure(figsize=(14, 12))
         ax = fig.subplots(1)
@@ -663,9 +662,12 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     return df
 
 
-def get_all_wells_in_directory(data_dir, regex="^newtonrun4-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$", group=1):
+def get_all_wells_in_directory(data_dir, experiment_name='newtonrun4'):
+
+    regex = f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$"
     regex = re.compile(regex)
     wells = []
+    group = 1
 
     for f in filter(regex.match, os.listdir(data_dir)):
         well = re.search(regex, f).groups()[group]

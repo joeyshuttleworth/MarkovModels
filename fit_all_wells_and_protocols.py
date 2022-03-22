@@ -21,7 +21,7 @@ def fit_func(protocol, well, model_class):
                                   args.max_iterations, output_dir=this_output_dir, T=298, K_in=5,
                                   K_out=120, default_parameters=default_parameters,
                                   removal_duration=args.removal_duration, repeats=args.repeats,
-                                  infer_E_rev=True)
+                                  infer_E_rev=True, experiment_name=experiment_name)
 
     res_df['well'] = well
     res_df['protocol'] = protocol
@@ -69,7 +69,7 @@ def main():
     regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$")
 
     if len(args.wells) == 0:
-        args.wells = common.get_all_wells_in_directory(args.data_directory, regex=regex, group=1)
+        args.wells = common.get_all_wells_in_directory(args.data_directory, experiment_name)
 
     if len(args.protocols) == 0:
         protocols = common.get_protocol_list()
@@ -95,8 +95,11 @@ def main():
     assert len(tasks) > 0, "no valid protocol/well combinations provided"
 
     protocols_list = np.unique(protocols_list)
+    res = pool.starmap(fit_func, tasks)
+    print(res)
 
-    fitting_df = pd.concat(pool.starmap(fit_func, tasks), ignore_index=True)
+    fitting_df = pd.concat(res)
+
     print("=============\nfinished fitting\n=============")
 
     wells_rep = [task[1] for task in tasks]
