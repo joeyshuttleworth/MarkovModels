@@ -570,9 +570,9 @@ def get_protocol(protocol_name: str):
             raise Exception("Protocol not found at " + possible_protocol_path)
     return v, t_start, t_end, t_step
 
-def get_data(well, protocol, data_directory):
+def get_data(well, protocol, data_directory, experiment_name='newtonrun4'):
     # Find data
-    regex = re.compile(f"^newtonrun4-{protocol}-{well}.csv$")
+    regex = re.compile(f"^experiment_name-{protocol}-{well}.csv$")
     fname = next(filter(regex.match, os.listdir(data_directory)))
     data = pd.read_csv(os.path.join(data_directory, fname))['current'].values
     return data
@@ -581,14 +581,15 @@ def get_data(well, protocol, data_directory):
 def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                   output_dir=None, T=298, K_in=120, K_out=5,
                   default_parameters: float = None, removal_duration=5,
-                  repeats=1, infer_E_rev=False, fit_initial_conductance=True):
+                  repeats=1, infer_E_rev=False, fit_initial_conductance=True,
+                  experiment_name='newtonrun4'):
 
     # Ignore files that have been commented out
     voltage_func, t_start, t_end, t_step, protocol_desc = get_ramp_protocol_from_csv(protocol)
 
     data = get_data(well, protocol, data_directory)
 
-    times = pd.read_csv(os.path.join(data_directory, f"newtonrun4-{protocol}-times.csv"))['time'].values
+    times = pd.read_csv(os.path.join(data_directory, f"{experiment_name}-{protocol}-times.csv"))['time'].values
 
     if infer_E_rev:
         Erev = infer_reversal_potential(protocol, data, times)
