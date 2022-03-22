@@ -178,7 +178,7 @@ def main():
                      for time_to_remove, indices in zip(spike_removal_durations, indices_used)]
 
         args_list = args_list if args.short else args_list[0:20]
-        pool.map(draw_heatmaps, *zip(*args_list[0:20]))
+        pool.map(draw_heatmaps, *zip(*args_list))
 
         logging.info("Finished drawing heatmaps")
 
