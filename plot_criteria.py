@@ -182,7 +182,7 @@ def main():
 
         logging.info("Finished drawing heatmaps")
 
-    for time_to_remove, cov in list(zip(spike_removal_durations, covs))[0:10]:
+    for time_to_remove, cov in list(zip(spike_removal_durations, covs)):
         plot_sample_trajectories(solver, full_times, voltages, time_to_remove, params, cov, sample_axs,
                                  args.no_samples, spike_indices)
         sample_fig.savefig(os.path.join(output_dir, f"sample_trajectories_{time_to_remove:.2f}.png"))
@@ -441,7 +441,7 @@ def plot_sample_trajectories(solver, times, voltages, removal_duration, params, 
     axs[0].set_ylim(np.min(mean_param_trajectory) * 1.5, np.max(mean_param_trajectory) * 1.5)
 
     for spike in spike_indices:
-        axs[0].axvspan(times[spike], times[spike] + removal_duration, alpha=0.2, color='red', lw=0)
+        axs[1].axvspan(times[spike], times[spike] + removal_duration, alpha=0.2, color='red', lw=0)
 
     def get_trajectory(p):
         try:
