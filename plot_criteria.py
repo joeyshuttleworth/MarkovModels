@@ -100,7 +100,7 @@ def main():
     noise = np.random.normal(0, np.sqrt(sigma2), times.shape)
     data = sample_mean + noise
 
-    pd.DataFrame(data, columns=('current')).to_csv(os.path.join(output_dir, "synthetic_data"))
+    pd.DataFrame(data, columns=('current',)).to_csv(os.path.join(output_dir, "synthetic_data"))
 
     fig = plt.figure(figsize=(20, 18))
     axs = fig.subplots(3)
@@ -200,12 +200,9 @@ def main():
                                        # Bayesian_D_optimalities,
                                        np.log(D_optimalities),
                                        np.log(A_optimalities))),
-                                       # np.log(G_optimalities))),
                       columns=('time removed after spikes /ms',
-                               # "Bayesian D-optimality",
                                "normalised log D-optimality",
                                "normalised log A-optimality"))
-                               # "normalised log I-optimality"))
 
     df.set_index('time removed after spikes /ms', inplace=True)
 
