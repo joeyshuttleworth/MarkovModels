@@ -248,7 +248,7 @@ def main():
     rhats = np.array([rhat for _, rhat in mcmc_samples])
     mcmc_samples = [chain for chain, _ in mcmc_samples]
 
-    np.save(np.stack(os.path.join(output_dir, "mcmc_samples_all.npy", mcmc_samples)))
+    np.save(np.stack(os.path.join(output_dir, "mcmc_samples_all.npy"), mcmc_samples))
 
     # output rhats
     pd.DataFrame(np.column_stack((spike_removal_durations, rhats)),
