@@ -306,10 +306,12 @@ def main():
     for well in np.unique(df['well'].values):
         failed = False
         for _, row in df.iterrows():
-            if row['well'] == well and row['passed QC6c'] is False:
+            if row['well'] != well:
+                continue
+            elif row['passed QC6c'] is False:
                 failed = True
                 break
-            if not np.isfinite(row['fitted_E_rev']):
+            elif not np.isfinite(row['fitted_E_rev']):
                 failed = True
                 break
         if not failed:
