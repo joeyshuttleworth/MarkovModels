@@ -197,10 +197,10 @@ def main():
                 sd = np.sqrt(msres * (1 / n + (x - x.mean())**2 / ((x**2).sum())))
                 after_sd = sd[-1]
 
-                before_subtracted = before_trace - (g_leak_before * (protocol_voltages - E_leak_before))
-                after_subtracted = after_trace - (g_leak_after * (protocol_voltages - E_leak_after))
+                before_corrected = before_trace - (g_leak_before * (protocol_voltages - E_leak_before))
+                after_corrected = after_trace - (g_leak_after * (protocol_voltages - E_leak_after))
 
-                subtracted_trace = before_subtracted - after_subtracted
+                subtracted_trace = before_corrected - after_corrected
 
                 reversal_ax.cla()
                 fitted_E_rev = common.infer_reversal_potential(protocol,
@@ -249,8 +249,8 @@ def main():
                 after_axs[ax_col].legend(loc=1)
                 after_axs[ax_col].set_ylabel('current / nA')
 
-                corrected_axs[ax_col].plot(observation_times, before_trace, label='pre-drug')
-                corrected_axs[ax_col].plot(observation_times, after_trace, label='post-drug')
+                corrected_axs[ax_col].plot(observation_times, before_corrected, label='pre-drug')
+                corrected_axs[ax_col].plot(observation_times, after_corrected, label='post-drug')
 
                 corrected_axs[ax_col].legend(loc=1)
                 corrected_axs[ax_col].set_title(f"leak corrected traces sweep{sweep}")
