@@ -143,7 +143,7 @@ def main():
                              Erev=Erev)
 
         for well in params_df['well'].unique():
-            full_data = common.get_data(well, sim_protocol, args.data_directory)
+            full_data = common.get_data(well, sim_protocol, args.data_directory, experiment_name=experiment_name)
             data = full_data[indices]
 
             # Probably not worth compiling solver
