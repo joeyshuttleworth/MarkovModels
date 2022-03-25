@@ -100,7 +100,9 @@ def main():
     noise = np.random.normal(0, np.sqrt(sigma2), times.shape)
     data = sample_mean + noise
 
-    pd.DataFrame(data, columns=('current',)).to_csv(os.path.join(output_dir, "synthetic_data"))
+    pd.DataFrame(np.column_stack((data, times)),
+                 columns=('time', 'current',)).to_csv(
+                     os.path.join(output_dir, "synthetic_data"))
 
     fig = plt.figure(figsize=(20, 18))
     axs = fig.subplots(3)
@@ -112,7 +114,7 @@ def main():
     axs[1].plot(times, states[:, 2] + states[:, 1], label='a')
     axs[1].legend()
     axs[2].plot(times, voltages)
-    fig.savefig(os.path.join(output_dir, "synthetic_data"))
+    fig.savefig(os.path.join(output_dir, "synthetic_data.csv"))
     fig.clf()
 
     D_optimalities = []
@@ -246,9 +248,9 @@ def main():
     mcmc_samples = pool.map(mcmc_chain_func, *zip(*args_list))
 
     rhats = np.array([rhat for _, rhat in mcmc_samples])
-    mcmc_samples = [chain for chain, _ in mcmc_samples]
+    mcmc_samples = np.stack([chain for chain, _ in mcmc_samples])
 
-    np.save(np.stack(os.path.join(output_dir, "mcmc_samples_all.npy"), mcmc_samples))
+    np.save(os.path.join(output_dir, "mcmc_samples_all.npy"), mcmc_samples)
 
     # output rhats
     pd.DataFrame(np.column_stack((spike_removal_durations, rhats)),
