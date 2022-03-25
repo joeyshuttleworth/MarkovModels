@@ -525,6 +525,9 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
 
     found_parameters, found_value = controller.run()
 
+    if not np.all(np.isfinite(model.simulate(found_parameters))):
+        return found_parameters, -np.inf
+
     # # Now run with Nelder-Mead
     # controller = pints.OptimisationController(
     #     error, params_not_fixed, boundaries=boundaries, method=pints.NelderMead,
