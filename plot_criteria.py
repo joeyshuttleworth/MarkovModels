@@ -102,7 +102,7 @@ def main():
 
     pd.DataFrame(np.column_stack((data, times)),
                  columns=('time', 'current',)).to_csv(
-                     os.path.join(output_dir, "synthetic_data"))
+                     os.path.join(output_dir, "synthetic_data.csv"))
 
     fig = plt.figure(figsize=(20, 18))
     axs = fig.subplots(3)
@@ -114,7 +114,7 @@ def main():
     axs[1].plot(times, states[:, 2] + states[:, 1], label='a')
     axs[1].legend()
     axs[2].plot(times, voltages)
-    fig.savefig(os.path.join(output_dir, "synthetic_data.csv"))
+    fig.savefig(os.path.join(output_dir, "synthetic_data.png"))
     fig.clf()
 
     D_optimalities = []
