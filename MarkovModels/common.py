@@ -525,7 +525,7 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
 
     found_parameters, found_value = controller.run()
 
-    if not np.all(np.isfinite(model.simulate(found_parameters))):
+    if not np.all(np.isfinite(model.simulate(found_parameters, mm.times))):
         return found_parameters, -np.inf
 
     # # Now run with Nelder-Mead
