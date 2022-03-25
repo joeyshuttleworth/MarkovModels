@@ -282,7 +282,9 @@ def main():
                         print(f"{protocol}, {well}, {tracename} \tfailed QC6c")
                         passed3 = False
 
-                    df.append((protocol, well, sweep, tracename, fitted_E_rev, passed1, passed2, passed3))
+                    NRMS_corrected_post_drug = np.sqrt(np.sum(after_corrected)**2)/np.sqrt(np.sum(after_trace**2))
+                    df.append((protocol, well, sweep, tracename, fitted_E_rev,
+                               passed1, passed2, passed3, NRMS_corrected_post_drug))
             subtracted_ax.set_xlabel('time / ms')
             subtracted_ax.set_ylabel('current / pA')
             subtracted_ax.set_title('subtracted traces')
@@ -297,7 +299,7 @@ def main():
             fig.savefig(os.path.join(output, f"{well}_{protocol}_traces_from_leak_subtraction"))
 
     df = pd.DataFrame(df, columns=('protocol', 'well', 'sweep', 'before/after', 'fitted_E_rev',
-                                   'passed QC6a', 'passed QC6b', 'passed QC6c'))
+                                   'passed QC6a', 'passed QC6b', 'passed QC6c', 'NRMS_corrected_post_drug'))
     df.to_csv(os.path.join(output, "subtraction_qc.csv"))
     print(df)
 
@@ -321,7 +323,7 @@ def main():
 
     with open(os.path.join(output, "passed_wells.txt"), 'w') as fout:
         for well in passed_lst:
-            fout.writeline(well)
+            fout.write(well)
 
     fig = plt.figure(figsize=(16, 12))
     ax = fig.subplots()
