@@ -123,10 +123,10 @@ def main():
     predictions_df = []
 
     trace_fig = plt.figure(figsize=(16, 12))
-    trace_ax = trace_fig.subplots()
+    trace_axs = trace_fig.subplots(2)
 
     all_models_fig = plt.figure(figsize=(16, 12))
-    all_models_ax = all_models_fig.subplots()
+    all_models_axs = all_models_fig.subplots(2)
 
     for sim_protocol in np.unique(protocols_list):
         prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
@@ -176,26 +176,36 @@ def main():
 
                 # Output trace
                 if np.isfinite(prediction).all():
-                    trace_ax.plot(times, prediction, label='prediction')
+                    trace_axs[0].plot(times, prediction, label='prediction')
 
-                    trace_ax.set_xlabel("time / ms")
-                    trace_ax.set_ylabel("current / nA")
-                    trace_ax.plot(times, data, label='data', alpha=0.25, color='grey')
-                    trace_ax.legend()
+                    trace_axs[1].set_xlabel("time / ms")
+                    trace_axs[0].set_ylabel("current / nA")
+                    trace_axs[0].plot(times, data, label='data', alpha=0.25, color='grey')
+                    trace_axs[0].legend()
+
+                    trace_axs[1].plot(times, voltages)
+                    trace_axs[1].set_ylabel('voltage / mV')
                     trace_fig.savefig(os.path.join(sub_dir, f"{protocol_fitted}_fit_predition.png"))
-                    trace_ax.cla()
 
-                    all_models_ax.plot(times, prediction, label=protocol_fitted)
+                    for ax in trace_axs:
+                        ax.cla()
 
-            all_models_ax.set_xlabel("time / ms")
-            all_models_ax.set_ylabel("current / nA")
-            all_models_ax.plot(times, data, color='grey', alpha=0.5, label='data')
-            all_models_ax.legend()
-            all_models_ax.set_title(f"{well} {sim_protocol} fits comparison")
-            all_models_ax.set_xlabel(f"Time /ms")
-            all_models_ax.set_ylabel(f"Current / nA")
+                    all_models_axs[0].plot(times, prediction, label=protocol_fitted)
+
+            all_models_axs[1].set_xlabel("time / ms")
+            all_models_axs[0].set_ylabel("current / nA")
+            all_models_axs[0].plot(times, data, color='grey', alpha=0.5, label='data')
+            all_models_axs[0].legend()
+            all_models_axs[0].set_title(f"{well} {sim_protocol} fits comparison")
+            all_models_axs[0].set_ylabel("Current / nA")
+
+            all_models_axs[1].plot(times, voltages)
+            all_models_axs[1].set_ylabel('voltage / mV')
+
             all_models_fig.savefig(os.path.join(sub_dir, "all_fits.png"))
-            all_models_ax.cla()
+
+            for ax in all_models_axs:
+                ax.cla()
 
     predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
                                                                      'validation_protocol',
