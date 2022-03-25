@@ -139,8 +139,8 @@ def main():
         voltages = voltages[indices]
 
         model = model_class(prot_func,
-                             times=times,
-                             Erev=Erev)
+                            times=times,
+                            Erev=Erev)
 
         for well in params_df['well'].unique():
             full_data = common.get_data(well, sim_protocol, args.data_directory, experiment_name=experiment_name)
