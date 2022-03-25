@@ -133,10 +133,10 @@ def main():
         full_times = pd.read_csv(os.path.join(args.data_directory,
                                               f"{experiment_name}-{sim_protocol}-times.csv"))['time'].values.flatten()
 
-        voltages = np.array([prot_func(t) for t in full_times])
+        full_voltages = np.array([prot_func(t) for t in full_times])
         spikes, _ = common.detect_spikes(full_times, voltages, 10)
-        times, _, indices = common.remove_spikes(full_times, voltages, spikes, args.removal_duration)
-        voltages = voltages[indices]
+        times, _, indices = common.remove_spikes(full_times, full_voltages, spikes, args.removal_duration)
+        voltages = full_voltages[indices]
 
         model = model_class(prot_func,
                             times=times,
@@ -183,7 +183,7 @@ def main():
                     trace_axs[0].plot(times, data, label='data', alpha=0.25, color='grey')
                     trace_axs[0].legend()
 
-                    trace_axs[1].plot(times, voltages)
+                    trace_axs[1].plot(full_times, full_voltages)
                     trace_axs[1].set_ylabel('voltage / mV')
                     trace_fig.savefig(os.path.join(sub_dir, f"{protocol_fitted}_fit_predition.png"))
 
@@ -199,7 +199,7 @@ def main():
             all_models_axs[0].set_title(f"{well} {sim_protocol} fits comparison")
             all_models_axs[0].set_ylabel("Current / nA")
 
-            all_models_axs[1].plot(times, voltages)
+            all_models_axs[1].plot(full_times, full_voltages)
             all_models_axs[1].set_ylabel('voltage / mV')
 
             all_models_fig.savefig(os.path.join(sub_dir, "all_fits.png"))
