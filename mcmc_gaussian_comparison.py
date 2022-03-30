@@ -69,6 +69,7 @@ def main():
 
         indices_included = [i for i in range(len(full_removal_durations)) if
                             full_removal_durations[i] in removal_durations]
+        mcmc_samples = mcmc_samples[indices_included, :, :, :]
 
 
     if args.short:
