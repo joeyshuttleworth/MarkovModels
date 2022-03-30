@@ -520,14 +520,14 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
     else:
         params_not_fixed = starting_parameters
 
-    controller = pints.OptimisationController(
-        error, params_not_fixed, boundaries=boundaries, method=method, transformation=transformation)
-    if max_iterations is not None:
-        print("Setting max iterations = {}".format(max_iterations))
-        controller.set_max_iterations(max_iterations)
-
     scores, parameter_sets = [], []
     for i in range(repeats):
+        controller = pints.OptimisationController(
+            error, params_not_fixed, boundaries=boundaries, method=method, transformation=transformation)
+
+        if max_iterations is not None:
+            controller.set_max_iterations(max_iterations)
+
         found_parameters, found_value = controller.run()
         parameter_sets.append(found_parameters)
         scores.append(found_value)
