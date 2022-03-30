@@ -59,7 +59,7 @@ def main():
 
     spike_times, spike_indices = common.detect_spikes(times, voltages,
                                                       window_size=0)
-    # Compute parameter covariariance matrices
+
     full_removal_durations = pd.read_csv(os.path.join(args.input_dir,
                                                       'removal_durations.csv')).values[:, 1].flatten()
 
@@ -155,6 +155,7 @@ def main():
             df = pd.concat(dfs, ignore_index=True)
             print(df)
             sns.violinplot(data=df, ax=ax, x='removal_duration', y='y', hue='hue', split=True)
+            ax.axvline(params[i], ls='--')
             fig.savefig(os.path.join(output_dir, "mcmc_comparison_%s.png" % param_label))
 
 
