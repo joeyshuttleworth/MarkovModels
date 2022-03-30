@@ -81,10 +81,12 @@ def main():
         model.protocol_description = protocol_desc
         solver = model.make_hybrid_solver_current()
 
-        mle, score = common.fit_model(model, data, params,
-                                      subset_indices=indices, solver=solver,
-                                      max_iterations=args.max_iterations,
-                                      repeats=3)
+        mle, _ = common.fit_model(model, data, params, subset_indices=indices,
+                                  solver=solver,
+                                  max_iterations=args.max_iterations,
+                                  repeats=3)
+
+        score = np.sum((solver(mle) - data)**2)
 
         # Normalise score with respect to expected SSE with correct params
         score = score / (np.sqrt(sigma2) * len(indices))
