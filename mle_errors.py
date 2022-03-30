@@ -104,15 +104,18 @@ def main():
     fig = plt.figure(figsize=(9, 9))
     ax = fig.subplots()
 
-    ax.plot(removal_durations, np.log10(np.mean(mle_errors, axis=1)),
-            label='log10 mean normalised error in MLE prediction')
+    ax.plot(removal_durations, np.log10(np.mean(mle_errors, axis=1)), ls='--',
+            marker='x', label='log10 mean normalised error in MLE prediction')
 
     xs = [removal_durations[i] for i in range(mle_errors.shape[0]) for j in range(mle_errors.shape[1])]
     ax.scatter(xs, np.log10(mle_errors), label='log10 normalised error in MLE prediction')
     ax.set_xlabel('time remove after each spike / ms')
     ax.set_ylabel('log10 normalised MSE from MLE predictions')
+    ax.legend()
 
     fig.savefig(os.path.join(output_dir, 'mle_errors'))
+
+    np.save(os.path.join(output_dir, 'mle_errors.npy'), mle_errors)
 
 
 if __name__ == "__main__":
