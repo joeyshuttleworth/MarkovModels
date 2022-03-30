@@ -403,7 +403,7 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
 
 def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
               max_iterations=None, subset_indices=None, method=pints.CMAES,
-              solver=None, log_transform=True):
+              solver=None, log_transform=True, repeats=1):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -447,14 +447,17 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
     else:
         transformation = None
 
+    if starting_parameters is None:
+        starting_parameters = mm.get_default_parameters()
+
+    if max_iterations == 0:
+        return starting_parameters, np.inf
+
     if solver is None:
         solver = mm.make_forward_solver_current()
 
     if subset_indices is None:
         subset_indices = np.array(list(range(len(mm.times))))
-
-    if starting_parameters is None:
-        starting_parameters = mm.get_default_parameters()
 
     class Boundaries(pints.Boundaries):
         def __init__(self, parameters, fix_parameters=None):
@@ -523,7 +526,14 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
         print("Setting max iterations = {}".format(max_iterations))
         controller.set_max_iterations(max_iterations)
 
-    found_parameters, found_value = controller.run()
+    scores, parameter_sets = [], []
+    for i in range(repeats):
+        found_parameters, found_value = controller.run()
+        parameter_sets.append(found_parameters)
+        scores.append(found_value)
+
+    best_score = min(scores)
+    best_parameters = parameter_sets[scores.index(best_score)]
 
     if not np.all(np.isfinite(model.simulate(found_parameters, mm.times))):
         return found_parameters, -np.inf
@@ -538,7 +548,7 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
 
     # found_parameters, found_value = controller.run()
 
-    return found_parameters, found_value
+    return best_parameters, best_score
 
 
 def get_protocol(protocol_name: str):
