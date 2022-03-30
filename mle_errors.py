@@ -86,10 +86,7 @@ def main():
                                   max_iterations=args.max_iterations,
                                   repeats=3)
 
-        score = np.sum((solver(mle) - data)**2)
-
-        # Normalise score with respect to expected SSE with correct params
-        score = score / (np.sqrt(sigma2) * len(indices))
+        score = np.sum((solver(mle) - mean_trajectory)**2)
 
         return score
 
@@ -105,12 +102,12 @@ def main():
     ax = fig.subplots()
 
     ax.plot(removal_durations, np.log10(np.mean(mle_errors, axis=1)), ls='--',
-            marker='x', label='log10 mean normalised error in MLE prediction')
+            marker='x', label='log10 mean error in MLE prediction')
 
     xs = [removal_durations[i] for i in range(mle_errors.shape[0]) for j in range(mle_errors.shape[1])]
-    ax.scatter(xs, np.log10(mle_errors), label='log10 normalised error in MLE prediction')
+    ax.scatter(xs, np.log10(mle_errors), label='log10 error in MLE prediction')
     ax.set_xlabel('time remove after each spike / ms')
-    ax.set_ylabel('log10 normalised MSE from MLE predictions')
+    ax.set_ylabel('log10 MSE from MLE predictions')
     ax.legend()
 
     fig.savefig(os.path.join(output_dir, 'mle_errors'))
