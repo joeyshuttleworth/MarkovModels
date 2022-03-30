@@ -28,7 +28,8 @@ sigma2 = 0.01**2
 def main():
     plt.style.use('classic')
     parser = argparse.ArgumentParser()
-    parser.add_argument("removal_durations_file", type=str)
+    parser.add_argument("-f", "--removal_durations_file", type=str)
+    parser.add_argument("-r", "--removal_durations", nargs='+', type=float)
     parser.add_argument('-o', '--output')
     parser.add_argument('-n', '--no_experiments', default=10)
     parser.add_argument('-s', '--short', action='store_true')
@@ -36,9 +37,16 @@ def main():
     parser.add_argument('-i', '--max_iterations', type=int)
     args = parser.parse_args()
 
-    output_dir = common.setup_output_directory(args.output, 'mle_errors')
+    assert not (args.removal_durations_file and args.removal_durations)
 
-    removal_durations = pd.read_csv(args.removal_durations_file)['removal_duration'].values.flatten().astype(np.float64)
+    if args.removal_durations:
+        removal_durations = args.removal_durations
+    elif args.removal_durations_file:
+        removal_durations = pd.read_csv(args.removal_durations_file)['removal_duration'].values.flatten().astype(np.float64)
+    else:
+        assert False
+
+    output_dir = common.setup_output_directory(args.output, 'mle_errors')
 
     if args.short:
         removal_durations = removal_durations[[0, -1]]
