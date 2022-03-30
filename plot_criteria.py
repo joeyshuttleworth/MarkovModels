@@ -27,7 +27,7 @@ sigma2 = 0.01**2
 def main():
     plt.style.use('classic')
 
-    parser = common.get_parser(description="Plot various optimality criteria")
+    parser = common.get_parser(description="")
     parser.add_argument("-n", "--no_samples", type=int, default=1000)
     parser.add_argument("-N", "--no_chains", type=int, default=4)
     parser.add_argument("-l", "--chain_length", type=int, default=1000)
@@ -91,8 +91,6 @@ def main():
     model.window_locs = [t for t, _, _, _ in protocol_desc]
 
     solver = model.make_hybrid_solver_current()
-
-    voltages = np.array([protocol_func(t) for t in times])
 
     # Plot representative sample from DGP
     sample_mean = solver()
@@ -651,7 +649,6 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     common.cov_ellipse(subcov, offset=(mle[x_index], mle[y_index]), q=[0.95], ax=ax,
                        color='pink', label='95% confidence region (normal approximation)')
     # Draw 2 param versions
-    # Use NelderMead for 2d problem
     mle_2param, _ = common.fit_model(model, data, params, fix_parameters=fix_parameters,
                                      subset_indices=subset_indices, solver=solver,
                                      max_iterations=args.max_iterations,
