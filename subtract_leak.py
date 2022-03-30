@@ -324,6 +324,7 @@ def main():
     with open(os.path.join(output, "passed_wells.txt"), 'w') as fout:
         for well in passed_lst:
             fout.write(well)
+            fout.write("\n")
 
     fig = plt.figure(figsize=(16, 12))
     ax = fig.subplots()
