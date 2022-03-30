@@ -60,15 +60,19 @@ def main():
     spike_times, spike_indices = common.detect_spikes(times, voltages,
                                                       window_size=0)
     # Compute parameter covariariance matrices
-    full_removal_durations = pd.read_csv(os.path.join(args.input_dir, 'removal_durations.csv')).values.flatten()
+    full_removal_durations = pd.read_csv(os.path.join(args.input_dir,
+                                                      'removal_durations.csv')).values[:, 1].flatten()
 
     if args.removal_durations:
         args.removal_durations = [int(r) for r in full_removal_durations]
+        print(full_removal_durations)
 
         removal_durations = [r for r in full_removal_durations if int(r) in args.removal_durations]
 
         indices_included = [i for i in range(len(full_removal_durations)) if
                             full_removal_durations[i] in removal_durations]
+        print(indices_included)
+        print(mcmc_samples.shape)
         mcmc_samples = mcmc_samples[indices_included, :, :, :]
 
 
