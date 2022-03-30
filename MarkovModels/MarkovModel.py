@@ -592,6 +592,9 @@ class MarkovModel:
                         args=(p,))
         return sol
 
+    def get_rhs_func(self, njitted=False):
+        return self.func_rhs if not njitted else njit(self.func_rhs)
+
     def count_rhs_evaluations(self, p, times=None):
 
         if times is None:
