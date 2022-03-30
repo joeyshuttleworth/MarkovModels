@@ -2,6 +2,7 @@
 
 from MarkovModels import common
 import logging
+import pathos
 import os
 import numpy as np
 import pandas as pd
@@ -23,14 +24,20 @@ params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
 sigma2 = 0.01**2
 Erev = common.calculate_reversal_potential(310.15)
 
+
 def main():
 
     description = ''
 
     parser = argparse.ArgumentParser(description)
 
-    parser.add_argument('input_directory', type=str, help="path to the directory containing the plot_criteria results")
+    parser.add_argument('input_dir', type=str, help="path to the directory containing the plot_criteria results")
     parser.add_argument('--output_dir', '-o', type=str, help="output path")
+    parser.add_argument('--max_iterations', '-i', type=int)
+    parser.add_argument('--repeats', '-r', type=int, default=1)
+    parser.add_argument('--short', '-s', action='store_true')
+    parser.add_argument('--cpus', '-c', type=int)
+    parser.add_argument('--removal_durations', '-R', nargs='+')
 
     args = parser.parse_args()
 
@@ -52,64 +59,94 @@ def main():
 
     spike_times, spike_indices = common.detect_spikes(times, voltages,
                                                       window_size=0)
-
-    model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
-
-    model.protocol_description = protocol_desc
-    model.window_locs = [t for t, _, _, _ in protocol_desc]
-
-    solver = model.make_hybrid_solver_current()
-
-    covs, mles = [], []
-
     # Compute parameter covariariance matrices
     removal_durations = pd.read_csv(os.path.join(args.input_dir, 'removal_durations.csv')).values.flatten()
 
-    for removal_duration in removal_durations:
+    if args.removal_durations:
+        args.removal_durations = [int(r) for r in removal_durations]
+        removal_durations = [r for r in removal_durations if int(r) in args.removal_durations]
+
+    if args.short:
+        removal_durations = removal_durations[[0, -1]]
+
+    def get_mle_cov(removal_duration):
         _, _, indices = common.remove_spikes(times, voltages, spike_times, removal_duration)
-        mle, _ = common.fit_model(model, data,
-                                  subset_indices=indices,
+
+        model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
+
+        model.protocol_description = protocol_desc
+        model.window_locs = [t for t, _, _, _ in protocol_desc]
+        solver = model.make_hybrid_solver_current()
+        mle, _ = common.fit_model(model, data, subset_indices=indices,
                                   solver=solver,
-                                  max_iterations=args.max_iterations)
+                                  max_iterations=args.max_iterations,
+                                  repeats=args.repeats)
 
         _, S1 = model.SimulateForwardModelSensitivities(params)
+        S1 = S1[indices]
         H = S1.T @ S1
         H_inv = np.linalg.inv(H)
         cov = sigma2 * H_inv
 
-        covs.append(cov)
-        mles.append(mle)
+        return mle, cov
 
-        fig = plt.figure(figsize=(14, 10))
-        ax = fig.subplots()
+    pool = pathos.multiprocessing.ProcessingPool(args.cpus)
+    mles, covs = list(zip(*pool.map(get_mle_cov, removal_durations)))
+
+
+    fig = plt.figure(figsize=(14, 10))
+    ax = fig.subplots()
+
+    print('plotting')
+    model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
 
     # Loop over parameters, making a plot for each
     for i in range(model.get_no_parameters()):
         dfs = []
         param_label = model.parameter_labels[i]
-        for removal_duration in removal_durations:
+        for j, removal_duration in enumerate(removal_durations):
             ax.cla()
-            means = [mle[i] for mle in mles]
-            stds = [cov[i, i] for cov in covs]
+            mean = mles[j][i]
+            std = np.sqrt(covs[j][i, i])
 
-            samples = [chains.flatten() for chains in mcmc_samples]
-            no_gaussian_samples = samples[0].shape[0]
+            samples = mcmc_samples[j, :, :, i].flatten()
 
-            gaussian_samples = [np.random.normal(mean, std, no_gaussian_samples)
-                                for mean, std in zip(means, stds)]
+            # # Truncate to show only middle 80%
+            # smin = np.quantile(samples, .1)
+            # smax = np.quantile(samples, .9)
 
-            hue = ['MCMC'] * no_gaussian_samples + ['Gaussian'] * no_gaussian_samples
+            # print(smin)
+            # print(samples.shape)
 
-            df = pd.DataFrame(np.concatenate((samples, gaussian_samples)),
-                              columns=(param_label,))
+            # samples = samples[np.argwhere((samples > smin) & (samples < smax))]
+            print(samples.shape)
+
+            no_gaussian_samples = samples.shape[0]
+            gaussian_samples = np.random.normal(mean, std, no_gaussian_samples)
+
+            g_min, g_max = min(samples), max(samples)
+
+            gaussian_samples = gaussian_samples[np.argwhere((gaussian_samples >
+                                                             g_min) &
+                                                            (gaussian_samples
+                                                             < g_max))]
+
+            hue = ['MCMC'] * samples.shape[0] + ['Gaussian'] * gaussian_samples.shape[0]
+            all_samples = np.append(samples, gaussian_samples)
+            print(all_samples.shape)
+
+            df = pd.DataFrame(all_samples,
+                                columns=('y',))
 
             df['hue'] = hue
             df['removal_duration'] = removal_duration
             dfs.append(df)
 
-        df = pd.concat(dfs, ignore_index=True)
-        sns.violinplot(df, ax=ax, x='removal_duration', y=param_label, hue='hue')
-        fig.savefig(os.path.join(output_dir, "mcmc_comparison_%s.png" % param_label))
+            df = pd.concat(dfs, ignore_index=True)
+            print(df)
+            sns.violinplot(data=df, ax=ax, x='removal_duration', y='y', hue='hue', split=True)
+            fig.savefig(os.path.join(output_dir, "mcmc_comparison_%s.png" % param_label))
+
 
 if __name__ == '__main__':
     main()
