@@ -145,17 +145,17 @@ def main():
             print(all_samples.shape)
 
             df = pd.DataFrame(all_samples,
-                                columns=('y',))
+                              columns=('y',))
 
             df['hue'] = hue
             df['removal_duration'] = removal_duration
             dfs.append(df)
 
-            df = pd.concat(dfs, ignore_index=True)
-            print(df)
-            sns.violinplot(data=df, ax=ax, x='removal_duration', y='y', hue='hue', split=True)
-            ax.axvline(params[i], ls='--')
-            fig.savefig(os.path.join(output_dir, "mcmc_comparison_%s.png" % param_label))
+        df = pd.concat(dfs, ignore_index=True)
+        print(df)
+        sns.violinplot(data=df, ax=ax, x='removal_duration', y='y', hue='hue', split=True)
+        ax.axvline(params[i], ls='--')
+        fig.savefig(os.path.join(output_dir, "mcmc_comparison_%s.png" % param_label))
 
 
 if __name__ == '__main__':
