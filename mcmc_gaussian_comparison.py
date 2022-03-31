@@ -188,7 +188,7 @@ def main():
                               columns=('y',))
 
             df['hue'] = hue
-            df['removal_duration'] = removal_duration
+            df['removal_duration'] = np.round(removal_duration, 0)
             dfs.append(df)
 
         df = pd.concat(dfs, ignore_index=True)
