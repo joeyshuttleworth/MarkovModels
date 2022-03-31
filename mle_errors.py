@@ -130,7 +130,7 @@ def main():
         fits_ax.set_ylabel('current / nA')
         fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.png"))
 
-    fits_fig.close()
+    plt.close(fits_fig)
 
 
 
