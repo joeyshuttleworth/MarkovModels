@@ -158,7 +158,7 @@ def main():
         print(df)
 
         if 'Gaussian' not in df['hue']:
-            pd.concat(df, pd.DataFrame(([np.nan], ['Gaussian'], [removal_durations[0]])),
+            pd.concat((df, pd.DataFrame(([np.nan], ['Gaussian'], [removal_durations[0]]))),
                       ignore_index=True)
 
         try:
