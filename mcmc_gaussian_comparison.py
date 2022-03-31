@@ -133,7 +133,7 @@ def main():
             # samples = samples[np.argwhere((samples > smin) & (samples < smax))]
             print(samples.shape)
 
-            no_gaussian_samples = samples.shape[0]
+            no_gaussian_samples = 100000
             gaussian_samples = np.random.normal(mean, std, no_gaussian_samples)
 
             g_min, g_max = min(samples), max(samples)
@@ -156,7 +156,15 @@ def main():
 
         df = pd.concat(dfs, ignore_index=True)
         print(df)
-        sns.violinplot(data=df, ax=ax, x='removal_duration', y='y', hue='hue', split=True)
+
+        if 'Gaussian' not in df['hue']:
+            df.concat(df, pd.DataFrame(([np.nan], ['Gaussian'], [removal_durations[0]])))
+
+        try:
+            sns.violinplot(data=df, ax=ax, x='removal_duration', y='y', hue='hue', split=True)
+        except ValueError as e:
+            print(str(e))
+
         ax.axvline(params[i], ls='--')
         fig.savefig(os.path.join(output_dir, "mcmc_comparison_%s.png" % param_label))
 
