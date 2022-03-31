@@ -64,17 +64,20 @@ def main():
                                                       'removal_durations.csv')).values[:, 1].flatten()
 
     if args.removal_durations:
-        args.removal_durations = [int(r) for r in full_removal_durations]
+
+        def get_closest(lst, val):
+            differences = np.abs(np.array(lst) - val)
+            return lst[np.argmin(differences)]
+
+        args.removal_durations = [int(r) for r in args.removal_durations]
         print(full_removal_durations)
 
-        removal_durations = [r for r in full_removal_durations if int(r) in args.removal_durations]
+        removal_durations = [(get_closest(full_removal_durations, r), i) for i, r in
+                             enumerate(args.removal_durations)]
 
-        indices_included = [i for i in range(len(full_removal_durations)) if
-                            full_removal_durations[i] in removal_durations]
-        print(indices_included)
-        print(mcmc_samples.shape)
+        removal_durations, indices_included = list(zip(*removal_durations))
+
         mcmc_samples = mcmc_samples[indices_included, :, :, :]
-
 
     if args.short:
         removal_durations = removal_durations[[0, -1]]
