@@ -20,7 +20,9 @@ class MarkovModel:
         raise NotImplementedError
 
     def __init__(self, symbols, A, B, rates_dict, times, voltage=None,
-                 tolerances=(1e-7, 1e-9), Q=None):
+                 tolerances=(1e-7, 1e-9), Q=None, protocol_description=None):
+
+        self.protocol_description = protocol_description
 
         self.window_locs = None
         self.protocol_description = None
