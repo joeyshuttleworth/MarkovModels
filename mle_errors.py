@@ -87,7 +87,7 @@ def main():
                                   max_iterations=args.max_iterations,
                                   repeats=3)
 
-        score = np.sum((solver(mle) - mean_trajectory)**2)
+        score = np.sqrt(np.sum((solver(mle) - mean_trajectory)**2))
 
         return score, mle
 
@@ -105,13 +105,13 @@ def main():
     fig = plt.figure(figsize=(9, 9))
     ax = fig.subplots()
 
-    ax.plot(removal_durations, np.log10(np.mean(mle_errors, axis=1)), ls='--',
-            marker='x', label='log10 mean error in MLE prediction')
+    ax.plot(removal_durations, np.mean(mle_errors, axis=1), ls='--',
+            marker='x', label='mean RMSE in MLE prediction')
 
     xs = [removal_durations[i] for i in range(mle_errors.shape[0]) for j in range(mle_errors.shape[1])]
-    ax.scatter(xs, np.log10(mle_errors), label='log10 error in MLE prediction')
+    ax.scatter(xs, mle_errors, label='RMSE in MLE prediction')
     ax.set_xlabel('time remove after each spike / ms')
-    ax.set_ylabel('log10 MSE from MLE predictions')
+    ax.set_ylabel('RMSE from MLE predictions')
     ax.legend()
 
     fig.savefig(os.path.join(output_dir, 'mle_errors'))
@@ -128,16 +128,15 @@ def main():
     fits_fig, fits_ax = plt.subplots()
     for i in range(len(removal_durations)):
         fits_ax.plot(full_times, model.SimulateForwardModel(mles[i]), label='fitted model')
-        fits_ax.plot(full_times, mean_trajectory, label='data')
+        fits_ax.plot(full_times, mean_trajectory, label='data', color='grey', alpha=.5)
         fits_ax.set_xlabel('time / ms')
         fits_ax.set_ylabel('current / nA')
         fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.png"))
 
+        ax.legend()
         fits_ax.cla()
 
     plt.close(fits_fig)
-
-
 
 
 if __name__ == "__main__":
