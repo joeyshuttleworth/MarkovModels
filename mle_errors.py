@@ -88,12 +88,12 @@ def main():
 
         score = np.sum((solver(mle) - mean_trajectory)**2)
 
-        return score
+        return score, mle
 
     args_list = [(r, data) for r in removal_durations for data in simulated_data]
     pool = Pool(min(args.cpus, len(removal_durations) * args.repeats))
 
-    mle_errors = pool.map(get_mle_error, *zip(*args_list))
+    mle_errors, mles = list(zip(*pool.map(get_mle_error, *zip(*args_list))))
 
     mle_errors = np.array(mle_errors).reshape((len(removal_durations),
                                                args.no_experiments), order='C')
@@ -113,6 +113,25 @@ def main():
     fig.savefig(os.path.join(output_dir, 'mle_errors'))
 
     np.save(os.path.join(output_dir, 'mle_errors.npy'), mle_errors)
+    np.save(os.path.join(output_dir, 'mles.npy'), mles)
+
+    fits_dir = os.path.join(output_dir, 'fits')
+
+    if not os.path.exists(fits_dir):
+        os.makedirs(fits_dir)
+
+    # plot fits
+    fits_fig, fits_ax = plt.subplots()
+    for i in range(len(removal_durations)):
+        fits_ax(full_times, model.SimulateForwardModel(mles[i]), label='fitted model')
+        fits_ax(full_times, mean_trajectory, label='data')
+        fits_ax.set_xlabel('time / ms')
+        fits_ax.set_ylabel('current / nA')
+        fits_fig.savefig(os.path.join(fits_dir), f"{removal_durations[i]}_removed.png")
+
+    fits_fig.close()
+
+
 
 
 if __name__ == "__main__":
