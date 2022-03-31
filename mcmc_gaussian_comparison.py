@@ -158,7 +158,7 @@ def main():
         print(df)
 
         if 'Gaussian' not in df['hue']:
-            pd.concat((df, pd.DataFrame(([np.nan], ['Gaussian'], [removal_durations[0]]))),
+            df = pd.concat((df, pd.DataFrame(([np.nan], ['Gaussian'], [removal_durations[0]]))),
                       ignore_index=True)
 
         try:
@@ -166,7 +166,7 @@ def main():
         except ValueError as e:
             print(str(e))
 
-        ax.axvline(params[i], ls='--')
+        ax.axhline(params[i], ls='--')
         fig.savefig(os.path.join(output_dir, "mcmc_comparison_%s.png" % param_label))
 
 
