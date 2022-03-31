@@ -82,6 +82,10 @@ def main():
     if args.short:
         removal_durations = removal_durations[[0, -1]]
 
+    # Use median of MCMC samples as initial parameters (will speed up optimisation)
+    starting_parameters = [np.quantile(mcmc_samples[0, :, :, i].flatten(), 0.5)
+                         for i in range(len(params))]
+
     def get_mle_cov(removal_duration):
         _, _, indices = common.remove_spikes(times, voltages, spike_times, removal_duration)
 
@@ -93,7 +97,8 @@ def main():
         mle, _ = common.fit_model(model, data, subset_indices=indices,
                                   solver=solver,
                                   max_iterations=args.max_iterations,
-                                  repeats=args.repeats)
+                                  repeats=args.repeats,
+                                  starting_parameters=starting_parameters)
 
         _, S1 = model.SimulateForwardModelSensitivities(params)
         S1 = S1[indices]
