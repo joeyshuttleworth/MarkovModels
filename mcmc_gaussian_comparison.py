@@ -138,10 +138,13 @@ def main():
 
             g_min, g_max = min(samples), max(samples)
 
-            gaussian_samples = gaussian_samples[np.argwhere((gaussian_samples >
+            filtered_gaussian_samples = gaussian_samples[np.argwhere((gaussian_samples >
                                                              g_min) &
                                                             (gaussian_samples
                                                              < g_max))]
+
+            if len(filtered_gaussian_samples) != 0:
+                gaussian_samples = filtered_gaussian_samples
 
             hue = ['MCMC'] * samples.shape[0] + ['Gaussian'] * gaussian_samples.shape[0]
             all_samples = np.append(samples, gaussian_samples)
