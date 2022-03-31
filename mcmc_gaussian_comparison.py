@@ -200,7 +200,8 @@ def main():
         print(df)
 
         try:
-            sns.violinplot(data=df, ax=ax, x='removal_duration', y='y', hue='hue', split=True)
+            sns.violinplot(data=df, ax=ax, x='removal_duration', y='y', hue='hue', split=True,
+                           title="parameter %s" % param_label)
         except ValueError as e:
             print(str(e))
 
