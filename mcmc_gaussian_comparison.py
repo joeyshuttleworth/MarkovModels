@@ -139,7 +139,7 @@ def main():
     fits_fig, fits_ax = plt.subplots()
     for i in range(len(removal_durations)):
         fits_ax.plot(times, model.SimulateForwardModel(mles[i]), label='fitted model')
-        fits_ax.plot(times, data, label='data')
+        fits_ax.plot(times, data, label='data', color='grey', alpha=.5)
         fits_ax.set_xlabel('time / ms')
         fits_ax.set_ylabel('current / nA')
         fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.png"))
