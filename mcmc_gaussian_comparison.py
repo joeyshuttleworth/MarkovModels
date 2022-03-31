@@ -138,7 +138,7 @@ def main():
     # plot fits
     fits_fig, fits_ax = plt.subplots()
     for i in range(len(removal_durations)):
-        fits_ax(times, model.SimulateForwardModel(mles[i][j]), label='fitted model')
+        fits_ax(times, model.SimulateForwardModel(mles[i]), label='fitted model')
         fits_ax(times, data, label='data')
         fits_ax.set_xlabel('time / ms')
         fits_ax.set_ylabel('current / nA')
