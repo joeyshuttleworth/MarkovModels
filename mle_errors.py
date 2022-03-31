@@ -36,7 +36,15 @@ def main():
     parser.add_argument('-c', '--cpus', default=1, type=int)
     parser.add_argument('-i', '--max_iterations', type=int)
     parser.add_argument('-r', '--repeats', default=1)
+    parser.add_argument("-m", "--method", default='CMAES')
     args = parser.parse_args()
+
+    if args.method == 'CMAES':
+        optimiser = pints.CMAES
+    elif args.method == 'NelderMead':
+        optimiser = pints.NelderMead
+    else:
+        assert False
 
     assert not (args.removal_durations_file and args.removal_durations)
 
@@ -44,8 +52,10 @@ def main():
         removal_durations = args.removal_durations
     elif args.removal_durations_file:
         removal_durations = pd.read_csv(args.removal_durations_file)['removal_duration'].values.flatten().astype(np.float64)
+    elif args.short:
+        removal_durations = np.array([0, 10])
     else:
-        assert False
+        removal_durations = np.linspace(0, 50, 11)
 
     output_dir = common.setup_output_directory(args.output, 'mle_errors')
 
@@ -73,19 +83,23 @@ def main():
     simulated_data = [mean_trajectory + np.random.normal(0, np.sqrt(sigma2), len(full_times))
                       for i in range(args.no_experiments)]
 
+    model = BeattieModel(times=full_times, voltage=protocol_func, Erev=Erev, parameters=params,
+                         protocol_description=protocol_desc)
+    solver = model.make_hybrid_solver_current()
+
     def get_mle_error(time_to_remove, data):
         indices = common.remove_indices(list(range(len(full_times))),
                                         [(spike,
                                           int(spike + time_to_remove / tstep))
                                          for spike in spike_indices])
-        model = BeattieModel(times=full_times, voltage=protocol_func, Erev=Erev, parameters=params)
-        model.protocol_description = protocol_desc
-        solver = model.make_hybrid_solver_current()
+        model = BeattieModel(times=full_times, voltage=protocol_func, Erev=Erev, parameters=params,
+                             protocol_description=protocol_desc)
 
         mle, _ = common.fit_model(model, data, params, subset_indices=indices,
                                   solver=solver,
                                   max_iterations=args.max_iterations,
-                                  repeats=3)
+                                  repeats=3,
+                                  method=optimiser)
 
         score = np.sqrt(np.sum((solver(mle) - mean_trajectory)**2))
 
