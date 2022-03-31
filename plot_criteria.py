@@ -75,6 +75,7 @@ def main():
     protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
 
     times = np.linspace(tstart, tend, int((tend - tstart) / tstep))
+    voltages = np.array([protocol_func(t) for t in times])
 
     full_times = times
     Erev = common.calculate_reversal_potential(310.15)
@@ -98,7 +99,7 @@ def main():
     noise = np.random.normal(0, np.sqrt(sigma2), times.shape)
     data = sample_mean + noise
 
-    pd.DataFrame(np.column_stack((data, times)),
+    pd.DataFrame(np.column_stack((times, data)),
                  columns=('time', 'current',)).to_csv(
                      os.path.join(output_dir, "synthetic_data.csv"))
 
