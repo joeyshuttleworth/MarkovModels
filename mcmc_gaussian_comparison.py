@@ -128,7 +128,8 @@ def main():
     ax = fig.subplots()
 
     print('plotting')
-    model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
+    model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev,
+                         parameters=params, protocol_description=protocol_description)
 
     fits_dir = os.path.join(output_dir, 'fits')
     if not os.path.exists(fits_dir):
