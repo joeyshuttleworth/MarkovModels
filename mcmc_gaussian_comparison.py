@@ -100,7 +100,7 @@ def main():
 
         return mle, cov
 
-    pool = pathos.multiprocessing.ProcessingPool(max(args.cpus, len(removal_durations)))
+    pool = pathos.multiprocessing.ProcessingPool(min(args.cpus, len(removal_durations) * args.repeats))
     mles, covs = list(zip(*pool.map(get_mle_cov, removal_durations)))
 
     fig = plt.figure(figsize=(14, 10))

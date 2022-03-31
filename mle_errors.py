@@ -91,7 +91,7 @@ def main():
         return score
 
     args_list = [(r, data) for r in removal_durations for data in simulated_data]
-    pool = Pool(max(args.cpus, len(removal_durations)))
+    pool = Pool(min(args.cpus, len(removal_durations) * args.repeats))
 
     mle_errors = pool.map(get_mle_error, *zip(*args_list))
 
