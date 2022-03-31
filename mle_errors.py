@@ -92,7 +92,10 @@ def main():
         return score, mle
 
     args_list = [(r, data) for r in removal_durations for data in simulated_data]
-    pool = Pool(min(args.cpus, len(removal_durations) * args.repeats))
+
+    print("number of fitting tasks", len(args_list))
+
+    pool = Pool(min(args.cpus, len(removal_durations) * args.repeats * args.no_experiments))
 
     mle_errors, mles = list(zip(*pool.map(get_mle_error, *zip(*args_list))))
 
