@@ -87,7 +87,10 @@ def main():
                          for i in range(len(params))]
 
     def get_mle_cov(removal_duration):
-        _, _, indices = common.remove_spikes(times, voltages, spike_times, removal_duration)
+        indices = common.remove_indices(list(range(len(times))), [(spike,
+                                                                   int(spike + removal_duration /
+                                                                       tstep)) for spike in
+                                                                  spike_indices])
 
         model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
 
@@ -116,6 +119,23 @@ def main():
 
     print('plotting')
     model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
+
+    fits_dir = os.path.join(output_dir, 'fits')
+    if not os.path.exists(fits_dir):
+        os.makedirs(fits_dir)
+
+
+    # plot fits
+    fits_fig, fits_ax = plt.subplots()
+    for i in range(len(removal_durations)):
+        fits_ax(times, model.SimulateForwardModel(mles[i][j]), label='fitted model')
+        fits_ax(times, data, label='data')
+        fits_ax.set_xlabel('time / ms')
+        fits_ax.set_ylabel('current / nA')
+        fits_fig.savefig(os.path.join(fits_dir), f"{removal_durations[i]}_removed.png")
+
+    fits_fig.close()
+
 
     # Loop over parameters, making a plot for each
     for i in range(model.get_no_parameters()):
