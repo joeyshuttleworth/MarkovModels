@@ -3,6 +3,7 @@
 from MarkovModels import common
 import logging
 import pathos
+import pints
 import os
 import numpy as np
 import pandas as pd
@@ -38,8 +39,16 @@ def main():
     parser.add_argument('--short', '-s', action='store_true')
     parser.add_argument('--cpus', '-c', type=int)
     parser.add_argument('--removal_durations', '-R', nargs='+')
+    parser.add_argument("-m", "--method", default='CMAES')
 
     args = parser.parse_args()
+
+    if args.method == 'CMAES':
+        optimiser = pints.CMAES
+    elif args.method == 'NelderMead':
+        optimiser = pints.NelderMead
+    else:
+        assert False
 
     output_dir = common.setup_output_directory(args.output_dir, 'mcmc_gaussian_comparison')
 
@@ -101,7 +110,8 @@ def main():
                                   solver=solver,
                                   max_iterations=args.max_iterations,
                                   repeats=args.repeats,
-                                  starting_parameters=starting_parameters)
+                                  starting_parameters=starting_parameters,
+                                  method=optimiser)
 
         _, S1 = model.SimulateForwardModelSensitivities(params)
         S1 = S1[indices]
