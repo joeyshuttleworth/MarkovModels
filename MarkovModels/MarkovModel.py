@@ -25,7 +25,6 @@ class MarkovModel:
         self.protocol_description = protocol_description
 
         self.window_locs = None
-        self.protocol_description = None
 
         self.Q = Q
 
