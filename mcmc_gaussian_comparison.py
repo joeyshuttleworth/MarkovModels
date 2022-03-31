@@ -158,7 +158,8 @@ def main():
         print(df)
 
         if 'Gaussian' not in df['hue']:
-            df.concat(df, pd.DataFrame(([np.nan], ['Gaussian'], [removal_durations[0]])))
+            pd.concat(df, pd.DataFrame(([np.nan], ['Gaussian'], [removal_durations[0]])),
+                      ignore_index=True)
 
         try:
             sns.violinplot(data=df, ax=ax, x='removal_duration', y='y', hue='hue', split=True)
