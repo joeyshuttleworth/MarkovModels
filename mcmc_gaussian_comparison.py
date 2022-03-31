@@ -47,7 +47,7 @@ def main():
     data_df = pd.read_csv(os.path.join(args.input_dir, 'synthetic_data.csv'))
 
     data = data_df['current'].values.flatten()
-    times = data_df['current'].values.flatten()
+    times = data_df['time'].values.flatten()
 
     # Load in mcmc samples
     mcmc_samples = np.load(os.path.join(args.input_dir, 'mcmc_samples_all.npy'))
