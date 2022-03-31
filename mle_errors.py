@@ -124,8 +124,8 @@ def main():
     # plot fits
     fits_fig, fits_ax = plt.subplots()
     for i in range(len(removal_durations)):
-        fits_ax(full_times, model.SimulateForwardModel(mles[i]), label='fitted model')
-        fits_ax(full_times, mean_trajectory, label='data')
+        fits_ax.plot(full_times, model.SimulateForwardModel(mles[i]), label='fitted model')
+        fits_ax.plot(full_times, mean_trajectory, label='data')
         fits_ax.set_xlabel('time / ms')
         fits_ax.set_ylabel('current / nA')
         fits_fig.savefig(os.path.join(fits_dir), f"{removal_durations[i]}_removed.png")
