@@ -76,10 +76,10 @@ def main():
 
     Erev = common.calculate_reversal_potential(310.15)
 
-    model = BeattieModel(times=full_times, voltage=protocol_func, Erev=Erev, parameters=params)
-    model.protocol_description = protocol_desc
+    model = BeattieModel(times=full_times, voltage=protocol_func, Erev=Erev, parameters=params,
+                         protocol_description=protocol_desc)
     solver = model.make_hybrid_solver_current()
-    mean_trajectory = solver
+    mean_trajectory = solver(params)
 
     simulated_data = [mean_trajectory + np.random.normal(0, np.sqrt(sigma2), len(full_times))
                       for i in range(args.no_experiments)]
