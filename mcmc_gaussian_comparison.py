@@ -189,7 +189,7 @@ def main():
                               columns=('y',))
 
             df['hue'] = hue
-            df['removal_duration'] = [f"{r:.0f}" for r in removal_duration]
+            df['removal_duration'] = f"{r:.0f}".format(removal_duration)
             dfs.append(df)
 
         df = pd.concat(dfs, ignore_index=True)
