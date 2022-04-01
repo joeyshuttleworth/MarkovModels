@@ -81,7 +81,7 @@ def main():
         args.removal_durations = [int(r) for r in args.removal_durations]
         print(full_removal_durations)
 
-        removal_durations = np.unique([get_closest(full_removal_durations) for
+        removal_durations = np.unique([get_closest(full_removal_durations, r) for
                                        r in enumerate(args.removal_durations)])
 
         indices_included = [full_removal_durations.index(r) for r in removal_durations]
@@ -93,7 +93,7 @@ def main():
 
     # Use median of MCMC samples as initial parameters (will speed up optimisation)
     starting_parameters = [np.quantile(mcmc_samples[0, :, :, i].flatten(), 0.5)
-                         for i in range(len(params))]
+                           for i in range(len(params))]
 
     def get_mle_cov(removal_duration):
         indices = common.remove_indices(list(range(len(times))), [(spike,
