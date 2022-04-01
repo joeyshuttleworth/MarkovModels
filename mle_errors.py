@@ -78,14 +78,14 @@ def main():
 
     model = BeattieModel(times=full_times, voltage=protocol_func, Erev=Erev, parameters=params)
     model.protocol_description = protocol_desc
-    mean_trajectory = model.SimulateForwardModel()
+    solver = model.make_hybrid_solver_current()
+    mean_trajectory = solver
 
     simulated_data = [mean_trajectory + np.random.normal(0, np.sqrt(sigma2), len(full_times))
                       for i in range(args.no_experiments)]
 
     model = BeattieModel(times=full_times, voltage=protocol_func, Erev=Erev, parameters=params,
                          protocol_description=protocol_desc)
-    solver = model.make_hybrid_solver_current()
 
     def get_mle_error(time_to_remove, data):
         indices = common.remove_indices(list(range(len(full_times))),
@@ -143,6 +143,17 @@ def main():
     for i in range(len(removal_durations)):
         fits_ax.plot(full_times, model.SimulateForwardModel(mles[i]), label='fitted model')
         fits_ax.plot(full_times, mean_trajectory, label='data', color='grey', alpha=.5)
+        fits_ax.set_xlabel('time / ms')
+        fits_ax.set_ylabel('current / nA')
+        fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.png"))
+
+        ax.legend()
+        fits_ax.cla()
+
+    # plot errors
+    fits_fig, fits_ax = plt.subplots()
+    for i in range(len(removal_durations)):
+        fits_ax.plot(full_times, model.SimulateForwardModel(mles[i]) - mean_trajectory, label='fitted model error')
         fits_ax.set_xlabel('time / ms')
         fits_ax.set_ylabel('current / nA')
         fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.png"))

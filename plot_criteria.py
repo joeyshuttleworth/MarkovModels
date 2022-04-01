@@ -39,6 +39,7 @@ def main():
     parser.add_argument("-L", "--linear_model", help="Run with a simple linear model\
     instead (debugging)", action='store_true')
 
+
     global args
     args = parser.parse_args()
 
