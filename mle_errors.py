@@ -31,7 +31,7 @@ def main():
     parser.add_argument("-f", "--removal_durations_file", type=str)
     parser.add_argument("-R", "--removal_durations", nargs='+', type=float)
     parser.add_argument('-o', '--output')
-    parser.add_argument('-n', '--no_experiments', default=10)
+    parser.add_argument('-n', '--no_experiments', default=10, type=int)
     parser.add_argument('-s', '--short', action='store_true')
     parser.add_argument('-c', '--cpus', default=1, type=int)
     parser.add_argument('-i', '--max_iterations', type=int)
