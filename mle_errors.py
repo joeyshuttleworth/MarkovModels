@@ -78,6 +78,7 @@ def main():
 
     model = BeattieModel(times=full_times, voltage=protocol_func, Erev=Erev, parameters=params,
                          protocol_description=protocol_desc)
+    global solver
     solver = model.make_hybrid_solver_current()
     mean_trajectory = solver(params)
 
