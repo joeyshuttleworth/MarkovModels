@@ -174,9 +174,9 @@ def main():
             g_min, g_max = min(samples), max(samples)
 
             filtered_gaussian_samples = gaussian_samples[np.argwhere((gaussian_samples >
-                                                             g_min) &
-                                                            (gaussian_samples
-                                                             < g_max))]
+                                                                      g_min) &
+                                                                     (gaussian_samples
+                                                                      < g_max))]
 
             if len(filtered_gaussian_samples) != 0:
                 gaussian_samples = filtered_gaussian_samples
@@ -189,7 +189,7 @@ def main():
                               columns=('y',))
 
             df['hue'] = hue
-            df['removal_duration'] = f"{r:.0f}".format(removal_duration)
+            df['removal_duration'] = f"{removal_duration:.0f}".format(removal_duration)
             dfs.append(df)
 
         df = pd.concat(dfs, ignore_index=True)
