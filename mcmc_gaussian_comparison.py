@@ -81,10 +81,11 @@ def main():
         args.removal_durations = [int(r) for r in args.removal_durations]
         print(full_removal_durations)
 
-        removal_durations = [(get_closest(full_removal_durations, r), i) for i, r in
-                             enumerate(args.removal_durations)]
+        removal_durations = np.unqiue([get_closest(full_removal_durations) for
+                                       r in
+                                       enumerate(args.removal_durations)])
 
-        removal_durations, indices_included = list(zip(*removal_durations))
+        indices_included = [full_removal_durations.index(r) for r in removal_durations]
 
         mcmc_samples = mcmc_samples[indices_included, :, :, :]
 
