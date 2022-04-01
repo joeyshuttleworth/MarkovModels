@@ -81,9 +81,8 @@ def main():
         args.removal_durations = [int(r) for r in args.removal_durations]
         print(full_removal_durations)
 
-        removal_durations = np.unqiue([get_closest(full_removal_durations) for
-                                       r in
-                                       enumerate(args.removal_durations)])
+        removal_durations = np.unique([get_closest(full_removal_durations) for
+                                       r in enumerate(args.removal_durations)])
 
         indices_included = [full_removal_durations.index(r) for r in removal_durations]
 
