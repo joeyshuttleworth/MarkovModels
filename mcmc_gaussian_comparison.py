@@ -84,7 +84,7 @@ def main():
         removal_durations = np.unique([get_closest(full_removal_durations, r) for
                                        r in args.removal_durations])
 
-        indices_included = [full_removal_durations.index(r) for r in removal_durations]
+        indices_included = [list(full_removal_durations.index)(r) for r in removal_durations]
 
         mcmc_samples = mcmc_samples[indices_included, :, :, :]
 
