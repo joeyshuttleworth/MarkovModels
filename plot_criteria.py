@@ -542,43 +542,6 @@ def plot_regions(covs, labels, params, output_dir, spike_removal_durations,
         ax.cla()
 
 
-def get_mcmc_chains(solver, times, indices, data, chain_length, starting_parameters, sigma2, burn_in=None):
-    n = len(indices)
-    print(f"number of timesteps is {n}")
-
-    if burn_in is None:
-        burn_in = int(chain_length / 10)
-
-    @njit
-    def log_likelihood_func(p):
-        output = solver(p, times)[indices]
-        error = output - data[indices]
-        SSE = np.sum(error**2)
-        ll = -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
-        return ll
-
-    class pints_likelihood(pints.LogPDF):
-        def __call__(self, p):
-            return log_likelihood_func(p)
-
-        def n_parameters(self):
-            return len(starting_parameters)
-
-    prior = pints.UniformLogPrior([0] * pints_likelihood().n_parameters(),
-                                  [1] * pints_likelihood().n_parameters())
-
-    posterior = pints.LogPosterior(pints_likelihood(), prior)
-
-    mcmc = pints.MCMCController(posterior, args.no_chains,
-                                np.tile(starting_parameters, [args.no_chains, 1]),
-                                method=pints.HaarioBardenetACMC)
-
-    mcmc.set_max_iterations(args.chain_length)
-
-    samples = mcmc.run()
-    return samples[:, burn_in:, :]
-
-
 def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigma2,
                             ranges, no_points, p_index, output_dir,
                             subset_indices=None, filename=None, title=None):
@@ -744,8 +707,9 @@ def mcmc_chain_func(model_class, protocol, times, data, params, index_set):
     model.protocol_description = protocol_desc
     model.window_locs = [t for t, _, _, _ in protocol_desc]
 
-    chains = get_mcmc_chains(model.make_hybrid_solver_current(), times, index_set, data, args.chain_length, params,
-                             sigma2, burn_in=args.burn_in)
+    chains = common.compute_mcmc_chains(model.make_hybrid_solver_current(),
+                                        times, index_set, data, args.chain_length, params,
+                                        sigma2, burn_in=args.burn_in)
     rhat = pints.rhat(chains)
     return chains, rhat
 

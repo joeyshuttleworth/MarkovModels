@@ -12,8 +12,13 @@ import os
 import pandas as pd
 import numpy as np
 
+T=298
+K_in=5
+K_out=120
 
-def fit_func(protocol, well, model_class):
+Erev = common.calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
+
+def fit_func(protocol, well, model_class, E_rev=Erev):
     default_parameters = None
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
@@ -27,6 +32,36 @@ def fit_func(protocol, well, model_class):
     res_df['protocol'] = protocol
 
     return res_df
+
+
+def mcmc_func(protocol, well, model_class, initial_params):
+
+    # Ignore files that have been commented out
+    voltage_func, t_start, t_end, t_step, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
+
+    data = common.get_data(well, protocol, common.data_directory, experiment_name)
+
+    times = pd.read_csv(os.path.join(common.data_directory, f"{experiment_name}-{protocol}-times.csv"))['time'].values
+
+    voltages = np.array([voltage_func(t) for t in times])
+
+    model = model_class(voltage=voltage_func, parameters=initial_params,
+                        Erev=Erev, protocol_description=protocol_desc)
+
+    solver = model.make_hybrid_solver_current()
+
+    sigma2 = np.sqrt(solver()[0:100].sum())
+
+    spike_times = common.detect_spikes(times, voltages, threshold=10)
+
+    _, _, indices = common.remove_spikes(times, voltages, spike_times,
+                                         time_to_remove=args.removal_time)
+
+    return common.calculate_mcmc_chains(solver, times, indices, data,
+                                      chain_length=args.chain_length,
+                                      starting_parameters=initial_params,
+                                      sigma2=sigma2, burn_in=0,
+                                      likelihood_func=None)
 
 
 def main():
@@ -44,6 +79,8 @@ def main():
     parser.add_argument('--cores', '-c', default=1, type=int)
     parser.add_argument('--model', '-m', default='Beattie', type=str)
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
+    parser.add_argument('--no_chains', '-N', default=0, help='mcmc chains to run')
+    parser.add_argument('--chain_length', '-l', default=5000, help='mcmc chains to run')
 
     global args
     args = parser.parse_args()
@@ -98,6 +135,26 @@ def main():
     res = pool.starmap(fit_func, tasks)
     print(res)
 
+    if args.chain_length > 0:
+        mcmc_dir = os.path.join(output_dir, 'mcmc_samples')
+
+        for res_df, task in zip(tasks):
+            # Select best score
+            mle_row = res_df[res_df.score == res_df.score.max()][0]
+            param_labels = task[2]().parameter_labels
+            mle = mle_row[param_labels].values.flatten()
+            task.append(mle)
+
+        print(tasks)
+        # Do MCMC
+        mcmc_res = pool.starmap(mcmc_func, tasks)
+        for samples, task in zip(mcmc_res, tasks):
+            protocol, well, model_class = tasks[0], tasks[1]
+            model_name = model_class.get_name()
+
+            np.save(os.path.join(mcmc_dir,
+                                 f"mcmc_{model_name}_{well}_{protocol}.npy"), samples)
+
     fitting_df = pd.concat(res)
 
     print("=============\nfinished fitting\n=============")
@@ -120,6 +177,7 @@ def main():
 
     params_df.to_csv(os.path.join(output_dir, "best_fitting.csv"))
 
+    # Plot predictions
     predictions_df = []
 
     trace_fig = plt.figure(figsize=(16, 12))
@@ -127,7 +185,6 @@ def main():
 
     all_models_fig = plt.figure(figsize=(16, 12))
     all_models_axs = all_models_fig.subplots(2)
-
     for sim_protocol in np.unique(protocols_list):
         prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
         full_times = pd.read_csv(os.path.join(args.data_directory,

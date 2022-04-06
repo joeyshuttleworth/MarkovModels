@@ -195,25 +195,15 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
 
 
 def remove_spikes(times, voltages, spike_times, time_to_remove):
-    lst = np.column_stack((times, voltages))
-    indices_to_remove = []
 
-    for spike in spike_times:
-        spike_iter = [(i, t) for i, t in enumerate(lst[:, 0]) if t > spike]
-        end_iter = [(i, t) for i, t in enumerate(lst[:, 0]) if t > spike + time_to_remove]
-
-        if len(spike_iter) == 0 or len(end_iter) == 0:
-            break
-
-        spike_index = spike_iter[0][0]
-        end_index = end_iter[0][0]
-
-        if spike_index > len(lst) or end_index > len(lst):
-            break
-        indices_to_remove.append((spike_index - 1, end_index))
-
-    indices_remaining = np.array(remove_indices(list(range(len(times))), indices_to_remove))
-    return lst[indices_remaining, 0], lst[indices_remaining, 1], indices_remaining
+    tstep = times[1] - times[0]
+    spike_indices = spike_times - times[0]
+    indices = remove_indices(list(range(len(times))), [(spike, int(spike +
+                                                                   time_to_remove
+                                                                   / tstep))
+                                                       for spike in
+                                                       spike_indices])
+    return times[indices], voltages[indices], indices
 
 
 def remove_indices(lst, indices_to_remove):
@@ -605,6 +595,14 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
 
     times = pd.read_csv(os.path.join(data_directory, f"{experiment_name}-{protocol}-times.csv"))['time'].values
 
+    voltages = np.array([voltage_func(t) for t in times])
+
+    _, spike_indices = detect_spikes(times, voltages, window_size=0)
+
+    indices = remove_indices(list(range(len(times))), [(spike, int(spike +
+                                                                   removal_duration / t_step)) for spike in
+                                                       spike_indices])
+
     if infer_E_rev:
         Erev = infer_reversal_potential(protocol, data, times)
     else:
@@ -645,7 +643,8 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     for i in range(repeats):
         fitted_params, score = fit_model(model, data,
                                          starting_parameters=initial_params,
-                                         max_iterations=max_iterations)
+                                         max_iterations=max_iterations,
+                                         indices=indices)
 
         fig = plt.figure(figsize=(14, 12))
         ax = fig.subplots(1)
@@ -686,10 +685,8 @@ def get_all_wells_in_directory(data_dir, experiment_name='newtonrun4'):
     return wells
 
 
-def infer_reversal_potential(protocol: str, current: np.array, times, ax=None, output_path=None, plot=False):
-
-    orig_times = times
-    orig_current = current
+def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
+                             output_path=None, plot=False):
 
     if ax or output_path:
         plot = True
@@ -774,3 +771,44 @@ def setup_output_directory(dirname: str = None, subdir_name: str = None):
         description_fout.write(f"Command: {command}\n")
 
     return dirname
+
+
+def compute_mcmc_chains(solver, times, indices, data,
+                        starting_parameters, sigma2, no_chains=1,
+                        chain_length=1000, burn_in=None, likelihood_func=None):
+    n = len(indices)
+    print(f"number of timesteps is {n}")
+
+    if burn_in is None:
+        burn_in = int(chain_length / 10)
+
+    if likelihood_func is None:
+        @njit
+        def log_likelihood_func(p):
+            output = solver(p, times)[indices]
+            error = output - data[indices]
+            SSE = np.sum(error**2)
+            ll = -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
+            return ll
+
+    class pints_likelihood(pints.LogPDF):
+        def __call__(self, p):
+            return log_likelihood_func(p)
+
+        def n_parameters(self):
+            return len(starting_parameters)
+
+    prior = pints.UniformLogPrior([0] * pints_likelihood().n_parameters(),
+                                  [1] * pints_likelihood().n_parameters())
+
+    posterior = pints.LogPosterior(pints_likelihood(), prior)
+
+    mcmc = pints.MCMCController(posterior, no_chains,
+                                np.tile(starting_parameters, [no_chains, 1]),
+                                method=pints.HaarioBardenetACMC)
+
+    mcmc.set_max_iterations(chain_length)
+
+    samples = mcmc.run()
+    return samples[:, burn_in:, :]
+
