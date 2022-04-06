@@ -19,8 +19,14 @@ class MarkovModel:
     def get_default_parameters(self):
         raise NotImplementedError
 
+    def get_model_name(self):
+        return self.model_name
+
     def __init__(self, symbols, A, B, rates_dict, times, voltage=None,
-                 tolerances=(1e-7, 1e-9), Q=None, protocol_description=None):
+                 tolerances=(1e-7, 1e-9), Q=None, protocol_description=None,
+                 name=None):
+
+        self.model_name = name
 
         self.protocol_description = protocol_description
 

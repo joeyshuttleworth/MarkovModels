@@ -58,7 +58,8 @@ class KempModel(MarkovModel):
         self.open_state_index = 0
 
         super().__init__(symbols, A, B, mc.rate_expressions, times,
-                         voltage=voltage, Q=Q, *args, **kwargs)
+                         voltage=voltage, Q=Q, *args, **kwargs,
+                         name='KempModel')
 
     def CreateSymbols(self):
         """

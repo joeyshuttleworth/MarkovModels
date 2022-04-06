@@ -15,7 +15,8 @@ class ClosedOpenModel(MarkovModel):
                  parameters=None, *args, **kwargs):
         # Create symbols for symbolic functions
 
-        mc = markov_builder.MarkovChain(name='closed_open')
+        name = 'ClosedOpenModel'
+        mc = markov_builder.MarkovChain(name=name)
         mc.add_state('O', open_state=True)
         mc.add_state('C')
 
@@ -70,7 +71,7 @@ class ClosedOpenModel(MarkovModel):
         self.open_state_index = 0
 
         super().__init__(symbols, A, B, mc.rate_expressions, times, voltage=voltage,
-                         Q=Q, *args, **kwargs)
+                         Q=Q, *args, **kwargs, name=name)
 
     def CreateSymbols(self):
         """

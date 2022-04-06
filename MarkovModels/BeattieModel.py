@@ -63,7 +63,8 @@ class BeattieModel(MarkovModel):
                        [.0, 'k3', '-k2 - k4', 'k3'],
                        ['k3', .0, 'k2', '-k4 - k1']]).T
 
-        super().__init__(symbols, A, B, rates, times, voltage=voltage, Q=Q, *args, **kwargs)
+        super().__init__(symbols, A, B, rates, times, voltage=voltage, Q=Q,
+                         name='BeattieModel', *args, **kwargs)
 
     def CreateSymbols(self):
         """
