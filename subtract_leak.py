@@ -284,7 +284,10 @@ def main():
 
                     NRMS_corrected_post_drug = np.sqrt(np.sum(after_corrected)**2)/np.sqrt(np.sum(after_trace**2))
                     df.append((protocol, well, sweep, tracename, fitted_E_rev,
-                               passed1, passed2, passed3, NRMS_corrected_post_drug))
+                               passed1, passed2, passed3,
+                               NRMS_corrected_post_drug, g_leak_before,
+                               g_leak_after, E_leak_before, E_leak_after))
+
             subtracted_ax.set_xlabel('time / ms')
             subtracted_ax.set_ylabel('current / pA')
             subtracted_ax.set_title('subtracted traces')
@@ -298,8 +301,12 @@ def main():
             fig.tight_layout()
             fig.savefig(os.path.join(output, f"{well}_{protocol}_traces_from_leak_subtraction"))
 
-    df = pd.DataFrame(df, columns=('protocol', 'well', 'sweep', 'before/after', 'fitted_E_rev',
-                                   'passed QC6a', 'passed QC6b', 'passed QC6c', 'NRMS_corrected_post_drug'))
+    df = pd.DataFrame(df, columns=('protocol', 'well', 'sweep', 'before/after',
+                                   'fitted_E_rev', 'passed QC6a', 'passed QC6b', 'passed QC6c',
+                                   'NRMS_corrected_post_drug', 'pre-drug leak conductance',
+                                   'post-drug leak conductance', 'pre-drug leak reversal',
+                                   'post-drug leak reversal'))
+
     df.to_csv(os.path.join(output, "subtraction_qc.csv"))
     print(df)
 
