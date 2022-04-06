@@ -34,30 +34,37 @@ def fit_func(protocol, well, model_class, E_rev=Erev):
     return res_df
 
 
-def mcmc_func(protocol, well, model_class, initial_params):
+def mcmc_func(protocol, well, model_class, initial_params=None):
+
 
     # Ignore files that have been commented out
     voltage_func, t_start, t_end, t_step, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
 
-    data = common.get_data(well, protocol, common.data_directory, experiment_name)
+    data = common.get_data(well, protocol, args.data_directory, experiment_name)
 
-    times = pd.read_csv(os.path.join(common.data_directory, f"{experiment_name}-{protocol}-times.csv"))['time'].values
+    times = pd.read_csv(os.path.join(args.data_directory, f"{experiment_name}-{protocol}-times.csv"))['time'].values
 
     voltages = np.array([voltage_func(t) for t in times])
 
     model = model_class(voltage=voltage_func, parameters=initial_params,
                         Erev=Erev, protocol_description=protocol_desc)
 
+    if initial_params is None:
+        initial_params = model.get_default_parameters()
+
     solver = model.make_hybrid_solver_current()
 
-    sigma2 = np.sqrt(solver()[0:100].sum())
+    if np.any(~np.isfinite(solver(initial_params))):
+        initial_params = model.get_default_parameters()
 
-    spike_times = common.detect_spikes(times, voltages, threshold=10)
+    sigma2 = solver()[0:100].std()**2
+
+    spike_times, spike_indices = common.detect_spikes(times, voltages, threshold=10)
 
     _, _, indices = common.remove_spikes(times, voltages, spike_times,
-                                         time_to_remove=args.removal_time)
+                                         time_to_remove=args.removal_duration)
 
-    return common.calculate_mcmc_chains(solver, times, indices, data,
+    return common.compute_mcmc_chains(solver, times, indices, data,
                                       chain_length=args.chain_length,
                                       starting_parameters=initial_params,
                                       sigma2=sigma2, burn_in=0,
@@ -75,12 +82,12 @@ def main():
     parser.add_argument('--repeats', type=int, default=8)
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
-    parser.add_argument('--removal_duration', '-r', default=5, type=int)
+    parser.add_argument('--removal_duration', '-r', default=5, type=float)
     parser.add_argument('--cores', '-c', default=1, type=int)
     parser.add_argument('--model', '-m', default='Beattie', type=str)
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
-    parser.add_argument('--no_chains', '-N', default=0, help='mcmc chains to run')
-    parser.add_argument('--chain_length', '-l', default=5000, help='mcmc chains to run')
+    parser.add_argument('--no_chains', '-N', default=0, help='mcmc chains to run', type=int)
+    parser.add_argument('--chain_length', '-l', default=5000, help='mcmc chains to run', type=int)
 
     global args
     args = parser.parse_args()
@@ -124,7 +131,7 @@ def main():
         if protocol not in protocols or well not in args.wells:
             continue
         else:
-            tasks.append((protocol, well, model_class))
+            tasks.append([protocol, well, model_class])
             protocols_list.append(protocol)
 
     print(f"fitting tasks are {tasks}")
@@ -135,22 +142,24 @@ def main():
     res = pool.starmap(fit_func, tasks)
     print(res)
 
-    if args.chain_length > 0:
+    if args.chain_length > 0 and args.no_chains > 0:
         mcmc_dir = os.path.join(output_dir, 'mcmc_samples')
 
-        for res_df, task in zip(tasks):
+        for res_df, task in zip(res, tasks):
             # Select best score
-            mle_row = res_df[res_df.score == res_df.score.max()][0]
+            mle_row = res_df[res_df.score == res_df.score.max()]
             param_labels = task[2]().parameter_labels
-            mle = mle_row[param_labels].values.flatten()
-            task.append(mle)
+            mle = mle_row[param_labels].values[0, :].flatten()
+            if np.all(np.isfinite(mle)):
+                print(mle)
+                task.append(mle)
 
         print(tasks)
         # Do MCMC
         mcmc_res = pool.starmap(mcmc_func, tasks)
         for samples, task in zip(mcmc_res, tasks):
-            protocol, well, model_class = tasks[0], tasks[1]
-            model_name = model_class.get_name()
+            protocol, well, model_class = task[0], task[1], task[2]
+            model_name = model_class.get_model_name()
 
             np.save(os.path.join(mcmc_dir,
                                  f"mcmc_{model_name}_{well}_{protocol}.npy"), samples)
@@ -187,25 +196,22 @@ def main():
     all_models_axs = all_models_fig.subplots(2)
     for sim_protocol in np.unique(protocols_list):
         prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
-        full_times = pd.read_csv(os.path.join(args.data_directory,
-                                              f"{experiment_name}-{sim_protocol}-times.csv"))['time'].values.flatten()
-
-        full_voltages = np.array([prot_func(t) for t in full_times])
-        spikes, _ = common.detect_spikes(full_times, voltages, 10)
-        times, _, indices = common.remove_spikes(full_times, full_voltages, spikes, args.removal_duration)
-        voltages = full_voltages[indices]
+        times = pd.read_csv(os.path.join(args.data_directory,
+                                         f"{experiment_name}-{sim_protocol}-times.csv"))['time'].values.flatten()
 
         model = model_class(prot_func,
                             times=times,
                             Erev=Erev)
 
+        voltages = np.array([prot_func(t) for t in times])
+
         for well in params_df['well'].unique():
             full_data = common.get_data(well, sim_protocol, args.data_directory, experiment_name=experiment_name)
-            data = full_data[indices]
+            data = full_data
 
             # Probably not worth compiling solver
             model.protocol_description = desc
-            Erev = common.infer_reversal_potential(sim_protocol, full_data, full_times)
+            Erev = common.infer_reversal_potential(sim_protocol, full_data, times)
             solver = model.make_forward_solver_current(njitted=False)
 
             for protocol_fitted in params_df['protocol'].unique():
@@ -240,7 +246,7 @@ def main():
                     trace_axs[0].plot(times, data, label='data', alpha=0.25, color='grey')
                     trace_axs[0].legend()
 
-                    trace_axs[1].plot(full_times, full_voltages)
+                    trace_axs[1].plot(times, voltages)
                     trace_axs[1].set_ylabel('voltage / mV')
                     trace_fig.savefig(os.path.join(sub_dir, f"{protocol_fitted}_fit_predition.png"))
 
@@ -256,7 +262,7 @@ def main():
             all_models_axs[0].set_title(f"{well} {sim_protocol} fits comparison")
             all_models_axs[0].set_ylabel("Current / nA")
 
-            all_models_axs[1].plot(full_times, full_voltages)
+            all_models_axs[1].plot(times, voltages)
             all_models_axs[1].set_ylabel('voltage / mV')
 
             all_models_fig.savefig(os.path.join(sub_dir, "all_fits.png"))
