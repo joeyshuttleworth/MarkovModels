@@ -197,7 +197,8 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
 def remove_spikes(times, voltages, spike_times, time_to_remove):
 
     tstep = times[1] - times[0]
-    spike_indices = spike_times - times[0]
+    spike_indices = ((spike_times - times[0]) / tstep).astype(np.int)
+    print(spike_indices)
     indices = remove_indices(list(range(len(times))), [(spike, int(spike +
                                                                    time_to_remove
                                                                    / tstep))
@@ -644,7 +645,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
         fitted_params, score = fit_model(model, data,
                                          starting_parameters=initial_params,
                                          max_iterations=max_iterations,
-                                         indices=indices)
+                                         subset_indices=indices)
 
         fig = plt.figure(figsize=(14, 12))
         ax = fig.subplots(1)
@@ -654,7 +655,6 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
         if infer_E_rev:
             fitted_params = np.append(fitted_params, Erev)
 
-        print(fitted_params)
         df = pd.DataFrame(fitted_params[None, :], columns=columns)
         df['score'] = score
         dfs.append(df)
