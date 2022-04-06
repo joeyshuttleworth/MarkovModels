@@ -145,6 +145,9 @@ def main():
     if args.chain_length > 0 and args.no_chains > 0:
         mcmc_dir = os.path.join(output_dir, 'mcmc_samples')
 
+        if not os.path.exists(mcmc_dir):
+            os.makedirs(mcmc_dir)
+
         for res_df, task in zip(res, tasks):
             # Select best score
             mle_row = res_df[res_df.score == res_df.score.max()]
@@ -159,7 +162,7 @@ def main():
         mcmc_res = pool.starmap(mcmc_func, tasks)
         for samples, task in zip(mcmc_res, tasks):
             protocol, well, model_class = task[0], task[1], task[2]
-            model_name = model_class.get_model_name()
+            model_name = model_class().get_model_name()
 
             np.save(os.path.join(mcmc_dir,
                                  f"mcmc_{model_name}_{well}_{protocol}.npy"), samples)
