@@ -39,7 +39,6 @@ def main():
     parser.add_argument("-L", "--linear_model", help="Run with a simple linear model\
     instead (debugging)", action='store_true')
 
-
     global args
     args = parser.parse_args()
 
@@ -305,9 +304,12 @@ def main():
 
         if i < 20:
             try:
-                pairwise_fig, pairwise_ax = pints.plot.pairwise(samples, kde=True,
-                                                            parameter_names=['p%i' % i for i in range(1, 9)]
-                                                            + ['g_kr'])
+                pairwise_fig, pairwise_ax = pints.plot.pairwise(samples,
+                                                                kde=True,
+                                                                parameter_names=['p%i'
+                                                                                 % i for i in
+                                                                                 range(1, 9)] +
+                                                                ['g_kr'])
             except np.linalg.LinAlgError as ex:
                 print("failed to produce pairwise plot")
                 print(str(ex))
