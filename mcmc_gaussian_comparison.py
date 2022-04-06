@@ -171,7 +171,9 @@ def main():
             no_gaussian_samples = 100000
             gaussian_samples = np.random.normal(mean, std, no_gaussian_samples)
 
-            g_min, g_max = min(samples), max(samples)
+            # 99% confidence region
+            r = 2.576 * std
+            g_min, g_max = mean - r, mean + r
 
             filtered_gaussian_samples = gaussian_samples[np.argwhere((gaussian_samples >
                                                                       g_min) &
