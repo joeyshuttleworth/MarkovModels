@@ -150,7 +150,7 @@ def main():
 
         for res_df, task in zip(res, tasks):
             # Select best score
-            mle_row = res_df[res_df.score == res_df.score.max()]
+            mle_row = res_df[res_df.score == res_df.score.min()]
             param_labels = task[2]().parameter_labels
             mle = mle_row[param_labels].values[0, :].flatten()
             if np.all(np.isfinite(mle)):
