@@ -35,7 +35,7 @@ def main():
     parser.add_argument('-s', '--short', action='store_true')
     parser.add_argument('-c', '--cpus', default=1, type=int)
     parser.add_argument('-i', '--max_iterations', type=int)
-    parser.add_argument('-r', '--repeats', default=1)
+    parser.add_argument('-r', '--repeats', default=1, type=int)
     parser.add_argument("-m", "--method", default='CMAES')
     args = parser.parse_args()
 
