@@ -17,7 +17,7 @@ import itertools
 
 
 def get_wells_list(input_dir):
-    regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9])-raw_after-sweep1.csv$")
+    regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9])-after-sweep1.csv$")
     wells = []
     for f in filter(regex.match, os.listdir(input_dir)):
         well = re.search(regex, f).groups(2)[1]
@@ -27,7 +27,7 @@ def get_wells_list(input_dir):
 
 
 def get_protocol_list(input_dir):
-    regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9])-raw_after-sweep1.csv$")
+    regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9])-after-sweep1.csv$")
     protocols = []
     for f in filter(regex.match, os.listdir(input_dir)):
         well = re.search(regex, f).groups(3)[0]
@@ -96,8 +96,8 @@ def main():
             else:
                 extra_steps = []
 
-            before_filename = f"{experiment_name}-{protocol}-{well}-raw_before-sweep1.csv"
-            after_filename = f"{experiment_name}-{protocol}-{well}-raw_after-sweep1.csv"
+            before_filename = f"{experiment_name}-{protocol}-{well}-before-sweep1.csv"
+            after_filename = f"{experiment_name}-{protocol}-{well}-after-sweep1.csv"
 
             try:
                 before_trace = pd.read_csv(os.path.join(args.data_directory, before_filename)).values.flatten()
@@ -169,10 +169,10 @@ def main():
             after_subtraced = after_trace - (protocol_voltages - E_leak) * g_leak
             confidence_region = np.sqrt(msres * (1 / n + (xpred - x.mean())**2 / ((x**2).sum())))
 
-            fit_axs[3].fill_between(xpred, 1.96 * confidence_region + predictions,
-                                    -1.96 * confidence_region + predictions,
-                                    color='blue',
-                                    alpha=0.5)
+            # fit_axs[3].fill_between(xpred, 1.96 * confidence_region + predictions,
+            #                         -1.96 * confidence_region + predictions,
+            #                         color='blue',
+            #                         alpha=0.5)
 
             print(
                 f"{well}, {protocol}: prediction of post-drug leak current at 40mV: mean = {predictions[-1]}, sd={confidence_region[-1]}")
