@@ -282,7 +282,7 @@ def main():
                         print(f"{protocol}, {well}, {tracename} \tfailed QC6c")
                         passed3 = False
 
-                    NRMS_corrected_post_drug = np.sqrt(np.sum(after_corrected)**2)/np.sqrt(np.sum(after_trace**2))
+                    NRMS_corrected_post_drug = np.sqrt(np.sum(after_corrected**2)/(np.sum(after_trace**2)))
                     df.append((protocol, well, sweep, tracename, fitted_E_rev,
                                passed1, passed2, passed3,
                                NRMS_corrected_post_drug, g_leak_before,
