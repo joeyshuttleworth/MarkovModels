@@ -46,7 +46,7 @@ def main():
 
             df = pd.concat(views, ignore_index=True)
 
-            sns.histplot(data=df, x=var, ax=ax, hue='experiment_name', label=experiment_name)
+            sns.histplot(data=df, x=var, ax=ax, hue='experiment_name', label=experiment_name, stat='density')
 
             fig.savefig(os.path.join(output_dir, f"hist_{protocol}_{var}.png"))
             ax.cla()
