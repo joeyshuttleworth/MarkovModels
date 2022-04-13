@@ -36,7 +36,6 @@ def fit_func(protocol, well, model_class, E_rev=Erev):
 
 def mcmc_func(protocol, well, model_class, initial_params=None):
 
-
     # Ignore files that have been commented out
     voltage_func, t_start, t_end, t_step, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
 
@@ -57,7 +56,7 @@ def mcmc_func(protocol, well, model_class, initial_params=None):
     if np.any(~np.isfinite(solver(initial_params))):
         initial_params = model.get_default_parameters()
 
-    sigma2 = solver()[0:100].std()**2
+    sigma2 = np.std(data[0:100])**2
 
     spike_times, spike_indices = common.detect_spikes(times, voltages, threshold=10)
 

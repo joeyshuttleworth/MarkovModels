@@ -773,11 +773,31 @@ def setup_output_directory(dirname: str = None, subdir_name: str = None):
     return dirname
 
 
-def compute_mcmc_chains(solver, times, indices, data,
+def compute_mcmc_chains(model, solver, times, indices, data,
                         starting_parameters, sigma2, no_chains=1,
-                        chain_length=1000, burn_in=None, likelihood_func=None):
+                        chain_length=1000, burn_in=None, likelihood_func=None,
+                        log_transform=True):
     n = len(indices)
     print(f"number of timesteps is {n}")
+
+    if log_transform:
+        # Assume that the conductance is the last parameter and that the parameters are arranged included
+        # ae^bV pairs
+
+        # Use a-space transformation (Four Ways to Fit...)
+        no_rates = int((model.get_no_parameters() - 1)/2)
+        log_transformations = [pints.LogTransformation(1) for i in range(no_rates)]
+        identity_transformations = [pints.IdentityTransformation(1) for i in range(no_rates)]
+
+        # Flatten and include conductance on the end  (aiyoooo)
+        transformations = [w for u, v
+                           in zip(log_transformations, identity_transformations)
+                           for w in (u, v)]\
+                               + [pints.IdentityTransformation(1)]
+        transformation = pints.ComposedTransformation(*transformations)
+
+    else:
+        transformation = None
 
     if burn_in is None:
         burn_in = int(chain_length / 10)
@@ -805,7 +825,8 @@ def compute_mcmc_chains(solver, times, indices, data,
 
     mcmc = pints.MCMCController(posterior, no_chains,
                                 np.tile(starting_parameters, [no_chains, 1]),
-                                method=pints.HaarioBardenetACMC)
+                                method=pints.HaarioBardenetACMC,
+                                transformation=transformation)
 
     mcmc.set_max_iterations(chain_length)
 
