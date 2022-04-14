@@ -682,6 +682,7 @@ def get_all_wells_in_directory(data_dir, experiment_name='newtonrun4'):
         well = re.search(regex, f).groups()[group]
         wells.append(well)
 
+    wells = list(set(wells))
     return wells
 
 
@@ -834,6 +835,11 @@ def compute_mcmc_chains(model, solver, times, indices, data,
 
     mcmc.set_max_iterations(chain_length)
 
-    samples = mcmc.run()
+    try:
+        samples = mcmc.run()
+    except ValueError as exc:
+        print(str(exc))
+        return np.full((no_chains, chain_length, len(starting_parameters)), np.nan)
+
     return samples[:, burn_in:, :]
 
