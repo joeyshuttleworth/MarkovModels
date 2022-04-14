@@ -198,7 +198,6 @@ def remove_spikes(times, voltages, spike_times, time_to_remove):
 
     tstep = times[1] - times[0]
     spike_indices = ((spike_times - times[0]) / tstep).astype(np.int)
-    print(spike_indices)
     indices = remove_indices(list(range(len(times))), [(spike, int(spike +
                                                                    time_to_remove
                                                                    / tstep))
@@ -775,11 +774,13 @@ def setup_output_directory(dirname: str = None, subdir_name: str = None):
 
 
 def compute_mcmc_chains(model, solver, times, indices, data,
-                        starting_parameters, sigma2, no_chains=1,
+                        starting_parameters=None, sigma2=1, no_chains=1,
                         chain_length=1000, burn_in=None, likelihood_func=None,
                         log_transform=True):
     n = len(indices)
-    print(f"number of timesteps is {n}")
+
+    if starting_parameters is None:
+        starting_parameters = model.get_default_parameters().flatten()
 
     if log_transform:
         # Assume that the conductance is the last parameter and that the parameters are arranged included
@@ -824,9 +825,16 @@ def compute_mcmc_chains(model, solver, times, indices, data,
 
     posterior = pints.LogPosterior(pints_likelihood(), prior)
 
-    if not np.isfinite(pints_likelihood()(starting_parameters)):
+    initial_likelihood = likelihood_func(starting_parameters)
+
+    print('initial_parameters likelihood = ', initial_likelihood)
+    if not np.isfinite(initial_likelihood):
         print("{model} MCMC failed, initial parameters had non-finite log likelihood")
         return np.full((no_chains, chain_length, len(starting_parameters)), np.nan)
+
+    print(starting_parameters)
+
+    print(f"initial likelihood is {initial_likelihood}")
 
     mcmc = pints.MCMCController(posterior, no_chains,
                                 np.tile(starting_parameters, [no_chains, 1]),
