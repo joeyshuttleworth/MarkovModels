@@ -824,7 +824,8 @@ def compute_mcmc_chains(model, solver, times, indices, data,
     posterior = pints.LogPosterior(pints_likelihood(), prior)
 
     if not np.isfinite(pints_likelihood()(starting_parameters)):
-        starting_parameters = model.get_default_parameters()
+        print("{model} MCMC failed, initial parameters had non-finite log likelihood")
+        return np.full((no_chains, chain_length, len(starting_parameters)), np.nan)
 
     mcmc = pints.MCMCController(posterior, no_chains,
                                 np.tile(starting_parameters, [no_chains, 1]),
