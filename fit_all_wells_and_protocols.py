@@ -34,7 +34,7 @@ def fit_func(protocol, well, model_class, E_rev=Erev):
     return res_df
 
 
-def mcmc_func(protocol, well, model_class, initial_params=None):
+def mcmc_func(protocol, well, model_class, initial_params):
 
     # Ignore files that have been commented out
     voltage_func, t_start, t_end, t_step, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
@@ -152,12 +152,10 @@ def main():
             # Select best score
             mle_row = res_df[res_df.score == res_df.score.min()]
             param_labels = task[2]().parameter_labels
-            mle = mle_row[param_labels].values[0, :].flatten()
+            mle = mle_row[param_labels].values[0, :].flatten().astype(np.float64)
             if np.all(np.isfinite(mle)):
-                print(mle)
                 task.append(mle)
 
-        print(tasks)
         # Do MCMC
         mcmc_res = pool.starmap(mcmc_func, tasks)
         for samples, task in zip(mcmc_res, tasks):
