@@ -56,7 +56,8 @@ def mcmc_func(protocol, well, model_class, initial_params=None):
     if np.any(~np.isfinite(solver(initial_params))):
         initial_params = model.get_default_parameters()
 
-    sigma2 = np.std(data[0:100])**2
+    sigma2 = np.std(data[10:50])**2
+    print(sigma2)
 
     spike_times, spike_indices = common.detect_spikes(times, voltages, threshold=10)
 
@@ -250,7 +251,8 @@ def main():
 
                     trace_axs[1].plot(times, voltages)
                     trace_axs[1].set_ylabel('voltage / mV')
-                    trace_fig.savefig(os.path.join(sub_dir, f"{protocol_fitted}_fit_predition.png"))
+                    fname = f"fitted_to_{protocol_fitted}.png" if protocol_fitted != sim_protocol else "fit.png"
+                    trace_fig.savefig(os.path.join(sub_dir, f"fitted_to_{protocol_fitted}.png"))
 
                     for ax in trace_axs:
                         ax.cla()
