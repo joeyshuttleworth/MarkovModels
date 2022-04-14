@@ -775,7 +775,7 @@ def setup_output_directory(dirname: str = None, subdir_name: str = None):
 
 def compute_mcmc_chains(model, solver, times, indices, data,
                         starting_parameters=None, sigma2=1, no_chains=1,
-                        chain_length=1000, burn_in=None, likelihood_func=None,
+                        chain_length=1000, burn_in=None, log_likelihood_func=None,
                         log_transform=True):
     n = len(indices)
 
@@ -804,7 +804,7 @@ def compute_mcmc_chains(model, solver, times, indices, data,
     if burn_in is None:
         burn_in = int(chain_length / 10)
 
-    if likelihood_func is None:
+    if log_likelihood_func is None:
         @njit
         def log_likelihood_func(p):
             output = solver(p, times)[indices]
@@ -825,7 +825,7 @@ def compute_mcmc_chains(model, solver, times, indices, data,
 
     posterior = pints.LogPosterior(pints_likelihood(), prior)
 
-    initial_likelihood = likelihood_func(starting_parameters)
+    initial_likelihood = log_likelihood_func(starting_parameters)
 
     print('initial_parameters likelihood = ', initial_likelihood)
     if not np.isfinite(initial_likelihood):
