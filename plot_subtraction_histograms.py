@@ -29,7 +29,7 @@ def main():
 
     protocols = ['staircaseramp1', 'staircaseramp2']
 
-    variables_to_plot = ['fitted_E_rev', 'NRMS_corrected_post_drug',
+    variables_to_plot = ['fitted_E_rev', 'R_leftover',
                          'pre-drug leak conductance', 'post-drug leak conductance',
                          'pre-drug leak reversal',
                          'post-drug leak reversal']
@@ -46,7 +46,8 @@ def main():
 
             df = pd.concat(views, ignore_index=True)
 
-            sns.histplot(data=df, x=var, ax=ax, hue='experiment_name', label=experiment_name, stat='density')
+            sns.histplot(data=df, x=var, ax=ax, hue='experiment_name',
+                         label=experiment_name, stat='probability', common_norm=False)
 
             fig.savefig(os.path.join(output_dir, f"hist_{protocol}_{var}.png"))
             ax.cla()

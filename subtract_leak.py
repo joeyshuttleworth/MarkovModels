@@ -257,36 +257,36 @@ def main():
 
                 subtracted_ax.plot(observation_times, subtracted_trace, label=f"sweep{sweep}")
 
-                for tracename, trace in (('subtracted', subtracted_trace),):
-                    estimated_noise = trace[0:200].std()
-                    trace = trace[first_step_indices]
-                    n = len(trace)
-                    if trace.mean() > estimated_noise:
-                        print(f"{protocol} {well} {tracename} \tpassed QC6a")
-                        passed1 = True
-                    else:
-                        print(f"{protocol}, {well}, {tracename} \tfailed QC6a")
-                        passed1 = False
+                tracename, trace = ('subtracted', subtracted_trace)
+                estimated_noise = trace[0:200].std()
+                trace = trace[first_step_indices]
+                n = len(trace)
+                if trace.mean() > estimated_noise:
+                    print(f"{protocol} {well} {tracename} \tpassed QC6a")
+                    passed1 = True
+                else:
+                    print(f"{protocol}, {well}, {tracename} \tfailed QC6a")
+                    passed1 = False
 
-                    if trace.mean() > 0:
-                        print(f"{protocol} {well} {tracename} \tpassed QC6b")
-                        passed2 = True
-                    else:
-                        print(f"{protocol}, {well}, {tracename} \tfailed QC6b")
-                        passed2 = False
+                if trace.mean() > 0:
+                    print(f"{protocol} {well} {tracename} \tpassed QC6b")
+                    passed2 = True
+                else:
+                    print(f"{protocol}, {well}, {tracename} \tfailed QC6b")
+                    passed2 = False
 
-                    if trace.mean() > -(before_sd + after_sd) * 2:
-                        print(f"{protocol}, {well}, {tracename} \tpassed QC6c")
-                        passed3 = True
-                    else:
-                        print(f"{protocol}, {well}, {tracename} \tfailed QC6c")
-                        passed3 = False
+                if trace.mean() > -(before_sd + after_sd) * 2:
+                    print(f"{protocol}, {well}, {tracename} \tpassed QC6c")
+                    passed3 = True
+                else:
+                    print(f"{protocol}, {well}, {tracename} \tfailed QC6c")
+                    passed3 = False
 
-                    NRMS_corrected_post_drug = np.sqrt(np.sum(after_corrected**2)/(np.sum(after_trace**2)))
-                    df.append((protocol, well, sweep, tracename, fitted_E_rev,
-                               passed1, passed2, passed3,
-                               NRMS_corrected_post_drug, g_leak_before,
-                               g_leak_after, E_leak_before, E_leak_after))
+                R_leftover = np.sqrt(np.sum(after_corrected**2)/(np.sum(after_trace**2)))
+                df.append((protocol, well, sweep, tracename, fitted_E_rev,
+                            passed1, passed2, passed3,
+                            R_leftover, g_leak_before,
+                            g_leak_after, E_leak_before, E_leak_after))
 
             subtracted_ax.set_xlabel('time / ms')
             subtracted_ax.set_ylabel('current / pA')
@@ -303,7 +303,7 @@ def main():
 
     df = pd.DataFrame(df, columns=('protocol', 'well', 'sweep', 'before/after',
                                    'fitted_E_rev', 'passed QC6a', 'passed QC6b', 'passed QC6c',
-                                   'NRMS_corrected_post_drug', 'pre-drug leak conductance',
+                                   'R_leftover', 'pre-drug leak conductance',
                                    'post-drug leak conductance', 'pre-drug leak reversal',
                                    'post-drug leak reversal'))
 
