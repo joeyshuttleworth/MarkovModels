@@ -18,6 +18,10 @@ import sys
 import datetime
 import numpy.polynomial.polynomial as poly
 
+from .BeattieModel import BeattieModel
+from .KempModel import KempModel
+from .ClosedOpenModel import ClosedOpenModel
+
 
 def get_protocol_directory():
     return os.path.join(os.path.dirname(os.path.realpath(__file__)), "protocols")
@@ -850,4 +854,17 @@ def compute_mcmc_chains(model, solver, times, indices, data,
         return np.full((no_chains, chain_length, len(starting_parameters)), np.nan)
 
     return samples[:, burn_in:, :]
+
+
+def get_model_class(name: str):
+    if name == 'Beattie' or name == 'BeattieModel':
+        model_class = BeattieModel
+    elif name == 'Kemp' or name == 'KempModel':
+        model_class = KempModel
+    elif name == 'CO' or name == 'ClosedOpenModel':
+        model_class = ClosedOpenModel
+    else:
+        assert False, f"no model with name {name}"
+    return model_class
+
 
