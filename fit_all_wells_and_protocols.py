@@ -79,7 +79,7 @@ def main():
         of the protocols. Output the resulting parameters to a file for later use")
 
     parser.add_argument('--max_iterations', '-i', type=int, default="100000")
-    parser.add_argument('--repeats', type=int, default=8)
+    parser.add_argument('--repeats', type=int, default=16)
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--removal_duration', '-r', default=5, type=float)
@@ -181,9 +181,9 @@ def main():
                                 & (fitting_df['protocol'] == protocol)]
 
             # Get index of min score
-            best_param_locs.append(sub_df.score.idxmin())
+            best_param_locs.append(sub_df.idxmin(axis='score'))
 
-    params_df = fitting_df.loc[best_param_locs]
+    params_df = sub_df.loc[best_param_locs]
 
     params_df.to_csv(os.path.join(output_dir, "best_fitting.csv"))
 
