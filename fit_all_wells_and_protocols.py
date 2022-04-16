@@ -150,7 +150,7 @@ def main():
 
         for res_df, task in zip(res, tasks):
             # Select best score
-            mle_row = res_df[res_df.score == res_df.score.min()]
+            mle_row = res_df.iloc[res_df['score'].idxmin()]
             param_labels = task[2]().parameter_labels
             mle = mle_row[param_labels].values[0, :].flatten().astype(np.float64)
             if np.all(np.isfinite(mle)):
@@ -181,9 +181,9 @@ def main():
                                 & (fitting_df['protocol'] == protocol)]
 
             # Get index of min score
-            best_param_locs.append(sub_df.idxmin(axis='score'))
+            best_param_locs.append(sub_df['score'].idxmin())
 
-    params_df = sub_df.loc[best_param_locs]
+    params_df = sub_df.iloc[best_param_locs]
 
     params_df.to_csv(os.path.join(output_dir, "best_fitting.csv"))
 
