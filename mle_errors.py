@@ -13,6 +13,7 @@ from pathos.multiprocessing import ProcessPool as Pool
 
 from MarkovModels.BeattieModel import BeattieModel
 from MarkovModels.LinearModel import LinearModel
+from MarkovModels.ArtefactModel import ArtefactModel
 
 from numba import njit
 
@@ -37,6 +38,7 @@ def main():
     parser.add_argument('-i', '--max_iterations', type=int)
     parser.add_argument('-r', '--repeats', default=1, type=int)
     parser.add_argument("-m", "--method", default='CMAES')
+    parser.add_argument('-A', '--use_artefact_model', action='store_true')
 
     global args
     args = parser.parse_args()
@@ -78,12 +80,21 @@ def main():
 
     Erev = common.calculate_reversal_potential(310.15)
 
-    model = BeattieModel(times=full_times, voltage=protocol_func, Erev=Erev, parameters=params,
-                         protocol_description=protocol_desc)
+    channel_model = BeattieModel(times=full_times, voltage=protocol_func,
+                                 Erev=Erev, parameters=params,
+                                 protocol_description=protocol_desc)
     global solver
-    solver = model.make_hybrid_solver_current()
+
+    if args.use_artefact_model:
+        model = ArtefactModel(channel_model)
+        solver = model.make_solver()
+
+    else:
+        solver = channel_model.make_hybrid_solver()
+
     mean_trajectory = solver(params)
 
+    # Simulate data
     simulated_data = [mean_trajectory + np.random.normal(0, np.sqrt(sigma2), len(full_times))
                       for i in range(args.no_experiments)]
 
@@ -108,7 +119,8 @@ def main():
 
         return score, mle
 
-    args_list = [(r, data) for r in removal_durations for data in simulated_data]
+    args_list = np.array([[r, data] for r in removal_durations for data in
+                          simulated_data], dtype=object)
 
     print("number of fitting tasks", len(args_list))
 
@@ -116,8 +128,17 @@ def main():
 
     mle_errors, mles = list(zip(*pool.map(get_mle_error, *zip(*args_list))))
 
+    param_labels = channel_model.get_parameter_labels()
+    results_df = pd.DataFrame(np.column_stack((args_list[:,0], mles,
+                                               mle_errors)), columns=['removal_duration'] + param_labels + ['mle_error'])
+
+    results_df.to_csv(os.path.join(output_dir, 'mle_errors_results.csv'))
+
     mle_errors = np.array(mle_errors).reshape((len(removal_durations),
                                                args.no_experiments), order='C')
+
+    mles = np.array(mles).reshape((len(removal_durations), args.no_experiments,
+                                   -1), order='C')
 
     fig = plt.figure(figsize=(9, 9))
     ax = fig.subplots()
@@ -143,26 +164,28 @@ def main():
 
     # plot fits
     fits_fig, fits_ax = plt.subplots()
-    for i in range(len(removal_durations)):
-        fits_ax.plot(full_times, model.SimulateForwardModel(mles[i]), label='fitted model')
-        fits_ax.plot(full_times, mean_trajectory, label='data', color='grey', alpha=.5)
-        fits_ax.set_xlabel('time / ms')
-        fits_ax.set_ylabel('current / nA')
-        fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.png"))
+    for i in range(mles.shape[0]):
+        for j in range(mles.shape[1]):
+            fits_ax.plot(full_times, model.SimulateForwardModel(mles[i, j]), label='fitted model')
+            fits_ax.plot(full_times, mean_trajectory, label='data', color='grey', alpha=.5)
+            fits_ax.set_xlabel('time / ms')
+            fits_ax.set_ylabel('current / nA')
+            fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed_run_{j}.png"))
 
-        ax.legend()
-        fits_ax.cla()
+            ax.legend()
+            fits_ax.cla()
 
     # plot errors
     fits_fig, fits_ax = plt.subplots()
-    for i in range(len(removal_durations)):
-        fits_ax.plot(full_times, model.SimulateForwardModel(mles[i]) - mean_trajectory, label='fitted model error')
-        fits_ax.set_xlabel('time / ms')
-        fits_ax.set_ylabel('current / nA')
-        fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.png"))
+    for i in range(mles.shape[0]):
+        for j in range(mles.shape[1]):
+            fits_ax.plot(full_times, model.SimulateForwardModel(mles[i, j]) - mean_trajectory, label='fitted model error')
+            fits_ax.set_xlabel('time / ms')
+            fits_ax.set_ylabel('current / nA')
+            fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.png"))
 
-        ax.legend()
-        fits_ax.cla()
+            ax.legend()
+            fits_ax.cla()
 
     plt.close(fits_fig)
 

@@ -62,7 +62,7 @@ class ArtefactModel():
 
         return crhs_func
 
-    def make_solver(self, p=None, times=None, atol=None, rtol=None, njitted=True):
+    def make_solver(self, p=None, times=None, atol=None, rtol=None, njitted=True, return_current=True):
 
         if atol is None:
             atol = self.channel_model.solver_tolerances[0]
@@ -82,6 +82,10 @@ class ArtefactModel():
 
         protocol_description = self.channel_model.protocol_description
         default_params = self.channel_model.get_default_parameters()
+
+        open_state_index = self.channel_model.open_state_index
+        conductance_index = self.channel_model.GKr_index
+        reversal_potential = self.channel_model.Erev
 
         def forward_solver(p=default_params, times=times, atol=atol, rtol=rtol):
             rhs0 = np.append(rhs_inf(p, voltage(0)).flatten(), voltage(0))
@@ -105,7 +109,11 @@ class ArtefactModel():
                 else:
                     rhs0 = step_sol[-1, :]
                     solution[istart:iend, ] = step_sol[:-1, ]
-            return solution
+            if return_current:
+                return p[conductance_index] * solution[:, open_state_index] * (solution[:, -1] - reversal_potential)
+            else:
+                return solution
+
         return njit(forward_solver) if njitted else forward_solver
 
     def simulate_model(self, p=None, times=None, atol=None, rtol=None, return_current=False):
