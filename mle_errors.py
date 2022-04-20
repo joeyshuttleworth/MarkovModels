@@ -37,6 +37,8 @@ def main():
     parser.add_argument('-i', '--max_iterations', type=int)
     parser.add_argument('-r', '--repeats', default=1, type=int)
     parser.add_argument("-m", "--method", default='CMAES')
+
+    global args
     args = parser.parse_args()
 
     if args.method == 'CMAES':
@@ -99,7 +101,7 @@ def main():
         mle, _ = common.fit_model(model, data, params, subset_indices=indices,
                                   solver=solver,
                                   max_iterations=args.max_iterations,
-                                  repeats=3,
+                                  repeats=args.repeats,
                                   method=optimiser)
 
         score = np.sqrt(np.sum((solver(mle) - mean_trajectory)**2))
