@@ -152,7 +152,7 @@ def main():
             # Select best score
             mle_row = res_df.iloc[res_df['score'].idxmin()]
             param_labels = task[2]().parameter_labels
-            mle = mle_row[param_labels].values[0, :].flatten().astype(np.float64)
+            mle = mle_row[param_labels].astype(np.float64)
             if np.all(np.isfinite(mle)):
                 task.append(mle)
 
