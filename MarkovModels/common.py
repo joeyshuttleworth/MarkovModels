@@ -459,6 +459,25 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
             self.parameters = parameters
 
         def check(self, parameters):
+            # Make sure transition rates are not too big
+            for i in range(len(parameters/2)):
+                a = parameters[2*i]
+                b = parameters[2*i + 1]
+
+                vs = np.array([-120, 40])
+
+                extreme_rates = a*np.exp(b*vs)
+                max_rate = np.max(extreme_rates)
+                min_rate = np.min(extreme_rates)
+
+                # Boundaries from Beattie paper
+                if max_rate > 1e3:
+                    return False
+                elif min_rate < 1.67e-5:
+                    return False
+
+                return True
+
             # Ensure that all parameters > 0
             return True if np.all(parameters > 0) else False
 
