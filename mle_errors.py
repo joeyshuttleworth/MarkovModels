@@ -81,8 +81,7 @@ def main():
     Erev = common.calculate_reversal_potential(310.15)
 
     channel_model = BeattieModel(times=full_times, voltage=protocol_func,
-                                 Erev=Erev, parameters=params,
-                                 protocol_description=protocol_desc)
+                                 Erev=Erev, protocol_description=protocol_desc)
     global solver
 
     if args.use_artefact_model:
@@ -164,10 +163,11 @@ def main():
 
     # plot fits
     fits_fig, fits_ax = plt.subplots()
+
     for i in range(mles.shape[0]):
         for j in range(mles.shape[1]):
             fits_ax.plot(full_times, model.SimulateForwardModel(mles[i, j]), label='fitted model')
-            fits_ax.plot(full_times, mean_trajectory, label='data', color='grey', alpha=.5)
+            fits_ax.plot(full_times, simulated_data[j], label='data', color='grey', alpha=.5)
             fits_ax.set_xlabel('time / ms')
             fits_ax.set_ylabel('current / nA')
             fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed_run_{j}.png"))
@@ -179,10 +179,11 @@ def main():
     fits_fig, fits_ax = plt.subplots()
     for i in range(mles.shape[0]):
         for j in range(mles.shape[1]):
-            fits_ax.plot(full_times, model.SimulateForwardModel(mles[i, j]) - mean_trajectory, label='fitted model error')
+            fits_ax.plot(full_times, model.SimulateForwardModel(mles[i, j]) -
+                         mean_trajectory, label='fitted model error')
             fits_ax.set_xlabel('time / ms')
             fits_ax.set_ylabel('current / nA')
-            fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.png"))
+            fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.png_run{j}_errors"))
 
             ax.legend()
             fits_ax.cla()
