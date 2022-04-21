@@ -657,9 +657,9 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
 
         fig = plt.figure(figsize=(14, 12))
         ax = fig.subplots(1)
-        ax.plot(times, data, color='grey', label='data')
         ax.plot(times, model.SimulateForwardModel(fitted_params), label='fitted_parameters')
         ax.plot(times, model.SimulateForwardModel(), label='initial_parameters')
+        ax.plot(times, data, color='grey', label='data', alpha=.5)
 
         ax.legend()
 
