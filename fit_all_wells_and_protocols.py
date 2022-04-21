@@ -150,7 +150,7 @@ def main():
 
         for res_df, task in zip(res, tasks):
             # Select best score
-            mle_row = res_df.iloc[res_df['score'].idxmin()]
+            mle_row = res_df.iloc[res_df['score'].idxmin()].values
             param_labels = task[2]().parameter_labels
             mle = mle_row[param_labels].astype(np.float64)
             if np.all(np.isfinite(mle)):
