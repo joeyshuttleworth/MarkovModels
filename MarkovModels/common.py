@@ -459,9 +459,8 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
             self.parameters = parameters
 
         def check(self, parameters):
-            '''Check that each rate constant lies in the range 1.67E-5 < A*exp(B*V) < 1E3
-            '''
-            return True
+            # Ensure that all parameters > 0
+            return True if np.all(parameters > 0) else False
 
         def n_parameters(self):
             return mm.get_no_parameters() - \
@@ -616,27 +615,33 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     model.protocol_description = protocol_desc
 
     # Try fitting G_Kr on its own first
-    initial_gkr = np.max(data) / 10
+    # Start with roughly the max conductance observed divided through by 10
+    initial_gkr = np.quantile(np.abs(data / (voltages - model.Erev)), .99)
 
     initial_params = model.get_default_parameters()
     initial_params[model.GKr_index] = initial_gkr
-
-    initial_score = ((model.SimulateForwardModel() - data)**2).sum()
-    print(f"initial score is {initial_score}")
 
     # First fit only Gkr
     if fit_initial_conductance:
         def gkr_opt_func(gkr):
             p = model.get_default_parameters()
-            p[8] = gkr
+            p[model.GKr_index] = gkr
             return ((model.SimulateForwardModel(p) - data)**2).sum()
 
         if initial_gkr <= 0:
-            initial_gkr = 1
+            initial_gkr = model.get_default_parameters()[model.GKr_index]
 
-            initial_params[8] = initial_gkr
+        initial_params[model.GKr_index] = initial_gkr
 
     print(f"initial_gkr is {initial_gkr}")
+
+    initial_score = ((model.SimulateForwardModel(initial_params) - data)**2).sum()
+    print(f"initial score is {initial_score}")
+
+    # If this score is worse than the default parameters, use them
+    if initial_score > np.sum(model.SimulateForwardModel() - data)**2:
+        initial_params = model.get_default_parameters()
+        print('using default parameters')
 
     columns = model.parameter_labels
 
@@ -652,8 +657,11 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
 
         fig = plt.figure(figsize=(14, 12))
         ax = fig.subplots(1)
-        ax.plot(times, data)
-        ax.plot(times, model.SimulateForwardModel(fitted_params))
+        ax.plot(times, data, color='grey', label='data')
+        ax.plot(times, model.SimulateForwardModel(fitted_params), label='fitted_parameters')
+        ax.plot(times, model.SimulateForwardModel(), label='initial_parameters')
+
+        ax.legend()
 
         if infer_E_rev:
             fitted_params = np.append(fitted_params, Erev)
@@ -668,6 +676,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
             df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params{i}.csv"))
             fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit_{i}"))
             ax.cla()
+            ax.plot(times, data)
 
     df = pd.concat(dfs, ignore_index=True)
 
