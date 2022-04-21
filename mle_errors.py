@@ -10,6 +10,7 @@ import pints
 import pints.plot
 import argparse
 from pathos.multiprocessing import ProcessPool as Pool
+import uuid
 
 from MarkovModels.BeattieModel import BeattieModel
 from MarkovModels.LinearModel import LinearModel
@@ -85,7 +86,7 @@ def main():
     global solver
 
     if args.use_artefact_model:
-        model = ArtefactModel(channel_model)
+        model = ArtefactModel(channel_model, C_m=50)
         solver = model.make_solver()
 
     else:
@@ -100,12 +101,27 @@ def main():
     model = BeattieModel(times=full_times, voltage=protocol_func, Erev=Erev, parameters=params,
                          protocol_description=protocol_desc)
 
+    longap_func, longap_tstart, longap_tend, longap_tstep, longap_desc = common.get_ramp_protocol_from_csv('longap')
+
+    longap_times = np.linspace(longap_tstart, longap_tend, int((longap_tend - 0)/longap_tstep))
+
+    validation_dir = os.path.join(output_dir, 'prediction_errors')
+
+    if not os.path.exists(validation_dir):
+        os.makedirs(validation_dir)
+
     def get_mle_error(time_to_remove, data):
         indices = common.remove_indices(list(range(len(full_times))),
                                         [(spike,
                                           int(spike + time_to_remove / tstep))
                                          for spike in spike_indices])
-        model = BeattieModel(times=full_times, voltage=protocol_func, Erev=Erev, parameters=params,
+
+        # Use Beattie parameters (default)
+        beattie_parameters = np.array((2.26E-4, 6.99E-2, 3.44E-5, 5.460E-2, 0.0873,
+                                            8.91E-3, 5.15E-3, 0.003158, 0.1524))
+
+        model = BeattieModel(times=full_times, voltage=protocol_func,
+                             Erev=Erev, parameters=beattie_parameters,
                              protocol_description=protocol_desc)
 
         mle, _ = common.fit_model(model, data, params, subset_indices=indices,
@@ -114,7 +130,31 @@ def main():
                                   repeats=args.repeats,
                                   method=optimiser)
 
-        score = np.sqrt(np.sum((solver(mle) - mean_trajectory)**2))
+        validation_model = BeattieModel(times=longap_times,
+                                        voltage=longap_func, Erev=Erev,
+                                        parameters=params,
+                                        protocol_description=protocol_desc)
+
+        validation_trajectory = validation_model.SimulateForwardModel()
+        prediction = validation_model.SimulateForwardModel(p=mle)
+
+        # Plot prediction
+        fig = plt.figure(figsize=(12, 9))
+        axs = fig.subplots(2)
+
+        axs[0].plot(longap_times, prediction, label='prediction')
+        axs[0].plot(longap_times, validation_trajectory, label='true value')
+        axs[1].set_xlabel('times')
+        axs[0].set_title('longap prediction')
+        axs[1].plot(longap_times, (prediction - validation_trajectory),
+                    label='prediction_errors')
+
+        fig.savefig(os.path.join(validation_dir, f"{time_to_remove:.2f}_removed_prediction_{uuid.uuid4()}.png"))
+
+        plt.close(fig)
+
+        # Compute error when predicting `longap``
+        score = np.sqrt(np.sum((prediction - validation_trajectory)**2))
 
         return score, mle
 
@@ -183,7 +223,7 @@ def main():
                          mean_trajectory, label='fitted model error')
             fits_ax.set_xlabel('time / ms')
             fits_ax.set_ylabel('current / nA')
-            fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.png_run{j}_errors"))
+            fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.png_run{j}_errors.png"))
 
             ax.legend()
             fits_ax.cla()
