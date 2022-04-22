@@ -153,6 +153,7 @@ def main():
             # Select best score
             param_labels = task[2]().parameter_labels
             mle = res_df.iloc[res_df['score'].idxmin()][param_labels].values.astype(np.float64)
+            print(f"mle is {mle}")
             if np.all(np.isfinite(mle)):
                 task.append(mle)
 
