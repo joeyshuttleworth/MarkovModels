@@ -85,7 +85,7 @@ def main():
                                  Erev=Erev, protocol_description=protocol_desc)
     global solver
 
-    solver = channel_model.make_hybrid_solver()
+    solver = channel_model.make_hybrid_solver_current()
 
     if args.use_artefact_model:
         model = ArtefactModel(channel_model, C_m=50)
