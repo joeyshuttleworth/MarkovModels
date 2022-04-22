@@ -46,7 +46,8 @@ def mcmc_func(protocol, well, model_class, initial_params):
     voltages = np.array([voltage_func(t) for t in times])
 
     model = model_class(voltage=voltage_func, Erev=Erev,
-                        protocol_description=protocol_desc)
+                        protocol_description=protocol_desc,
+                        times=times)
 
     if initial_params is None:
         initial_params = model.get_default_parameters()
