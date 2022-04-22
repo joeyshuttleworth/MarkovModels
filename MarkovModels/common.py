@@ -691,12 +691,12 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
 
-            df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params{i}.csv"))
             fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit_{i}"))
             ax.cla()
             ax.plot(times, data)
 
     df = pd.concat(dfs, ignore_index=True)
+    df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
 
     return df
 
