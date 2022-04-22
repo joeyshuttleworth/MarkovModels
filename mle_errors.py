@@ -85,14 +85,16 @@ def main():
                                  Erev=Erev, protocol_description=protocol_desc)
     global solver
 
+    solver = channel_model.make_hybrid_solver()
+
     if args.use_artefact_model:
         model = ArtefactModel(channel_model, C_m=50)
-        solver = model.make_solver()
+        data_generator = model.make_solver()
 
     else:
-        solver = channel_model.make_hybrid_solver()
+        data_generator = solver
 
-    mean_trajectory = solver(params)
+    mean_trajectory = data_generator()
 
     # Simulate data
     simulated_data = [mean_trajectory + np.random.normal(0, np.sqrt(sigma2), len(full_times))
