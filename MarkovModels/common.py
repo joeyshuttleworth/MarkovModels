@@ -466,14 +466,13 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
 
                 vs = np.array([-120, 40])
 
-                extreme_rates = a*np.exp(b*vs)
+                extreme_rates = np.abs(a*np.exp(b*vs))
                 max_rate = np.max(extreme_rates)
                 min_rate = np.min(extreme_rates)
 
-                # Boundaries from Beattie paper
-                if max_rate > 1e3:
+                if max_rate > 1e5:
                     return False
-                elif min_rate < 1.67e-5:
+                elif min_rate < 1.67e-7:
                     return False
 
                 return True
