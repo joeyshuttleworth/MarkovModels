@@ -88,7 +88,7 @@ def main():
     solver = channel_model.make_hybrid_solver_current()
 
     if args.use_artefact_model:
-        model = ArtefactModel(channel_model, C_m=50)
+        model = ArtefactModel(channel_model)
         data_generator = model.make_solver()
 
     else:
@@ -137,8 +137,10 @@ def main():
                                         parameters=params,
                                         protocol_description=protocol_desc)
 
-        validation_trajectory = validation_model.SimulateForwardModel()
-        prediction = validation_model.SimulateForwardModel(p=mle)
+        validation_solver = validation_model.make_hybrid_solver_current(njitted=False)
+
+        validation_trajectory = validation_solver()
+        prediction = validation_solver(p=mle)
 
         # Plot prediction
         fig = plt.figure(figsize=(12, 9))
@@ -151,6 +153,8 @@ def main():
         axs[1].plot(longap_times, (prediction - validation_trajectory),
                     label='prediction_errors')
 
+        axs[0].legend()
+        axs[1].legend()
         fig.savefig(os.path.join(validation_dir, f"{time_to_remove:.2f}_removed_prediction_{uuid.uuid4()}.png"))
 
         plt.close(fig)
@@ -165,7 +169,7 @@ def main():
 
     print("number of fitting tasks", len(args_list))
 
-    pool = Pool(min(args.cpus, len(removal_durations) * args.repeats * args.no_experiments))
+    pool = Pool(min(args.cpus, len(removal_durations) * args.no_experiments))
 
     mle_errors, mles = list(zip(*pool.map(get_mle_error, *zip(*args_list))))
 
