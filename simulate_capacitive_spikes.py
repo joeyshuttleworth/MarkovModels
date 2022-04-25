@@ -50,8 +50,6 @@ def main():
         ax[2].plot(times, channel_model.make_hybrid_solver_states(njitted=False)()[:, 2])
         ax[0].legend()
 
-        print(times[np.argwhere(np.abs(numerical_sol - hybrid_sol))])
-
         voltages = [protocol_func(t) for t in times]
 
         ax[1].plot(times, voltages, label='V_in')
