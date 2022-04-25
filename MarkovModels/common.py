@@ -381,8 +381,17 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
 
     @njit
     def protocol_func(t):
-        return np.interp(t, times, voltages)
+        if t < 0 or t >= protocol[-1][1]:
+            return holding_potential
 
+        for i in range(len(protocol)):
+            if t < protocol[i][1]:
+                if np.abs(protocol[i][3] - protocol[i][2]) > threshold:
+                    return protocol[i][2] + (t - protocol[i][0]) * (protocol[i][3] - protocol[i][2]) / (protocol[i][1] - protocol[i][0])
+                else:
+                    return protocol[i][3]
+
+        raise Exception()
     return protocol_func, times[0], times[-1], times[1] - times[0], protocol
 
 
