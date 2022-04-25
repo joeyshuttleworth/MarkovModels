@@ -82,10 +82,10 @@ def main():
     Erev = common.calculate_reversal_potential(310.15)
 
     channel_model = BeattieModel(times=full_times, voltage=protocol_func,
-                                 Erev=Erev, protocol_description=protocol_desc)
+                                 Erev=Erev, protocol_description=protocol_desc,
+                                 parameters=params)
     global solver
-
-    solver = channel_model.make_hybrid_solver_current()
+    solver = channel_model.make_forward_solver_current()
 
     if args.use_artefact_model:
         model = ArtefactModel(channel_model)
@@ -94,14 +94,11 @@ def main():
     else:
         data_generator = solver
 
-    mean_trajectory = data_generator()
+    mean_trajectory = data_generator(p=params)
 
     # Simulate data
     simulated_data = [mean_trajectory + np.random.normal(0, np.sqrt(sigma2), len(full_times))
                       for i in range(args.no_experiments)]
-
-    model = BeattieModel(times=full_times, voltage=protocol_func, Erev=Erev, parameters=params,
-                         protocol_description=protocol_desc)
 
     longap_func, longap_tstart, longap_tend, longap_tstep, longap_desc = common.get_ramp_protocol_from_csv('longap')
 
@@ -135,9 +132,9 @@ def main():
         validation_model = BeattieModel(times=longap_times,
                                         voltage=longap_func, Erev=Erev,
                                         parameters=params,
-                                        protocol_description=protocol_desc)
+                                        protocol_description=longap_desc)
 
-        validation_solver = validation_model.make_hybrid_solver_current(njitted=False)
+        validation_solver = validation_model.make_hybrid_solver_current()
 
         validation_trajectory = validation_solver()
         prediction = validation_solver(p=mle)
