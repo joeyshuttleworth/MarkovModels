@@ -632,6 +632,8 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     model = model_class(voltage_func, times, parameters=default_parameters, Erev=Erev)
     model.protocol_description = protocol_desc
 
+    solver = model.make_forward_solver_current()
+
     # Try fitting G_Kr on its own first
     # Start with roughly the max conductance observed divided through by 10
     initial_gkr = np.quantile(np.abs(data / (voltages - model.Erev)), .99)
@@ -657,7 +659,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     print(f"initial score is {initial_score}")
 
     # If this score is worse than the default parameters, use them
-    if initial_score > np.sum(model.SimulateForwardModel() - data)**2:
+    if initial_score > np.sum(solver() - data)**2:
         initial_params = model.get_default_parameters()
         print('using default parameters')
 
@@ -668,15 +670,15 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
 
     dfs = []
     for i in range(repeats):
-        fitted_params, score = fit_model(model, data,
+        fitted_params, score = fit_model(model, data, solver=solver,
                                          starting_parameters=initial_params,
                                          max_iterations=max_iterations,
                                          subset_indices=indices)
 
         fig = plt.figure(figsize=(14, 12))
         ax = fig.subplots(1)
-        ax.plot(times, model.SimulateForwardModel(fitted_params), label='fitted_parameters')
-        ax.plot(times, model.SimulateForwardModel(), label='initial_parameters')
+        ax.plot(times, solver(fitted_params), label='fitted_parameters')
+        ax.plot(times, solver(), label='initial_parameters')
         ax.plot(times, data, color='grey', label='data', alpha=.5)
 
         ax.legend()
