@@ -851,10 +851,11 @@ def compute_mcmc_chains(model, solver, times, indices, data,
         def n_parameters(self):
             return len(starting_parameters)
 
-    prior = pints.UniformLogPrior([0] * pints_likelihood().n_parameters(),
-                                  [1] * pints_likelihood().n_parameters())
+    # prior = pints.UniformLogPrior([0] * pints_likelihood().n_parameters(),
+    #                               [1] * pints_likelihood().n_parameters())
 
-    posterior = pints.LogPosterior(pints_likelihood(), prior)
+    # posterior = pints.LogPosterior(pints_likelihood(), prior)
+    posterior = pints.likelihood()
 
     initial_likelihood = log_likelihood_func(starting_parameters)
 
