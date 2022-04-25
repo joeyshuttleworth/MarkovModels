@@ -52,7 +52,7 @@ def mcmc_func(protocol, well, model_class, initial_params):
     if initial_params is None:
         initial_params = model.get_default_parameters()
 
-    solver = model.make_hybrid_solver_current()
+    solver = model.make_forward_solver_current()
 
     if np.any(~np.isfinite(solver(initial_params))):
         initial_params = model.get_default_parameters()
