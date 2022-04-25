@@ -46,7 +46,7 @@ class KempModel(MarkovModel):
 
         symbols = {}
         symbols['v'] = sp.sympify('V')
-        symbols['p'] = sp.Matrix([sp.sympify(p) for p in self.parameter_labels if p is not 'E_Kr'])
+        symbols['p'] = sp.Matrix([sp.sympify(p) for p in self.parameter_labels if p != 'E_Kr'])
         symbols['y'] = sp.Matrix([mc.get_state_symbol(s)
                                   for s in self.state_labels[:-1]])
 
