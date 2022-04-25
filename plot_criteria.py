@@ -91,7 +91,7 @@ def main():
     model.protocol_description = protocol_desc
     model.window_locs = [t for t, _, _, _ in protocol_desc]
 
-    solver = model.make_hybrid_solver_current()
+    solver = model.make_forward_solver_current()
 
     # Plot representative sample from DGP
     sample_mean = solver()
@@ -707,7 +707,7 @@ def mcmc_chain_func(model_class, protocol, times, data, params, index_set):
     model.protocol_description = protocol_desc
     model.window_locs = [t for t, _, _, _ in protocol_desc]
 
-    chains = common.compute_mcmc_chains(model.make_hybrid_solver_current(),
+    chains = common.compute_mcmc_chains(model.make_forward_solver_current(),
                                         times, index_set, data, args.chain_length, params,
                                         sigma2, burn_in=args.burn_in)
     rhat = pints.rhat(chains)
@@ -727,7 +727,7 @@ def draw_heatmaps(model_class, times, data, output_dir, time_to_remove, params, 
     model = model_class(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
     model.window_locs = [t for t, _, _, _ in protocol_desc]
     model.protocol_description = protocol_desc
-    solver = model.make_hybrid_solver_current()
+    solver = model.make_forward_solver_current()
 
     S1 = model.SimulateForwardModelSensitivities(params)[1][indices]
     cov = sigma2 * np.linalg.inv(S1.T @ S1)
