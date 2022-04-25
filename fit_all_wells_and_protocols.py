@@ -121,7 +121,6 @@ def main():
     else:
         protocols = args.protocols
 
-    pool = multiprocessing.Pool(args.cores)
 
     print(args.wells, protocols)
 
@@ -140,6 +139,7 @@ def main():
     assert len(tasks) > 0, "no valid protocol/well combinations provided"
 
     protocols_list = np.unique(protocols_list)
+    pool = multiprocessing.Pool(min(args.cores, len(tasks)))
     res = pool.starmap(fit_func, tasks)
     print(res)
 
