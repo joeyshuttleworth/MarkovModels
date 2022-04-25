@@ -23,6 +23,8 @@ def main():
 
     output_dir = common.setup_output_directory(args.output, 'simulate_capacitive_spikes')
 
+    fig = plt.figure(figsize=(12,9))
+    ax = fig.subplots(3)
     for protocol in args.protocols:
         protocol_func, t_start, t_end, t_step, protocol_description = common.get_ramp_protocol_from_csv(protocol)
 
@@ -32,14 +34,23 @@ def main():
 
         channel_model.protocol_description = protocol_description
 
-        combined_model = ArtefactModel(channel_model, C_m=80)
+        combined_model = ArtefactModel(channel_model, C_m=20)
 
         data = combined_model.simulate_model(return_current=True) + np.random.normal(0, args.noise, len(times))
 
-        fig, ax = plt.subplots(2)
+        numerical_sol = channel_model.make_forward_solver_current(njitted=False)()
+        hybrid_sol = channel_model.make_hybrid_solver_current(njitted=False)()
+
         ax[0].plot(times, data, label='combined model current')
-        ax[0].plot(times, channel_model.SimulateForwardModel(), label='idealised model current')
+        ax[0].plot(times, hybrid_sol, label='idealised model current hybrid')
+        ax[0].plot(times, numerical_sol, label='idealised model current numeric')
+
+        ax[2].plot(times,
+                   channel_model.make_forward_solver_states(njitted=False)()[:, 2])
+        ax[2].plot(times, channel_model.make_hybrid_solver_states(njitted=False)()[:, 2])
         ax[0].legend()
+
+        print(times[np.argwhere(np.abs(numerical_sol - hybrid_sol))])
 
         voltages = [protocol_func(t) for t in times]
 
@@ -49,6 +60,8 @@ def main():
 
         fig.savefig(os.path.join(output_dir, f"simulate_capacitive_spikes_{protocol}.png"))
 
+        for a in ax:
+            a.cla()
 
 
 if __name__ == "__main__":
