@@ -57,7 +57,7 @@ def mcmc_func(protocol, well, model_class, initial_params):
     if np.any(~np.isfinite(solver(initial_params))):
         initial_params = model.get_default_parameters()
 
-    sigma2 = np.std(data[10:50])**2
+    sigma2 = np.std(data[10:100])**2
     print("sigma2 is ", sigma2)
 
     spike_times, spike_indices = common.detect_spikes(times, voltages, threshold=10)
