@@ -448,7 +448,7 @@ class MarkovModel:
         crhs_ptr = crhs.address
 
         no_states = len(self.B)
-        analytic_solver = self.get_analytic_solver()
+        analytic_solver = self.get_analytic_solver(njitted=njitted)
         rhs_inf = self.rhs_inf
         voltage = self.voltage
         atol, rtol = self.solver_tolerances
@@ -507,13 +507,6 @@ class MarkovModel:
         open_index = self.open_state_index
         Erev = self.Erev
         gkr_index = self.GKr_index
-
-        if protocol_description is None:
-            if self.protocol_description is None:
-                # TODO
-                raise Exception()
-            else:
-                protocol_description = self.protocol_description
 
         times = self.times
 

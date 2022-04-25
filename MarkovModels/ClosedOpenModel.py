@@ -4,7 +4,6 @@ import markov_builder
 from scipy.integrate import odeint
 
 from . MarkovModel import MarkovModel
-from . import common
 
 class ClosedOpenModel(MarkovModel):
 
@@ -44,7 +43,7 @@ class ClosedOpenModel(MarkovModel):
             self.default_parameters = parameters
 
         if Erev is None:
-            self.Erev = common.calculate_reversal_potential()
+            self.Erev = -80
         else:
             self.Erev = Erev
 

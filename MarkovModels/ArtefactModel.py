@@ -126,13 +126,6 @@ class ArtefactModel():
             atol = channel_model.solver_tolerances[0]
         if rtol is None:
             rtol = channel_model.solver_tolerances[1]
-        sol = self.make_solver(njitted=False)(p, times, atol, rtol)
+        sol = self.make_solver(njitted=False, return_current=return_current)(p, times, atol, rtol)
 
-        Erev = channel_model.Erev
-        voltages = [channel_model.voltage(t) for t in times]
-
-        if return_current:
-            output = p[-1] * sol[:, self.channel_model.open_state_index] * (voltages - Erev)
-        else:
-            output = sol
-        return output
+        return sol

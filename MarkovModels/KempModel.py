@@ -4,7 +4,6 @@ from markov_builder.example_models import construct_kemp_model
 from scipy.integrate import odeint
 
 from . MarkovModel import MarkovModel
-from . import common
 
 
 class KempModel(MarkovModel):
@@ -32,7 +31,7 @@ class KempModel(MarkovModel):
             self.default_parameters = parameters
 
         if Erev is None:
-            self.Erev = common.calculate_reversal_potential()
+            self.Erev = -80
         else:
             self.Erev = Erev
 
