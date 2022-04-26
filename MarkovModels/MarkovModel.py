@@ -427,7 +427,7 @@ class MarkovModel:
                     break
 
                 else:
-                    rhs0 = step_sol[-1, :] if end_int == 0 else step_sol[-2, :]
+                    rhs0 = step_sol[-1, :] if end_int is None else step_sol[-2, :]
                     solution[istart:iend, ] = step_sol[1:-1, ]
             return solution
 
