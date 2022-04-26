@@ -400,7 +400,6 @@ class MarkovModel:
             solution = np.full((len(times), no_states), np.nan)
             solution[0, :] = rhs0
 
-            print(protocol_description)
             for tstart, tend, vstart, vend in protocol_description:
                 istart = np.argmax(times > tstart)
                 iend = np.argmax(times > tend)
