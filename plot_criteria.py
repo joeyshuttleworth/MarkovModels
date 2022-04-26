@@ -707,9 +707,9 @@ def mcmc_chain_func(model_class, protocol, times, data, params, index_set):
     model.protocol_description = protocol_desc
     model.window_locs = [t for t, _, _, _ in protocol_desc]
 
-    chains = common.compute_mcmc_chains(model.make_forward_solver_current(),
-                                        times, index_set, data, args.chain_length, params,
-                                        sigma2, burn_in=args.burn_in)
+    chains = common.compute_mcmc_chains(model, times, index_set, data,
+                                        args.chain_length, params, sigma2,
+                                        burn_in=args.burn_in)
     rhat = pints.rhat(chains)
     return chains, rhat
 
