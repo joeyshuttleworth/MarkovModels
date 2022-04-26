@@ -417,8 +417,6 @@ class MarkovModel:
                 start_int = 1 if step_times[1] == tstart else 0
                 end_int = -1 if step_times[-1] == tend else None
 
-                print(step_times[start_int:end_int])
-
                 step_sol = np.empty((len(step_times), no_states))
 
                 step_sol[start_int: end_int] = lsoda(crhs_ptr, rhs0,
