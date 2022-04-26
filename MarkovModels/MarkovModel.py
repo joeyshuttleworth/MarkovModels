@@ -415,7 +415,7 @@ class MarkovModel:
                     step_times[1:-1] = times[istart:iend]
 
                 start_int = 1 if times[1] == tstart else 0
-                end_int = None if times[1] == tstart else -1
+                end_int = None if times[-1] == tend else -1
 
                 step_sol = np.empty((len(step_times), no_states))
 
