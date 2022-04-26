@@ -399,7 +399,7 @@ class MarkovModel:
 
             solution[0, :] = rhs0
             for tstart, tend, vstart, vend in protocol_description:
-                istart = np.argmax(times >= tstart)
+                istart = np.argmax(times > tstart)
                 iend = np.argmax(times >= tend)
 
                 if iend == 0:
