@@ -414,20 +414,21 @@ class MarkovModel:
                 else:
                     step_times[1:-1] = times[istart:iend]
 
-                if tstart == step_times[1]:
-                    step_sol = np.empty((len(step_times), no_states))
-                    step_sol[1:] = lsoda(crhs_ptr, rhs0, step_times[1:], data=p,
-                                         rtol=rtol, atol=atol)[0]
-                else:
-                    step_sol, _ = lsoda(crhs_ptr, rhs0, step_times, data=p,
-                                        atol=atol, rtol=rtol)
+                if times[1] == tstart:
+                    start_int = 1
+                if times[-1] == tend:
+                    end_int = -1
 
+                step_sol = np.empty((len(step_times), no_states))
+
+                step_sol[start_int, end_int] = lsoda(crhs_ptr, rhs0, step_times[start_int:end_int], data=p,
+                                     rtol=rtol, atol=atol)[0]
                 if iend == len(times):
                     solution[istart:, ] = step_sol[1:-1, ]
                     break
 
                 else:
-                    rhs0 = step_sol[-1, :]
+                    rhs0 = step_sol[-1, :] if np.isfinite(step_sol[-1, 0]) else step_sol[-2, :]
                     solution[istart:iend, ] = step_sol[1:-1, ]
             return solution
 
