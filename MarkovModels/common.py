@@ -846,9 +846,8 @@ def compute_mcmc_chains(model, solver, times, indices, data,
             try:
                 ll = -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
 
-            except ZeroDivisionError as exc:
+            except Exception:
                 ll = -np.inf
-                print(str(exc))
 
             return ll
 
