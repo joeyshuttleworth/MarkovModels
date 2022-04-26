@@ -36,7 +36,7 @@ def main():
 
         combined_model = ArtefactModel(channel_model, C_m=20)
 
-        data = combined_model.simulate_model(return_current=True) + np.random.normal(0, args.noise, len(times))
+        data = combined_model.SimulateForwardModel(return_current=True) + np.random.normal(0, args.noise, len(times))
 
         numerical_sol = channel_model.make_forward_solver_current(njitted=False)()
         hybrid_sol = channel_model.make_hybrid_solver_current(njitted=False)()
@@ -53,7 +53,7 @@ def main():
         voltages = [protocol_func(t) for t in times]
 
         ax[1].plot(times, voltages, label='V_in')
-        ax[1].plot(times, combined_model.simulate_model()[:, -1], label='V_m')
+        ax[1].plot(times, combined_model.SimulateForwardModel()[:, -1], label='V_m')
         ax[1].legend()
 
         fig.savefig(os.path.join(output_dir, f"simulate_capacitive_spikes_{protocol}.png"))
