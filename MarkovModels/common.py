@@ -863,7 +863,7 @@ def compute_mcmc_chains(model, solver, times, indices, data,
     #                               [1] * pints_likelihood().n_parameters())
 
     # posterior = pints.LogPosterior(pints_likelihood(), prior)
-    posterior = pints_likelihood()
+    posterior = pints_likelihood
 
     initial_likelihood = log_likelihood_func(starting_parameters)
 
