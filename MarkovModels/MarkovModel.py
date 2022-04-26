@@ -393,42 +393,55 @@ class MarkovModel:
 
         p = self.get_default_parameters()
 
+        eps = np.finfo(float).eps
+
         def forward_solver(p=p, times=times, atol=atol, rtol=rtol):
             rhs0 = rhs_inf(p, voltage(0)).flatten()
             solution = np.full((len(times), no_states), np.nan)
             solution[0, :] = rhs0
 
+            print(protocol_description)
             for tstart, tend, vstart, vend in protocol_description:
-                istart = np.argmax(times >= tstart)
-                iend = np.argmax(times >= tend)
+                istart = np.argmax(times > tstart)
+                iend = np.argmax(times > tend)
 
                 if iend == 0:
                     iend = len(times)
 
                 step_times = np.full(iend-istart + 2, np.nan)
-                step_times[0] = tstart
-                step_times[-1] = tend
-
                 if iend == len(times):
                     step_times[1:-1] = times[istart:]
                 else:
                     step_times[1:-1] = times[istart:iend]
 
-                start_int = 1 if step_times[1] == tstart else 0
-                end_int = -1 if step_times[-1] == tend else None
+                step_times[0] = tstart
+                step_times[-1] = tend
 
-                step_sol = np.empty((len(step_times), no_states))
+                step_sol = np.full((len(step_times), no_states), np.nan)
+
+                if step_times[1] - tstart < 2 * eps * np.abs(step_times[1]):
+                    start_int = 1
+                    step_sol[0] = rhs0
+                else:
+                    start_int = 0
+
+                end_int = -1 if step_times[-1] == tend else None
 
                 step_sol[start_int: end_int] = lsoda(crhs_ptr, rhs0,
                                                      step_times[start_int:end_int], data=p,
                                                      rtol=rtol, atol=atol)[0]
+
+                if end_int == -1:
+                    step_sol[-1, :] = step_sol[-2, :]
+
                 if iend == len(times):
                     solution[istart:, ] = step_sol[1:-1, ]
                     break
 
                 else:
-                    rhs0 = step_sol[end_int-1, :]
+                    rhs0 = step_sol[-1, :]
                     solution[istart:iend, ] = step_sol[1:-1, ]
+
             return solution
 
         return njit(forward_solver) if njitted else forward_solver
