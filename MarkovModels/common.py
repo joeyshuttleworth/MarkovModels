@@ -843,7 +843,13 @@ def compute_mcmc_chains(model, solver, times, indices, data,
             output = solver(p, times)[indices]
             error = output - data[indices]
             SSE = np.sum(error**2)
-            ll = -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
+            try:
+                ll = -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
+
+            except ZeroDivisionError as exc:
+                ll = -np.inf
+                print(str(exc))
+
             return ll
 
     class pints_likelihood(pints.LogPDF):
