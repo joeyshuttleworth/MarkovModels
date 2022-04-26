@@ -419,7 +419,7 @@ class MarkovModel:
 
                 step_sol = np.empty((len(step_times), no_states))
 
-                step_sol[start_int, end_int] = lsoda(crhs_ptr, rhs0,
+                step_sol[start_int: end_int] = lsoda(crhs_ptr, rhs0,
                                                      step_times[start_int:end_int], data=p,
                                                      rtol=rtol, atol=atol)[0]
                 if iend == len(times):
