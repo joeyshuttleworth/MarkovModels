@@ -703,13 +703,14 @@ def mcmc_chain_func(model_class, protocol, times, data, params, index_set):
     times = np.linspace(tstart, tend, int((tend - tstart) / tstep))
     Erev = common.calculate_reversal_potential(310.15)
 
-    model = model_class(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
-    model.protocol_description = protocol_desc
-    model.window_locs = [t for t, _, _, _ in protocol_desc]
+    model = model_class(times=times, voltage=protocol_func, Erev=Erev, parameters=params,
+                        protocol_description=protocol_desc)
 
-    chains = common.compute_mcmc_chains(model, times, index_set, data,
-                                        args.chain_length, params, sigma2,
-                                        burn_in=args.burn_in)
+    chains = common.compute_mcmc_chains(model, solver=None, times=times,
+                                        indices=index_set, data=data,
+                                        chain_length=args.chain_length,
+                                        starting_parameters=params,
+                                        sigma2=sigma2, burn_in=args.burn_in)
     rhat = pints.rhat(chains)
     return chains, rhat
 
