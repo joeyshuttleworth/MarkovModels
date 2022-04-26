@@ -395,11 +395,11 @@ class MarkovModel:
 
         def forward_solver(p=p, times=times, atol=atol, rtol=rtol):
             rhs0 = rhs_inf(p, voltage(0)).flatten()
-            solution = np.empty((len(times), no_states))
-
+            solution = np.full((len(times), no_states), np.nan)
             solution[0, :] = rhs0
+
             for tstart, tend, vstart, vend in protocol_description:
-                istart = np.argmax(times > tstart)
+                istart = np.argmax(times >= tstart)
                 iend = np.argmax(times >= tend)
 
                 if iend == 0:
@@ -409,7 +409,7 @@ class MarkovModel:
                 step_times[0] = tstart
                 step_times[-1] = tend
 
-                if iend == 0:
+                if iend == len(times):
                     step_times[1:-1] = times[istart:]
                 else:
                     step_times[1:-1] = times[istart:iend]
@@ -427,7 +427,7 @@ class MarkovModel:
                     break
 
                 else:
-                    rhs0 = step_sol[-1, :] if end_int is None else step_sol[-2, :]
+                    rhs0 = step_sol[end_int-1, :]
                     solution[istart:iend, ] = step_sol[1:-1, ]
             return solution
 
