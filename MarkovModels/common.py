@@ -840,10 +840,10 @@ def compute_mcmc_chains(model, solver, times, indices, data,
     if log_likelihood_func is None:
         @njit
         def log_likelihood_func(p):
-            output = solver(p, times)[indices]
-            error = output - data[indices]
-            SSE = np.sum(error**2)
             try:
+                output = solver(p, times)[indices]
+                error = output - data[indices]
+                SSE = np.sum(error**2)
                 ll = -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
 
             except Exception:
@@ -857,6 +857,39 @@ def compute_mcmc_chains(model, solver, times, indices, data,
 
         def n_parameters(self):
             return len(starting_parameters)
+
+    class Boundaries(pints.Boundaries):
+        def __init__(self, parameters):
+            self.parameters = parameters
+
+        def check(self, parameters):
+            # Make sure transition rates are not too big
+            for i in range(len(parameters/2)):
+                a = parameters[2*i]
+                b = parameters[2*i + 1]
+
+                vs = np.array([-120, 40])
+
+                extreme_rates = np.abs(a*np.exp(b*vs))
+                max_rate = np.max(extreme_rates)
+                min_rate = np.min(extreme_rates)
+
+                if max_rate > 1e5:
+                    return False
+                elif min_rate < 1e-8:
+                    return False
+
+                return True
+
+            # Ensure that all parameters > 0
+            return True if np.all(parameters > 0) else False
+
+        def n_parameters(self):
+            return model.get_no_parameters() - \
+                len(self.fix_parameters) if self.fix_parameters is not None\
+                else model.get_no_parameters()
+
+    boundaries = Boundaries(starting_parameters)
 
     # prior = pints.UniformLogPrior([0] * pints_likelihood().n_parameters(),
     #                               [1] * pints_likelihood().n_parameters())
@@ -878,7 +911,8 @@ def compute_mcmc_chains(model, solver, times, indices, data,
     mcmc = pints.MCMCController(posterior, no_chains,
                                 np.tile(starting_parameters, [no_chains, 1]),
                                 method=pints.HaarioBardenetACMC,
-                                transformation=transformation)
+                                transformation=transformation,
+                                boundaries=boundaries)
 
     mcmc.set_max_iterations(chain_length)
 
