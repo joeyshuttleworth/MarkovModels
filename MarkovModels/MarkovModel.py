@@ -414,8 +414,8 @@ class MarkovModel:
                 else:
                     step_times[1:-1] = times[istart:iend]
 
-                start_int = 1 if times[1] == tstart else 0
-                end_int = -1 if times[-1] == tend else None
+                start_int = 1 if step_times[1] == tstart else 0
+                end_int = -1 if step_times[-1] == tend else None
 
                 print(step_times[start_int:end_int])
 
