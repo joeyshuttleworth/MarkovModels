@@ -166,7 +166,7 @@ def main():
 
     print("number of fitting tasks", len(args_list))
 
-    pool = Pool(min(args.cpus, len(removal_durations) * args.no_experiments))
+    pool = Pool(min(args.cpus, len(args_list)))
 
     mle_errors, mles = list(zip(*pool.map(get_mle_error, *zip(*args_list))))
 
