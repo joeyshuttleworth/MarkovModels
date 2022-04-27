@@ -862,10 +862,10 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
             return len(starting_parameters)
 
     class pints_prior(pints.LogPDF):
-        def __init__(self, parameters):
+        def __init__(self, parameters=starting_parameters):
             self.parameters = parameters
 
-        def __call__(self, parameters):
+        def __call__(self, parameters=starting_parameters):
             # Make sure transition rates are not too big
             for i in range(len(parameters/2)):
                 a = parameters[2*i]
