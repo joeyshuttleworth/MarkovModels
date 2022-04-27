@@ -121,7 +121,6 @@ def main():
     else:
         protocols = args.protocols
 
-
     print(args.wells, protocols)
 
     tasks = []
@@ -143,7 +142,7 @@ def main():
     res = pool.starmap(fit_func, tasks)
     print(res)
 
-    fitting_df = pd.concat(res)
+    fitting_df = pd.concat(res, ignore_index=True)
 
     print("=============\nfinished fitting\n=============")
 
