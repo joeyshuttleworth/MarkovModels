@@ -806,11 +806,14 @@ def setup_output_directory(dirname: str = None, subdir_name: str = None):
     return dirname
 
 
-def compute_mcmc_chains(model, solver, times, indices, data,
+def compute_mcmc_chains(model, times, indices, data, solver=None,
                         starting_parameters=None, sigma2=1, no_chains=1,
                         chain_length=1000, burn_in=None, log_likelihood_func=None,
                         log_transform=True):
     n = len(indices)
+
+    if solver is None:
+        solver = model.make_forward_solver_current()
 
     if starting_parameters is None:
         starting_parameters = model.get_default_parameters().flatten()
