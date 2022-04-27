@@ -143,29 +143,6 @@ def main():
     res = pool.starmap(fit_func, tasks)
     print(res)
 
-    if args.chain_length > 0 and args.no_chains > 0:
-        mcmc_dir = os.path.join(output_dir, 'mcmc_samples')
-
-        if not os.path.exists(mcmc_dir):
-            os.makedirs(mcmc_dir)
-
-        for res_df, task in zip(res, tasks):
-            # Select best score
-            param_labels = task[2]().parameter_labels
-            mle = res_df.iloc[res_df['score'].idxmin()][param_labels].values.astype(np.float64)
-            print(f"mle is {mle}")
-            if np.all(np.isfinite(mle)):
-                task.append(mle)
-
-        # Do MCMC
-        mcmc_res = pool.starmap(mcmc_func, tasks)
-        for samples, task in zip(mcmc_res, tasks):
-            protocol, well, model_class = task[0], task[1], task[2]
-            model_name = model_class().get_model_name()
-
-            np.save(os.path.join(mcmc_dir,
-                                 f"mcmc_{model_name}_{well}_{protocol}.npy"), samples)
-
     fitting_df = pd.concat(res)
 
     print("=============\nfinished fitting\n=============")
@@ -278,6 +255,34 @@ def main():
                                                                      'RMSE'])
     print(predictions_df)
     predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
+
+    # do mcmc
+    do_mcmc(res, tasks, pool)
+
+
+def do_mcmc(res, tasks, pool):
+    if args.chain_length > 0 and args.no_chains > 0:
+        mcmc_dir = os.path.join(output_dir, 'mcmc_samples')
+
+        if not os.path.exists(mcmc_dir):
+            os.makedirs(mcmc_dir)
+
+        for res_df, task in zip(res, tasks):
+            # Select best score
+            param_labels = task[2]().parameter_labels
+            mle = res_df.iloc[res_df['score'].idxmin()][param_labels].values.astype(np.float64)
+            print(f"mle is {mle}")
+            if np.all(np.isfinite(mle)):
+                task.append(mle)
+
+        # Do MCMC
+        mcmc_res = pool.starmap(mcmc_func, tasks)
+        for samples, task in zip(mcmc_res, tasks):
+            protocol, well, model_class = task[0], task[1], task[2]
+            model_name = model_class().get_model_name()
+
+            np.save(os.path.join(mcmc_dir,
+                                 f"mcmc_{model_name}_{well}_{protocol}.npy"), samples)
 
 
 if __name__ == "__main__":
