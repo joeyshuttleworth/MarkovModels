@@ -151,16 +151,16 @@ def main():
 
     fitting_df.to_csv(os.path.join(output_dir, "fitting.csv"))
 
-    best_param_locs = []
+    best_params = []
     for protocol in np.unique(protocols_list):
         for well in np.unique(wells_rep):
             sub_df = fitting_df[(fitting_df['well'] == well)
                                 & (fitting_df['protocol'] == protocol)]
 
             # Get index of min score
-            best_param_locs.append(sub_df['score'].idxmin())
+            best_params.append(sub_df.iloc[sub_df['score'].idxmin()].copy())
 
-    params_df = sub_df.iloc[best_param_locs]
+    params_df = pd.concat(best_params, ignore_index=True)
 
     params_df.to_csv(os.path.join(output_dir, "best_fitting.csv"))
 
