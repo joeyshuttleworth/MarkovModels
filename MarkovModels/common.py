@@ -861,7 +861,7 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
         def n_parameters(self):
             return len(starting_parameters)
 
-    class pints_prior(pints.LogPDF):
+    class pints_prior(pints.LogPrior):
         def __init__(self, parameters=starting_parameters):
             self.parameters = parameters
 
