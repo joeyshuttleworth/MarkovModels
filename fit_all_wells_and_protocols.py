@@ -65,7 +65,8 @@ def mcmc_func(protocol, well, model_class, initial_params):
     _, _, indices = common.remove_spikes(times, voltages, spike_times,
                                          time_to_remove=args.removal_duration)
 
-    return common.compute_mcmc_chains(model, solver, times, indices, data,
+    return common.compute_mcmc_chains(model, solver=solver, times=times,
+                                      indices=indices, data=data,
                                       chain_length=args.chain_length,
                                       starting_parameters=initial_params,
                                       sigma2=sigma2, burn_in=0,
