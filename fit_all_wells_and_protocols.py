@@ -158,7 +158,7 @@ def main():
                                 & (fitting_df['protocol'] == protocol)]
 
             # Get index of min score
-            best_params.append(sub_df.iloc[sub_df['score'].idxmin()].copy())
+            best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
 
     params_df = pd.concat(best_params, ignore_index=True)
 
