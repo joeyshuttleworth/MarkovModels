@@ -16,10 +16,10 @@ T=298
 K_in=5
 K_out=120
 
+global Erev
 Erev = common.calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
 
-def fit_func(protocol, well, model_class, E_rev=Erev):
-    default_parameters = None
+def fit_func(protocol, well, model_class, default_parameters=None, E_rev=Erev):
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
     res_df = common.fit_well_data(model_class, well, protocol, args.data_directory,
@@ -145,28 +145,83 @@ def main():
 
     fitting_df = pd.concat(res, ignore_index=True)
 
-    print("=============\nfinished fitting\n=============")
+    print("=============\nfinished fitting first round\n=============")
 
     wells_rep = [task[1] for task in tasks]
     # protocols_rep = [task[0] for task in tasks]
 
-    fitting_df.to_csv(os.path.join(output_dir, "fitting.csv"))
+    fitting_df.to_csv(os.path.join(output_dir, "prelim_fitting.csv"))
 
-    best_params = []
-    for protocol in np.unique(protocols_list):
-        for well in np.unique(wells_rep):
-            sub_df = fitting_df[(fitting_df['well'] == well)
-                                & (fitting_df['protocol'] == protocol)]
-
-            # Get index of min score
-            best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
-
-    params_df = pd.concat(best_params, ignore_index=True)
+    params_df = get_best_params(fitting_df)
 
     params_df.to_csv(os.path.join(output_dir, "best_fitting.csv"))
 
+    predictions_df = compute_predictions_df(params_df, 'prelim_predictions')
+
     # Plot predictions
+    print(predictions_df)
+    predictions_df.to_csv(os.path.join(output_dir, "prelim_predictions_df.csv"))
+
+    # Select best parameters for each protocol
+    best_params_df_rows = []
+    print(predictions_df)
+    for well in predictions_df.well.unique():
+        for validation_protocol in predictions_df['validation_protocol'].unique():
+            sub_df = predictions_df[(predictions_df.validation_protocol ==
+                                     validation_protocol) & (predictions_df.well == well)]
+
+            best_param_row = sub_df[sub_df.RMSE == sub_df['RMSE'].min()].head(1).copy()
+            best_params_df_rows.append(best_param_row)
+
+    best_params_df = pd.concat(best_params_df_rows, ignore_index=True)
+    print(best_params_df)
+
+    for task in tasks:
+        protocol, well, model_class = task
+        best_params_row = best_params_df[(best_params_df.well == well)
+                                         & (best_params_df.validation_protocol == protocol)].head(1)
+        param_labels = model_class().get_parameter_labels()
+        best_params = best_params_row[param_labels].astype(np.float64).values.flatten()
+        task.append(best_params)
+
+    print(tasks)
+    res = pool.starmap(fit_func, tasks)
+    fitting_df = pd.concat(res + [fitting_df], ignore_index=True)
+    fitting_df.to_csv(os.path.join(output_dir, "fitting.csv"))
+
+    predictions_df = compute_predictions_df(params_df)
+    predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
+
+    # do mcmc
+    do_mcmc(res, tasks, pool)
+
+
+def do_mcmc(res, tasks, pool):
+    if args.chain_length > 0 and args.no_chains > 0:
+        mcmc_dir = os.path.join(output_dir, 'mcmc_samples')
+
+        if not os.path.exists(mcmc_dir):
+            os.makedirs(mcmc_dir)
+
+        # Do MCMC
+        mcmc_res = pool.starmap(mcmc_func, tasks)
+        for samples, task in zip(mcmc_res, tasks):
+            protocol, well, model_class, _ = task
+            model_name = model_class().get_model_name()
+
+            np.save(os.path.join(mcmc_dir,
+                                 f"mcmc_{model_name}_{well}_{protocol}.npy"), samples)
+
+
+def compute_predictions_df(params_df, label='predictions'):
+
+    predictions_dir = os.path.join(output_dir, label)
+
+    if not os.path.exists(predictions_dir):
+        os.makedirs(predictions_dir)
+
     predictions_df = []
+    protocols_list = params_df['protocol'].unique()
 
     trace_fig = plt.figure(figsize=(16, 12))
     trace_axs = trace_fig.subplots(2)
@@ -179,8 +234,7 @@ def main():
                                          f"{experiment_name}-{sim_protocol}-times.csv"))['time'].values.flatten()
 
         model = model_class(prot_func,
-                            times=times,
-                            Erev=Erev)
+                            times=times)
 
         voltages = np.array([prot_func(t) for t in times])
 
@@ -190,7 +244,7 @@ def main():
 
             # Probably not worth compiling solver
             model.protocol_description = desc
-            Erev = common.infer_reversal_potential(sim_protocol, full_data, times)
+            model.Erev = common.infer_reversal_potential(sim_protocol, full_data, times)
             solver = model.make_forward_solver_current(njitted=False)
 
             for protocol_fitted in params_df['protocol'].unique():
@@ -204,7 +258,7 @@ def main():
                 params = df.iloc[0][param_labels].values\
                                                  .astype(np.float64)\
                                                  .flatten()
-                sub_dir = os.path.join(output_dir, f"{well}_{sim_protocol}_predictions")
+                sub_dir = os.path.join(predictions_dir, f"{well}_{sim_protocol}_predictions")
                 if not os.path.exists(sub_dir):
                     os.makedirs(sub_dir)
 
@@ -214,7 +268,7 @@ def main():
                     continue
 
                 RMSE = np.sqrt(np.mean((data - prediction)**2))
-                predictions_df.append((well, protocol_fitted, sim_protocol, RMSE))
+                predictions_df.append((well, protocol_fitted, sim_protocol, RMSE, *params))
 
                 # Output trace
                 if np.isfinite(prediction).all():
@@ -224,11 +278,10 @@ def main():
                     trace_axs[0].set_ylabel("current / nA")
                     trace_axs[0].plot(times, data, label='data', alpha=0.25, color='grey')
                     trace_axs[0].legend()
-
                     trace_axs[1].plot(times, voltages)
                     trace_axs[1].set_ylabel('voltage / mV')
                     fname = f"fitted_to_{protocol_fitted}.png" if protocol_fitted != sim_protocol else "fit.png"
-                    trace_fig.savefig(os.path.join(sub_dir, f"fitted_to_{protocol_fitted}.png"))
+                    trace_fig.savefig(os.path.join(sub_dir, fname))
 
                     for ax in trace_axs:
                         ax.cla()
@@ -250,39 +303,26 @@ def main():
             for ax in all_models_axs:
                 ax.cla()
 
-    predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
-                                                                     'validation_protocol',
-                                                                     'RMSE'])
-    print(predictions_df)
-    predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
-
-    # do mcmc
-    do_mcmc(res, tasks, pool)
+    # TODO refactor so this can work with more than one model
+    return pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
+                                                           'validation_protocol',
+                                                           'RMSE'] + param_labels)
 
 
-def do_mcmc(res, tasks, pool):
-    if args.chain_length > 0 and args.no_chains > 0:
-        mcmc_dir = os.path.join(output_dir, 'mcmc_samples')
+def get_best_params(fitting_df):
+    protocols_list = fitting_df['protocol'].unique()
+    wells_list = fitting_df['well'].unique()
+    best_params = []
+    for protocol in np.unique(protocols_list):
+        for well in np.unique(wells_list):
+            sub_df = fitting_df[(fitting_df['well'] == well)
+                                & (fitting_df['protocol'] == protocol)]
 
-        if not os.path.exists(mcmc_dir):
-            os.makedirs(mcmc_dir)
+            # Get index of min score
+            best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
 
-        for res_df, task in zip(res, tasks):
-            # Select best score
-            param_labels = task[2]().parameter_labels
-            mle = res_df.iloc[res_df['score'].idxmin()][param_labels].values.astype(np.float64)
-            print(f"mle is {mle}")
-            if np.all(np.isfinite(mle)):
-                task.append(mle)
+    return pd.concat(best_params, ignore_index=True)
 
-        # Do MCMC
-        mcmc_res = pool.starmap(mcmc_func, tasks)
-        for samples, task in zip(mcmc_res, tasks):
-            protocol, well, model_class = task[0], task[1], task[2]
-            model_name = model_class().get_model_name()
-
-            np.save(os.path.join(mcmc_dir,
-                                 f"mcmc_{model_name}_{well}_{protocol}.npy"), samples)
 
 
 if __name__ == "__main__":
