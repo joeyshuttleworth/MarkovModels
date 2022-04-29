@@ -116,7 +116,7 @@ class ArtefactModel():
 
         return njit(forward_solver) if njitted else forward_solver
 
-    def SimulateForwardModel(self, p=None, times=None, atol=None, rtol=None, return_current=False):
+    def SimulateForwardModel(self, p=None, times=None, atol=None, rtol=None, return_current=True):
         channel_model = self.channel_model
         if p is None:
             p = self.channel_model.get_default_parameters()
