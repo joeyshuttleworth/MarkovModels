@@ -314,6 +314,7 @@ def main():
                 pairwise_fig.savefig(os.path.join(output_dir,
                                                   f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png"))
                 pairwise_fig.clf()
+
             except np.linalg.LinAlgError as ex:
                 print("failed to produce pairwise plot")
                 print(str(ex))

@@ -32,12 +32,16 @@ def main():
     parser.add_argument("-s", "--sort", action='store_true')
     parser.add_argument("--sort_wells", action='store_true')
     parser.add_argument("-l", "--log_scale", action='store_true')
+    parser.add_argument("-i", "--ignore_protocols", nargs='+', default=[])
 
     parser.add_argument("--vmax", "-m", default=None, type=float)
 
     args = parser.parse_args()
     df = pd.read_csv(args.input_file)
     df = df.drop_duplicates(subset=['well', 'fitting_protocol', 'validation_protocol'], keep='first')
+
+    df = df[~df.fitting_protocol.isin(args.ignore_protocols)]
+    df = df[~df.validation_protocol.isin(args.ignore_protocols)]
 
     if args.sort:
 
