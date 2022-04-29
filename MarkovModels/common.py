@@ -627,7 +627,8 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     if infer_E_rev:
         Erev = infer_reversal_potential(protocol, data, times)
     else:
-        Erev = calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
+        if Erev is None:
+            Erev = calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
 
     model = model_class(voltage_func, times, parameters=default_parameters, Erev=Erev)
     model.protocol_description = protocol_desc
