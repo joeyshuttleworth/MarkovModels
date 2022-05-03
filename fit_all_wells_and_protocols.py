@@ -274,8 +274,7 @@ def compute_predictions_df(params_df, label='predictions'):
                 predictions_df.append((well, protocol_fitted, sim_protocol, RMSE, *params))
 
                 if not np.all(np.isfinite(prediction)):
-                    logging.warning(f"running {validation_protocol} with parameters from {fitting_protocol} gave
-                    non-finite values")
+                    logging.warning(f"running {sim_protocol} with parameters from {protocol_fitted} gave non-finite values")
                 else:
                     # Output trace
                     trace_axs[0].plot(times, prediction, label='prediction')
