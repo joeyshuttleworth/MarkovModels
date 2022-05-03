@@ -470,9 +470,11 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
                 max_rate = np.max(extreme_rates)
                 min_rate = np.min(extreme_rates)
 
-                if max_rate > 1e5:
+                # Very fast transition rate
+                if max_rate > 1e4:
                     return False
-                elif min_rate < 1e-8:
+                # Very slow transition rate
+                elif min_rate < 1e-6:
                     return False
 
                 return True
