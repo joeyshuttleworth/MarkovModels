@@ -30,7 +30,6 @@ def main():
     By default a new directory will be generated", default=None)
     parser.add_argument("--normalise_diagonal", action="store_true")
     parser.add_argument("-s", "--sort", action='store_true')
-    parser.add_argument("--sort_wells", action='store_true')
     parser.add_argument("-l", "--log_scale", action='store_true')
     parser.add_argument("-i", "--ignore_protocols", nargs='+', default=[])
 
@@ -72,24 +71,6 @@ def main():
         ax = fig.subplots()
 
         sub_df = df[df.well == well].copy()
-        if args.sort_wells:
-
-            protocols = df['fitting_protocol'].unique()
-
-            # Rank protocols
-            def score(protocol):
-                return sub_df[sub_df.fitting_protocol == protocol]['RMSE'].sum()
-            scores = [score(protocol) for protocol in protocols]
-
-            order = protocols[np.argsort(scores)]
-            print(order)
-            score_df = pd.DataFrame(np.column_stack((protocols, scores)), columns=('protocol', 'score'))
-            score_df['protocol'] = pd.Categorical(score_df['protocol'], order)
-            print(f"well {well}\n", score_df)
-
-            # Change order of protocols
-            sub_df['fitting_protocol'] = pd.Categorical(sub_df['fitting_protocol'], categories=order)
-            sub_df['validation_protocol'] = pd.Categorical(sub_df['validation_protocol'], categories=order)
 
         if args.normalise_diagonal:
             index_df = sub_df.set_index(['fitting_protocol', 'validation_protocol'])
@@ -121,7 +102,9 @@ def main():
 
         vmax = min(args.vmax, np.max(pivot_df.values)) if args.vmax else None
 
-        sns.heatmap(pivot_df, ax=ax, cbar_kws={'label': value_col}, vmin=None, vmax=vmax, cmap=cmap)
+        hm = sns.heatmap(pivot_df, ax=ax, cbar_kws={'label': value_col}, vmin=None,
+                         vmax=vmax, cmap=cmap)
+        hm.set_facecolor('black')
 
         ax.set_title(f"well {well}")
         ax.set_ylabel("Fitting protocol")
