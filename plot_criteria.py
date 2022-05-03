@@ -302,22 +302,21 @@ def main():
         # Concatenate chains together using Fortran ordering i.e first index moves fastest
         samples = samples.reshape(samples.shape[0]*samples.shape[1], -1, order='F')
 
-        if i < 20:
-            try:
-                pairwise_fig, pairwise_ax = pints.plot.pairwise(samples,
-                                                                kde=True,
-                                                                parameter_names=['p%i'
-                                                                                 % i for i in
-                                                                                 range(1, 9)] +
-                                                                ['g_kr'])
-                pairwise_fig.tight_layout()
-                pairwise_fig.savefig(os.path.join(output_dir,
-                                                  f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png"))
-                pairwise_fig.clf()
+        try:
+            pairwise_fig, pairwise_ax = pints.plot.pairwise(samples,
+                                                            kde=True,
+                                                            parameter_names=['p%i'
+                                                                                % i for i in
+                                                                                range(1, 9)] +
+                                                            ['g_kr'])
+            pairwise_fig.tight_layout()
+            pairwise_fig.savefig(os.path.join(output_dir,
+                                                f"pairwise_plot_{spike_removal_durations[i]:.2f}ms_removed.png"))
+            pairwise_fig.clf()
 
-            except np.linalg.LinAlgError as ex:
-                print("failed to produce pairwise plot")
-                print(str(ex))
+        except np.linalg.LinAlgError as ex:
+            print("failed to produce pairwise plot")
+            print(str(ex))
 
     fig.clf()
     axs = fig.subplots(5)
