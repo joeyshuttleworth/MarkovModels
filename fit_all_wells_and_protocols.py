@@ -2,6 +2,7 @@
 
 import multiprocessing
 import regex as re
+import logging
 import matplotlib.pyplot as plt
 from MarkovModels import common
 from MarkovModels.BeattieModel import BeattieModel
@@ -238,9 +239,14 @@ def compute_predictions_df(params_df, label='predictions'):
 
         voltages = np.array([prot_func(t) for t in times])
 
+        spike_times, spike_indices = common.detect_spikes(times, voltages,
+                                                          threshold=10)
+        _, _, indices = common.remove_spikes(times, voltages, spike_times,
+                                             time_to_remove=args.removal_duration)
+
         for well in params_df['well'].unique():
             full_data = common.get_data(well, sim_protocol, args.data_directory, experiment_name=experiment_name)
-            data = full_data
+            data = full_data[indices]
 
             # Probably not worth compiling solver
             model.protocol_description = desc
@@ -262,16 +268,16 @@ def compute_predictions_df(params_df, label='predictions'):
                 if not os.path.exists(sub_dir):
                     os.makedirs(sub_dir)
 
-                prediction = solver(params)
+                prediction = solver(params)[indices]
+
+               RMSE = np.sqrt(np.mean((data - prediction)**2))
+               predictions_df.append((well, protocol_fitted, sim_protocol, RMSE, *params))
 
                 if not np.all(np.isfinite(prediction)):
-                    continue
-
-                RMSE = np.sqrt(np.mean((data - prediction)**2))
-                predictions_df.append((well, protocol_fitted, sim_protocol, RMSE, *params))
-
-                # Output trace
-                if np.isfinite(prediction).all():
+                    logging.warning(f"running {validation_protocol} with parameters from {fitting_protocol} gave
+                    non-finite values")
+                else:
+                    # Output trace
                     trace_axs[0].plot(times, prediction, label='prediction')
 
                     trace_axs[1].set_xlabel("time / ms")
