@@ -243,6 +243,7 @@ def compute_predictions_df(params_df, label='predictions'):
                                                           threshold=10)
         _, _, indices = common.remove_spikes(times, voltages, spike_times,
                                              time_to_remove=args.removal_duration)
+        times = times[indices]
 
         for well in params_df['well'].unique():
             full_data = common.get_data(well, sim_protocol, args.data_directory, experiment_name=experiment_name)
