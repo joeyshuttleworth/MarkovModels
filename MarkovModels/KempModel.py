@@ -20,9 +20,9 @@ class KempModel(MarkovModel):
 
         mc = construct_kemp_model()
 
-        self.default_parameters = [val
-                                   for key, val in mc.default_values.items()
-                                   if str(key) != 'E_Kr']
+        self.default_parameters = np.array([val
+                                            for key, val in mc.default_values.items()
+                                            if str(key) != 'E_Kr'])
         self.parameter_labels = [key
                                  for key in mc.default_values
                                  if str(key) != 'E_Kr']
