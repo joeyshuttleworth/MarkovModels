@@ -424,7 +424,10 @@ class MarkovModel:
                 else:
                     start_int = 0
 
-                end_int = -1 if step_times[-1] == tend else None
+                if tend - step_times[-1] < 2 * eps * np.abs(tend):
+                    end_int = -1
+                else:
+                    start_int = None
 
                 step_sol[start_int: end_int] = lsoda(crhs_ptr, rhs0,
                                                      step_times[start_int:end_int], data=p,
