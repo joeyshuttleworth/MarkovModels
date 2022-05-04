@@ -231,19 +231,19 @@ def compute_predictions_df(params_df, label='predictions'):
     all_models_axs = all_models_fig.subplots(2)
     for sim_protocol in np.unique(protocols_list):
         prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
-        times = pd.read_csv(os.path.join(args.data_directory,
+        full_times = pd.read_csv(os.path.join(args.data_directory,
                                          f"{experiment_name}-{sim_protocol}-times.csv"))['time'].values.flatten()
 
         model = model_class(prot_func,
-                            times=times)
+                            times=full_times)
 
-        voltages = np.array([prot_func(t) for t in times])
+        voltages = np.array([prot_func(t) for t in full_times])
 
-        spike_times, spike_indices = common.detect_spikes(times, voltages,
+        spike_times, spike_indices = common.detect_spikes(full_times, voltages,
                                                           threshold=10)
-        _, _, indices = common.remove_spikes(times, voltages, spike_times,
+        _, _, indices = common.remove_spikes(full_times, voltages, spike_times,
                                              time_to_remove=args.removal_duration)
-        times = times[indices]
+        times = full_times[indices]
 
         for well in params_df['well'].unique():
             full_data = common.get_data(well, sim_protocol, args.data_directory, experiment_name=experiment_name)
@@ -251,7 +251,7 @@ def compute_predictions_df(params_df, label='predictions'):
 
             # Probably not worth compiling solver
             model.protocol_description = desc
-            model.Erev = common.infer_reversal_potential(sim_protocol, full_data, times)
+            model.Erev = common.infer_reversal_potential(sim_protocol, full_data, full_times)
             solver = model.make_forward_solver_current(njitted=False)
 
             for protocol_fitted in params_df['protocol'].unique():
