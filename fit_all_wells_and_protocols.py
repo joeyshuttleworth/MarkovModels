@@ -284,7 +284,7 @@ def compute_predictions_df(params_df, label='predictions'):
                     trace_axs[0].set_ylabel("current / nA")
                     trace_axs[0].plot(times, data, label='data', alpha=0.25, color='grey')
                     trace_axs[0].legend()
-                    trace_axs[1].plot(times, voltages)
+                    trace_axs[1].plot(full_times, voltages)
                     trace_axs[1].set_ylabel('voltage / mV')
                     fname = f"fitted_to_{protocol_fitted}.png" if protocol_fitted != sim_protocol else "fit.png"
                     trace_fig.savefig(os.path.join(sub_dir, fname))
@@ -301,7 +301,7 @@ def compute_predictions_df(params_df, label='predictions'):
             all_models_axs[0].set_title(f"{well} {sim_protocol} fits comparison")
             all_models_axs[0].set_ylabel("Current / nA")
 
-            all_models_axs[1].plot(times, voltages)
+            all_models_axs[1].plot(full_times, voltages)
             all_models_axs[1].set_ylabel('voltage / mV')
 
             all_models_fig.savefig(os.path.join(sub_dir, "all_fits.png"))
