@@ -194,12 +194,16 @@ def main():
     predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
 
     best_params_df = get_best_params(fitting_df)
+    print(best_params_df)
 
     for task in tasks:
         protocol, well, model_class, _ = task
+        param_labels = model_class().get_parameter_labels()
 
-        row = best_params_df[best_params_df.well == well &
-                             best_params_df.protocol == protocol].head(1)
+        row = best_params_df[(best_params_df.well == well)
+                             & (best_params_df.protocol ==
+                                protocol)][param_labels].copy().head(1)
+
         task[-1] = row.values.flatten()
     # do mcmc
     do_mcmc(tasks, pool)
