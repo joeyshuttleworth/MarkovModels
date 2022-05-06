@@ -193,11 +193,19 @@ def main():
     predictions_df = compute_predictions_df(params_df)
     predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
 
+    best_params_df = get_best_params(fitting_df)
+
+    for task in tasks:
+        protocol, well, model_class, _ = task
+
+        row = best_params_df[best_params_df.well == well &
+                             best_params_df.protocol == protocol].head(1)
+        task[-1] = row.values.flatten()
     # do mcmc
-    do_mcmc(res, tasks, pool)
+    do_mcmc(tasks, pool)
 
 
-def do_mcmc(res, tasks, pool):
+def do_mcmc(tasks, pool):
     if args.chain_length > 0 and args.no_chains > 0:
         mcmc_dir = os.path.join(output_dir, 'mcmc_samples')
 

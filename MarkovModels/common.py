@@ -475,10 +475,8 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
                 if min_rate < 1e-8:
                     return False
 
-                return True
-
             # Ensure that all parameters > 0
-            return True if np.all(parameters > 0) else False
+            return np.all(parameters > 0)
 
         def n_parameters(self):
             return mm.get_no_parameters() - \
@@ -882,7 +880,6 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
                     return 0
                 elif min_rate < 1e-8:
                     return 0
-                return 1
 
             # Ensure that all parameters > 0
             return 1 if np.all(parameters > 0) else 0
