@@ -7,6 +7,7 @@ import pandas as pd
 import seaborn as sns
 import argparse
 import matplotlib.pyplot as plt
+import string
 
 protocol_chrono_order = ['staircaseramp1',
                          'sis',
@@ -22,6 +23,9 @@ protocol_chrono_order = ['staircaseramp1',
                          'wangsobol3step',
                          'staircaseramp2']
 
+relabel_dict = dict(zip(protocol_chrono_order,
+                        string.ascii_uppercase[:len(protocol_chrono_order)]))
+
 def main():
     description = ""
     parser = argparse.ArgumentParser(description=description)
@@ -31,6 +35,7 @@ def main():
     parser.add_argument("--normalise_diagonal", action="store_true")
     parser.add_argument("-s", "--sort", action='store_true')
     parser.add_argument("-l", "--log_scale", action='store_true')
+    parser.add_argument("-A", "--alphabet_labels", action='store_true')
     parser.add_argument("-i", "--ignore_protocols", nargs='+', default=[])
 
     parser.add_argument("--vmax", "-m", default=None, type=float)
@@ -43,7 +48,6 @@ def main():
     df = df[~df.validation_protocol.isin(args.ignore_protocols)]
 
     if args.sort:
-
         protocols = df['fitting_protocol'].unique()
 
         # Rank protocols
@@ -55,15 +59,20 @@ def main():
         score_df = pd.DataFrame(np.column_stack((protocols, scores)), columns=('protocol', 'score'))
         score_df['protocol'] = pd.Categorical(score_df['protocol'], order)
 
-        # Change order of protocols
-        df['fitting_protocol'] = pd.Categorical(df['fitting_protocol'], categories=order)
-        df['validation_protocol'] = pd.Categorical(df['validation_protocol'], categories=order)
-
     order = protocol_chrono_order
+
+    # Change order of protocols
+    df['fitting_protocol'] = pd.Categorical(df['fitting_protocol'], categories=order)
+    df['validation_protocol'] = pd.Categorical(df['validation_protocol'], categories=order)
+
+    if args.alphabet_labels:
+        df = df.replace({
+            'validation_protocol': relabel_dict,
+            'fitting_protocol': relabel_dict})
 
     fig = plt.figure(figsize=(14, 10))
 
-    output_dir = common.setup_output_directory(args.output_dir)
+    output_dir = common.setup_output_directory(args.output_dir, 'fitting_validation_heatmaps')
     protocol_list = df['fitting_protocol'].unique()
 
     # Iterate over wells for heatmap
@@ -98,15 +107,16 @@ def main():
 
         # pivot_df = pivot_df[np.isfinite(pivot_df)]
 
-        cmap = sns.cm.rocket_r
+        cmap = sns.cm.mako_r
 
         vmax = min(args.vmax, np.max(pivot_df.values)) if args.vmax else None
 
         hm = sns.heatmap(pivot_df, ax=ax, cbar_kws={'label': value_col}, vmin=None,
                          vmax=vmax, cmap=cmap)
+        hm.set_yticklabels(hm.get_yticklabels(), rotation=0)
         hm.set_facecolor('black')
 
-        ax.set_title(f"well {well}")
+        ax.set_title(f"{well}")
         ax.set_ylabel("Fitting protocol")
         ax.set_xlabel("Validation protocol")
 
