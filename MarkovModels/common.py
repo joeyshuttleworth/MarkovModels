@@ -460,7 +460,7 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
 
         def check(self, parameters):
             # Make sure transition rates are not too big
-            for i in range(len(parameters/2)):
+            for i in range(len(parameters)/2):
                 a = parameters[2*i]
                 b = parameters[2*i + 1]
 
@@ -866,7 +866,7 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
 
         def __call__(self, parameters=starting_parameters):
             # Make sure transition rates are not too big
-            for i in range(len(parameters/2)):
+            for i in range(len(parameters)/2):
                 a = parameters[2*i]
                 b = parameters[2*i + 1]
 
