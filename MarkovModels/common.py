@@ -475,8 +475,6 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
                 if min_rate < 1e-8:
                     return False
 
-                return True
-
             # Ensure that all parameters > 0
             return True if np.all(parameters > 0) else False
 
@@ -547,7 +545,7 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
     best_parameters = parameter_sets[scores.index(best_score)]
 
     if not np.all(np.isfinite(model.simulate(found_parameters, mm.times))):
-        return found_parameters, -np.inf
+        return found_parameters, np.inf
 
     # # Now run with Nelder-Mead
     # controller = pints.OptimisationController(
@@ -660,7 +658,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     print(f"initial score is {initial_score}")
 
     # If this score is worse than the default parameters, use them
-    if initial_score > np.sum(solver() - data)**2:
+    if initial_score > np.sum(solver() - data)**2 or np.any(~np.isfinite(model.SimulateForwardModel(initial_params))):
         initial_params = model.get_default_parameters()
         print('using default parameters')
 
@@ -882,7 +880,6 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
                     return 0
                 elif min_rate < 1e-8:
                     return 0
-                return 1
 
             # Ensure that all parameters > 0
             return 1 if np.all(parameters > 0) else 0
