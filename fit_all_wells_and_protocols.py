@@ -4,6 +4,7 @@ import multiprocessing
 import regex as re
 import logging
 import matplotlib.pyplot as plt
+import seaborn as sns
 from MarkovModels import common
 from MarkovModels.BeattieModel import BeattieModel
 from MarkovModels.ClosedOpenModel import ClosedOpenModel
@@ -91,6 +92,7 @@ def main():
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
     parser.add_argument('--no_chains', '-N', default=0, help='mcmc chains to run', type=int)
     parser.add_argument('--chain_length', '-l', default=5000, help='mcmc chains to run', type=int)
+    parser.add_argument('--figsize', '-f', default=5000, help='mcmc chains to run', type=int)
 
     global args
     args = parser.parse_args()
@@ -155,7 +157,7 @@ def main():
 
     params_df = get_best_params(fitting_df)
 
-    params_df.to_csv(os.path.join(output_dir, "best_fitting.csv"))
+    params_df.to_csv(os.path.join(output_dir, "prelim_best_fitting.csv"))
 
     predictions_df = compute_predictions_df(params_df, 'prelim_predictions')
 
@@ -195,6 +197,8 @@ def main():
 
     best_params_df = get_best_params(fitting_df)
     print(best_params_df)
+
+    best_params_df.to_csv(os.path.join(output_dir, 'best_fitting.csv'))
 
     for task in tasks:
         protocol, well, model_class, _ = task
@@ -236,10 +240,10 @@ def compute_predictions_df(params_df, label='predictions'):
     predictions_df = []
     protocols_list = params_df['protocol'].unique()
 
-    trace_fig = plt.figure(figsize=(16, 12))
+    trace_fig = plt.figure(figsize=args.figsize)
     trace_axs = trace_fig.subplots(2)
 
-    all_models_fig = plt.figure(figsize=(16, 12))
+    all_models_fig = plt.figure(figsize=args.figsize)
     all_models_axs = all_models_fig.subplots(2)
     for sim_protocol in np.unique(protocols_list):
         prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
@@ -257,6 +261,8 @@ def compute_predictions_df(params_df, label='predictions'):
                                              time_to_remove=args.removal_duration)
         times = full_times[indices]
 
+        colours = sns.colour_palette('husl', len(params_df['protocol'].unique()))
+
         for well in params_df['well'].unique():
             full_data = common.get_data(well, sim_protocol, args.data_directory, experiment_name=experiment_name)
             data = full_data[indices]
@@ -266,7 +272,7 @@ def compute_predictions_df(params_df, label='predictions'):
             model.Erev = common.infer_reversal_potential(sim_protocol, full_data, full_times)
             solver = model.make_forward_solver_current(njitted=False)
 
-            for protocol_fitted in params_df['protocol'].unique():
+            for i, protocol_fitted in enumerate(params_df['protocol'].unique()):
                 df = params_df[params_df.well == well]
                 df = df[df.protocol == protocol_fitted]
 
@@ -304,7 +310,7 @@ def compute_predictions_df(params_df, label='predictions'):
                     for ax in trace_axs:
                         ax.cla()
 
-                    all_models_axs[0].plot(times, prediction, label=protocol_fitted)
+                    all_models_axs[0].plot(times, prediction, label=protocol_fitted, color=colours[i])
 
             all_models_axs[1].set_xlabel("time / ms")
             all_models_axs[0].set_ylabel("current / nA")
