@@ -98,7 +98,7 @@ def main():
 
         # pivot_df = pivot_df[np.isfinite(pivot_df)]
 
-        cmap = sns.cm.rocket_r
+        cmap = sns.cm.mako_r
 
         vmax = min(args.vmax, np.max(pivot_df.values)) if args.vmax else None
 
