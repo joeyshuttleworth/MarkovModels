@@ -205,28 +205,37 @@ def main():
         os.makedirs(fits_dir)
 
     # plot fits
-    fits_fig, fits_ax = plt.subplots()
+    fits_fig = plt.figure(figsize=(12, 10))
+    fits_axs = fits_fig.subplots(3)
 
     for i in range(mles.shape[0]):
         for j in range(mles.shape[1]):
-            fits_ax.plot(full_times, model.SimulateForwardModel(mles[i, j]), label='fitted model')
-            fits_ax.plot(full_times, simulated_data[j], label='data', color='grey', alpha=.5)
-            fits_ax.set_xlabel('time / ms')
-            fits_ax.set_ylabel('current / nA')
-            fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed_run_{j}.png"))
+            fits_axs[0].plot(full_times, model.SimulateForwardModel(mles[i, j]), label='fitted model')
+            fits_axs[0].plot(full_times, simulated_data[j], label='data', color='grey', alpha=.5)
+            fits_axs[0].set_xlabel('time / ms')
+            fits_axs[0].set_ylabel('current / nA')
 
-            ax.legend()
-            fits_ax.cla()
+            fits_axs[1].plot(full_times, model.SimulateForwardModel(mles[i, j]) -
+                             mean_trajectory, label='fitted model error')
+            fits_axs[1].set_xlabel('time / ms')
+            fits_axs[1].set_ylabel('current / nA')
+
+            fits_axs[2].plot(full_times, voltages, label='V_in')
+            fits_axs[2].plot(full_times, model.SimulateForwardModel(mles[i, j],
+                                                                    return_current=False)[:,
+                                                                                          -1],
+                             label='V_m')
+
+            for ax in fits_axs:
+                ax.legend()
+            fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed_run_{j}.png"))
+            for ax in fits_axs:
+                ax.cla()
 
     # plot errors
     fits_fig, fits_ax = plt.subplots()
     for i in range(mles.shape[0]):
         for j in range(mles.shape[1]):
-            fits_ax.plot(full_times, model.SimulateForwardModel(mles[i, j]) -
-                         mean_trajectory, label='fitted model error')
-            fits_ax.set_xlabel('time / ms')
-            fits_ax.set_ylabel('current / nA')
-            fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.png_run{j}_errors.png"))
 
             ax.legend()
             fits_ax.cla()
