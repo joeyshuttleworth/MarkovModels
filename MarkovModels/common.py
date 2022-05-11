@@ -460,7 +460,7 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
 
         def check(self, parameters):
             # Make sure transition rates are not too big
-            for i in range(len(parameters/2)):
+            for i in range(int(len(parameters)/2)):
                 a = parameters[2*i]
                 b = parameters[2*i + 1]
 
@@ -476,7 +476,7 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
                     return False
 
             # Ensure that all parameters > 0
-            return True if np.all(parameters > 0) else False
+            return np.all(parameters > 0)
 
         def n_parameters(self):
             return mm.get_no_parameters() - \
@@ -866,7 +866,7 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
 
         def __call__(self, parameters=starting_parameters):
             # Make sure transition rates are not too big
-            for i in range(len(parameters/2)):
+            for i in range(int(len(parameters)/2)):
                 a = parameters[2*i]
                 b = parameters[2*i + 1]
 
@@ -878,11 +878,12 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
 
                 if max_rate > 1e5:
                     return 0
-                elif min_rate < 1e-8:
+
+                if min_rate < 1e-8:
                     return 0
 
             # Ensure that all parameters > 0
-            return 1 if np.all(parameters > 0) else 0
+            return 0 if np.all(parameters > 0) else -np.inf
 
         def n_parameters(self):
             return model.get_no_parameters()
