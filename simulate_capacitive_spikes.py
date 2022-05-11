@@ -13,7 +13,9 @@ def main():
     parser = argparse.ArgumentParser(description="Plot output from different protocols")
     parser.add_argument("--parameter_file", type=str, default=None)
     parser.add_argument("--noise", "-s", type=float, default=0.01)
-    parser.add_argument("--protocols", "-p", nargs='+', default=['staircase'])
+    parser.add_argument("--protocols", "-p", nargs='+', default=None)
+    parser.add_argument("--membrane_capacitance", "-C", default=None, type=float)
+    parser.add_argument("--series_resistance", "-R", default=None, type=float)
     parser.add_argument("--output", "-o")
 
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
@@ -23,8 +25,12 @@ def main():
 
     output_dir = common.setup_output_directory(args.output, 'simulate_capacitive_spikes')
 
-    fig = plt.figure(figsize=(12,9))
-    ax = fig.subplots(3)
+    fig = plt.figure(figsize=(12, 9))
+    ax = fig.subplots(2)
+
+    if args.protocols is None:
+        args.protocols = common.get_protocol_list()
+
     for protocol in args.protocols:
         protocol_func, t_start, t_end, t_step, protocol_description = common.get_ramp_protocol_from_csv(protocol)
 
@@ -34,26 +40,21 @@ def main():
 
         channel_model.protocol_description = protocol_description
 
-        combined_model = ArtefactModel(channel_model, C_m=20)
+        combined_model = ArtefactModel(channel_model)
 
         data = combined_model.SimulateForwardModel(return_current=True) + np.random.normal(0, args.noise, len(times))
 
         numerical_sol = channel_model.make_forward_solver_current(njitted=False)()
-        hybrid_sol = channel_model.make_hybrid_solver_current(njitted=False)()
 
         ax[0].plot(times, data, label='combined model current')
-        ax[0].plot(times, hybrid_sol, label='idealised model current hybrid')
         ax[0].plot(times, numerical_sol, label='idealised model current numeric')
 
-        ax[2].plot(times,
-                   channel_model.make_forward_solver_states(njitted=False)()[:, 2])
-        ax[2].plot(times, channel_model.make_hybrid_solver_states(njitted=False)()[:, 2])
         ax[0].legend()
 
         voltages = [protocol_func(t) for t in times]
 
         ax[1].plot(times, voltages, label='V_in')
-        ax[1].plot(times, combined_model.SimulateForwardModel()[:, -1], label='V_m')
+        ax[1].plot(times, combined_model.SimulateForwardModel(return_current=False)[:, -1], label='V_m')
         ax[1].legend()
 
         fig.savefig(os.path.join(output_dir, f"simulate_capacitive_spikes_{protocol}.png"))
