@@ -37,7 +37,8 @@ def main():
     parser.add_argument("-l", "--log_scale", action='store_true')
     parser.add_argument("-A", "--alphabet_labels", action='store_true')
     parser.add_argument("-i", "--ignore_protocols", nargs='+', default=[])
-
+    parser.add_argument("--figsize", "-f", nargs=2, type=int)
+    parser.add_argument("--dpi", "-d", type=int, default=600)
     parser.add_argument("--vmax", "-m", default=None, type=float)
 
     args = parser.parse_args()
@@ -70,7 +71,7 @@ def main():
             'validation_protocol': relabel_dict,
             'fitting_protocol': relabel_dict})
 
-    fig = plt.figure(figsize=(14, 10))
+    fig = plt.figure(figsize=args.figsize)
 
     output_dir = common.setup_output_directory(args.output_dir, 'fitting_validation_heatmaps')
     protocol_list = df['fitting_protocol'].unique()
@@ -116,12 +117,15 @@ def main():
         hm.set_yticklabels(hm.get_yticklabels(), rotation=0)
         hm.set_facecolor('black')
 
+        if not args.alphabet_labels:
+            hm.set_xticks([])
+
         ax.set_title(f"{well}")
         ax.set_ylabel("Fitting protocol")
         ax.set_xlabel("Validation protocol")
 
         fig.tight_layout()
-        fig.savefig(os.path.join(output_dir, f"{well}_fit_predict_heatmap.png"))
+        fig.savefig(os.path.join(output_dir, f"{well}_fit_predict_heatmap.png"), dpi=args.dpi)
         fig.clf()
 
 
