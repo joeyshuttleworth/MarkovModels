@@ -20,6 +20,7 @@ def main():
     parser.add_argument('--figsize', '-f', nargs=2, type=float)
     parser.add_argument('--parameter_file')
     parser.add_argument('--model', default='Beattie')
+    parser.add_argument('--nolegend', action='store_true')
 
     args = parser.parse_args()
 
@@ -71,7 +72,8 @@ def main():
 
                 if model:
                     axs[0].plot(times, model.SimulateForwardModel(), color='green', label='Beattie model')
-                    axs[0].legend()
+                    if not args.nolegend:
+                        axs[0].legend()
 
                 fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_{args.experiment_name}.png"))
 
