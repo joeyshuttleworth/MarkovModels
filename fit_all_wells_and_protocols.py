@@ -91,8 +91,8 @@ def main():
     parser.add_argument('--model', '-m', default='Beattie', type=str)
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
     parser.add_argument('--no_chains', '-N', default=0, help='mcmc chains to run', type=int)
-    parser.add_argument('--chain_length', '-l', default=5000, help='mcmc chains to run', type=int)
-    parser.add_argument('--figsize', '-f', default=5000, help='mcmc chains to run', type=int)
+    parser.add_argument('--chain_length', '-l', default=500, help='mcmc chains to run', type=int)
+    parser.add_argument('--figsize', '-f', help='mcmc chains to run', type=int)
 
     global args
     args = parser.parse_args()
