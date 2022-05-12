@@ -261,7 +261,7 @@ def compute_predictions_df(params_df, label='predictions'):
                                              time_to_remove=args.removal_duration)
         times = full_times[indices]
 
-        colours = sns.colour_palette('husl', len(params_df['protocol'].unique()))
+        colours = sns.color_palette('husl', len(params_df['protocol'].unique()))
 
         for well in params_df['well'].unique():
             full_data = common.get_data(well, sim_protocol, args.data_directory, experiment_name=experiment_name)
