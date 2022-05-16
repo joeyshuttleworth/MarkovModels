@@ -658,7 +658,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     print(f"initial score is {initial_score}")
 
     # If this score is worse than the default parameters, use them
-    if initial_score > np.sum(solver() - data)**2 or np.any(~np.isfinite(model.SimulateForwardModel(initial_params))):
+    if initial_score > np.sum((solver() - data)**2) or np.any(~np.isfinite(model.SimulateForwardModel(initial_params))):
         initial_params = model.get_default_parameters()
         print('using default parameters')
 
