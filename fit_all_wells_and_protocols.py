@@ -21,7 +21,7 @@ K_out=120
 global Erev
 Erev = common.calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
 
-def fit_func(protocol, well, model_class, default_parameters=None, E_rev=Erev):
+def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None):
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
     res_df = common.fit_well_data(model_class, well, protocol, args.data_directory,
@@ -93,6 +93,7 @@ def main():
     parser.add_argument('--no_chains', '-N', default=0, help='mcmc chains to run', type=int)
     parser.add_argument('--chain_length', '-l', default=500, help='mcmc chains to run', type=int)
     parser.add_argument('--figsize', '-f', help='mcmc chains to run', type=int)
+    parser.add_argument('--use_parameter_file')
 
     global args
     args = parser.parse_args()
@@ -127,14 +128,27 @@ def main():
 
     print(args.wells, protocols)
 
+    if args.use_parameter_file:
+        best_params_df = pd.read_csv(args.use_parameter_file)
+    else:
+        best_params_df = None
+
     tasks = []
     protocols_list = []
+
+    param_labels = model_class().get_parameter_labels()
     for f in filter(regex.match, os.listdir(args.data_directory)):
         protocol, well = re.search(regex, f).groups()
         if protocol not in protocols or well not in args.wells:
             continue
+
+        if best_params_df:
+            parameter_row = best_params_df[(best_params_df.well == well)
+                                           & (best_params_df.protocol == protocol)].head(1)
+            starting_parameters = parameter_row[param_labels()].values.astype(np.float(64))
+
         else:
-            tasks.append([protocol, well, model_class])
+            tasks.append([protocol, well, model_class, starting_parameters])
             protocols_list.append(protocol)
 
     print(f"fitting tasks are {tasks}")
