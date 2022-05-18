@@ -75,19 +75,17 @@ def main():
         for f in filter(rstring.match, os.listdir(args.data_directory)):
             protocol = rstring.search(f).group(1)
 
-            if protocol in args.ignore_protocols:
+            if protocol not in args.protocols:
                 continue
 
             chains = np.load(os.path.join(args.data_directory, f))
 
-            print(protocol, pints.rhat(chains))
+            print(well, protocol, pints.rhat(chains))
 
             chain = chains.reshape((-1, model.get_no_parameters()))
 
             df = pd.DataFrame(chain, columns=model.get_parameter_labels())
             df['protocol'] = protocol
-
-            print(df)
 
             dfs.append(df)
 
@@ -95,11 +93,11 @@ def main():
             continue
 
         df = pd.concat(dfs, ignore_index=True)
-        print(df)
 
         for param in model.get_parameter_labels():
             sns.kdeplot(data=df[[param, 'protocol']], x=param, hue='protocol', common_norm=True)
 
+            ax.set_xlim((max(0, ax.get_xlim()[0]), ax.get_xlim()[1]))
             fig.savefig(os.path.join(output_dir,
                                      f"{well}_{param}_mcmc_histograms.png"), dpi=args.dpi)
 
