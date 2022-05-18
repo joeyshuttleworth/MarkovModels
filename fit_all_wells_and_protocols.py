@@ -142,7 +142,7 @@ def main():
         if protocol not in protocols or well not in args.wells:
             continue
 
-        if best_params_df:
+        if best_params_df is not None:
             parameter_row = best_params_df[(best_params_df.well == well)
                                            & (best_params_df.protocol == protocol)].head(1)
             starting_parameters = parameter_row[param_labels()].values.astype(np.float(64))
