@@ -639,7 +639,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     if default_parameters is None:
         initial_gkr = np.quantile(np.abs(data / (voltages - model.Erev)), .99)
     else:
-        initial_gkr = default_parameters[model.get_default_parameters()[model.GKr_index]]
+        initial_gkr = default_parameters[model.GKr_index]
 
     initial_params = model.get_default_parameters()
     initial_params[model.GKr_index] = initial_gkr
