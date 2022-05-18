@@ -193,7 +193,7 @@ def main():
     print(best_params_df)
 
     for task in tasks:
-        protocol, well, model_class = task
+        protocol, well, model_class, _ = task
         best_params_row = best_params_df[(best_params_df.well == well)
                                          & (best_params_df.validation_protocol == protocol)].head(1)
         param_labels = model_class().get_parameter_labels()
