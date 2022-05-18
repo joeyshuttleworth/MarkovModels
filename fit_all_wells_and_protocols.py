@@ -198,7 +198,7 @@ def main():
                                          & (best_params_df.validation_protocol == protocol)].head(1)
         param_labels = model_class().get_parameter_labels()
         best_params = best_params_row[param_labels].astype(np.float64).values.flatten()
-        task.append(best_params)
+        task[-1] = best_params
 
     print(tasks)
     res = pool.starmap(fit_func, tasks)
@@ -359,7 +359,6 @@ def get_best_params(fitting_df):
             best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
 
     return pd.concat(best_params, ignore_index=True)
-
 
 
 if __name__ == "__main__":
