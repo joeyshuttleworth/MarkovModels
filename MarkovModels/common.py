@@ -877,10 +877,10 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
                 min_rate = np.min(extreme_rates)
 
                 if max_rate > 1e5:
-                    return 0
+                    return -np.inf
 
                 if min_rate < 1e-8:
-                    return 0
+                    return -np.inf
 
             # Ensure that all parameters > 0
             return 0 if np.all(parameters > 0) else -np.inf
