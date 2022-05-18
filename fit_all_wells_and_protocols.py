@@ -147,9 +147,8 @@ def main():
                                            & (best_params_df.protocol == protocol)].head(1)
             starting_parameters = parameter_row[param_labels].values.astype(np.float64)
 
-        else:
-            tasks.append([protocol, well, model_class, starting_parameters])
-            protocols_list.append(protocol)
+        tasks.append([protocol, well, model_class, starting_parameters])
+        protocols_list.append(protocol)
 
     print(f"fitting tasks are {tasks}")
 
