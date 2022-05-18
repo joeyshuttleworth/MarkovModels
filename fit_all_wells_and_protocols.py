@@ -145,7 +145,7 @@ def main():
         if best_params_df is not None:
             parameter_row = best_params_df[(best_params_df.well == well)
                                            & (best_params_df.protocol == protocol)].head(1)
-            starting_parameters = parameter_row[param_labels].values.astype(np.float(64))
+            starting_parameters = parameter_row[param_labels].values.astype(np.float64)
 
         else:
             tasks.append([protocol, well, model_class, starting_parameters])
