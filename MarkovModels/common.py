@@ -635,7 +635,11 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
 
     # Try fitting G_Kr on its own first
     # Start with roughly the max conductance observed divided through by 10
-    initial_gkr = np.quantile(np.abs(data / (voltages - model.Erev)), .99)
+
+    if default_parameters is None:
+        initial_gkr = np.quantile(np.abs(data / (voltages - model.Erev)), .99)
+    else:
+        initial_gkr = default_parameters[model.get_default_parameters()[model.GKr_index]]
 
     initial_params = model.get_default_parameters()
     initial_params[model.GKr_index] = initial_gkr
