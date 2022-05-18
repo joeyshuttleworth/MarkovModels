@@ -26,7 +26,7 @@ def main():
     parser.add_argument('--model', default='Beattie')
     parser.add_argument('--nolegend', action='store_true')
     parser.add_argument('--dpi', '-d', default=500, type=int)
-    parser.add_argument('--ignore_protocols', nargs='+', default=[])
+    parser.add_argument('--ignore_protocols', '-i', nargs='+', default=[])
 
     global args
     args = parser.parse_args()
@@ -64,8 +64,9 @@ def main():
     else:
         lw = .5
 
-    args.protocols = [p for p in args.protocols if p not in
-                      args.ignore_protocols]
+    if args.protocols is None:
+        args.protocols = [p for p in args.protocols if p not in
+                          args.ignore_protocols]
 
     model = model_class()
     for well in args.wells:
@@ -73,6 +74,9 @@ def main():
         dfs = []
         for f in filter(rstring.match, os.listdir(args.data_directory)):
             protocol = rstring.search(f).group(1)
+
+            if protocol in args.ignore_protocols:
+                continue
 
             chains = np.load(os.path.join(args.data_directory, f))
 
@@ -94,7 +98,7 @@ def main():
         print(df)
 
         for param in model.get_parameter_labels():
-            sns.kdeplot(data=df['param', 'protocol'], x=param, hue='protocol', common_norm=True)
+            sns.kdeplot(data=df[[param, 'protocol']], x=param, hue='protocol', common_norm=True)
 
             fig.savefig(os.path.join(output_dir,
                                      f"{well}_{param}_mcmc_histograms.png"), dpi=args.dpi)
