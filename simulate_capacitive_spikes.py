@@ -45,9 +45,11 @@ def main():
         data = combined_model.SimulateForwardModel(return_current=True) + np.random.normal(0, args.noise, len(times))
 
         numerical_sol = channel_model.make_forward_solver_current(njitted=False)()
+        hybrid_sol = channel_model.make_hybrid_solver_current(njitted=False)()
 
         ax[0].plot(times, data, label='combined model current')
         ax[0].plot(times, numerical_sol, label='idealised model current numeric')
+        ax[0].plot(times, hybrid_sol, label='idealised model current hybrid')
 
         ax[0].legend()
 
