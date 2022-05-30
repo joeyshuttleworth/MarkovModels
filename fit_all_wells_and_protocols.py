@@ -54,7 +54,7 @@ def mcmc_func(protocol, well, model_class, initial_params):
     if initial_params is None:
         initial_params = model.get_default_parameters()
 
-    solver = model.make_forward_solver_current()
+    solver = model.make_hybrid_solver_current()
 
     if np.any(~np.isfinite(solver(initial_params))):
         initial_params = model.get_default_parameters()
@@ -283,7 +283,7 @@ def compute_predictions_df(params_df, label='predictions'):
             # Probably not worth compiling solver
             model.protocol_description = desc
             model.Erev = common.infer_reversal_potential(sim_protocol, full_data, full_times)
-            solver = model.make_forward_solver_current(njitted=False)
+            solver = model.make_hybrid_solver_current(njitted=False)
 
             for i, protocol_fitted in enumerate(params_df['protocol'].unique()):
                 df = params_df[params_df.well == well]
