@@ -70,7 +70,7 @@ def main():
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
 
-    protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
+    protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircaseramp1')
 
     full_times = np.linspace(tstart, tend, 150000)
 
