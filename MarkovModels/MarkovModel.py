@@ -177,11 +177,6 @@ class MarkovModel:
         A_matrix = np.array(self.A.subs(self.rates_dict).subs(self.v, voltage).subs(param_dict)).astype(np.float64)
         B_vector = np.array(self.B.subs(self.rates_dict).subs(self.v, voltage).subs(param_dict)).astype(np.float64)
 
-        cond = np.linalg.cond(A_matrix)
-
-        if cond > 1e6:
-            logging.warning("Condition number is {} for voltage = {}".format(cond, voltage))
-
         return A_matrix, B_vector
 
     def get_steady_state(self, voltage=None, parameters=None):
@@ -362,7 +357,7 @@ class MarkovModel:
             det = det_func(rates, rhs0)
 
             if np.abs(det) < 1e-3:
-                logging.warning("Determinant of C is < 1e-3")
+                print("WARNING: Analytic solver determinant of C is < 1e-3")
 
             sol = CK @ np.exp(np.outer(eigvals, times)) + X2
             return sol.T
