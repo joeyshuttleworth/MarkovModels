@@ -212,8 +212,6 @@ class MarkovModel:
         eigen_vects = eigen_list[2]
         C = sp.Matrix(np.column_stack([vec[0] for vec in eigen_vects]))
 
-        D = sp.matrices.diag(*eigenvalues)
-
         # Consider the system dZ/dt = D Z
         # where X = CKZ, K is a diagonal matrix of constants and D is a diagonal matrix
         # with elements in the order given by linalg.eig(A) such that A = CDC^-1
