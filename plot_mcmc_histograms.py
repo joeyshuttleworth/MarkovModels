@@ -9,8 +9,23 @@ import pandas as pd
 import seaborn as sns
 import regex as re
 import pints
+import string
 from matplotlib import gridspec
 
+
+protocol_chrono_order = ['staircaseramp1',
+                         'sis',
+                         'rtovmaxdiff',
+                         'rvotmaxdiff',
+                         'spacefill10',
+                         'spacefill19',
+                         'spacefill26',
+                         'longap',
+                         'hhbrute3gstep',
+                         'hhsobol3step',
+                         'wangbrute3gstep',
+                         'wangsobol3step',
+                         'staircaseramp2']
 
 def main():
 
@@ -22,16 +37,20 @@ def main():
     parser.add_argument('--protocols', type=str, nargs='+')
     parser.add_argument('--output', type=str)
     parser.add_argument('--figsize', '-f', nargs=2, type=float)
+    parser.add_argument('--fontsize', type=int)
     parser.add_argument('--parameter_file')
     parser.add_argument('--model', default='Beattie')
     parser.add_argument('--nolegend', action='store_true')
     parser.add_argument('--dpi', '-d', default=500, type=int)
+    parser.add_argument("-A", "--alphabet_labels", action='store_true')
     parser.add_argument('--ignore_protocols', '-i', nargs='+', default=[])
 
     global args
     args = parser.parse_args()
 
     output_dir = common.setup_output_directory(args.output, 'plot_mcmc_histograms')
+
+    plt.rcParams.update({'font.size': args.fontsize})
 
     if args.wells is None:
         args.wells = [letter + f"{number:2d}" for letter in 'ABCDEFGHIJKLMNOP'
@@ -75,19 +94,18 @@ def main():
         for f in filter(rstring.match, os.listdir(args.data_directory)):
             protocol = rstring.search(f).group(1)
 
-            if protocol in args.ignore_protocols:
+            if protocol not in args.protocols:
                 continue
 
             chains = np.load(os.path.join(args.data_directory, f))
 
-            print(protocol, pints.rhat(chains))
+            print(well, protocol, pints.rhat(chains))
 
-            chain = chains.reshape((-1, model.get_no_parameters()))
+            # chain = chains.reshape((-1, model.get_no_parameters()))
+            chain = chains[0, :, :]
 
             df = pd.DataFrame(chain, columns=model.get_parameter_labels())
             df['protocol'] = protocol
-
-            print(df)
 
             dfs.append(df)
 
@@ -95,15 +113,49 @@ def main():
             continue
 
         df = pd.concat(dfs, ignore_index=True)
-        print(df)
+
+        if args.alphabet_labels:
+            df['protocol'] = pd.Categorical(df['protocol'], categories=protocol_chrono_order)
+            print(df['protocol'])
+            relabel_dict = dict(zip(args.protocols,
+                                    string.ascii_uppercase[:len(protocol_chrono_order)]))
+            df = df.replace({
+                'protocol': relabel_dict})
 
         for param in model.get_parameter_labels():
-            sns.kdeplot(data=df[[param, 'protocol']], x=param, hue='protocol', common_norm=True)
+            sns.boxplot(data=df[[param, 'protocol']], x='protocol', y=param, linewidth=.5,
+                        order=string.ascii_uppercase[:len(args.protocols)], showfliers=False)
 
             fig.savefig(os.path.join(output_dir,
-                                     f"{well}_{param}_mcmc_histograms.png"), dpi=args.dpi)
+                                     f"{well}_{param}_mcmc_histograms.svg"), dpi=args.dpi)
 
             ax.cla()
+
+        # Plot individually
+        for protocol in df.protocol.unique():
+            sub_df = df[df.protocol == protocol].copy()
+            sub_df['protocol'] = pd.Categorical(sub_df['protocol'], categories=(protocol,))
+
+            for param in ['Gkr']:
+                vals = sub_df[param].values
+
+                IQR = np.quantile(vals, .75) - np.quantile(vals, .25)
+                whis = 3
+
+                plot_lims = [vals.mean() - 2*vals.std(), vals.mean() + 2*vals.std()]
+
+                # vals = vals[(vals > plot_lims[0])
+                #             & (vals < plot_lims[1])]
+
+                sns.violinplot(y=vals, linewidth=.5, x=np.repeat(protocol, len(vals)))
+                fig.tight_layout()
+                ax.ticklabel_format(style='plain', axis='y', useOffset=False)
+
+                ax.set_ylim(plot_lims)
+                fig.savefig(os.path.join(output_dir,
+                                         f"{well}_{param}_mcmc_histograms_{protocol}.svg"), dpi=args.dpi)
+
+                ax.cla()
 
 
 if __name__ == "__main__":
