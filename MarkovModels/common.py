@@ -448,7 +448,10 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
         return starting_parameters, np.inf
 
     if solver is None:
-        solver = mm.make_forward_solver_current()
+        try:
+            solver = mm.make_hybrid_solver_current()
+        except:
+            solver = mm.make_forward_solver_current()
 
     if subset_indices is None:
         subset_indices = np.array(list(range(len(mm.times))))
@@ -631,7 +634,10 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     model = model_class(voltage_func, times, parameters=default_parameters, Erev=Erev)
     model.protocol_description = protocol_desc
 
-    solver = model.make_forward_solver_current()
+    try:
+        solver = model.make_hybrid_solver_current()
+    except:
+        solver = model.make_forward_solver_current()
 
     # Try fitting G_Kr on its own first
     # Start with roughly the max conductance observed divided through by 10
