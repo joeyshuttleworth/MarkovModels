@@ -126,6 +126,7 @@ def main():
             sns.boxplot(data=df[[param, 'protocol']], x='protocol', y=param, linewidth=.5,
                         order=string.ascii_uppercase[:len(args.protocols)], showfliers=False)
 
+            ax.set_xlim((max(0, ax.get_xlim()[0]), ax.get_xlim()[1]))
             fig.savefig(os.path.join(output_dir,
                                      f"{well}_{param}_mcmc_histograms.svg"), dpi=args.dpi)
 
