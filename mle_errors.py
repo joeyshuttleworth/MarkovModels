@@ -152,11 +152,14 @@ def main():
 
         axs[0].legend()
         axs[1].legend()
-        fig.savefig(os.path.join(validation_dir, f"{time_to_remove:.2f}_removed_prediction_{uuid.uuid4()}.png"))
+
+        fname = os.path.join(validation_dir, f"{time_to_remove:.2f}_removed_prediction_{uuid.uuid4()}.png")
+        print(f"outputting plot {fname}")
+        fig.savefig(fname)
 
         plt.close(fig)
 
-        # Compute error when predicting `longap``
+        # Compute error when predicting `longap'
         score = np.sqrt(np.sum((prediction - validation_trajectory)**2))
 
         return score, mle
