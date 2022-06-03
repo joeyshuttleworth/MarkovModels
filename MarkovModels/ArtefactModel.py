@@ -17,11 +17,6 @@ class ArtefactModel():
         # Series resistance (MOhm)
         self.R_s = R_s
 
-        # uS
-        self.g_leak = 1/(10e3)
-
-        self.E_leak = 0
-
         self.channel_model = channel_model
 
     def get_rhs_cfunc(self):
@@ -46,9 +41,6 @@ class ArtefactModel():
 
         gkr_index = self.channel_model.GKr_index
 
-        E_leak = self.E_leak
-        g_leak = self.g_leak
-
         @cfunc(lsoda_sig)
         def crhs_func(t, y, dy, p):
             y = nb.carray(y, ny)
@@ -60,9 +52,6 @@ class ArtefactModel():
 
             # d_Vm = dy[-1]
             V_in = prot_func(t)
-
-            # I_leak = (V_m - E_leak) * g_leak
-            I_leak = 0
 
             # V_m derivative
             dy[-1] = (V_in - V_m)/(C_m * R_s)
