@@ -33,12 +33,6 @@ def main():
         if args.Erev is None\
         else args.Erev
 
-    global parameters
-    if args.parameters is not None:
-        parameters = pd.read_csv(args.parameters).values
-    else:
-        parameters = None
-
     global output_dir
     output_dir = common.setup_output_directory(args.output, 'synthetic_data_%s' % args.model)
 
@@ -54,6 +48,14 @@ def main():
         model_class = ClosedOpenModel
     else:
         assert False
+
+    global parameters
+    if args.parameters is not None:
+        param_labels = model_class().get_parameter_labels()
+        parameters = pd.read_csv(args.parameters)[param_labels].values[0, :]
+    else:
+        parameters = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
+                               4.75E-2, 2.51E-2, 3.33E-2])
 
     protocols = common.get_protocol_list()\
         if args.protocols is None\
