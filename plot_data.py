@@ -22,6 +22,7 @@ def main():
     parser.add_argument('--prediction_protocols', type=str, nargs='+', default=[])
     parser.add_argument('--output', type=str)
     parser.add_argument('--figsize', '-f', nargs=2, type=float)
+    parser.add_argument('--fig_title', '-t', default='')
     parser.add_argument('--parameter_file')
     parser.add_argument('--model', default='Beattie')
     parser.add_argument('--nolegend', action='store_true')
@@ -80,11 +81,11 @@ def main():
                 predictions = []
                 for i, protocol in enumerate(args.protocols):
                     if os.path.exists(os.path.join(args.data_directory,
-                                                f"{args.experiment_name}-{prediction_protocol}-times.csv")):
+                                                   f"{args.experiment_name}-{prediction_protocol}-times.csv")):
                         current = common.get_data(well, prediction_protocol, args.data_directory,
-                                                args.experiment_name)
+                                                  args.experiment_name)
                         times = pd.read_csv(os.path.join(args.data_directory,
-                                                        f"{args.experiment_name}-{prediction_protocol}-times.csv"))['time'].values.astype(np.float64).flatten()
+                                                         f"{args.experiment_name}-{prediction_protocol}-times.csv"))['time'].values.astype(np.float64).flatten()
 
                         prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(prediction_protocol)
 
@@ -146,6 +147,9 @@ def main():
 
                 axs[0].set_xticks([])
 
+                axs[0].set_ylim(np.min(current), np.max(current))
+
+                axs[0].set_title(args.fig_title)
                 fig.savefig(os.path.join(output_dir,
                                          f"{well}_{prediction_protocol}_{args.experiment_name}.svg"),
                             dpi=args.dpi)
@@ -169,9 +173,9 @@ def main():
                     current_range = (min(np.min(data), np.min(fit), current_range[0]),
                                      max(np.max(data), np.max(fit), current_range[1]))
         else:
-            time_range = (None, None)
-            current_range = (None, None)
-            voltage_range = (None, None)
+            time_range = None
+            current_range = None
+            voltage_range = None
 
         for well in args.wells:
             for protocol in args.protocols:
@@ -182,11 +186,15 @@ def main():
 
 
                 # Set plot limits
-                axs[0].set_xlim(time_range)
-                axs[1].set_xlim(time_range)
+                if time_range is not None:
+                    axs[0].set_xlim(time_range)
+                    axs[1].set_xlim(time_range)
 
-                axs[0].set_ylim(current_range)
-                axs[1].set_ylim(voltage_range)
+                if current_range is not None:
+                    axs[0].set_ylim(current_range)
+
+                if voltage_range is not None:
+                    axs[1].set_ylim(voltage_range)
 
                 data_alpha = .5
                 axs[0].plot(times, data, color='grey', label='data', alpha=data_alpha, linewidth=.5)
@@ -201,6 +209,7 @@ def main():
                     for side in ['top', 'right', 'bottom', 'left']:
                         ax.spines[side].set_visible(False)
 
+                axs[0].set_title(args.fig_title)
                 fig.savefig(os.path.join(output_dir,
                                          f"{protocol}_{well}_fit.svg"), dpi=args.dpi)
                 for ax in axs:
