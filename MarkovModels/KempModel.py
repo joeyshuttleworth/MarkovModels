@@ -64,10 +64,10 @@ class KempModel(MarkovModel):
                          voltage=voltage, Q=Q, *args, **kwargs,
                          name='KempModel')
 
-    def make_hybrid_solver_current(*args, **kwargs):
+    def make_hybrid_solver_current(self, *args, **kwargs):
         raise NotImplementedError
 
-    def make_hybrid_solver_states(*args, **kwargs):
+    def make_hybrid_solver_states(self, *args, **kwargs):
         raise NotImplementedError
 
     def CreateSymbols(self):
