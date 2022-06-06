@@ -21,6 +21,7 @@ import numpy.polynomial.polynomial as poly
 from .BeattieModel import BeattieModel
 from .KempModel import KempModel
 from .ClosedOpenModel import ClosedOpenModel
+from .WangModel import WangModel
 
 
 def get_protocol_directory():
@@ -928,6 +929,8 @@ def get_model_class(name: str):
         model_class = KempModel
     elif name == 'CO' or name == 'ClosedOpenModel':
         model_class = ClosedOpenModel
+    elif name == 'Wang' or name == 'WangModel':
+        model_class = WangModel
     else:
         assert False, f"no model with name {name}"
     return model_class

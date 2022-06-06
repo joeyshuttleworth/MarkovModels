@@ -107,14 +107,7 @@ def main():
     output_dir = common.setup_output_directory(args.output, f"fitting_{args.removal_duration:.2f}_removed_{args.model}")
 
     global model_class
-    if args.model == 'Beattie':
-        model_class = BeattieModel
-    elif args.model == 'Kemp':
-        model_class = KempModel
-    elif args.model == 'CO':
-        model_class = ClosedOpenModel
-    else:
-        assert False
+    model_class = common.get_model_class(args.model)
 
     regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$")
 
