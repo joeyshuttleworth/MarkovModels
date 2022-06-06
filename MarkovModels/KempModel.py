@@ -56,9 +56,19 @@ class KempModel(MarkovModel):
         self.GKr_index = self.parameter_labels.index('g_Kr')
         self.open_state_index = 0
 
+        if 'tolerances' not in kwargs:
+            # use fine tolerances
+            kwargs['tolerances'] = (1e-8, 1e-8)
+
         super().__init__(symbols, A, B, mc.rate_expressions, times,
                          voltage=voltage, Q=Q, *args, **kwargs,
                          name='KempModel')
+
+    def make_hybrid_solver_current(*args, **kwargs):
+        raise NotImplementedError
+
+    def make_hybrid_solver_states(*args, **kwargs):
+        raise NotImplementedError
 
     def CreateSymbols(self):
         """

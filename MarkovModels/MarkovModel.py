@@ -177,11 +177,6 @@ class MarkovModel:
         A_matrix = np.array(self.A.subs(self.rates_dict).subs(self.v, voltage).subs(param_dict)).astype(np.float64)
         B_vector = np.array(self.B.subs(self.rates_dict).subs(self.v, voltage).subs(param_dict)).astype(np.float64)
 
-        cond = np.linalg.cond(A_matrix)
-
-        if cond > 1e6:
-            logging.warning("Condition number is {} for voltage = {}".format(cond, voltage))
-
         return A_matrix, B_vector
 
     def get_steady_state(self, voltage=None, parameters=None):
@@ -212,8 +207,6 @@ class MarkovModel:
         eigen_vects = eigen_list[2]
         C = sp.Matrix(np.column_stack([vec[0] for vec in eigen_vects]))
 
-        D = sp.matrices.diag(*eigenvalues)
-
         # Consider the system dZ/dt = D Z
         # where X = CKZ, K is a diagonal matrix of constants and D is a diagonal matrix
         # with elements in the order given by linalg.eig(A) such that A = CDC^-1
@@ -226,7 +219,8 @@ class MarkovModel:
 
         # solution = (C@K@np.exp(times*eigenvalues[:,None]) + X2[:, None]).T
 
-        return C @ K, eigenvalues, X2
+
+        return C @ K, eigenvalues, X2, C.det()
 
     def make_Q_func(self, njitted=True):
         rates = tuple(self.rates_dict.keys())
@@ -352,14 +346,18 @@ class MarkovModel:
 
         args = (sp.Matrix(list(self.rates_dict.keys())), sp.Matrix(rhs_names))
 
-        CK_func, eigval_func, X2_func = tuple([njit(sp.lambdify(args, expr))
-                                               for expr in expressions])
+        CK_func, eigval_func, X2_func, det_func = tuple([njit(sp.lambdify(args, expr))
+                                                          for expr in expressions])
 
         def analytic_solver(times, voltage, p, rhs0):
             rates = rates_func(p, voltage).flatten()
             CK = CK_func(rates, rhs0)
             eigvals = eigval_func(rates, rhs0)
             X2 = X2_func(rates, rhs0)
+            det = det_func(rates, rhs0)
+
+            if np.abs(det) < 1e-3:
+                print("WARNING: Analytic solver determinant of C is < 1e-3")
 
             sol = CK @ np.exp(np.outer(eigvals, times)) + X2
             return sol.T
@@ -427,7 +425,7 @@ class MarkovModel:
                 if tend - step_times[-1] < 2 * eps * np.abs(tend):
                     end_int = -1
                 else:
-                    start_int = None
+                    end_int = None
 
                 step_sol[start_int: end_int] = lsoda(crhs_ptr, rhs0,
                                                      step_times[start_int:end_int], data=p,
@@ -486,6 +484,7 @@ class MarkovModel:
         times = self.times
 
         p = self.get_default_parameters()
+        eps = np.finfo(float).eps
 
         def hybrid_forward_solve(p=p, times=times, atol=atol, rtol=rtol):
             rhs0 = rhs_inf(p, voltage(0)).flatten()
@@ -494,8 +493,8 @@ class MarkovModel:
             solution[0] = rhs0
 
             for tstart, tend, vstart, vend in protocol_description:
-                istart = np.argmax(times >= tstart)
-                iend = np.argmax(times >= tend)
+                istart = np.argmax(times > tstart)
+                iend = np.argmax(times > tend)
 
                 if iend == 0:
                     iend = len(times)
@@ -503,33 +502,47 @@ class MarkovModel:
                 step_times = np.full(iend-istart+2, np.nan)
                 step_times[0] = tstart
                 step_times[-1] = tend
-                if iend == 0:
+
+                if iend == len(times):
                     step_times[1:-1] = times[istart:]
                 else:
                     step_times[1:-1] = times[istart:iend]
 
                 # Analytic solve
-                if vend == vstart:
+                if vend == vstart and step_times[1] - step_times[0] > 50:
                     step_times = step_times - tstart
                     step_sol = analytic_solver(step_times, vstart, p, rhs0)
 
                 # numerical solve
                 else:
-                    if tstart == step_times[1]:
-                        # First point is duplicated so ignore it
-                        step_sol = np.empty((len(step_times), no_states))
-                        step_sol[1:] = lsoda(crhs_ptr, rhs0, step_times[1:], data=p,
-                                             rtol=rtol, atol=atol)[0]
-                    else:
-                        step_sol, _ = lsoda(crhs_ptr, rhs0, step_times, data=p,
-                                            rtol=rtol, atol=atol)
-                if iend == len(times):
-                    solution[istart:, ] = step_sol[1:-1, ]
-                    break
+                    step_sol = np.empty((len(step_times), no_states))
 
-                else:
-                    rhs0 = step_sol[-1, :]
-                    solution[istart:iend, ] = step_sol[1:-1, :]
+                    if step_times[1] - tstart < 2 * eps * np.abs(step_times[1]):
+                        start_int = 1
+                        step_sol[0] = rhs0
+                    else:
+                        start_int = 0
+
+                    if tend - step_times[-1] < 2 * eps * np.abs(tend):
+                        end_int = -1
+                    else:
+                        end_int = None
+
+                    step_sol[start_int: end_int] = lsoda(crhs_ptr, rhs0,
+                                                         step_times[start_int:end_int], data=p,
+                                                         rtol=rtol, atol=atol)[0]
+
+                    if end_int == -1:
+                        step_sol[-1, :] = step_sol[-2, :]
+
+                    if iend == len(times):
+                        solution[istart:, ] = step_sol[1:-1, ]
+                        break
+
+                    else:
+                        rhs0 = step_sol[-1, :]
+                        solution[istart:iend, ] = step_sol[1:-1, ]
+
             return solution
 
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve

@@ -9,12 +9,12 @@ from numbalsoda import lsoda, lsoda_sig
 
 # Simplest Artefact model containing cell capacitance
 class ArtefactModel():
-    def __init__(self, channel_model, C_m=20, R_s=30e-3):
+    def __init__(self, channel_model, C_m=20e-3, R_s=30):
 
         # Membrane capacitance (nF)
         self.C_m = C_m
 
-        # Series resistance (Ohm)
+        # Series resistance (MOhm)
         self.R_s = R_s
 
         self.channel_model = channel_model
@@ -39,6 +39,8 @@ class ArtefactModel():
         R_s = self.R_s
         C_m = self.C_m
 
+        gkr_index = self.channel_model.GKr_index
+
         @cfunc(lsoda_sig)
         def crhs_func(t, y, dy, p):
             y = nb.carray(y, ny)
@@ -46,15 +48,13 @@ class ArtefactModel():
             p = nb.carray(p, np)
             V_m = y[-1]
 
-            I_Kr = y[open_index] * (V_m - E_Kr)
+            I_Kr = y[open_index] * (V_m - E_Kr) * p[gkr_index]
 
             # d_Vm = dy[-1]
-
-            # Compensate for series resistance (given known R_s, C_m)
             V_in = prot_func(t)
 
             # V_m derivative
-            dy[-1] = (V_in - V_m - R_s*I_Kr)/(C_m * R_s)
+            dy[-1] = (V_in - V_m)/(C_m * R_s)
 
             # compute derivative for channel model
             dy[0:-1] = channel_rhs(y[0:-1], p, V_m).flatten()
@@ -87,8 +87,11 @@ class ArtefactModel():
         conductance_index = self.channel_model.GKr_index
         reversal_potential = self.channel_model.Erev
 
+        R_s = self.R_s
+        C_m = self.C_m
+
         def forward_solver(p=default_params, times=times, atol=atol, rtol=rtol):
-            rhs0 = np.append(rhs_inf(p, voltage(0)).flatten(), voltage(0))
+            rhs0 = np.array(list(rhs_inf(p, voltage(0)).flatten()) + [voltage(0)])
             solution = np.empty((len(times), no_states))
             for tstart, tend, vstart, vend in protocol_description:
                 istart = np.argmax(times >= tstart)
@@ -110,7 +113,15 @@ class ArtefactModel():
                     rhs0 = step_sol[-1, :]
                     solution[istart:iend, ] = step_sol[:-1, ]
             if return_current:
-                return p[conductance_index] * solution[:, open_state_index] * (solution[:, -1] - reversal_potential)
+                V_m = solution[:, -1]
+                I_Kr = solution[:, open_state_index] * (V_m - reversal_potential) * p[-1]
+                voltages = np.empty(shape=times.shape)
+                for i in range(voltages.shape[0]):
+                    voltages[i] = voltage(times[i])
+                I_m = (voltages - solution[:, -1])/(R_s)
+
+                I_in = I_m + I_Kr
+                return I_in
             else:
                 return solution
 

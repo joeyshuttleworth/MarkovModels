@@ -21,14 +21,19 @@ K_out=120
 global Erev
 Erev = common.calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
 
+
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None):
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
-    res_df = common.fit_well_data(model_class, well, protocol, args.data_directory,
-                                  args.max_iterations, output_dir=this_output_dir, T=298, K_in=5,
-                                  K_out=120, default_parameters=default_parameters,
-                                  removal_duration=args.removal_duration, repeats=args.repeats,
-                                  infer_E_rev=True, experiment_name=experiment_name)
+
+    res_df = common.fit_well_data(model_class, well, protocol,
+                                  args.data_directory, args.max_iterations,
+                                  output_dir=this_output_dir, T=298, K_in=5,
+                                  K_out=120,
+                                  default_parameters=default_parameters,
+                                  removal_duration=args.removal_duration,
+                                  repeats=args.repeats, infer_E_rev=True,
+                                  experiment_name=experiment_name)
 
     res_df['well'] = well
     res_df['protocol'] = protocol
@@ -54,7 +59,10 @@ def mcmc_func(protocol, well, model_class, initial_params):
     if initial_params is None:
         initial_params = model.get_default_parameters()
 
-    solver = model.make_forward_solver_current()
+    try:
+        solver = model.make_hybrid_solver_current()
+    except NotImplementedError:
+        solver = model.make_forward_solver_current()
 
     if np.any(~np.isfinite(solver(initial_params))):
         initial_params = model.get_default_parameters()
@@ -139,6 +147,8 @@ def main():
             parameter_row = best_params_df[(best_params_df.well == well)
                                            & (best_params_df.protocol == protocol)].head(1)
             starting_parameters = parameter_row[param_labels].values.flatten().astype(np.float64)
+        else:
+            starting_parameters = None
 
         tasks.append([protocol, well, model_class, starting_parameters])
         protocols_list.append(protocol)
@@ -215,6 +225,7 @@ def main():
                                 protocol)][param_labels].copy().head(1)
 
         task[-1] = row.values.flatten()
+
     # do mcmc
     do_mcmc(tasks, pool)
 

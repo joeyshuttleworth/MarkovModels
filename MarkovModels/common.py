@@ -449,7 +449,10 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
         return starting_parameters, np.inf
 
     if solver is None:
-        solver = mm.make_forward_solver_current()
+        try:
+            solver = mm.make_hybrid_solver_current()
+        except:
+            solver = mm.make_forward_solver_current()
 
     if subset_indices is None:
         subset_indices = np.array(list(range(len(mm.times))))
@@ -606,7 +609,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                   output_dir=None, T=298, K_in=120, K_out=5,
                   default_parameters: float = None, removal_duration=5,
                   repeats=1, infer_E_rev=False, fit_initial_conductance=True,
-                  experiment_name='newtonrun4'):
+                  experiment_name='newtonrun4', solver=None):
 
     # Ignore files that have been commented out
     voltage_func, t_start, t_end, t_step, protocol_desc = get_ramp_protocol_from_csv(protocol)
@@ -622,7 +625,6 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     indices = remove_indices(list(range(len(times))), [(spike, int(spike +
                                                                    removal_duration / t_step)) for spike in
                                                        spike_indices])
-
     if infer_E_rev:
         Erev = infer_reversal_potential(protocol, data, times)
     else:
@@ -632,7 +634,11 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     model = model_class(voltage_func, times, parameters=default_parameters, Erev=Erev)
     model.protocol_description = protocol_desc
 
-    solver = model.make_forward_solver_current()
+    if not solver:
+        try:
+            solver = model.make_hybrid_solver_current()
+        except:
+            solver = model.make_forward_solver_current()
 
     # Try fitting G_Kr on its own first
     # Start with roughly the max conductance observed divided through by 10
