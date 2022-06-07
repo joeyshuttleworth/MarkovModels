@@ -29,6 +29,8 @@ class MarkovModel:
                  tolerances=(1e-5, 1e-7), Q=None, protocol_description=None,
                  name=None):
 
+        self.transformations = None
+
         self.model_name = name
 
         self.protocol_description = protocol_description
@@ -86,7 +88,6 @@ class MarkovModel:
         self.current_inf_expr = self.auxillary_expression.subs(self.y, self.rhs_inf)
         self.current_inf = lambda p: np.array(self.current_inf_expr.subs(
             dict(zip(self.p, p))).evalf()).astype(np.float64)
-
 
     def setup_sensitivities(self):
 

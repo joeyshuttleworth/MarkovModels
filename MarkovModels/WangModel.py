@@ -1,5 +1,6 @@
 import numpy as np
 import sympy as sp
+import pints
 from markov_builder.example_models import construct_wang_chain
 from scipy.integrate import odeint
 
@@ -54,11 +55,38 @@ class WangModel(MarkovModel):
         self.n_states = len(symbols['y']) + 1
         self.n_state_vars = self.n_states - 1
         self.GKr_index = self.parameter_labels.index('g_Kr')
+
         self.open_state_index = 0
 
         super().__init__(symbols, A, B, mc.rate_expressions, times,
                          voltage=voltage, Q=Q, *args, **kwargs,
                          name='WangModel')
+
+        self.transformations = [
+            pints.LogTransformation(1),
+            pints.IdentityTransformation(1),
+
+            pints.LogTransformation(1),
+            pints.IdentityTransformation(1),
+
+            pints.LogTransformation(1),
+
+            pints.LogTransformation(1),
+
+            pints.LogTransformation(1),
+            pints.IdentityTransformation(1),
+
+            pints.LogTransformation(1),
+            pints.IdentityTransformation(1),
+
+            pints.LogTransformation(1),
+            pints.IdentityTransformation(1),
+
+            pints.LogTransformation(1),
+            pints.IdentityTransformation(1),
+
+            pints.LogTransformation(1)
+        ]
 
     def CreateSymbols(self):
         """

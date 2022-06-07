@@ -423,21 +423,24 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
 
     if log_transform:
         # Assume that the conductance is the last parameter and that the parameters are arranged included
-        # ae^bV pairs
 
-        # Use a-space transformation (Four Ways to Fit...)
-        no_rates = int((mm.get_no_parameters() - 1)/2)
-        log_transformations = [pints.LogTransformation(1) for i in range(no_rates)]
-        identity_transformations = [pints.IdentityTransformation(1) for i in range(no_rates)]
+        if mm.transformations:
+            transformations = pints.ComposedTransformation(*mm.transformations)
 
-        # Flatten and include conductance on the end  (aiyoooo)
-        transformations = [w for u, v
-                           in zip(log_transformations, identity_transformations)
-                           for w in (u, v)]\
-                               + [pints.IdentityTransformation(1)]
+        else:
+            # Use a-space transformation (Four Ways to Fit...)
+            no_rates = int((mm.get_no_parameters() - 1)/2)
+            log_transformations = [pints.LogTransformation(1) for i in range(no_rates)]
+            identity_transformations = [pints.IdentityTransformation(1) for i in range(no_rates)]
 
-        transformations = [t for i, t in enumerate(transformations) if i not in fix_parameters]
-        transformation = pints.ComposedTransformation(*transformations)
+            # Flatten and include conductance on the end  (aiyoooo)
+            transformations = [w for u, v
+                               in zip(log_transformations, identity_transformations)
+                               for w in (u, v)]\
+                                   + [pints.IdentityTransformation(1)]
+
+            transformations = [t for i, t in enumerate(transformations) if i not in fix_parameters]
+            transformation = pints.ComposedTransformation(*transformations)
 
     else:
         transformation = None
@@ -830,19 +833,22 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
 
     if log_transform:
         # Assume that the conductance is the last parameter and that the parameters are arranged included
-        # ae^bV pairs
 
-        # Use a-space transformation (Four Ways to Fit...)
-        no_rates = int((model.get_no_parameters() - 1)/2)
-        log_transformations = [pints.LogTransformation(1) for i in range(no_rates)]
-        identity_transformations = [pints.IdentityTransformation(1) for i in range(no_rates)]
+        if model.transformations:
+            transformation = pints.ComposedTransformation(*transformatons)
 
-        # Flatten and include conductance on the end  (aiyoooo)
-        transformations = [w for u, v
-                           in zip(log_transformations, identity_transformations)
-                           for w in (u, v)]\
-                               + [pints.IdentityTransformation(1)]
-        transformation = pints.ComposedTransformation(*transformations)
+        else:
+            # Use a-space transformation (Four Ways to Fit...)
+            no_rates = int((model.get_no_parameters() - 1)/2)
+            log_transformations = [pints.LogTransformation(1) for i in range(no_rates)]
+            identity_transformations = [pints.IdentityTransformation(1) for i in range(no_rates)]
+
+            # Flatten and include conductance on the end  (aiyoooo)
+            transformations = [w for u, v
+                            in zip(log_transformations, identity_transformations)
+                            for w in (u, v)]\
+                                + [pints.IdentityTransformation(1)]
+            transformation = pints.ComposedTransformation(*transformations)
 
     else:
         transformation = None
