@@ -425,7 +425,7 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
         # Assume that the conductance is the last parameter and that the parameters are arranged included
 
         if mm.transformations:
-            transformations = pints.ComposedTransformation(*mm.transformations)
+            transformation = pints.ComposedTransformation(*mm.transformations)
 
         else:
             # Use a-space transformation (Four Ways to Fit...)
