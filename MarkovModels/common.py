@@ -835,7 +835,7 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
         # Assume that the conductance is the last parameter and that the parameters are arranged included
 
         if model.transformations:
-            transformation = pints.ComposedTransformation(*transformatons)
+            transformation = pints.ComposedTransformation(*model.transformations)
 
         else:
             # Use a-space transformation (Four Ways to Fit...)

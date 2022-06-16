@@ -10,9 +10,7 @@ import numba as nb
 
 class MarkovModel:
     """
-    A class containing describing a Markov Model of an ion channel
-
-    Arguments are provided using the Params class
+    A class describing a Markov Model of an ion channel
 
     """
 
