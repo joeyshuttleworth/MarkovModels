@@ -25,7 +25,6 @@ Erev = common.calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None):
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
-
     res_df = common.fit_well_data(model_class, well, protocol,
                                   args.data_directory, args.max_iterations,
                                   output_dir=this_output_dir, T=298, K_in=5,
@@ -189,7 +188,7 @@ def main():
             sub_df = predictions_df[(predictions_df.validation_protocol ==
                                      validation_protocol) & (predictions_df.well == well)]
 
-            best_param_row = sub_df[sub_df.RMSE == sub_df['RMSE'].min()].head(1).copy()
+            best_param_row = sub_df[sub_df.score == sub_df['score'].min()].head(1).copy()
             best_params_df_rows.append(best_param_row)
 
     best_params_df = pd.concat(best_params_df_rows, ignore_index=True)
@@ -211,7 +210,7 @@ def main():
     predictions_df = compute_predictions_df(params_df)
     predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
 
-    best_params_df = get_best_params(fitting_df)
+    best_params_df = get_best_params(predictions_df, protocol_label='validation_protocol')
     print(best_params_df)
 
     best_params_df.to_csv(os.path.join(output_dir, 'best_fitting.csv'))
@@ -306,8 +305,8 @@ def compute_predictions_df(params_df, label='predictions'):
 
                 prediction = solver(params)[indices]
 
-                RMSE = np.sqrt(np.mean((data - prediction)**2))
-                predictions_df.append((well, protocol_fitted, sim_protocol, RMSE, *params))
+                score = np.sum((data - prediction)**2)
+                predictions_df.append((well, protocol_fitted, sim_protocol, score, *params))
 
                 if not np.all(np.isfinite(prediction)):
                     logging.warning(f"running {sim_protocol} with parameters from {protocol_fitted} gave non-finite values")
@@ -347,17 +346,17 @@ def compute_predictions_df(params_df, label='predictions'):
     # TODO refactor so this can work with more than one model
     return pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
                                                            'validation_protocol',
-                                                           'RMSE'] + param_labels)
+                                                           'score'] + param_labels)
 
 
-def get_best_params(fitting_df):
-    protocols_list = fitting_df['protocol'].unique()
+def get_best_params(fitting_df, protocol_label='protocol'):
+    protocols_list = fitting_df[protocol_label].unique()
     wells_list = fitting_df['well'].unique()
     best_params = []
     for protocol in np.unique(protocols_list):
         for well in np.unique(wells_list):
             sub_df = fitting_df[(fitting_df['well'] == well)
-                                & (fitting_df['protocol'] == protocol)]
+                                & (fitting_df[protocol_label] == protocol)]
 
             # Get index of min score
             best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
