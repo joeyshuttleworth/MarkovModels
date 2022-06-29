@@ -20,6 +20,10 @@ from numba import njit
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from matplotlib import rc
+
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+rc('text', usetex=True)
 
 # Don't use scientific notation offsets on plots (it's confusing)
 mpl.rcParams["axes.formatter.useoffset"] = False
@@ -40,6 +44,8 @@ def main():
     parser.add_argument('-r', '--repeats', default=1, type=int)
     parser.add_argument("-m", "--method", default='CMAES')
     parser.add_argument('-A', '--use_artefact_model', action='store_true')
+    parser.add_argument('--figsize', nargs=2)
+    parser.add_argument('--file_format', default='png')
 
     global args
     args = parser.parse_args()
@@ -140,7 +146,7 @@ def main():
         prediction = validation_solver(p=mle)
 
         # Plot prediction
-        fig = plt.figure(figsize=(12, 9))
+        fig = plt.figure(figsize=args.figsize)
         axs = fig.subplots(2)
 
         axs[0].plot(longap_times, prediction, label='prediction')
@@ -153,7 +159,7 @@ def main():
         axs[0].legend()
         axs[1].legend()
 
-        fname = os.path.join(validation_dir, f"{time_to_remove:.2f}_removed_prediction_{uuid.uuid4()}.png")
+        fname = os.path.join(validation_dir, f"{time_to_remove:.2f}_removed_prediction_{uuid.uuid4()}.{args.file_format}")
         print(f"outputting plot {fname}")
         fig.savefig(fname)
 
@@ -185,7 +191,7 @@ def main():
     mles = np.array(mles).reshape((len(removal_durations), args.no_experiments,
                                    -1), order='C')
 
-    fig = plt.figure(figsize=(9, 9))
+    fig = plt.figure(figsize=args.figsize)
     ax = fig.subplots()
 
     ax.plot(removal_durations, np.mean(mle_errors, axis=1), ls='--',
@@ -197,7 +203,7 @@ def main():
     ax.set_ylabel('RMSE from MLE predictions')
     ax.legend()
 
-    fig.savefig(os.path.join(output_dir, 'mle_errors'))
+    fig.savefig(os.path.join(output_dir, f"mle_errors.{args.file_format}"))
 
     np.save(os.path.join(output_dir, 'mle_errors.npy'), mle_errors)
     np.save(os.path.join(output_dir, 'mles.npy'), mles)
@@ -208,7 +214,7 @@ def main():
         os.makedirs(fits_dir)
 
     # plot fits
-    fits_fig = plt.figure(figsize=(12, 10))
+    fits_fig = plt.figure(figsize=args.figsize)
     fits_axs = fits_fig.subplots(3)
 
     for i in range(mles.shape[0]):
@@ -231,7 +237,7 @@ def main():
 
             for ax in fits_axs:
                 ax.legend()
-            fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed_run_{j}.png"))
+            fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed_run_{j}.{args.file_format}"))
             for ax in fits_axs:
                 ax.cla()
 
