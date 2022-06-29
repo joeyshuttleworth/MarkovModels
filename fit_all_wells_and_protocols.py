@@ -220,10 +220,12 @@ def main():
         param_labels = model_class().get_parameter_labels()
 
         row = best_params_df[(best_params_df.well == well)
-                             & (best_params_df.protocol ==
+                             & (best_params_df.validation_protocol ==
                                 protocol)][param_labels].copy().head(1)
 
         task[-1] = row.values.flatten()
+
+    print(tasks)
 
     # do mcmc
     do_mcmc(tasks, pool)
@@ -355,8 +357,8 @@ def get_best_params(fitting_df, protocol_label='protocol'):
     best_params = []
     for protocol in np.unique(protocols_list):
         for well in np.unique(wells_list):
-            sub_df = fitting_df[(fitting_df['well'] == well)
-                                & (fitting_df[protocol_label] == protocol)]
+            sub_df = np.copy(fitting_df[(fitting_df['well'] == well)
+                                        & (fitting_df[protocol_label] == protocol)])
 
             # Get index of min score
             best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
