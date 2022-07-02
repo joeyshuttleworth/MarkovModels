@@ -44,7 +44,7 @@ def main():
     parser.add_argument('-r', '--repeats', default=1, type=int)
     parser.add_argument("-m", "--method", default='CMAES')
     parser.add_argument('-A', '--use_artefact_model', action='store_true')
-    parser.add_argument('--figsize', nargs=2)
+    parser.add_argument('--figsize', nargs=2, type=float)
     parser.add_argument('--file_format', default='png')
 
     global args
