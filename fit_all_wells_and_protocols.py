@@ -357,8 +357,8 @@ def get_best_params(fitting_df, protocol_label='protocol'):
     best_params = []
     for protocol in np.unique(protocols_list):
         for well in np.unique(wells_list):
-            sub_df = np.copy(fitting_df[(fitting_df['well'] == well)
-                                        & (fitting_df[protocol_label] == protocol)])
+            sub_df = fitting_df[(fitting_df['well'] == well)
+                                & (fitting_df[protocol_label] == protocol)].copy()
 
             # Get index of min score
             best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
