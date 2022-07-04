@@ -14,9 +14,11 @@ import os
 import pandas as pd
 import numpy as np
 
+
 T=298
 K_in=5
 K_out=120
+
 
 global Erev
 Erev = common.calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
@@ -221,7 +223,7 @@ def main():
 
         row = best_params_df[(best_params_df.well == well)
                              & (best_params_df.validation_protocol ==
-                                protocol)][param_labels].copy().head(1)
+                                protocol)][param_labels].copy().head(1).astype(np.float64)
 
         task[-1] = row.values.flatten()
 
@@ -307,11 +309,12 @@ def compute_predictions_df(params_df, label='predictions'):
 
                 prediction = solver(params)[indices]
 
-                score = np.sum((data - prediction)**2)
+                score = np.sqrt(np.mean((data - prediction)**2))
                 predictions_df.append((well, protocol_fitted, sim_protocol, score, *params))
 
                 if not np.all(np.isfinite(prediction)):
-                    logging.warning(f"running {sim_protocol} with parameters from {protocol_fitted} gave non-finite values")
+                    logging.warning(f"running {sim_protocol} with parameters\
+                    from {protocol_fitted} gave non-finite values")
                 else:
                     # Output trace
                     trace_axs[0].plot(times, prediction, label='prediction')
@@ -346,9 +349,11 @@ def compute_predictions_df(params_df, label='predictions'):
                 ax.cla()
 
     # TODO refactor so this can work with more than one model
-    return pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
-                                                           'validation_protocol',
-                                                           'score'] + param_labels)
+    predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
+                                                                      'validation_protocol',
+                                                                      'score'] + param_labels)
+    predictions_df['RMSE'] = predictions_df['score']
+    return predictions_df
 
 
 def get_best_params(fitting_df, protocol_label='protocol'):
