@@ -859,14 +859,18 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
     if log_likelihood_func is None:
         @njit
         def log_likelihood_func(p):
-            try:
-                output = solver(p, times)[indices]
-                error = output - data[indices]
-                SSE = np.sum(error**2)
-                ll = -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
 
-            except Exception:
+            if np.any(p <= 0):
                 ll = -np.inf
+            else:
+                try:
+                    output = solver(p, times)[indices]
+                    error = output - data[indices]
+                    SSE = np.sum(error**2)
+                    ll = -n * 0.5 * np.log(2 * np.pi * sigma2) - SSE / (2 * sigma2)
+
+                except Exception:
+                    ll = -np.inf
 
             return ll
 
