@@ -17,14 +17,16 @@ import argparse
 import regex as re
 import itertools
 import uuid
+from matplotlib import rc
 
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 10})
+rc('text', usetex=True)
 
-params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
-                   4.75E-2, 2.51E-2, 3.33E-2])
 
 sigma2 = 0.01**2
 Erev = common.calculate_reversal_potential(310.15)
 
+params = BeattieModel().get_default_parameters()
 
 def main():
 
@@ -37,9 +39,10 @@ def main():
     parser.add_argument('--max_iterations', '-i', type=int)
     parser.add_argument('--repeats', '-r', type=int, default=1)
     parser.add_argument('--short', '-s', action='store_true')
-    parser.add_argument('--cpus', '-c', type=int)
-    parser.add_argument('--removal_durations', '-R', nargs='+')
+    parser.add_argument('--cpus', '-c', type=int, default=1)
+    parser.add_argument('--removal_durations', '-R', nargs='+', type=float)
     parser.add_argument("-m", "--method", default='CMAES')
+    parser.add_argument("--figsize", "-f", nargs=2, type=int)
 
     args = parser.parse_args()
 
@@ -62,7 +65,7 @@ def main():
     mcmc_samples = np.load(os.path.join(args.input_dir, 'mcmc_samples_all.npy'))
 
     # Find MLE
-    protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
+    protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircaseramp1')
 
     voltages = np.array([protocol_func(t) for t in times])
 
@@ -93,7 +96,7 @@ def main():
 
     # Use median of MCMC samples as initial parameters (will speed up optimisation)
     starting_parameters = [np.quantile(mcmc_samples[0, :, :, i].flatten(), 0.5)
-                           for i in range(len(params))]
+                           for i in range(9)]
 
     def get_mle_cov(removal_duration):
         indices = common.remove_indices(list(range(len(times))), [(spike,
@@ -101,7 +104,7 @@ def main():
                                                                        tstep)) for spike in
                                                                   spike_indices])
 
-        model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
+        model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev)
 
         model.protocol_description = protocol_desc
         model.window_locs = [t for t, _, _, _ in protocol_desc]
@@ -124,10 +127,11 @@ def main():
     pool = pathos.multiprocessing.ProcessingPool(min(args.cpus, len(removal_durations) * args.repeats))
     mles, covs = list(zip(*pool.map(get_mle_cov, removal_durations)))
 
-    fig = plt.figure(figsize=(14, 10))
+    fig = plt.figure(figsize=args.figsize)
     ax = fig.subplots()
 
     print('plotting')
+
     model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev,
                          parameters=params, protocol_description=protocol_desc)
 
@@ -142,7 +146,7 @@ def main():
         fits_ax.plot(times, data, label='data', color='grey', alpha=.5)
         fits_ax.set_xlabel('time / ms')
         fits_ax.set_ylabel('current / nA')
-        fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.png"))
+        fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.pdf"))
         fits_ax.cla()
 
     plt.close(fits_fig)
@@ -209,7 +213,7 @@ def main():
             print(str(e))
 
         ax.axhline(params[i], ls='--')
-        fig.savefig(os.path.join(output_dir, "mcmc_comparison_%s.png" % param_label))
+        fig.savefig(os.path.join(output_dir, "mcmc_comparison_%s.pdf" % param_label))
 
 
 if __name__ == '__main__':
