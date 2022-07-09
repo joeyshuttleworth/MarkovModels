@@ -590,7 +590,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
 
     zs = np.array(zs).reshape(xs.shape)
 
-    fig = plt.figure(figsize=(6, 6))
+    fig = plt.figure(figsize=(4, 4))
     ax = fig.subplots()
 
     c = ax.pcolormesh(
@@ -647,6 +647,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
         ax.set_title(title)
 
     fig.colorbar(c, label="log likelihood of data")
+    fig.tight_layout()
     fig.savefig(os.path.join(output_dir, filename))
 
     fig.clf()
