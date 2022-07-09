@@ -641,7 +641,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     ax.set_ylabel(f"p_{p_index[1]+1}")
     ax.axis([ranges[0][0], ranges[0][1], ranges[1][0], ranges[1][1]])
 
-    ax.legend()
+    # ax.legend()
 
     if title is not None:
         ax.set_title(title)
