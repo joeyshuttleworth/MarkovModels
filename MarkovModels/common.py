@@ -433,7 +433,7 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
             log_transformations = [pints.LogTransformation(1) for i in range(no_rates)]
             identity_transformations = [pints.IdentityTransformation(1) for i in range(no_rates)]
 
-            # Flatten and include conductance on the end  (aiyoooo)
+            # Flatten and include conductance on the end
             transformations = [w for u, v
                                in zip(log_transformations, identity_transformations)
                                for w in (u, v)]\
@@ -613,6 +613,14 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                   default_parameters: float = None, removal_duration=5,
                   repeats=1, infer_E_rev=False, fit_initial_conductance=True,
                   experiment_name='newtonrun4', solver=None):
+
+    if default_parameters is None:
+        default_parameters = model_class().get_default_parameters()
+
+    if max_iterations == 0:
+        df = pd.DataFrame(default_parameters[None, :], columns=model_class().parameter_labels)
+        df['score'] = 0
+        return df
 
     # Ignore files that have been commented out
     voltage_func, t_start, t_end, t_step, protocol_desc = get_ramp_protocol_from_csv(protocol)
@@ -843,11 +851,11 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
             log_transformations = [pints.LogTransformation(1) for i in range(no_rates)]
             identity_transformations = [pints.IdentityTransformation(1) for i in range(no_rates)]
 
-            # Flatten and include conductance on the end  (aiyoooo)
+            # Flatten and include conductance on the end
             transformations = [w for u, v
-                            in zip(log_transformations, identity_transformations)
-                            for w in (u, v)]\
-                                + [pints.IdentityTransformation(1)]
+                               in zip(log_transformations, identity_transformations)
+                               for w in (u, v)]\
+                                   + [pints.IdentityTransformation(1)]
             transformation = pints.ComposedTransformation(*transformations)
 
     else:
@@ -855,6 +863,9 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
 
     if burn_in is None:
         burn_in = int(chain_length / 10)
+
+    if starting_parameters is None:
+        starting_parameters = model.get_default_parameters()
 
     if log_likelihood_func is None:
         @njit
@@ -897,11 +908,11 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
                 max_rate = np.max(extreme_rates)
                 min_rate = np.min(extreme_rates)
 
-                if max_rate > 1e5:
+                if max_rate > 1e7:
                     return -np.inf
 
-                if min_rate < 1e-8:
-                    return -np.inf
+                # if min_rate < 1e-8:
+                #     return -np.inf
 
             # Ensure that all parameters > 0
             return 0 if np.all(parameters > 0) else -np.inf

@@ -76,7 +76,10 @@ class MarkovModel:
         # by finding the steady state of the model
 
         # Can be found analytically
-        self.rhs_inf_expr = -self.A.LUsolve(self.B).subs(rates_dict)
+        self.rhs_inf_expr_rates = -self.A.LUsolve(self.B)
+
+        self.rhs_inf_expr = self.rhs_inf_expr_rates.subs(rates_dict)
+
         self.rhs_inf = nb.njit(sp.lambdify((self.p, self.v), self.rhs_inf_expr,
                                            modules='numpy', cse=True))
 
@@ -88,7 +91,7 @@ class MarkovModel:
             dict(zip(self.p, p))).evalf()).astype(np.float64)
 
     def setup_sensitivities(self):
-
+        rate_expressions = [self.rates_dict[r] for r in self.rates_dict]
         inputs = list(self.y) + list(self.p) + [self.v]
         # Create symbols for 1st order sensitivities
         dydp = [
@@ -104,6 +107,12 @@ class MarkovModel:
         for i in range(self.n_params):
             for j in range(self.n_state_vars):
                 inputs.append(dydp[j][i])
+
+        rate_sens = sp.Matrix([[sp.diff(r, p) for p in self.p] for r in rate_expressions])
+        # print(rate_sens)
+
+        drhs_rate = sp.Matrix([[sp.diff(r, p) for p in self.p] for r in self.rhs_expr])
+        # print(drhs_rate)
 
         # Initialise 1st order sensitivities
         dS = [[0 for j in range(self.n_params)]
@@ -142,9 +151,17 @@ class MarkovModel:
         jS1 = fS1.jacobian(Ss)
         self.jfunc_S1 = sp.lambdify(inputs, jS1)
 
+        def get_ic_sensitivty(state_no, param_no):
+            sm = 0
+            for i, r in enumerate(self.rates_dict):
+                sm += sp.diff(self.rhs_inf_expr[state_no].subs(
+                    self.v, self.voltage(0)), r) * rate_sens[i, param_no]
+            return sm
+
         # Find sensitivity steady states at holding potential
-        self.sensitivity_ics_expr = sp.Matrix([sp.diff(self.rhs_inf_expr[i].subs(
-            self.v, self.voltage(0)), self.p[j]) for j in range(self.n_params) for i in range(self.n_state_vars)])
+        self.sensitivity_ics_expr = [ get_ic_sensitivty(state_no, param_no)
+                                      for param_no in range(len(self.p))
+                                      for state_no in range(self.n_state_vars)]
 
         self.sensitivity_ics = sp.lambdify(self.p, self.sensitivity_ics_expr, cse=True)
 
@@ -732,59 +749,15 @@ class MarkovModel:
 
         step_rhs0 = np.concatenate((rhs0, drhs0), axis=None).astype(np.float64)
 
-        solution = []
-
-        if not self.window_locs:
-            if not self.protocol_description:
-                assert False
-            else:
-                self.window_locs = [a for a, _, _, _ in self.protocol_description]
-
-        # Solving for each step in the protocol is faster and more accurate
-        for tstart, tend in zip(self.window_locs, self.window_locs[1:]):
-            t_eval = [tstart] + [t for t in times if t >= tstart and t < tend] + [tend]
-            t_eval = np.unique(t_eval)
-            step_sol = solve_ivp(
-                self.drhs,
-                (tstart, tend),
-                step_rhs0,
-                t_eval=t_eval,
-                atol=self.solver_tolerances[0],
-                rtol=self.solver_tolerances[1],
-                jac=self.jdrhs,
-                method='LSODA',
-                args=(p,))['y'].T
-
-            if t_eval[0] != tstart:
-                step_sol = step_sol[1:, :]
-
-            if t_eval[-1] != tend:
-                step_sol = step_sol[:-2, :]
-            else:
-                step_sol = step_sol[:-1, :]
-
-            solution.append(step_sol[:-1])
-            step_rhs0 = step_sol[-1, :]
-
-        t_eval = [t for t in times if t > self.window_locs[-1]]
-
-        if len(t_eval) > 0:
-            step_sol = solve_ivp(
-                self.drhs,
-                (tstart, times[-1]),
-                step_rhs0,
-                t_eval=t_eval,
-                atol=self.solver_tolerances[0],
-                rtol=self.solver_tolerances[1],
-                jac=self.jdrhs,
-                method='LSODA',
-                args=(p,))['y'].T
-            solution.append(step_sol)
-
-        else:
-            solution.append(step_rhs0[None, :])
-
-        solution = np.concatenate(solution, axis=0)
+        solution = solve_ivp(self.drhs,
+                             (times[0], times[-1]),
+                             step_rhs0,
+                             t_eval=times,
+                             atol=self.solver_tolerances[0],
+                             rtol=self.solver_tolerances[1],
+                             jac=self.jdrhs,
+                             method='LSODA',
+                             args=(p,))['y'].T
 
         assert(solution.shape[0] == len(times))
         return solution

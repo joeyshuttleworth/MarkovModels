@@ -60,6 +60,9 @@ def mcmc_func(protocol, well, model_class, initial_params):
     if initial_params is None:
         initial_params = model.get_default_parameters()
 
+    reversal_potential = common.infer_reversal_potential(protocol, data, times)
+    model.Erev = reversal_potential
+
     try:
         solver = model.make_hybrid_solver_current()
     except NotImplementedError:
@@ -68,7 +71,7 @@ def mcmc_func(protocol, well, model_class, initial_params):
     if np.any(~np.isfinite(solver(initial_params))):
         initial_params = model.get_default_parameters()
 
-    sigma2 = np.std(data[10:100])**2
+    sigma2 = np.var(data[10:100])
     print("sigma2 is ", sigma2)
 
     spike_times, spike_indices = common.detect_spikes(times, voltages, threshold=10)
