@@ -56,7 +56,7 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.unique(np.concatenate((np.linspace(0, 10, 22),
+    spike_removal_durations = np.unique(np.concatenate((np.linspace(0, 10, 21),
                                         np.linspace(10, 100, 45),
                                         np.linspace(100, 250, 10))))
 
