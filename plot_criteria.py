@@ -754,7 +754,7 @@ def draw_heatmaps(model_class, times, data, output_dir, time_to_remove, params, 
                                 sigma2, ranges, args.heatmap_size, p_index=(x_index, y_index),
                                 subset_indices=indices, output_dir=output_dir,
                                 filename=f"heatmap_{x_index+1}_{y_index+1}_{int(time_to_remove):d}ms_removed.png",
-                                title=f"log likelihood heatmap with {time_to_remove:.2f}ms removed")
+                                title="")
 
 
 if __name__ == "__main__":
