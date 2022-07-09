@@ -209,7 +209,7 @@ def main():
         try:
             sns.violinplot(data=df, ax=ax, x='removal_duration', y='y', hue='hue', split=True,
                            scale='area')
-            ax.set_xlabel(f"time removed after each spike / ms")
+            ax.set_xlabel(f"time removed / ms")
             ax.get_legend().remove()
 
         except ValueError as e:
