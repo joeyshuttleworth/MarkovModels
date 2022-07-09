@@ -103,7 +103,7 @@ def main():
                                                                        tstep)) for spike in
                                                                   spike_indices])
 
-        model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev)
+        model = BeattieModel(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
 
         model.protocol_description = protocol_desc
         model.window_locs = [t for t, _, _, _ in protocol_desc]
