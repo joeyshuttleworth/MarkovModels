@@ -24,8 +24,8 @@ rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 10})
 sigma2 = 0.01**2
 Erev = common.calculate_reversal_potential(310.15)
 
-params = np.array((2.26E-4, 6.99E-2, 3.445E-5, 5.460E-2, 0.0873,
-                   8.91E-3, 5.15E-3, 0.003158, 0.1524))
+params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
+                   4.75E-2, 2.51E-2, 3.33E-2])
 
 def main():
 
