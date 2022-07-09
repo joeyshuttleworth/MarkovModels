@@ -145,7 +145,7 @@ def main():
         fits_ax.plot(times, data, label='data', color='grey', alpha=.5)
         fits_ax.set_xlabel('time / ms')
         fits_ax.set_ylabel('current / nA')
-        fits_fig.close_layout()
+        fits_fig.tight_layout()
         fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.pdf"))
         fits_ax.cla()
 
@@ -215,7 +215,7 @@ def main():
             print(str(e))
 
         ax.axhline(params[i], ls='--')
-        fig.close_layout()
+        fig.tight_layout()
         fig.savefig(os.path.join(output_dir, "mcmc_comparison_%s.pdf" % param_label))
 
 
