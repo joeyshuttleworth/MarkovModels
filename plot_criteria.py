@@ -17,6 +17,9 @@ from numba import njit
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from matplotlib import rc
+
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 10})
 
 # Don't use scientific notation offsets on plots (it's confusing)
 mpl.rcParams["axes.formatter.useoffset"] = False
@@ -587,7 +590,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
 
     zs = np.array(zs).reshape(xs.shape)
 
-    fig = plt.figure(figsize=(18, 14))
+    fig = plt.figure(figsize=(6, 6))
     ax = fig.subplots()
 
     c = ax.pcolormesh(
@@ -598,7 +601,7 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
         vmin=np.max(zs) - 10,
         label="log likelihood",
         shading="gouraud",
-        cmap="viridis",
+        cmap=sns.color_palette("mako", as_cmap=True),
         rasterized=True
     )
 
@@ -627,12 +630,12 @@ def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigm
     try:
         mle_2param_cov = np.linalg.inv(S1.T @ S1) * sigma2
         common.cov_ellipse(mle_2param_cov, offset=mle_2param, q=[0.95], ax=ax,
-                           color='purple', label='Conditional 95% confidence region (normal approximation)')
+                           color='orange', label='Conditional 95% confidence region (normal approximation)')
     except np.linalg.LinAlgError:
         print("Failed to invert Hessian matrix")
         print(S1)
 
-    ax.plot(*mle_2param, marker='+', linestyle='None', color='purple', label='conditional mle')
+    ax.plot(*mle_2param, marker='+', linestyle='None', color='orange', label='conditional mle')
 
     ax.set_xlabel(f"p_{p_index[0]+1}")
     ax.set_ylabel(f"p_{p_index[1]+1}")
