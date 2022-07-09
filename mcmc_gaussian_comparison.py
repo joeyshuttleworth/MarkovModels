@@ -24,7 +24,8 @@ rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 10})
 sigma2 = 0.01**2
 Erev = common.calculate_reversal_potential(310.15)
 
-params = BeattieModel().get_default_parameters()
+params = np.array((2.26E-4, 6.99E-2, 3.445E-5, 5.460E-2, 0.0873,
+                   8.91E-3, 5.15E-3, 0.003158, 0.1524))
 
 def main():
 
@@ -144,6 +145,7 @@ def main():
         fits_ax.plot(times, data, label='data', color='grey', alpha=.5)
         fits_ax.set_xlabel('time / ms')
         fits_ax.set_ylabel('current / nA')
+        fits_fig.close_layout()
         fits_fig.savefig(os.path.join(fits_dir, f"{removal_durations[i]}_removed.pdf"))
         fits_ax.cla()
 
@@ -213,6 +215,7 @@ def main():
             print(str(e))
 
         ax.axhline(params[i], ls='--')
+        fig.close_layout()
         fig.savefig(os.path.join(output_dir, "mcmc_comparison_%s.pdf" % param_label))
 
 
