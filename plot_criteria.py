@@ -72,7 +72,7 @@ def main():
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
                        4.75E-2, 2.51E-2, 3.33E-2])
 
-    protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
+    protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircaseramp1')
 
     times = np.linspace(tstart, tend, int((tend - tstart) / tstep))
     voltages = np.array([protocol_func(t) for t in times])
@@ -243,7 +243,7 @@ def main():
     std_axs = std_fig.subplots(5)
 
     print("Start MCMC sampling")
-    args_list = [(model_class, "staircase", times, data, params, index_set) for index_set in indices_used]
+    args_list = [(model_class, "staircaseramp1", times, data, params, index_set) for index_set in indices_used]
     mcmc_samples = pool.map(mcmc_chain_func, *zip(*args_list))
 
     rhats = np.array([rhat for _, rhat in mcmc_samples])
@@ -697,7 +697,7 @@ def compute_tau_inf_from_params(params, voltage=40):
 
 # Next, the MCMC version. Can be time consuming so perform this in parallel
 def mcmc_chain_func(model_class, protocol, times, data, params, index_set):
-    protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
+    protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircaseramp1')
 
     times = np.linspace(tstart, tend, int((tend - tstart) / tstep))
     Erev = common.calculate_reversal_potential(310.15)
@@ -721,9 +721,9 @@ def draw_heatmaps(model_class, times, data, output_dir, time_to_remove, params, 
 
     print(f"using {len(indices)} indices")
 
-    protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircase')
+    protocol_func, tstart, tend, tstep, protocol_desc = common.get_ramp_protocol_from_csv('staircaseramp1')
 
-    Erev = common.calculate_reversal_potential(310.15)
+    Erev = common.calculate_reversal_potential(T=310.15)
     model = model_class(times=times, voltage=protocol_func, Erev=Erev, parameters=params)
     model.window_locs = [t for t, _, _, _ in protocol_desc]
     model.protocol_description = protocol_desc
