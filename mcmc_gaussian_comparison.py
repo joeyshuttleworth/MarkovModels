@@ -20,8 +20,6 @@ import uuid
 from matplotlib import rc
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 10})
-rc('text', usetex=True)
-
 
 sigma2 = 0.01**2
 Erev = common.calculate_reversal_potential(310.15)
@@ -208,7 +206,9 @@ def main():
 
         try:
             sns.violinplot(data=df, ax=ax, x='removal_duration', y='y', hue='hue', split=True,
-                           title="parameter %s" % param_label, scale='area')
+                           scale='area')
+            ax.set_xlabel(f"time removed after each spike / ms")
+
         except ValueError as e:
             print(str(e))
 
