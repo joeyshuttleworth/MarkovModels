@@ -83,7 +83,7 @@ def mcmc_func(protocol, well, model_class, initial_params):
                                       indices=indices, data=data,
                                       chain_length=args.chain_length,
                                       no_chains=args.no_chains,
-                                      # starting_parameters=initial_params,
+                                      starting_parameters=initial_params,
                                       sigma2=sigma2, burn_in=0,
                                       log_likelihood_func=None)
 
