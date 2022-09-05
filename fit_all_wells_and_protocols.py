@@ -23,6 +23,7 @@ K_out=120
 global Erev
 Erev = common.calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
 
+pool_kws = {'maxtasksperchild': 1}
 
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None):
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
@@ -95,7 +96,7 @@ def main():
         data_reqd=True, description="Fit a given well to the data from each\
         of the protocols. Output the resulting parameters to a file for later use")
 
-    parser.add_argument('--max_iterations', '-i', type=int, default="100000")
+    parser.add_argument('--max_iterations', '-i', type=int, default=100000)
     parser.add_argument('--repeats', type=int, default=16)
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
@@ -163,8 +164,12 @@ def main():
     assert len(tasks) > 0, "no valid protocol/well combinations provided"
 
     protocols_list = np.unique(protocols_list)
-    pool = multiprocessing.Pool(min(args.cores, len(tasks)))
-    res = pool.starmap(fit_func, tasks)
+
+    pool_size = min(args.cores, len(tasks))
+
+    with multiprocessing.Pool(pool_size, **pool_kws) as pool:
+        res = pool.starmap(fit_func, tasks)
+
     print(res)
 
     fitting_df = pd.concat(res, ignore_index=True)
@@ -209,7 +214,10 @@ def main():
         task[-1] = best_params
 
     print(tasks)
-    res = pool.starmap(fit_func, tasks)
+
+    with multiprocessing.Pool(pool_size, **pool_kws) as pool:
+        res = pool.starmap(fit_func, tasks)
+
     fitting_df = pd.concat(res + [fitting_df], ignore_index=True)
     fitting_df.to_csv(os.path.join(output_dir, "fitting.csv"))
 
