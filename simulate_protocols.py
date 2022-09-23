@@ -207,8 +207,10 @@ def main():
 
             _, S1 = model.SimulateForwardModelSensitivities()
 
-            ax.plot(times/1e3, S1, label=[f"${param}$ sensitivty" for param in
-                                          model.parameter_labels])
+            S1 = S1 / model.get_default_parameters()[None, :]
+
+            ax.plot(times/1e3, S1[:, :-1], label=[f"${param}$ sensitivty" for param in
+                                                  model.parameter_labels[:-1]])
             fig.savefig(os.path.join(output_dir, f"sensitivities_plot_{model_class_name}_{protocol}.png"))
             plt.close(fig)
 
@@ -216,11 +218,13 @@ def main():
             H_inv = np.linalg.inv(H)
 
             D_opti = np.linalg.det(H_inv)
+            min_eig = min(abs(np.linalg.eigh(H)[0]))
 
-            dfs.append(pd.DataFrame([(model_class_name, alphabet_label, D_opti)],
-                                    columns=('model', 'protocol', 'D optimality')))
+            dfs.append(pd.DataFrame([(model_class_name, alphabet_label, D_opti, min_eig)],
+                                    columns=('model', 'protocol', 'D optimality', 'min absolute eigenvalue')))
+            print(dfs)
     df = pd.concat(dfs, ignore_index=True)
-    df.to_csv(os.path.join(output_dir, f"D_optimalities_.csv"))
+    df.to_csv(os.path.join(output_dir, f"D_optimalities.csv"))
 
     fig = plt.figure(figsize=args.figsize)
     axs = fig.subplots(ncols=len(args.models), sharey=True)
