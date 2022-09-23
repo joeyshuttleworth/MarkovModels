@@ -159,9 +159,9 @@ class MarkovModel:
             return sm
 
         # Find sensitivity steady states at holding potential
-        self.sensitivity_ics_expr = [ get_ic_sensitivty(state_no, param_no)
-                                      for param_no in range(len(self.p))
-                                      for state_no in range(self.n_state_vars)]
+        self.sensitivity_ics_expr = [get_ic_sensitivty(state_no, param_no)
+                                     for param_no in range(len(self.p))
+                                     for state_no in range(self.n_state_vars)]
 
         self.sensitivity_ics = sp.lambdify(self.p, self.sensitivity_ics_expr, cse=True)
 
