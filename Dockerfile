@@ -4,8 +4,9 @@ COPY requirements.txt /opt/app/requirements.txt
 
 RUN git clone git@github.com:joeyshuttleworth/MarkovModels
 
+RUN pip install MarkovModels/requirements.txt
+
 RUN apt-get update && apt-get install git graphviz graphviz-dev gcc bash -y
-pip install MarkovModels/requirements.txt
 
 RUN git clone https://github.com/CardiacModelling/markov-builder.git \
     && cd markov-builder \
