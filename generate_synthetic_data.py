@@ -40,22 +40,14 @@ def main():
     sigma = args.noise
 
     global model_class
-    if args.model == 'Beattie':
-        model_class = BeattieModel
-    elif args.model == 'Kemp':
-        model_class = KempModel
-    elif args.model == 'CO':
-        model_class = ClosedOpenModel
-    else:
-        assert False
+    model_class = common.get_model_class(args.model)
 
     global parameters
     if args.parameters is not None:
         param_labels = model_class().get_parameter_labels()
         parameters = pd.read_csv(args.parameters)[param_labels].values[0, :]
     else:
-        parameters = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
-                               4.75E-2, 2.51E-2, 3.33E-2])
+        parameters = model_class().get_default_parameters()
 
     protocols = common.get_protocol_list()\
         if args.protocols is None\
