@@ -61,8 +61,6 @@ def main():
     global args
     args = parser.parse_args()
 
-    model_class = common.get_model_class(args.model)
-
     if args.true_param_file:
         default_params = np.genfromtxt(args.true_param_file, delimiter=',')
 
@@ -77,9 +75,16 @@ def main():
         dfs.append(df)
 
     full_df = pd.concat(dfs, ignore_index=True)
-    print(full_df)
 
-    print(df['protocol'])
+    rows = []
+    print(full_df)
+    for protocol in full_df.protocol.unique():
+        for file_label in full_df.fname.unique():
+            sub_df = full_df[(full_df.protocol == protocol) & (full_df.fname == file_label)]
+            row = sub_df[sub_df.score == sub_df.score.min()].head(1).copy()
+            rows.append(row)
+
+    full_df = pd.concat(rows, ignore_index=True)
 
     for df in dfs:
         output_dir = common.setup_output_directory(args.output_dir, "scatter_parameter_sets")
@@ -153,22 +158,12 @@ def main():
                                                                      'protocol', 'fitting_protocol', 'validation_protocol',
                                                                      'E_rev', 'score', 'well', 'fname']]
 
-    df = df.replace({
-        'protocol': relabel_dict})
-
     df = df.sort_values(by='protocol')
+    fname = df['fname'].head(1).values[0]
 
     fig = plt.figure(figsize=args.figsize)
     ax = fig.subplots()
     fig.tight_layout()
-
-    rows = []
-    for protocol in df.protocol:
-        sub_df = df[df.protocol == protocol]
-        row = sub_df[sub_df.score == sub_df.score.min()].head(1).copy()
-        rows.append(row)
-
-    df = pd.concat(rows, ignore_index=True)
 
     for i in range(int(len(parameter_labels) / 2)):
         lab1 = parameter_labels[2*i]
@@ -180,7 +175,9 @@ def main():
         if i == 0:
             legend_params = [x.copy() for x in ax.get_legend_handles_labels()]
 
-        g.get_legend().remove()
+        tmp_plot = g.get_legend()
+        if tmp_plot:
+            tmp_plot.remove()
 
         fig.tight_layout()
 
@@ -189,7 +186,6 @@ def main():
             ax.axvline(default_params[2*i], label=f"true {lab1}", linestyle='--')
             ax.axhline(default_params[2*i+1], label=f"true {lab2}", linestyle='--')
 
-        fname = df['fname'].head(1).values[0]
         fig.savefig(os.path.join(output_dir, f"{lab1}_{lab2}.{args.file_format}"))
         fig.clf()
 
