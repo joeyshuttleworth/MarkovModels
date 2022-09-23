@@ -9,3 +9,5 @@ networkx>=2.6.2
 numba
 numbalsoda
 pygraphviz
+regex
+seaborn
