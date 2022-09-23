@@ -15,6 +15,9 @@ import argparse
 import regex as re
 import itertools
 import uuid
+from matplotlib import rc
+
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 
 from matplotlib.gridspec import GridSpec
 
@@ -95,6 +98,7 @@ def main():
     parser.add_argument('--experiment_name', default='newtonrun4')
     parser.add_argument('--ramp_start', type=float, default=300)
     parser.add_argument('--ramp_end', type=float, default=900)
+    parser.add_argument('--figsize', type=int, nargs=2)
 
     args = parser.parse_args()
 
@@ -126,14 +130,14 @@ def main():
 
     df = []
 
-    fig = plt.figure(figsize=(20, 16), clear=True)
+    fig = plt.figure(figsize=args.figsize, clear=True)
 
     subtracted_trace_dirname = "subtracted_traces"
 
     if not os.path.exists(os.path.join(output, subtracted_trace_dirname)):
         os.makedirs(os.path.join(output, subtracted_trace_dirname))
 
-    reversal_fig = plt.figure(figsize=(18, 16))
+    reversal_fig = plt.figure(figsize=args.figsize)
     reversal_ax  = reversal_fig.subplots()
 
     for well in args.wells:
@@ -180,8 +184,8 @@ def main():
                 n = len(x)
 
                 msres = (((x - E_leak_before) * g_leak_before - y)**2 / (n - 2)).sum()
-                sd = np.sqrt(msres * (1 / n + (x - x.mean())**2 / ((x**2).sum())))
-                before_sd = sd[-1]
+                sd = np.sqrt(msres * (1 / n + (40 - x.mean())**2 / ((x**2).sum())))
+                before_sd = sd
 
                 g_leak_after, E_leak_after, _, _, _, x, y = fit_leak_lr(
                     protocol_voltages, after_trace, dt=dt,
@@ -194,8 +198,8 @@ def main():
                 n = len(x)
 
                 msres = (((x - E_leak_before) * g_leak_before - y)**2 / (n - 2)).sum()
-                sd = np.sqrt(msres * (1 / n + (x - x.mean())**2 / ((x**2).sum())))
-                after_sd = sd[-1]
+                sd = np.sqrt(msres * (1 / n + (40 - x.mean())**2 / ((x**2).sum())))
+                after_sd = sd
 
                 before_corrected = before_trace - (g_leak_before * (protocol_voltages - E_leak_before))
                 after_corrected = after_trace - (g_leak_after * (protocol_voltages - E_leak_after))
@@ -261,7 +265,7 @@ def main():
                 estimated_noise = trace[0:200].std()
                 trace = trace[first_step_indices]
                 n = len(trace)
-                if trace.mean() > estimated_noise:
+                if trace.mean() > 2*estimated_noise:
                     print(f"{protocol} {well} {tracename} \tpassed QC6a")
                     passed1 = True
                 else:
@@ -282,11 +286,29 @@ def main():
                     print(f"{protocol}, {well}, {tracename} \tfailed QC6c")
                     passed3 = False
 
+                # Can we infer reversal potential from subtracted trace
+                try:
+                    output_path = os.path.join(args.output_path,
+                                               f"{protocol}_{well}_{tracename}_infer_reversal_potential.png")
+                    Erev = common.infer_reversal_potential(protocol, subtracted_trace,
+                                                           observation_times, plot=True,
+                                                           output_path=output_path)
+                except Exception:
+                    Erev = -np.inf
+
+                if Erev > -50 or Erev < -100:
+                    print(f"{protocol}, {well}, {tracename} \tpassed QC.Erev")
+                    passed_Erev = True
+                else:
+                    print(f"{protocol}, {well}, {tracename} \tfailed QC.Erev")
+                    passed_Erev = False
+
+
                 R_leftover = np.sqrt(np.sum(after_corrected**2)/(np.sum(after_trace**2)))
                 df.append((protocol, well, sweep, tracename, fitted_E_rev,
-                            passed1, passed2, passed3,
-                            R_leftover, g_leak_before,
-                            g_leak_after, E_leak_before, E_leak_after))
+                           passed1, passed2, passed3, passed_Erev, R_leftover,
+                           g_leak_before, g_leak_after, E_leak_before,
+                           E_leak_after))
 
             subtracted_ax.set_xlabel('time / ms')
             subtracted_ax.set_ylabel('current / pA')
@@ -302,10 +324,10 @@ def main():
             fig.savefig(os.path.join(output, f"{well}_{protocol}_traces_from_leak_subtraction"))
 
     df = pd.DataFrame(df, columns=('protocol', 'well', 'sweep', 'before/after',
-                                   'fitted_E_rev', 'passed QC6a', 'passed QC6b', 'passed QC6c',
-                                   'R_leftover', 'pre-drug leak conductance',
-                                   'post-drug leak conductance', 'pre-drug leak reversal',
-                                   'post-drug leak reversal'))
+                                   'fitted_E_rev', 'passed QC6a', 'passed QC6b',
+                                   'passed QC6c', 'passed QC.Erev', 'R_leftover',
+                                   'pre-drug leak conductance', 'post-drug leak conductance',
+                                   'leak reversal', 'post-drug leak reversal'))
 
     df.to_csv(os.path.join(output, "subtraction_qc.csv"))
     print(df)
@@ -333,7 +355,7 @@ def main():
             fout.write(well)
             fout.write("\n")
 
-    fig = plt.figure(figsize=(16, 12))
+    fig = plt.figure(figsize=args.figsize)
     ax = fig.subplots()
     erev_dir = os.path.join(output, "erev_plots")
 
