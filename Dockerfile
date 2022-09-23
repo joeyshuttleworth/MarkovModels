@@ -2,7 +2,7 @@ FROM python:3.9-buster
 
 COPY requirements.txt /opt/app/requirements.txt
 
-COPY . /opt/app/MarkovModels/
+RUN git clone git@github.com:joeyshuttleworth/MarkovModels
 
 RUN apt-get update && apt-get install git graphviz graphviz-dev gcc bash -y
 
