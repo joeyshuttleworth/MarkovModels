@@ -1,12 +1,20 @@
-FROM python:3.9-slim
+FROM python:3.9-buster
 
-WORKDIR /opt/app
 COPY requirements.txt /opt/app/requirements.txt
 
-RUN apt-get update && apt-get install git graphviz gcc -y
+COPY . /opt/app/MarkovModels/
+
+RUN apt-get update && apt-get install git graphviz graphviz-dev gcc bash -y
 
 RUN git clone https://github.com/CardiacModelling/markov-builder.git \
     && cd markov-builder \
     && pip install . \
     && pip install pytest \
     && pytest
+
+RUN mkdir /data
+
+WORKDIR /opt/app/MarkovModels
+
+ENTRYPOINT ["/bin/bash", "-c", "-l"]
+CMD ["bash"]
