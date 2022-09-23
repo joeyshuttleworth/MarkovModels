@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--protocols", "-p", nargs='+', default=None)
     parser.add_argument("--membrane_capacitance", "-C", default=None, type=float)
     parser.add_argument("--series_resistance", "-R", default=None, type=float)
+    parser.add_argument('--window_limits', nargs=2, type=float)
     parser.add_argument("--output", "-o")
 
     params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,
@@ -55,11 +56,34 @@ def main():
 
         voltages = [protocol_func(t) for t in times]
 
+        V_m = combined_model.SimulateForwardModel(return_current=False)[:, -1]
+
         ax[1].plot(times, voltages, label='V_in')
-        ax[1].plot(times, combined_model.SimulateForwardModel(return_current=False)[:, -1], label='V_m')
+        ax[1].plot(times, V_m, label='V_m')
         ax[1].legend()
 
+        if args.window_limits:
+            for a in ax:
+                a.set_xlim(args.window_limits)
+
         fig.savefig(os.path.join(output_dir, f"simulate_capacitive_spikes_{protocol}.png"))
+
+        for a in ax:
+            a.cla()
+
+        ax[0].plot(times, data - hybrid_sol, label='combined model current')
+        ax[0].legend()
+
+        voltages = [protocol_func(t) for t in times]
+
+        ax[1].plot(times, voltages-V_m, label='V_in - V_m')
+        ax[1].legend()
+
+        if args.window_limits:
+            for a in ax:
+                a.set_xlim(args.window_limits)
+
+        fig.savefig(os.path.join(output_dir, f"simulate_capacitive_spikes_{protocol}_errors.png"))
 
         for a in ax:
             a.cla()
