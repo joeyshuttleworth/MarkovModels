@@ -31,6 +31,8 @@ def main():
     parser.add_argument('--show_uncertainty', action='store_true')
     parser.add_argument('--ignore_protocols', nargs='+', default=[])
     parser.add_argument('--shared_plot_limits', action='store_true')
+    parser.add_argument('--no_voltage', action='store_true')
+    parser.add_argument('--file_format', default='')
 
     global args
     args = parser.parse_args()
@@ -61,8 +63,12 @@ def main():
     #     args.prediction_protocols = args.protocols
 
     fig = plt.figure(figsize=args.figsize)
-    gs = gridspec.GridSpec(2, 1, height_ratios=[3, 2])
-    axs = [fig.add_subplot(ax) for ax in gs]
+
+    if not args.no_voltage:
+        gs = gridspec.GridSpec(2, 1, height_ratios=[3, 2])
+        axs = [fig.add_subplot(ax) for ax in gs]
+    else:
+        axs = [fig.subplots()]
 
     cm = sns.husl_palette(len(args.protocols))
 
@@ -73,7 +79,6 @@ def main():
 
     args.protocols = [p for p in args.protocols if p not in
                       args.ignore_protocols]
-
 
     if args.prediction_protocols:
         for well in args.wells:
@@ -121,14 +126,17 @@ def main():
                                         label=label, linewidth=lw,
                                         linestyle='--')
                             predictions.append(prediction)
-
-                axs[1].plot(times, voltages, linewidth=lw)
-                axs[1].set_xlabel('time / ms')
-                axs[1].set_ylabel(r'$V_{in}$ / mV')
+                if not args.no_voltage:
+                    axs[1].plot(times, voltages, linewidth=lw)
+                    axs[1].set_xlabel('time / ms')
+                    axs[1].set_ylabel(r'$V_{in}$ / mV')
+                else:
+                    axs[0].set_xlabel('time / ms')
+                    axs[0].set_ylabel(r'$V_in$ / mV')
 
                 data_alpha = 1 if model is None else .5
                 axs[0].plot(times, current, color='grey', label='data', alpha=data_alpha, linewidth=lw)
-                axs[0].set_ylabel(r'$I_{Kr}$ / pA')
+                axs[0].set_ylabel(r'$I_{Kr}$ / nA')
 
                 if predictions:
                     predictions = np.stack(predictions)
@@ -144,14 +152,13 @@ def main():
 
                 if not args.nolegend:
                     axs[0].legend(prop={'size': 6})
-
-                axs[0].set_xticks([])
+                    axs[0].set_xticks([])
 
                 axs[0].set_ylim(np.min(current), np.max(current))
 
                 axs[0].set_title(args.fig_title)
                 fig.savefig(os.path.join(output_dir,
-                                         f"{well}_{prediction_protocol}_{args.experiment_name}.svg"),
+                                         f"{well}_{prediction_protocol}_{args.experiment_name}.{args.file_format}"),
                             dpi=args.dpi)
 
                 for ax in axs:
@@ -180,26 +187,28 @@ def main():
         for well in args.wells:
             for protocol in args.protocols:
                 data, voltages, fit, times = get_data_voltages_fit_times(protocol, well, params_df, model_class)
-                axs[1].plot(times, voltages, linewidth=lw)
-                axs[1].set_xlabel('time / ms')
-                axs[1].set_ylabel(r'$V_{in}$ / mV')
+                if not args.no_voltage:
+                    axs[1].plot(times, voltages, linewidth=lw)
+                    axs[1].set_xlabel('time / ms')
+                    axs[1].set_ylabel(r'$V_{in}$ / mV')
 
 
                 # Set plot limits
                 if time_range is not None:
                     axs[0].set_xlim(time_range)
-                    axs[1].set_xlim(time_range)
+                    if not args.no_voltage:
+                        axs[1].set_xlim(time_range)
 
                 if current_range is not None:
                     axs[0].set_ylim(current_range)
 
-                if voltage_range is not None:
+                if voltage_range is not None and not args.no_voltage:
                     axs[1].set_ylim(voltage_range)
 
                 data_alpha = .5
                 axs[0].plot(times, data, color='grey', label='data', alpha=data_alpha, linewidth=.5)
                 axs[0].plot(times, fit,)
-                axs[0].set_ylabel(r'$I_{Kr}$ / pA')
+                axs[0].set_ylabel(r'$I_{Kr}$ / nA')
 
                 colour = 'green'
                 axs[0].plot(times, fit, color=colour, linewidth=lw)
@@ -211,7 +220,7 @@ def main():
 
                 axs[0].set_title(args.fig_title)
                 fig.savefig(os.path.join(output_dir,
-                                         f"{protocol}_{well}_fit.svg"), dpi=args.dpi)
+                                         f"{protocol}_{well}_fit.{args.file_format}"), dpi=args.dpi)
                 for ax in axs:
                     ax.cla()
 
