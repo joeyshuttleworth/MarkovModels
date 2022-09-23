@@ -637,10 +637,18 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                                                                    removal_duration / t_step)) for spike in
                                                        spike_indices])
     if infer_E_rev:
-        Erev = infer_reversal_potential(protocol, data, times)
-    else:
-        if Erev is None:
-            Erev = calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
+        try:
+            if output_dir:
+                plot = True
+                output_path = os.path.join(output_dir, 'infer_reversal_potential.png')
+            Erev = infer_reversal_potential(protocol, data, times, plot=plot,
+                                            output_path=output_path)
+            assert(Erev > -50 and Erev < -100)
+        except Exception:
+            Erev = None
+
+    if Erev is None:
+        Erev = calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
 
     model = model_class(voltage_func, times, parameters=default_parameters, Erev=Erev)
     model.protocol_description = protocol_desc
@@ -767,6 +775,15 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
 
     fitted_poly = poly.Polynomial.fit(voltages, current, 4)
 
+    roots = np.unique([np.real(root) for root in fitted_poly.roots()
+                       if root > np.min(voltages) and root < np.max(voltages)])
+
+    # It makes sense to take the last root. This should be the first time that
+    # the current crosses 0 and where the ion-channel kinetics are too slow to
+    # play a role
+    if len(roots) == 0:
+        return np.nan
+
     if plot:
         if ax is None:
             fig = plt.figure()
@@ -777,24 +794,13 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
         ax.set_ylabel('current nA')
         # Now plot current vs voltage
         plt.plot(voltages, current, 'x', markersize=2, color='grey')
+        ax.axvline(roots[-1], linestyle='--', color='grey', label="$E_{Kr}$")
+        ax.axhline(0, linestyle='--', color='grey')
+        ax.legend()
 
         if output_path is not None:
             fig = ax.figure
             fig.savefig(output_path)
-
-    roots = np.unique([np.real(root) for root in fitted_poly.roots()
-                       if root > np.min(voltages) and root < np.max(voltages)])
-
-    # It makes sense to take the last root. This should be the first time that
-    # the current crosses 0 and where the ion-channel kinetics are too slow to
-    # play a role
-    if len(roots) == 0:
-        return np.nan
-
-    deriv = fitted_poly.deriv()(roots[-1])
-
-    if deriv < 0:
-        return np.nan
 
     return roots[-1]
 
