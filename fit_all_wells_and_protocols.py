@@ -15,9 +15,9 @@ import pandas as pd
 import numpy as np
 
 
-T=298
-K_in=5
-K_out=120
+T = 298
+K_out = 5
+K_in = 120
 
 
 global Erev
@@ -108,6 +108,7 @@ def main():
     parser.add_argument('--chain_length', '-l', default=500, help='mcmc chains to run', type=int)
     parser.add_argument('--figsize', '-f', help='mcmc chains to run', type=int)
     parser.add_argument('--use_parameter_file')
+    parser.add_argument('--selection_file')
 
     global args
     args = parser.parse_args()
@@ -117,6 +118,12 @@ def main():
 
     global experiment_name
     experiment_name = args.experiment_name
+
+    if args.selection_file:
+        with open(args.selection_file) as fin:
+            selected_wells = fin.read().splitlines()
+    else:
+        selected_wells = None
 
     output_dir = common.setup_output_directory(args.output, f"fitting_{args.removal_duration:.2f}_removed_{args.model}")
 
@@ -132,6 +139,9 @@ def main():
         protocols = common.get_protocol_list()
     else:
         protocols = args.protocols
+
+    if args.selection_file:
+        args.wells = [well for well in args.wells if well in selected_wells]
 
     print(args.wells, protocols)
 
