@@ -643,7 +643,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                 output_path = os.path.join(output_dir, 'infer_reversal_potential.png')
             Erev = infer_reversal_potential(protocol, data, times, plot=plot,
                                             output_path=output_path)
-            assert(Erev > -50 and Erev < -100)
+            assert(Erev < -50 and Erev > -100)
         except Exception:
             Erev = None
 
@@ -656,7 +656,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     if not solver:
         try:
             solver = model.make_hybrid_solver_current()
-        except:
+        except Exception:
             solver = model.make_forward_solver_current()
 
     # Try fitting G_Kr on its own first
