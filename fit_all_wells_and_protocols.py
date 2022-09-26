@@ -16,7 +16,7 @@ import numpy as np
 
 
 T = 298
-K_out = 
+K_out = 5
 K_in = 120
 
 
