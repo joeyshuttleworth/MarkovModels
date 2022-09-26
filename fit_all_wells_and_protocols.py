@@ -16,7 +16,7 @@ import numpy as np
 
 
 T = 298
-K_out = 5
+K_out = 
 K_in = 120
 
 
@@ -30,8 +30,8 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None):
 
     res_df = common.fit_well_data(model_class, well, protocol,
                                   args.data_directory, args.max_iterations,
-                                  output_dir=this_output_dir, T=298, K_in=5,
-                                  K_out=120,
+                                  output_dir=this_output_dir, T=298, K_in=K_in,
+                                  K_out=K_out,
                                   default_parameters=default_parameters,
                                   removal_duration=args.removal_duration,
                                   repeats=args.repeats, infer_E_rev=True,
