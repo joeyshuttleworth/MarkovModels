@@ -57,7 +57,9 @@ setup(
         'numba>=0.54.1',
         'NumbaLSODA>=0.1.7',
         'regex>=2021.11.10',
-        'myokit>=1.33.0'
+        'myokit>=1.33.0',
+        'seaborn>=0.12.0',
+        'markov_builder @ git+ssh://git@github.com/CardiacModelling/Markov-builder@add_wang_model'
     ],
     extras_require={
         'test': [
