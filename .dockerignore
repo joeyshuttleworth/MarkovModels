@@ -1,6 +1,3 @@
 .venv/
 output/
-.git
-toy_example_inference
-data
 NumbaIDA

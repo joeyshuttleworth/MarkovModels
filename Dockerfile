@@ -2,11 +2,11 @@ FROM python:3.9-buster
 
 COPY requirements.txt /opt/app/requirements.txt
 
-RUN git clone git@github.com:joeyshuttleworth/MarkovModels
-
-RUN pip install MarkovModels/requirements.txt
+COPY . MarkovModels
 
 RUN apt-get update && apt-get install git graphviz graphviz-dev gcc bash -y
+RUN pip install --upgrade pip
+RUN pip install -r MarkovModels/requirements.txt
 
 RUN git clone https://github.com/CardiacModelling/markov-builder.git \
     && cd markov-builder \
