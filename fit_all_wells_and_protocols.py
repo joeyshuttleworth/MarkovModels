@@ -10,6 +10,9 @@ from MarkovModels.BeattieModel import BeattieModel
 from MarkovModels.ClosedOpenModel import ClosedOpenModel
 from MarkovModels.KempModel import KempModel
 
+import matplotlib
+matplotlib.use('agg')
+
 import os
 import pandas as pd
 import numpy as np
@@ -18,7 +21,6 @@ import numpy as np
 T = 298
 K_out = 5
 K_in = 120
-
 
 global Erev
 Erev = common.calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
@@ -108,6 +110,7 @@ def main():
     parser.add_argument('--chain_length', '-l', default=500, help='mcmc chains to run', type=int)
     parser.add_argument('--figsize', '-f', help='mcmc chains to run', type=int)
     parser.add_argument('--use_parameter_file')
+    parser.add_argument('--refit', action='store_false')
     parser.add_argument('--selection_file')
 
     global args
@@ -186,7 +189,7 @@ def main():
 
     print("=============\nfinished fitting first round\n=============")
 
-    wells_rep = [task[1] for task in tasks]
+    # wells_rep = [task[1] for task in tasks]
     # protocols_rep = [task[0] for task in tasks]
 
     fitting_df.to_csv(os.path.join(output_dir, "prelim_fitting.csv"))
@@ -225,29 +228,32 @@ def main():
 
     print(tasks)
 
-    with multiprocessing.Pool(pool_size, **pool_kws) as pool:
-        res = pool.starmap(fit_func, tasks)
+    if args.refit:
+        with multiprocessing.Pool(pool_size, **pool_kws) as pool:
+            res = pool.starmap(fit_func, tasks)
 
-    fitting_df = pd.concat(res + [fitting_df], ignore_index=True)
-    fitting_df.to_csv(os.path.join(output_dir, "fitting.csv"))
+            fitting_df = pd.concat(res + [fitting_df], ignore_index=True)
+            fitting_df.to_csv(os.path.join(output_dir, "fitting.csv"))
 
-    predictions_df = compute_predictions_df(params_df)
-    predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
+            predictions_df = compute_predictions_df(params_df)
+            predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
 
-    best_params_df = get_best_params(predictions_df, protocol_label='validation_protocol')
-    print(best_params_df)
+            best_params_df = get_best_params(predictions_df, protocol_label='validation_protocol')
+            print(best_params_df)
 
-    best_params_df.to_csv(os.path.join(output_dir, 'best_fitting.csv'))
+            best_params_df.protocol = best_params_df.validation_protocol
+            best_params_df.to_csv(os.path.join(output_dir, 'best_fitting.csv'))
 
-    for task in tasks:
-        protocol, well, model_class, _ = task
-        param_labels = model_class().get_parameter_labels()
+        # Setup MCMC
+        for task in tasks:
+            protocol, well, model_class, _ = task
+            param_labels = model_class().get_parameter_labels()
 
-        row = best_params_df[(best_params_df.well == well)
-                             & (best_params_df.validation_protocol ==
-                                protocol)][param_labels].copy().head(1).astype(np.float64)
+            row = best_params_df[(best_params_df.well == well)
+                                 & (best_params_df.validation_protocol ==
+                                    protocol)][param_labels].copy().head(1).astype(np.float64)
 
-        task[-1] = row.values.flatten()
+            task[-1] = row.values.flatten()
 
     print(tasks)
 
@@ -388,7 +394,7 @@ def get_best_params(fitting_df, protocol_label='protocol'):
                                 & (fitting_df[protocol_label] == protocol)].copy()
 
             # Get index of min score
-            best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
+            best_params.append(sub_df[sub_df.score.idxmax()].copy())
 
     return pd.concat(best_params, ignore_index=True)
 
