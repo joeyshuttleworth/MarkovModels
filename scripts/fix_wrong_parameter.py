@@ -20,8 +20,8 @@ import numpy as np
 
 
 T=298
-K_in=5
-K_out=120
+K_in=120
+K_out=5
 
 
 global Erev
@@ -44,7 +44,7 @@ def main():
     parser.add_argument('--figsize', '-f', help='mcmc chains to run', type=int)
     parser.add_argument('--use_parameter_file')
     parser.add_argument('--protocols', default=common.get_protocol_list())
-    parser.add_argument('--noise', default=0.1, type=float)
+    parser.add_argument('--noise', default=0.01, type=float)
     parser.add_argument('--no_repeats', default=100, type=int)
     parser.add_argument('--no_parameter_steps', default=25, type=int)
 
@@ -69,7 +69,8 @@ def main():
     data_sets = generate_synthetic_data_sets(args.protocols,
                                              args.no_repeats,
                                              parameters=true_params,
-                                             noise=args.noise)
+                                             noise=args.noise,
+                                             output_dir=output_dir)
     fix_param = len(param_labels) - 1
 
     # Use multiprocessing to compute process multiple synthetic datasets in parallel
@@ -124,6 +125,13 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
                      protocol_description=protocol_desc,
                      times=times)
 
+    voltages = np.array([voltage_func(t) for t in times])
+    _, spike_indices = common.detect_spikes(times, voltages, window_size=0)
+
+    indices = common.remove_indices(list(range(len(times))), [(spike, int(spike +
+                                                                   args.removal_duration / t_step)) for spike in
+                                                       spike_indices])
+
     res = []
 
     # Use the previously found parameters as an initial guess in the next
@@ -143,7 +151,7 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
     return np.vstack(res)
 
 
-def generate_synthetic_data_sets(protocols, n_repeats, parameters=None, noise=0.01):
+def generate_synthetic_data_sets(protocols, n_repeats, parameters=None, noise=0.01, output_dir=None):
     list_of_data_sets = []
     for protocol in protocols:
         prot, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(protocol)
@@ -156,6 +164,21 @@ def generate_synthetic_data_sets(protocols, n_repeats, parameters=None, noise=0.
 
         data_sets = [(times, mean + np.random.normal(0, noise, times.shape)) for i in
                     range(n_repeats)]
+
+        if output_dir:
+            fig = plt.figure(figsize=args.figsize)
+            ax = fig.gca()
+            for i, data_set in enumerate(data_sets):
+                ax.plot(times, data_set[1], color='grey')
+                ax.plot(times, mean)
+                ax.set_xlabel('time / ms')
+                ax.set_ylabel('current / nA')
+                fig.savefig(os.path.join(output_dir, f"synthetic_data_{protocol}_{i}.png"), dpi=300)
+                ax.cla()
+
+                data_df = pd.DataFrame(np.vstack(data_set).T, columns=['time / ms', 'current / nA'])
+                data_df.to_csv(os.path.join(output_dir, "synthetic_data{protocol}_{i}.png"))
+
         list_of_data_sets.append(data_sets)
     return list_of_data_sets
 
