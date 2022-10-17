@@ -43,21 +43,17 @@ def main():
     parser.add_argument('--model', '-m', default='Beattie', type=str)
     parser.add_argument('--figsize', '-f', help='mcmc chains to run', type=int)
     parser.add_argument('--use_parameter_file')
-    parser.add_argument('--fit_protocol', default='staircaseramp')
-    parser.add_argument('--validation_protocol', default='staircaseramp')
+    parser.add_argument('--protocols', default=common.get_protocol_list())
     parser.add_argument('--noise', default=0.1, type=float)
-    parser.add_argument('--no_dgp_repeats', default=100, type=int)
+    parser.add_argument('--no_repeats', default=100, type=int)
     parser.add_argument('--no_parameter_steps', default=25, type=int)
 
     global args
     args = parser.parse_args()
 
     global output_dir
-    output_dir = args.output
-
     output_dir = common.setup_output_directory(args.output,
                                                "fix_wrong_parameter")
-
     global model_class
     model_class = common.get_model_class(args.model)
 
@@ -70,64 +66,54 @@ def main():
     param_labels = model_class().get_parameter_labels()
 
     global data_sets
-    data_sets = generate_synthetic_data_sets(args.fit_protocol, args.no_dgp_repeats,
+    data_sets = generate_synthetic_data_sets(args.protocols,
+                                             args.no_repeats,
                                              parameters=true_params,
                                              noise=args.noise)
-
     fix_param = len(param_labels) - 1
 
     # Use multiprocessing to compute process multiple synthetic datasets in parallel
     tasks = []
-    for i, data in enumerate(data_sets):
-        # model and dataset index
-        tasks.append((args.model, i, fix_param))
+    for i, data in enumerate(data_sets[0]):
+        for protocol in args.protocols:
+            # model and dataset index
+            tasks.append([args.model, i, fix_param, protocol])
 
     pool_size = min(args.cores, len(tasks))
 
     with multiprocessing.Pool(pool_size, **pool_kws) as pool:
         res = pool.starmap(fit_func, tasks)
 
-    fit_voltage_func, t_start, t_end, t_step, fit_protocol_desc = common.get_ramp_protocol_from_csv(args.fit_protocol)
-    fit_times = np.linspace(t_start, t_end, int((t_end - t_start)/t_step))
-    fit_voltages = np.array([fit_voltage_func(t) for t in fit_times])
-    fit_model = model_class(voltage=fit_voltage_func,
-                                 protocol_description=fit_protocol_desc)
+    fitted_params = np.vstack(res)
 
-    valid_voltage_func, t_start, t_end, t_step, valid_protocol_desc = common.get_ramp_protocol_from_csv(args.validation_protocol)
-    valid_times = np.linspace(t_start, t_end, int((t_end - t_start)/t_step))
-    valid_voltages = np.array([valid_voltage_func(t) for t in valid_times])
-    valid_model = model_class(voltage=valid_voltage_func,
-                                 protocol_description=valid_protocol_desc)
-    correct_prediction = valid_model.SimulateForwardModel(true_params)
-    true_mean = fit_model.SimulateForwardModel(true_params)
+    rows = []
+    for task in tasks:
+        for i in range(res[0].shape[0]):
+            rows.append(task)
 
-    results_df_rows = []
-    for i, (task, result) in enumerate(zip(tasks, res)):
-        model, data_index, fixed_param = task
+    res_df = pd.DataFrame(rows, columns=('model_class', 'dataset_index', 'fix_param', 'protocol'))
 
-        param_sets = [x[0] for x in result]
+    for i, param_label in enumerate(model_class().get_parameter_labels()):
+        res_df[param_label] = fitted_params[:, i]
+    res_df['well'] = res_df['dataset_index']
 
-        for params in param_sets:
-            # Save params to file
-            # np.save(params, os.path.join(output_dir,
-            #                              f"{args.model_class}_{data_index}_{fix_param:.4f}_{i}.csv"))
+    res_df.to_csv(os.path.join(output_dir, 'results_df.csv'))
 
-            prediction = valid_model.SimulateForwardModel(params)
-            fit = fit_model.SimulateForwardModel(params)
-            # TODO Compute error in fit and error in prediction
-            error_in_prediction = np.sum((correct_prediction - prediction)**2)
-            error_in_fit = np.sum((true_mean - fit)**2)
-            results_df_row = [model, data_index, *params, error_in_prediction, error_in_fit]
-            results_df_rows.append(results_df_row)
+    datasets_df = []
+    for protocol_index, protocol in enumerate(args.protocols):
+        for i in range(args.no_repeats):
+            datasets_df.append([protocol, protocol_index, i])
 
-    column_names = ['model_name', 'dataset_index', *param_labels, 'error in prediction', 'error in fit']
-    results_df = pd.DataFrame(results_df_rows, columns=column_names)
-    results_df.to_csv(os.path.join(output_dir, 'results.csv'))
+    datasets_df = pd.DataFrame(datasets_df, columns=('protocol', 'protocol_index', 'repeat'))
+
+    predictions_df = compute_predictions_df(res_df, model_class, data_sets,
+                                            datasets_df, args=args)
+    predictions_df.to_csv(os.path.join(output_dir, 'predictions.csv'))
 
 
-def fit_func(model_class_name, data_index, fix_param):
-    times, data = data_sets[data_index]
-    protocol = args.fit_protocol
+def fit_func(model_class_name, dataset_index, fix_param, protocol):
+    protocol_index = args.protocols.index(protocol)
+    times, data = data_sets[protocol_index][int(dataset_index)]
     voltage_func, t_start, t_end, t_step, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
 
     model_class = common.get_model_class(model_class_name)
@@ -146,36 +132,127 @@ def fit_func(model_class_name, data_index, fix_param):
     solver = mm.make_forward_solver_current()
     for fix_param_val in param_val_range:
         # params = np.array([p for i, p in enumerate(params) if i != fix_param])
-        mm.default_parameters[fix_param] = fix_param_val
+        params[fix_param] = fix_param_val
         params, score = common.fit_model(mm, data, fix_parameters=[fix_param],
                                          repeats=args.repeats,
                                          max_iterations=args.max_iterations,
                                          starting_parameters=params,
                                          solver=solver)
 
-        if fix_param == len(params):
-            params = np.append(params, fix_param)
-        else:
-            params = np.insert(params, fix_param + 1, fix_param_val)
-
-        res.append([params, score])
-
-    return res
+        res.append(params)
+    return np.vstack(res)
 
 
-def generate_synthetic_data_sets(protocol, n_repeats, parameters=None, noise=0.01):
-    prot, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(protocol)
-    times = np.linspace(tstart, tend, int((tend - tstart)/tstep))
+def generate_synthetic_data_sets(protocols, n_repeats, parameters=None, noise=0.01):
+    list_of_data_sets = []
+    for protocol in protocols:
+        prot, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(protocol)
+        times = np.linspace(tstart, tend, int((tend - tstart)/tstep))
 
-    model_class = common.get_model_class(args.model)
-    model = model_class(prot, times, Erev=Erev, parameters=parameters,
-                       protocol_description=desc)
-    mean = model.SimulateForwardModel()
+        model_class = common.get_model_class(args.model)
+        model = model_class(prot, times, Erev=Erev, parameters=parameters,
+                        protocol_description=desc)
+        mean = model.SimulateForwardModel()
 
-    data_sets = [(times, mean + np.random.normal(0, noise, times.shape)) for i in
-                 range(n_repeats)]
+        data_sets = [(times, mean + np.random.normal(0, noise, times.shape)) for i in
+                    range(n_repeats)]
+        list_of_data_sets.append(data_sets)
+    return list_of_data_sets
 
-    return data_sets
+
+def compute_predictions_df(params_df, model_class, datasets, datasets_df,
+                           label='predictions', args=None, output_dir=None):
+    if output_dir:
+        predictions_dir = os.path.join(output_dir, label)
+
+        if not os.path.exists(predictions_dir):
+            os.makedirs(predictions_dir)
+        trace_fig = plt.figure(figsize=args.figsize)
+        trace_axs = trace_fig.subplots(2)
+        all_models_fig = plt.figure(figsize=args.figsize)
+        all_models_axs = all_models_fig.subplots(2)
+
+    predictions_df = []
+    protocols_list = datasets_df['protocol'].unique()
+
+    for sim_protocol in protocols_list:
+        prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
+        protocol_index = datasets_df[datasets_df.protocol == sim_protocol]['protocol_index'].values[0]
+        full_times = datasets[protocol_index][0][0]
+
+        model = model_class(prot_func,
+                            times=full_times)
+
+        voltages = np.array([prot_func(t) for t in full_times])
+
+        spike_times, spike_indices = common.detect_spikes(full_times, voltages,
+                                                          threshold=10)
+        _, _, indices = common.remove_spikes(full_times, voltages, spike_times,
+                                             time_to_remove=args.removal_duration)
+        times = full_times[indices]
+
+        if output_dir:
+            colours = sns.color_palette('husl', len(params_df['protocol'].unique()))
+
+        for well in params_df['well'].unique():
+            full_data = datasets[protocol_index][int(well)][1]
+            data = full_data[indices]
+
+            # Probably not worth compiling solver
+            model.protocol_description = desc
+            model.Erev = common.infer_reversal_potential(sim_protocol, full_data, full_times)
+            solver = model.make_forward_solver_current(njitted=False)
+
+            for i, protocol_fitted in enumerate(params_df['protocol'].unique()):
+                df = params_df[params_df.well == well]
+                df = df[df.protocol == protocol_fitted]
+
+                if df.empty:
+                    continue
+
+                param_labels = model.parameter_labels
+                params = df.iloc[0][param_labels].values\
+                                                 .astype(np.float64)\
+                                                 .flatten()
+                if output_dir:
+                    sub_dir = os.path.join(predictions_dir, f"{well}_{sim_protocol}_predictions")
+                    if not os.path.exists(sub_dir):
+                        os.makedirs(sub_dir)
+
+                prediction = solver(params)[indices]
+
+                score = np.sqrt(np.mean((data - prediction)**2))
+                predictions_df.append((well, protocol_fitted, sim_protocol,
+                                       score, *params))
+
+                if not np.all(np.isfinite(prediction)):
+                    logging.warning(f"running {sim_protocol} with parameters\
+                    from {protocol_fitted} gave non-finite values")
+                elif output_dir:
+                    # Output trace
+                    trace_axs[0].plot(times, prediction, label='prediction')
+
+                    trace_axs[1].set_xlabel("time / ms")
+                    trace_axs[0].set_ylabel("current / nA")
+                    trace_axs[0].plot(times, data, label='data', alpha=0.25, color='grey')
+                    trace_axs[0].legend()
+                    trace_axs[1].plot(full_times, voltages)
+                    trace_axs[1].set_ylabel('voltage / mV')
+                    fname = f"fitted_to_{protocol_fitted}.png" if protocol_fitted != sim_protocol else "fit.png"
+                    trace_fig.savefig(os.path.join(sub_dir, fname))
+
+                    for ax in trace_axs:
+                        ax.cla()
+
+                    all_models_axs[0].plot(times, prediction, label=protocol_fitted, color=colours[i])
+
+    # TODO refactor so this can work with more than one model
+    predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
+                                                                      'validation_protocol',
+                                                                      'score'] + param_labels)
+    predictions_df['RMSE'] = predictions_df['score']
+    return predictions_df
+
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
