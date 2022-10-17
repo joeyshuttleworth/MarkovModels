@@ -177,7 +177,7 @@ def generate_synthetic_data_sets(protocols, n_repeats, parameters=None, noise=0.
                 ax.cla()
 
                 data_df = pd.DataFrame(np.vstack(data_set).T, columns=['time / ms', 'current / nA'])
-                data_df.to_csv(os.path.join(output_dir, "synthetic_data{protocol}_{i}.png"))
+                data_df.to_csv(os.path.join(output_dir, f"synthetic_data{protocol}_{i}.csv"))
 
         list_of_data_sets.append(data_sets)
     return list_of_data_sets
