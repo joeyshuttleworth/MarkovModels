@@ -43,7 +43,7 @@ def main():
     parser.add_argument('--model', '-m', default='Beattie', type=str)
     parser.add_argument('--figsize', '-f', help='mcmc chains to run', type=int)
     parser.add_argument('--use_parameter_file')
-    parser.add_argument('--protocols', default=common.get_protocol_list())
+    parser.add_argument('--protocols', default=common.get_protocol_list(), nargs='+')
     parser.add_argument('--noise', default=0.01, type=float)
     parser.add_argument('--no_repeats', default=100, type=int)
     parser.add_argument('--no_parameter_steps', default=25, type=int)
