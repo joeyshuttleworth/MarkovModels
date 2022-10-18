@@ -139,14 +139,12 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
     params = mm.get_default_parameters()
     solver = mm.make_forward_solver_current()
     for fix_param_val in param_val_range:
-        # params = np.array([p for i, p in enumerate(params) if i != fix_param])
         params[fix_param] = fix_param_val
         params, score = common.fit_model(mm, data, fix_parameters=[fix_param],
                                          repeats=args.repeats,
                                          max_iterations=args.max_iterations,
                                          starting_parameters=params,
                                          solver=solver)
-
         res.append(params)
     return np.vstack(res)
 
