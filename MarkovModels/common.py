@@ -420,11 +420,11 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
     returns: A pair containing the optimal parameters and the corresponding sum of square errors.
 
     """
-
     if log_transform:
         # Assume that the conductance is the last parameter and that the parameters are arranged included
 
         if mm.transformations:
+            transformations = [t for i, t in enumerate(*mm.transformations) if i not in fix_parameters]
             transformation = pints.ComposedTransformation(*mm.transformations)
 
         else:
@@ -454,7 +454,7 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
     if solver is None:
         try:
             solver = mm.make_hybrid_solver_current()
-        except:
+        except Exception:
             solver = mm.make_forward_solver_current()
 
     if subset_indices is None:
@@ -466,7 +466,19 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
             self.parameters = parameters
 
         def check(self, parameters):
-            # Make sure transition rates are not too big
+            if fix_parameters:
+                new_parameters = []
+                j = 0
+                for i in range(len(mm.get_default_parameters())):
+                    if i in fix_parameters:
+                        param = starting_parameters[i]
+                    else:
+                        param = parameters[j]
+                    new_parameters.append(param)
+
+                parameters = np.array(new_parameters)
+
+            # Make sure transition rates are not too big or small
             for i in range(int(len(parameters)/2)):
                 a = parameters[2*i]
                 b = parameters[2*i + 1]
@@ -552,17 +564,19 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
     best_parameters = parameter_sets[scores.index(best_score)]
 
     if not np.all(np.isfinite(model.simulate(found_parameters, mm.times))):
-        return found_parameters, np.inf
+        best_parameters = found_parameters
+        best_score = np.inf
 
-    # # Now run with Nelder-Mead
-    # controller = pints.OptimisationController(
-    #     error, params_not_fixed, boundaries=boundaries, method=pints.NelderMead,
-    #     transformation=transformation)
-
-    # if max_iterations:
-    #     controller.set_max_iterations(max_iterations)
-
-    # found_parameters, found_value = controller.run()
+    j = 0
+    params = []
+    if fix_parameters:
+        for i in range(len(mm.get_default_parameters())):
+            if i in fix_parameters:
+                params.append(starting_parameters[i])
+            else:
+                params.append(best_parameters[j])
+                j += 1
+        best_parameters = np.array(params)
 
     return best_parameters, best_score
 
@@ -960,5 +974,3 @@ def get_model_class(name: str):
     else:
         assert False, f"no model with name {name}"
     return model_class
-
-
