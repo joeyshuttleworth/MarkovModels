@@ -564,7 +564,7 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
     best_parameters = parameter_sets[scores.index(best_score)]
 
     if not np.all(np.isfinite(model.simulate(found_parameters, mm.times))):
-        best_parameters = found_parameters
+        best_parameters = mm.get_default_parameters()
         best_score = np.inf
 
     j = 0
