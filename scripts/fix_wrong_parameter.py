@@ -108,7 +108,8 @@ def main():
     datasets_df = pd.DataFrame(datasets_df, columns=('protocol', 'protocol_index', 'repeat'))
 
     predictions_df = compute_predictions_df(res_df, model_class, data_sets,
-                                            datasets_df, args=args)
+                                            datasets_df, args=args,
+                                            output_dir=output_dir)
     predictions_df.to_csv(os.path.join(output_dir, 'predictions.csv'))
 
 
