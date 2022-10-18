@@ -71,6 +71,7 @@ def main():
                                              parameters=true_params,
                                              noise=args.noise,
                                              output_dir=output_dir)
+    global fix_param
     fix_param = len(param_labels) - 1
 
     # Use multiprocessing to compute process multiple synthetic datasets in parallel
@@ -178,7 +179,7 @@ def generate_synthetic_data_sets(protocols, n_repeats, parameters=None, noise=0.
                 ax.cla()
 
                 data_df = pd.DataFrame(np.vstack(data_set).T, columns=['time / ms', 'current / nA'])
-                data_df.to_csv(os.path.join(output_dir, f"synthetic_data{protocol}_{i}.csv"))
+                data_df.to_csv(os.path.join(output_dir, f"synthetic_data_{protocol}_{i}.csv"))
 
         list_of_data_sets.append(data_sets)
     return list_of_data_sets
@@ -198,6 +199,9 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
 
     predictions_df = []
     protocols_list = datasets_df['protocol'].unique()
+
+    param_labels = model_class().get_parameter_labels()
+    fixed_param_label = param_labels[fix_param]
 
     for sim_protocol in protocols_list:
         prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
@@ -224,51 +228,53 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
 
             # Probably not worth compiling solver
             model.protocol_description = desc
-            model.Erev = common.infer_reversal_potential(sim_protocol, full_data, full_times)
+            model.Erev = common.infer_reversal_potential(sim_protocol,
+                                                         full_data, full_times)
             solver = model.make_forward_solver_current(njitted=False)
 
             for i, protocol_fitted in enumerate(params_df['protocol'].unique()):
-                df = params_df[params_df.well == well]
-                df = df[df.protocol == protocol_fitted]
+                for val in params_df[fixed_param_label].unique():
+                    df = params_df[params_df.well == well]
+                    df = df[df.protocol == protocol_fitted]
 
-                if df.empty:
-                    continue
+                    if df.empty:
+                        continue
 
-                param_labels = model.parameter_labels
-                params = df.iloc[0][param_labels].values\
+                    params = df.iloc[0][param_labels].values\
                                                  .astype(np.float64)\
-                                                 .flatten()
-                if output_dir:
-                    sub_dir = os.path.join(predictions_dir, f"{well}_{sim_protocol}_predictions")
-                    if not os.path.exists(sub_dir):
-                        os.makedirs(sub_dir)
+                                                    .flatten()
+                    if output_dir:
+                        sub_dir = os.path.join(predictions_dir, f"{well}_{sim_protocol}_predictions")
+                        if not os.path.exists(sub_dir):
+                            os.makedirs(sub_dir)
 
-                prediction = solver(params)[indices]
+                    prediction = solver(params)[indices]
 
-                score = np.sqrt(np.mean((data - prediction)**2))
-                predictions_df.append((well, protocol_fitted, sim_protocol,
-                                       score, *params))
+                    score = np.sqrt(np.mean((data - prediction)**2))
+                    predictions_df.append((well, protocol_fitted, sim_protocol,
+                                        score, *params))
 
-                if not np.all(np.isfinite(prediction)):
-                    logging.warning(f"running {sim_protocol} with parameters\
-                    from {protocol_fitted} gave non-finite values")
-                elif output_dir:
-                    # Output trace
-                    trace_axs[0].plot(times, prediction, label='prediction')
+                    if not np.all(np.isfinite(prediction)):
+                        logging.warning(f"running {sim_protocol} with parameters\
+                        from {protocol_fitted} gave non-finite values")
+                    elif output_dir:
+                        # Output trace
+                        trace_axs[0].plot(times, prediction, label='prediction')
 
-                    trace_axs[1].set_xlabel("time / ms")
-                    trace_axs[0].set_ylabel("current / nA")
-                    trace_axs[0].plot(times, data, label='data', alpha=0.25, color='grey')
-                    trace_axs[0].legend()
-                    trace_axs[1].plot(full_times, voltages)
-                    trace_axs[1].set_ylabel('voltage / mV')
-                    fname = f"fitted_to_{protocol_fitted}.png" if protocol_fitted != sim_protocol else "fit.png"
-                    trace_fig.savefig(os.path.join(sub_dir, fname))
+                        trace_axs[1].set_xlabel("time / ms")
+                        trace_axs[0].set_ylabel("current / nA")
+                        trace_axs[0].plot(times, data, label='data', alpha=0.25, color='grey')
+                        trace_axs[0].legend()
+                        trace_axs[1].plot(full_times, voltages)
+                        trace_axs[1].set_ylabel('voltage / mV')
+                        fname = f"fitted_to_{protocol_fitted}_{val:.2f}.png" if protocol_fitted != sim_protocol else f"fit_{val:.2f}.png"
+                        trace_fig.savefig(os.path.join(sub_dir, fname))
 
-                    for ax in trace_axs:
-                        ax.cla()
+                        for ax in trace_axs:
+                            ax.cla()
 
-                    all_models_axs[0].plot(times, prediction, label=protocol_fitted, color=colours[i])
+        all_models_axs[0].plot(times, prediction, label=protocol_fitted,
+                               color=colours[i])
 
     # TODO refactor so this can work with more than one model
     predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
