@@ -9,6 +9,7 @@ import regex as re
 import logging
 import matplotlib.pyplot as plt
 import seaborn as sns
+import pints
 from MarkovModels import common
 from MarkovModels.BeattieModel import BeattieModel
 from MarkovModels.ClosedOpenModel import ClosedOpenModel
@@ -19,10 +20,9 @@ import pandas as pd
 import numpy as np
 
 
-T=298
-K_in=120
-K_out=5
-
+T = 298
+K_in = 120
+K_out = 5
 
 global Erev
 Erev = common.calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
@@ -31,7 +31,6 @@ pool_kws = {'maxtasksperchild': 1}
 
 
 def main():
-    Erev = common.calculate_reversal_potential(T=298, K_in=120, K_out=5)
     parser = common.get_parser(
         data_reqd=False, description="Fit a given well to the data from each\
         of the protocols. Output the resulting parameters to a file for later use")
@@ -41,6 +40,7 @@ def main():
     parser.add_argument('--removal_duration', '-r', default=5, type=float)
     parser.add_argument('--cores', '-c', default=1, type=int)
     parser.add_argument('--model', '-m', default='Beattie', type=str)
+    parser.add_argument('--method', default='CMAES', type=str)
     parser.add_argument('--figsize', '-f', help='mcmc chains to run', type=int)
     parser.add_argument('--use_parameter_file')
     parser.add_argument('--protocols', default=common.get_protocol_list(), nargs='+')
@@ -50,6 +50,11 @@ def main():
 
     global args
     args = parser.parse_args()
+
+    if args.method == 'CMAES':
+        args.method = pints.CMAES
+    if args.method == 'NelderMead':
+        args.method = pints.NelderMead
 
     global output_dir
     output_dir = common.setup_output_directory(args.output,
@@ -86,17 +91,19 @@ def main():
     with multiprocessing.Pool(pool_size, **pool_kws) as pool:
         res = pool.starmap(fit_func, tasks)
 
-    fitted_params = np.vstack(res)
+    fitted_params = np.array(res)
 
     rows = []
+
     for task in tasks:
-        for i in range(res[0].shape[0]):
+        for i in range(fitted_params.shape[1]):
             rows.append(task)
 
     res_df = pd.DataFrame(rows, columns=('model_class', 'dataset_index', 'fix_param', 'protocol'))
 
     for i, param_label in enumerate(model_class().get_parameter_labels()):
-        res_df[param_label] = fitted_params[:, i]
+        res_df[param_label] = fitted_params[:, :, i].flatten(order='C')
+
     res_df['well'] = res_df['dataset_index']
 
     res_df.to_csv(os.path.join(output_dir, 'results_df.csv'))
@@ -121,7 +128,9 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
 
     model_class = common.get_model_class(model_class_name)
     param_val_lims = model_class(parameters=true_params).get_default_parameters()[fix_param] * np.array([0.75, 1.25])
-    param_val_range = np.linspace(*param_val_lims, args.no_parameter_steps)
+    param_val_range = np.linspace(param_val_lims[0],
+                                  param_val_lims[1],
+                                  args.no_parameter_steps)
 
     mm = model_class(voltage=voltage_func,
                      protocol_description=protocol_desc,
@@ -134,10 +143,9 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
                                                                    args.removal_duration / t_step)) for spike in
                                                        spike_indices])
 
-    res = []
-
     # Use the previously found parameters as an initial guess in the next
     # iteration
+    res = []
     params = mm.get_default_parameters()
     solver = mm.make_forward_solver_current()
     for fix_param_val in param_val_range:
@@ -148,9 +156,12 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
                                          max_iterations=args.max_iterations,
                                          starting_parameters=params,
                                          solver=solver,
-                                         subset_indices=indices)
-        res.append(params)
-    return np.vstack(res)
+                                         subset_indices=indices,
+                                         method=args.method)
+        res.append(params.copy())
+
+    res = np.vstack(res)
+    return res
 
 
 def generate_synthetic_data_sets(protocols, n_repeats, parameters=None, noise=0.01, output_dir=None):
@@ -209,7 +220,9 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
         full_times = datasets[protocol_index][0][0]
 
         model = model_class(prot_func,
-                            times=full_times)
+                            times=full_times,
+                            Erev=Erev,
+                            protocol_description=desc)
 
         voltages = np.array([prot_func(t) for t in full_times])
 
@@ -222,20 +235,19 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
         if output_dir:
             colours = sns.color_palette('husl', len(params_df['protocol'].unique()))
 
+        model.protocol_description = desc
+        solver = model.make_forward_solver_current(njitted=True)
+
         for well in params_df['well'].unique():
             full_data = datasets[protocol_index][int(well)][1]
             data = full_data[indices]
 
-            # Probably not worth compiling solver
-            model.protocol_description = desc
-            model.Erev = common.infer_reversal_potential(sim_protocol,
-                                                         full_data, full_times)
-            solver = model.make_forward_solver_current(njitted=False)
 
             for i, protocol_fitted in enumerate(params_df['protocol'].unique()):
                 for val in params_df[fixed_param_label].unique():
                     df = params_df[params_df.well == well]
                     df = df[df.protocol == protocol_fitted]
+                    df = df[df[fixed_param_label] == val]
 
                     if df.empty:
                         continue
