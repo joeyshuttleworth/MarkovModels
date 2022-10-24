@@ -19,13 +19,16 @@ import os
 import pandas as pd
 import numpy as np
 
+import matplotlib
+matplotlib.use('Agg')
+
 
 T = 298
 K_in = 120
 K_out = 5
 
 global Erev
-Erev = common.calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
+Erev = common.calculate_reversal_potential(T=298, K_in=120, K_out=5)
 
 pool_kws = {'maxtasksperchild': 1}
 
@@ -59,6 +62,16 @@ def main():
     global output_dir
     output_dir = common.setup_output_directory(args.output,
                                                "fix_wrong_parameter")
+
+    # Set up logging
+    logging.basicConfig(filename=os.path.join(output_dir,
+                                              'log-fix_wrong_parameter'),
+                        filemode='a',
+                        format='%(asctime)s,%(msecs)d %(name)s %(levelname)s\
+                        %(message)s',
+                        datefmt='%H:%M:%S',
+                        level=logging.DEBUG)
+
     global model_class
     model_class = common.get_model_class(args.model)
 
@@ -67,6 +80,8 @@ def main():
         true_params = pd.read_csv(args.use_parameter_file).values
     else:
         true_params = model_class().get_default_parameters()
+
+    print(true_params)
 
     param_labels = model_class().get_parameter_labels()
 
@@ -88,10 +103,17 @@ def main():
 
     pool_size = min(args.cores, len(tasks))
 
+    # Setup fitting dir
+    fitting_dir = os.path.join(output_dir, 'fitting')
+    if not os.path.exists(fitting_dir):
+        os.makedirs(fitting_dir)
+
     with multiprocessing.Pool(pool_size, **pool_kws) as pool:
         res = pool.starmap(fit_func, tasks)
 
-    fitted_params = np.array(res)
+    res = np.array(res)
+    scores = res[:, :, -1]
+    fitted_params = res[:, :, :res.shape[-1]]
 
     rows = []
 
@@ -103,6 +125,8 @@ def main():
 
     for i, param_label in enumerate(model_class().get_parameter_labels()):
         res_df[param_label] = fitted_params[:, :, i].flatten(order='C')
+
+    res_df['score'] = scores.flatten(order='C')
 
     res_df['well'] = res_df['dataset_index']
 
@@ -124,33 +148,52 @@ def main():
 def fit_func(model_class_name, dataset_index, fix_param, protocol):
     protocol_index = args.protocols.index(protocol)
     times, data = data_sets[protocol_index][int(dataset_index)]
+
     voltage_func, t_start, t_end, t_step, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
 
     model_class = common.get_model_class(model_class_name)
     param_val_lims = model_class(parameters=true_params).get_default_parameters()[fix_param] * np.array([0.75, 1.25])
-    param_val_range = np.linspace(param_val_lims[0],
-                                  param_val_lims[1],
-                                  args.no_parameter_steps)
+    param_val_range = np.unique(np.append(np.linspace(param_val_lims[0],
+                                                      param_val_lims[1],
+                                                      args.no_parameter_steps),
+                                          model_class().get_default_parameters()[fix_param]))
 
     mm = model_class(voltage=voltage_func,
                      protocol_description=protocol_desc,
-                     times=times)
+                     times=times,
+                     Erev=Erev)
 
     voltages = np.array([voltage_func(t) for t in times])
     _, spike_indices = common.detect_spikes(times, voltages, window_size=0)
 
-    indices = common.remove_indices(list(range(len(times))), [(spike, int(spike +
-                                                                   args.removal_duration / t_step)) for spike in
-                                                       spike_indices])
+    indices = common.remove_indices(list(range(len(times))),
+                                    [(spike, int(spike + args.removal_duration / t_step)) for spike in
+                                     spike_indices])
 
     # Use the previously found parameters as an initial guess in the next
     # iteration
     res = []
     params = mm.get_default_parameters()
     solver = mm.make_forward_solver_current()
+
+    def score_func(parameters):
+        pred = solver(parameters)
+        return np.sum((pred - data)[indices]**2)
+
     for fix_param_val in param_val_range:
+        default_guess = mm.get_default_parameters()
+        default_guess[fix_param] = fix_param_val
+
         assert(len(params == len(mm.get_default_parameters())))
         params[fix_param] = fix_param_val
+
+        # Ensure that we use a good first guess
+        pre_score1 = score_func(params)
+        pre_score2 = score_func(default_guess)
+
+        if pre_score2 < pre_score1:
+            params = default_guess
+
         params, score = common.fit_model(mm, data, fix_parameters=[fix_param],
                                          repeats=args.repeats,
                                          max_iterations=args.max_iterations,
@@ -158,25 +201,58 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
                                          solver=solver,
                                          subset_indices=indices,
                                          method=args.method)
-        res.append(params.copy())
+
+        if score > min(pre_score1, pre_score2):
+            logging.warning("Fitting resulting in worse score than default/previous parameters."
+                            + f"Refitting with initial parameters\n ({score}"
+                            + f"vs {min(pre_score1, pre_score2)})")
+            params, score = common.fit_model(mm, data, fix_parameters=[fix_param],
+                                             repeats=args.repeats,
+                                             max_iterations=args.max_iterations,
+                                             solver=solver,
+                                             subset_indices=indices,
+                                             method=args.method)
+
+            score = np.sqrt(score/len(indices))
+
+        print(score, score_func(params), score_func(mm.get_default_parameters()))
+        print(params, mm.get_default_parameters(),
+              params - mm.get_default_parameters())
+
+        fit_fig = plt.figure(figsize=args.figsize)
+        fit_ax = fit_fig.gca()
+        fit_ax.plot(times, data, color='grey')
+        fit_ax.plot(times, solver(params), label='fitted_params')
+        fit_ax.plot(times, solver(), label='true_params')
+        fit_ax.legend()
+
+        # Output into fitting dir which should already exist
+        fitting_dir = os.path.join(output_dir, 'fitting')
+        if os.path.exists(fitting_dir):
+            fit_fig.savefig(os.path.join(fitting_dir, f"fit_{protocol}_{fix_param_val:.2f}_"
+                                         + f"{dataset_index}.png"))
+        params[fix_param] = fix_param_val
+        res.append(np.append(params.copy(), score))
 
     res = np.vstack(res)
     return res
 
 
-def generate_synthetic_data_sets(protocols, n_repeats, parameters=None, noise=0.01, output_dir=None):
+def generate_synthetic_data_sets(protocols, n_repeats, parameters=None,
+                                 noise=0.01, sampling_timestep=0.1, output_dir=None):
     list_of_data_sets = []
     for protocol in protocols:
         prot, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(protocol)
-        times = np.linspace(tstart, tend, int((tend - tstart)/tstep))
+        times = np.linspace(tstart, tend, int((tend - tstart)/sampling_timestep))
 
         model_class = common.get_model_class(args.model)
         model = model_class(prot, times, Erev=Erev, parameters=parameters,
-                        protocol_description=desc)
-        mean = model.SimulateForwardModel()
+                            protocol_description=desc)
+
+        mean = model.make_forward_solver_current()()
 
         data_sets = [(times, mean + np.random.normal(0, noise, times.shape)) for i in
-                    range(n_repeats)]
+                     range(n_repeats)]
 
         if output_dir:
             fig = plt.figure(figsize=args.figsize)
@@ -272,6 +348,7 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
                     elif output_dir:
                         # Output trace
                         trace_axs[0].plot(times, prediction, label='prediction')
+                        trace_axs[0].plot(times, solver()[indices], label='true DGP')
 
                         trace_axs[1].set_xlabel("time / ms")
                         trace_axs[0].set_ylabel("current / nA")
@@ -287,6 +364,8 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
 
         all_models_axs[0].plot(times, prediction, label=protocol_fitted,
                                color=colours[i])
+
+    all_models_fig.savefig(os.path.join(sub_dir, "all_predictions.png"))
 
     # TODO refactor so this can work with more than one model
     predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
