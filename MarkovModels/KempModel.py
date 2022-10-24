@@ -11,9 +11,6 @@ class KempModel(MarkovModel):
     constructed using Markov_builder
     """
 
-    def get_default_parameters(self):
-        return self.default_parameters
-
     def __init__(self, voltage=None, times=None, Erev: float = None,
                  parameters=None, *args, **kwargs):
         # Create symbols for symbolic functions

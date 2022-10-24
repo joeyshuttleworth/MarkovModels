@@ -15,7 +15,7 @@ class MarkovModel:
     """
 
     def get_default_parameters(self):
-        raise NotImplementedError
+        return self.default_parameters.copy()
 
     def get_model_name(self):
         return self.model_name
