@@ -205,7 +205,7 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
         if score > min(pre_score1, pre_score2):
             logging.warning("Fitting resulting in worse score than default/previous parameters."
                             + f"Refitting with initial parameters\n ({score}"
-                            + f"vs {min(pre_score1, pre_score2)})")
+                            + f" vs {min(pre_score1, pre_score2)})")
             params, score = common.fit_model(mm, data, fix_parameters=[fix_param],
                                              repeats=args.repeats,
                                              max_iterations=args.max_iterations,
