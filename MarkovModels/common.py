@@ -396,7 +396,7 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
     return protocol_func, times[0], times[-1], times[1] - times[0], protocol
 
 
-def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
+def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
               max_iterations=None, subset_indices=None, method=pints.CMAES,
               solver=None, log_transform=True, repeats=1):
     """
@@ -420,6 +420,9 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
     returns: A pair containing the optimal parameters and the corresponding sum of square errors.
 
     """
+    if not times:
+        times = mm.times
+
     if log_transform:
         # Assume that the conductance is the last parameter and that the parameters are arranged included
 
@@ -452,10 +455,7 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
         return starting_parameters, np.inf
 
     if solver is None:
-        try:
-            solver = mm.make_hybrid_solver_current()
-        except Exception:
-            solver = mm.make_forward_solver_current()
+        solver = mm.make_forward_solver_current()
 
     if subset_indices is None:
         subset_indices = np.array(list(range(len(mm.times))))
@@ -538,7 +538,9 @@ def fit_model(mm, data, starting_parameters=None, fix_parameters=[],
     model = PintsWrapper(mm, starting_parameters,
                          fix_parameters=fix_parameters)
 
-    problem = pints.SingleOutputProblem(model, mm.times[subset_indices], data[subset_indices])
+    problem = pints.SingleOutputProblem(model, times[subset_indices],
+                                        data[subset_indices])
+
     error = pints.SumOfSquaresError(problem)
     boundaries = Boundaries(starting_parameters, fix_parameters)
 
@@ -668,10 +670,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     model.protocol_description = protocol_desc
 
     if not solver:
-        try:
-            solver = model.make_hybrid_solver_current()
-        except:
-            solver = model.make_forward_solver_current()
+        solver = model.make_forward_solver_current()
 
     # Try fitting G_Kr on its own first
     # Start with roughly the max conductance observed divided through by 10
@@ -792,9 +791,7 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
     roots = np.unique([np.real(root) for root in fitted_poly.roots()
                        if root > np.min(voltages) and root < np.max(voltages)])
 
-    # It makes sense to take the last root. This should be the first time that
-    # the current crosses 0 and where the ion-channel kinetics are too slow to
-    # play a role
+    # Take the last root (greatest voltage). This should be the first time that the current crosses 0 and where the ion-channel kinetics are too slow to play a role
     if len(roots) == 0:
         return np.nan
 
