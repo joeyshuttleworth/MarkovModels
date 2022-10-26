@@ -460,6 +460,9 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
     if subset_indices is None:
         subset_indices = np.array(list(range(len(mm.times))))
 
+    full_default_parameters = mm.get_default_parameters()
+    fix_parameters = np.unique(fix_parameters)
+
     class Boundaries(pints.Boundaries):
         def __init__(self, parameters, fix_parameters=None):
             self.fix_parameters = fix_parameters
@@ -467,16 +470,10 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
 
         def check(self, parameters):
             if fix_parameters:
-                new_parameters = []
-                j = 0
-                for i in range(len(mm.get_default_parameters())):
-                    if i in fix_parameters:
-                        param = starting_parameters[i]
-                    else:
-                        param = parameters[j]
-                    new_parameters.append(param)
+                for i in np.unique(fix_parameters):
+                    np.insert(parameters, i, full_default_parameters[i])
 
-                parameters = np.array(new_parameters)
+                    print(parameters)
 
             # Make sure transition rates are not too big or small
             for i in range(int(len(parameters)/2)):
@@ -569,16 +566,11 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
         best_parameters = mm.get_default_parameters()
         best_score = np.inf
 
-    j = 0
-    params = []
     if fix_parameters:
-        for i in range(len(mm.get_default_parameters())):
-            if i in fix_parameters:
-                params.append(starting_parameters[i])
-            else:
-                params.append(best_parameters[j])
-                j += 1
-        best_parameters = np.array(params)
+        for i in np.unique(fix_parameters):
+            best_parameters = np.insert(best_parameters,
+                                        i,
+                                        full_default_parameters[i])
 
     return best_parameters, best_score
 
