@@ -473,8 +473,6 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
                 for i in np.unique(fix_parameters):
                     np.insert(parameters, i, full_default_parameters[i])
 
-                    print(parameters)
-
             # Make sure transition rates are not too big or small
             for i in range(int(len(parameters)/2)):
                 a = parameters[2*i]
