@@ -152,11 +152,10 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
     voltage_func, t_start, t_end, t_step, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
 
     model_class = common.get_model_class(model_class_name)
-    param_val_lims = model_class(parameters=true_params).get_default_parameters()[fix_param] * np.array([0.75, 1.25])
-    param_val_range = np.unique(np.append(np.linspace(param_val_lims[0],
-                                                      param_val_lims[1],
-                                                      args.no_parameter_steps),
-                                          model_class().get_default_parameters()[fix_param]))
+    default_fixed_param_val = model_class(parameters=true_params).\
+        get_default_parameters()[fix_param]
+    param_val_range = 2**np.linspace(-2, 2, args.no_parameter_steps - 1) * default_fixed_param_val
+    param_val_range = np.unique(np.insert(param_val_range, 0, default_fixed_param_val))
 
     mm = model_class(voltage=voltage_func,
                      protocol_description=protocol_desc,
@@ -313,13 +312,17 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
 
         model.protocol_description = desc
         solver = model.make_forward_solver_current(njitted=True)
+        default_prediction = solver()[indices]
 
         for well in params_df['well'].unique():
             full_data = datasets[protocol_index][int(well)][1]
             data = full_data[indices]
 
-
             for i, protocol_fitted in enumerate(params_df['protocol'].unique()):
+
+                all_models_axs[1].plot(full_times, voltages,
+                                       label=protocol_fitted, color=colours[i])
+
                 for val in params_df[fixed_param_label].unique():
                     df = params_df[params_df.well == well]
                     df = df[df.protocol == protocol_fitted]
@@ -339,8 +342,11 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
                     prediction = solver(params)[indices]
 
                     score = np.sqrt(np.mean((data - prediction)**2))
+
+                    RMSE_DGP = np.sqrt(np.mean((prediction - default_prediction)**2))
+
                     predictions_df.append((well, protocol_fitted, sim_protocol,
-                                        score, *params))
+                                           score, RMSE_DGP, *params))
 
                     if not np.all(np.isfinite(prediction)):
                         logging.warning(f"running {sim_protocol} with parameters\
@@ -359,18 +365,28 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
                         fname = f"fitted_to_{protocol_fitted}_{val:.2f}.png" if protocol_fitted != sim_protocol else f"fit_{val:.2f}.png"
                         trace_fig.savefig(os.path.join(sub_dir, fname))
 
+                        trace_axs[0].cla()
+                        trace_axs[0].plot(times,
+                                          prediction - default_prediction)
+                        trace_axs[0].set_yscale('log')
+                        fname = f"fitted_to_{protocol_fitted}_{val:.2f}_error.png" if protocol_fitted != sim_protocol else f"fit_{val:.2f}_error.png"
+                        trace_fig.savefig(os.path.join(sub_dir, fname))
+
                         for ax in trace_axs:
                             ax.cla()
 
-        all_models_axs[0].plot(times, prediction, label=protocol_fitted,
-                               color=colours[i])
+                    all_models_axs[0].plot(times, prediction, label=protocol_fitted,
+                                           color=colours[i])
 
-    all_models_fig.savefig(os.path.join(sub_dir, "all_predictions.png"))
+        all_models_fig.savefig(os.path.join(sub_dir, "all_predictions.png"))
+
+        for ax in all_models_axs:
+            ax.cla()
 
     # TODO refactor so this can work with more than one model
     predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
                                                                       'validation_protocol',
-                                                                      'score'] + param_labels)
+                                                                      'score', 'RMSE_DGP'] + param_labels)
     predictions_df['RMSE'] = predictions_df['score']
     return predictions_df
 
