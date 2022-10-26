@@ -47,7 +47,7 @@ def main():
     parser.add_argument('--figsize', '-f', help='mcmc chains to run', type=int)
     parser.add_argument('--use_parameter_file')
     parser.add_argument('--protocols', default=common.get_protocol_list(), nargs='+')
-    parser.add_argument('--noise', default=0.01, type=float)
+    parser.add_argument('--noise', default=0.05, type=float)
     parser.add_argument('--no_repeats', default=100, type=int)
     parser.add_argument('--no_parameter_steps', default=25, type=int)
 
@@ -89,7 +89,7 @@ def main():
     data_sets = generate_synthetic_data_sets(args.protocols,
                                              args.no_repeats,
                                              parameters=true_params,
-                                             noise=args.noise,
+                                             noise=None,
                                              output_dir=output_dir)
     global fix_param
     fix_param = len(param_labels) - 1
@@ -154,8 +154,17 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
     model_class = common.get_model_class(model_class_name)
     default_fixed_param_val = model_class(parameters=true_params).\
         get_default_parameters()[fix_param]
-    param_val_range = 2**np.linspace(-2, 2, args.no_parameter_steps - 1) * default_fixed_param_val
-    param_val_range = np.unique(np.insert(param_val_range, 0, default_fixed_param_val))
+
+    param_val_multipliers = np.concatenate([np.linspace(0, 1,
+                                                  int(args.no_parameter_steps/2)
+                                                  + 1),
+                                      np.linspace(-2/args.no_parameter_steps,
+                                                  -1,
+                                                  int(args.no_parameter_steps/2))])
+
+    param_vals = 2**param_val_multipliers * default_fixed_param_val
+
+    print(param_vals)
 
     mm = model_class(voltage=voltage_func,
                      protocol_description=protocol_desc,
@@ -179,7 +188,7 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
         pred = solver(parameters)
         return np.sum((pred - data)[indices]**2)
 
-    for fix_param_val in param_val_range:
+    for fix_param_val in param_vals:
         default_guess = mm.get_default_parameters()
         default_guess[fix_param] = fix_param_val
 
@@ -238,7 +247,12 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
 
 
 def generate_synthetic_data_sets(protocols, n_repeats, parameters=None,
-                                 noise=0.01, sampling_timestep=0.1, output_dir=None):
+                                 noise=None, sampling_timestep=0.1,
+                                 output_dir=None):
+
+    if not noise:
+        noise = args.noise
+
     list_of_data_sets = []
     for protocol in protocols:
         prot, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(protocol)
