@@ -338,16 +338,16 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
                                        label=protocol_fitted, color=colours[i])
 
                 for val in params_df[fixed_param_label].unique():
-                    df = params_df[params_df.well == well]
-                    df = df[df.protocol == protocol_fitted]
-                    df = df[df[fixed_param_label] == val]
+                    df = params_df[(params_df.well == well)
+                                   & (params_df.protocol == protocol_fitted)
+                                   & (params_df[fixed_param_label] == val)]
 
                     if df.empty:
                         continue
 
-                    params = df.iloc[0][param_labels].values\
-                                                 .astype(np.float64)\
-                                                    .flatten()
+                    assert(len(df.index) == 1)
+                    params = df[param_labels].values.astype(np.float64).flatten()
+
                     if output_dir:
                         sub_dir = os.path.join(predictions_dir, f"{well}_{sim_protocol}_predictions")
                         if not os.path.exists(sub_dir):
