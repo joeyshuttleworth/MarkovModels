@@ -77,7 +77,7 @@ def main():
 
     global true_params
     if args.use_parameter_file:
-        true_params = pd.read_csv(args.use_parameter_file).values
+        true_params = pd.read_csv(args.use_parameter_file, header=None).values[0,:].astype(np.float64)
     else:
         true_params = model_class().get_default_parameters()
 
