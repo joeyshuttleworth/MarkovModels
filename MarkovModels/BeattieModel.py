@@ -22,8 +22,9 @@ class BeattieModel(MarkovModel):
         symbols = self.CreateSymbols()
 
         if parameters is None:
-            self.default_parameters = np.array((2.26E-4, 6.99E-2, 3.445E-5, 5.460E-2, 0.0873,
-                                                8.91E-3, 5.15E-3, 0.03158, 0.1524))
+            self.default_parameters = np.array((2.26E-4, 6.99E-2, 3.445E-5,
+                                                5.460E-2, 0.0873, 8.91E-3,
+                                                5.15E-3, 0.03158, 0.1524))
         else:
             self.default_parameters = parameters
 
