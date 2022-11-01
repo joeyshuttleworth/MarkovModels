@@ -323,7 +323,7 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
 
         model.protocol_description = desc
         solver = model.make_forward_solver_current(njitted=True)
-        default_prediction = solver()[indices]
+        default_prediction = solver(true_params)[indices]
 
         for well in params_df['well'].unique():
             full_data = datasets[protocol_index][int(well)][1]
@@ -365,7 +365,7 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
                     elif output_dir:
                         # Output trace
                         trace_axs[0].plot(times, prediction, label='prediction')
-                        trace_axs[0].plot(times, solver()[indices], label='true DGP')
+                        trace_axs[0].plot(times, solver(true_params)[indices], label='true DGP')
 
                         trace_axs[1].set_xlabel("time / ms")
                         trace_axs[0].set_ylabel("current / nA")
