@@ -152,8 +152,7 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
     voltage_func, t_start, t_end, t_step, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
 
     model_class = common.get_model_class(model_class_name)
-    default_fixed_param_val = model_class(parameters=true_params).\
-        get_default_parameters()[fix_param]
+    default_fixed_param_val = true_params[fix_param]
 
     param_val_multipliers = np.concatenate([np.linspace(0, 2,
                                                         int(args.no_parameter_steps/2)
@@ -178,21 +177,22 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
                                     [(spike, int(spike + args.removal_duration / t_step)) for spike in
                                      spike_indices])
 
-    # Use the previously found parameters as an initial guess in the next
-    # iteration
-    res = []
-    params = mm.get_default_parameters()
+    params = true_params
     solver = mm.make_forward_solver_current()
 
     def score_func(parameters):
         pred = solver(parameters)
         return np.sum((pred - data)[indices]**2)
 
+    fit_fig = plt.figure(figsize=args.figsize)
+    fit_ax = fit_fig.gca()
+
+    res = []
     for fix_param_val in param_vals:
-        default_guess = mm.get_default_parameters()
+        default_guess = true_params
         default_guess[fix_param] = fix_param_val
 
-        assert(len(params == len(mm.get_default_parameters())))
+        assert(len(params == len(true_params)))
         params[fix_param] = fix_param_val
 
         # Ensure that we use a good first guess
@@ -223,12 +223,8 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
 
             score = np.sqrt(score/len(indices))
 
-        print(score, score_func(params), score_func(mm.get_default_parameters()))
-        print(params, mm.get_default_parameters(),
-              params - mm.get_default_parameters())
+        params[fix_param] = fix_param_val
 
-        fit_fig = plt.figure(figsize=args.figsize)
-        fit_ax = fit_fig.gca()
         fit_ax.plot(times, data, color='grey')
         fit_ax.plot(times, solver(params), label='fitted_params')
         fit_ax.plot(times, solver(), label='true_params')
@@ -239,7 +235,8 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
         if os.path.exists(fitting_dir):
             fit_fig.savefig(os.path.join(fitting_dir, f"fit_{protocol}_{fix_param_val:.2f}_"
                                          + f"{dataset_index}.png"))
-        params[fix_param] = fix_param_val
+        fit_ax.cla()
+
         res.append(np.append(params.copy(), score))
 
     res = np.vstack(res)
