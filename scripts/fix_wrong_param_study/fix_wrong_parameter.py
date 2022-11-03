@@ -150,6 +150,11 @@ def main():
 
 
 def fit_func(model_class_name, dataset_index, fix_param, protocol):
+    sub_dir = os.path.join(output_dir, 'fitting', f"param_{fix_param}")
+
+    if not os.path.exists(sub_dir):
+        os.makedirs(sub_dir)
+
     protocol_index = args.protocols.index(protocol)
     times, data = data_sets[protocol_index][int(dataset_index)]
 
@@ -234,10 +239,8 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
         fit_ax.plot(times, solver(true_params), label='true_params')
         fit_ax.legend()
 
-        # Output into fitting dir which should already exist
-        fitting_dir = os.path.join(output_dir, 'fitting')
-        if os.path.exists(fitting_dir):
-            fit_fig.savefig(os.path.join(fitting_dir, f"fit_{protocol}_{fix_param_val:.2f}_"
+        if os.path.exists(sub_dir):
+            fit_fig.savefig(os.path.join(sub_dir, f"fit_{protocol}_{fix_param_val:.4f}_"
                                          + f"{dataset_index}.png"))
         fit_ax.cla()
 
@@ -352,10 +355,9 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
                         assert(len(df.index) == 1)
                         params = df[param_labels].values.astype(np.float64).flatten()
 
-                        if output_dir:
-                            sub_dir = os.path.join(predictions_dir, f"{well}_{sim_protocol}_predictions")
-                            if not os.path.exists(sub_dir):
-                                os.makedirs(sub_dir)
+                        sub_dir = os.path.join(predictions_dir, f"param_{fix_param}", f"{well}_{sim_protocol}_predictions")
+                        if not os.path.exists(sub_dir):
+                            os.makedirs(sub_dir)
 
                         prediction = solver(params)[indices]
 
