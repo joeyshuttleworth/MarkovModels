@@ -67,7 +67,12 @@ def main():
                                                "scatter_parameter_sets")
 
     model_class = common.get_model_class(args.model_class)
-    true_parameters = model_class().get_default_parameters()
+
+    if args.use_parameter_file:
+        true_parameters = pd.read_csv(args.use_parameter_file,
+                                      header=None).values[0, :]
+    else:
+        true_parameters = model_class().get_default_parameters()
 
     if not args.fix_param:
         args.fix_param = model_class().get_parameter_labels()[-1]
@@ -79,31 +84,28 @@ def main():
         df[param_label] = df[param_label].astype(np.float64)
 
     parameter_labels = model_class().get_parameter_labels()
+    fig = plt.figure(figsize=args.figsize)
+    ax = fig.subplots()
+
+    df = df[~df.protocol.isin(args.ignore_protocols)]
+    print(df.protocol.unique())
 
     for i in range(int(len(parameter_labels) / 2)):
         lab1 = parameter_labels[2*i]
         lab2 = parameter_labels[2*i + 1]
 
         if args.same_plot_lims:
-            xlims = (df[lab1].min(), df[lab1].max())
-            ylims = (df[lab2].min(), df[lab2].max())
+            xlims = np.quantile(df[lab1], [0.01, 0.99])
+            ylims = np.quantile(df[lab2], [0.01, 0.99])
+            print(xlims, ylims)
 
         for j, val in enumerate(df[args.fix_param].unique()):
             sub_df = df[df[args.fix_param] == val]
-            print(val)
-            print(sub_df)
 
             # sub_df = sub_df.replace({
             #     'protocol': relabel_dict})
 
             sub_df = sub_df.sort_values(by='protocol')
-
-            if args.ignore_protocols:
-                sub_df = sub_df[~sub_df.protocol.isin(args.ignore_protocols)]
-
-                fig = plt.figure(figsize=args.figsize)
-                ax = fig.subplots()
-                fig.tight_layout()
 
             g = sns.scatterplot(data=sub_df, x=lab1, y=lab2, hue='protocol',
                                 legend=True)
@@ -141,7 +143,6 @@ def main():
         fig.clf()
 
         fig.legend(*legend_params, frameon=False, loc='center')
-        fig.tight_layout()
         fig.savefig(os.path.join(output_dir, f"legend.{args.file_format}"))
 
         fig.clf()
