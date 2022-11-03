@@ -103,6 +103,7 @@ def main():
             for protocol in args.protocols:
                 # model and dataset index
                 tasks.append([args.model, i, fix_param, protocol])
+    print(tasks, len(tasks))
 
     pool_size = min(args.cores, len(tasks))
 

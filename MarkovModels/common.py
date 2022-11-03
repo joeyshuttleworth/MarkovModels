@@ -484,9 +484,9 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
                 max_rate = np.max(extreme_rates)
                 min_rate = np.min(extreme_rates)
 
-                if max_rate > 1e5:
+                if max_rate > 1e7:
                     return False
-                if min_rate < 1e-8:
+                if min_rate < 1e-12:
                     return False
 
             # Ensure that all parameters > 0
@@ -547,8 +547,13 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
 
     scores, parameter_sets = [], []
     for i in range(repeats):
-        controller = pints.OptimisationController(
-            error, params_not_fixed, boundaries=boundaries, method=method, transformation=transformation)
+        try:
+            controller = pints.OptimisationController(
+                error, params_not_fixed, boundaries=boundaries, method=method, transformation=transformation)
+        except Exception as e:
+            print(str(e))
+            found_value = np.inf
+            found_parameters = starting_parameters
 
         if max_iterations is not None:
             controller.set_max_iterations(max_iterations)
