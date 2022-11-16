@@ -398,7 +398,7 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
 
 def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
               max_iterations=None, subset_indices=None, method=pints.CMAES,
-              solver=None, log_transform=True, repeats=1):
+              solver=None, log_transform=True, repeats=1, return_fitting_df=False):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -460,7 +460,6 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
     if subset_indices is None:
         subset_indices = np.array(list(range(len(mm.times))))
 
-    full_default_parameters = mm.get_default_parameters()
     fix_parameters = np.unique(fix_parameters)
 
     class Boundaries(pints.Boundaries):
@@ -575,7 +574,20 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
                                         i,
                                         starting_parameters[i])
 
-    return best_parameters, best_score
+    if return_fitting_df:
+        if fix_parameters:
+            new_rows = parameter_sets
+            for i in np.unique(fix_parameters):
+                for j, row in enumerate(parameter_sets):
+                    new_rows[j] = np.insert(row, i, starting_parameters[i])
+
+        parameter_sets = np.array(new_rows)
+        print(parameter_sets)
+        fitting_df = pd.DataFrame(parameter_sets, columns=mm.get_parameter_labels())
+        fitting_df['RMSE'] = scores
+        return best_parameters, best_score, fitting_df
+    else:
+        return best_parameters, best_score
 
 
 def get_protocol(protocol_name: str):
