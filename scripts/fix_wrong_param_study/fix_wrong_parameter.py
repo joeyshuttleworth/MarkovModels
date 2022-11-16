@@ -99,6 +99,13 @@ def main():
     # Use multiprocessing to compute process multiple synthetic datasets in parallel
     tasks = []
     for fix_param in args.fix_params:
+        sub_dir = os.path.join(output_dir, 'fitting', f"param_{fix_param}")
+        if not os.path.exists(sub_dir):
+            try:
+                os.makedirs(sub_dir)
+            except FileExistsError:
+                pass
+
         for i, data in enumerate(data_sets[0]):
             for protocol in args.protocols:
                 # model and dataset index
@@ -110,7 +117,10 @@ def main():
     # Setup fitting dir
     fitting_dir = os.path.join(output_dir, 'fitting')
     if not os.path.exists(fitting_dir):
-        os.makedirs(fitting_dir)
+        try:
+            os.makedirs(sub_dir)
+        except FileExistsError:
+            pass
 
     with multiprocessing.Pool(pool_size, **pool_kws) as pool:
         res = pool.starmap(fit_func, tasks)
@@ -153,7 +163,10 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
     sub_dir = os.path.join(output_dir, 'fitting', f"param_{fix_param}")
 
     if not os.path.exists(sub_dir):
-        os.makedirs(sub_dir)
+        try:
+            os.makedirs(sub_dir)
+        except FileExistsError:
+            pass
 
     protocol_index = args.protocols.index(protocol)
     times, data = data_sets[protocol_index][int(dataset_index)]
@@ -186,7 +199,7 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
                                     [(spike, int(spike + args.removal_duration / t_step)) for spike in
                                      spike_indices])
 
-    params = true_params
+    params = true_params.copy()
     solver = mm.make_forward_solver_current()
 
     def score_func(parameters):
@@ -223,12 +236,13 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
             logging.warning("Fitting resulting in worse score than default/previous parameters."
                             + f"Refitting with initial parameters\n ({score}"
                             + f" vs {min(pre_score1, pre_score2)})")
-            params, score = common.fit_model(mm, data, fix_parameters=[fix_param],
-                                             repeats=args.repeats,
-                                             max_iterations=args.max_iterations,
-                                             solver=solver,
-                                             subset_indices=indices,
-                                             method=args.method)
+            params, score, fitting_df = common.fit_model(mm, data, fix_parameters=[fix_param],
+                                                         repeats=args.repeats,
+                                                         max_iterations=args.max_iterations,
+                                                         solver=solver,
+                                                         subset_indices=indices,
+                                                         method=args.method,
+                                                         return_fitting_df=True)
 
             score = np.sqrt(score/len(indices))
 
@@ -240,8 +254,11 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
         fit_ax.legend()
 
         if os.path.exists(sub_dir):
-            fit_fig.savefig(os.path.join(sub_dir, f"fit_{protocol}_{fix_param_val:.4f}_"
+            fit_fig.savefig(os.path.join(sub_dir, f"fit_{protocol}_{fix_param_val:.4e}_"
                                          + f"{dataset_index}.png"))
+            fitting_df.to_csv(os.path.join(sub_dir, f"fit_{protocol}_{fix_param_val:.4e}_"
+                                           + f"{dataset_index}.csv"))
+
         fit_ax.cla()
 
         res.append(np.append(params.copy(), score))
@@ -295,7 +312,11 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
         predictions_dir = os.path.join(output_dir, label)
 
         if not os.path.exists(predictions_dir):
-            os.makedirs(predictions_dir)
+            try:
+                os.makedirs(predictions_dir)
+            except FileExistsError:
+                pass
+
         trace_fig = plt.figure(figsize=args.figsize)
         trace_axs = trace_fig.subplots(2)
         all_models_fig = plt.figure(figsize=args.figsize)
@@ -357,7 +378,10 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
 
                         sub_dir = os.path.join(predictions_dir, f"param_{fix_param}", f"{well}_{sim_protocol}_predictions")
                         if not os.path.exists(sub_dir):
-                            os.makedirs(sub_dir)
+                            try:
+                                os.makedirs(sub_dir)
+                            except FileExistsError:
+                                pass
 
                         prediction = solver(params)[indices]
 
@@ -366,7 +390,7 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
                         RMSE_DGP = np.sqrt(np.mean((prediction - default_prediction)**2))
 
                         predictions_df.append((well, fix_param, protocol_fitted, sim_protocol,
-                                            score, RMSE_DGP, *params))
+                                               score, RMSE_DGP, *params))
 
                         if not np.all(np.isfinite(prediction)):
                             logging.warning(f"running {sim_protocol} with parameters\
@@ -387,7 +411,7 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
 
                             trace_axs[0].cla()
                             trace_axs[0].plot(times,
-                                            prediction - default_prediction)
+                                              prediction - default_prediction)
                             trace_axs[0].set_yscale('log')
                             fname = f"fitted_to_{protocol_fitted}_{val:.4f}_error.png" if protocol_fitted != sim_protocol else f"fit_{val:.4f}_error.png"
                             trace_fig.savefig(os.path.join(sub_dir, fname))
@@ -396,7 +420,7 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
                                 ax.cla()
 
                         all_models_axs[0].plot(times, prediction, label=protocol_fitted,
-                                            color=colours[i])
+                                               color=colours[i])
 
             all_models_fig.savefig(os.path.join(sub_dir, "all_predictions.png"))
 
