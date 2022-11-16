@@ -149,17 +149,8 @@ def main():
                     predictions = np.stack(predictions)
                     min_pred = predictions.min(axis=0)
                     max_pred = predictions.max(axis=0)
-                    # mean_pred = predictions.mean(axis=0)
 
-                    # plot min and max
-                    # axs[0].plot(times, min_pred, linestyle='--', color='red', linewidth=lw, label='min/max prediction')
-                    # axs[0].plot(times, max_pred, linestyle='--', color='red', linewidth=lw)
-                    # # axs[0].plot(times, mean_pred, color='red', linewidth=lw, label='mean prediction')
                     axs[0].fill_between(times, min_pred, max_pred, color='orange', alpha=.4)
-
-                # if not args.nolegend:
-                #     axs[0].legend(prop={'size': 6})
-                #     axs[0].set_xticks([])
 
                 axs[0].set_title(args.fig_title)
 
