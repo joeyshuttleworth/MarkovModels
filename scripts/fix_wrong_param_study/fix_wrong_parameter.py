@@ -211,7 +211,7 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
 
     res = []
     for fix_param_val in param_vals:
-        default_guess = true_params
+        default_guess = true_params.copy()
         default_guess[fix_param] = fix_param_val
 
         assert(len(params == len(true_params)))
@@ -222,7 +222,7 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
         pre_score2 = score_func(default_guess)
 
         if pre_score2 < pre_score1:
-            params = default_guess
+            params = default_guess.copy()
 
         params, score, fitting_df = common.fit_model(mm, data, fix_parameters=[fix_param],
                                                      repeats=args.repeats,
