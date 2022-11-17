@@ -245,6 +245,10 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
                                                          subset_indices=indices,
                                                          method=args.method,
                                                          return_fitting_df=True)
+            append_df = pd.DataFrame([*true_params.copy(), pre_score2],
+                                     columns=[*mm.get_parameter_labels(),
+                                              'score'])
+            fitting_df = fitting_df.append(append_df, ignore_index=True)
 
         score = np.sqrt(score/len(indices))
         params[fix_param] = fix_param_val
