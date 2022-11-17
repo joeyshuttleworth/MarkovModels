@@ -236,15 +236,15 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
             logging.warning("Fitting resulting in worse score than default/previous parameters."
                             + f"Refitting with initial parameters\n ({score}"
                             + f" vs {min(pre_score1, pre_score2)})")
-            params, score, fitting_df = common.fit_model(mm, data, fix_parameters=[fix_param],
-                                                         repeats=args.repeats,
-                                                         max_iterations=args.max_iterations,
-                                                         solver=solver,
-                                                         subset_indices=indices,
-                                                         method=args.method,
-                                                         return_fitting_df=True)
-
             score = np.sqrt(score/len(indices))
+
+        params, score, fitting_df = common.fit_model(mm, data, fix_parameters=[fix_param],
+                                                     repeats=args.repeats,
+                                                     max_iterations=args.max_iterations,
+                                                     solver=solver,
+                                                     subset_indices=indices,
+                                                     method=args.method,
+                                                     return_fitting_df=True)
 
         params[fix_param] = fix_param_val
 
