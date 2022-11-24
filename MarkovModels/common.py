@@ -669,6 +669,8 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
             assert(Erev < -50 and Erev > -100)
         except Exception:
             Erev = None
+    else:
+        Erev = None
 
     if Erev is None:
         Erev = calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)

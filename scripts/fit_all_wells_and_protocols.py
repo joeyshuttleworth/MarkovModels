@@ -68,10 +68,7 @@ def mcmc_func(protocol, well, model_class, initial_params):
     reversal_potential = common.infer_reversal_potential(protocol, data, times)
     model.Erev = reversal_potential
 
-    try:
-        solver = model.make_hybrid_solver_current()
-    except NotImplementedError:
-        solver = model.make_forward_solver_current()
+    solver = model.make_forward_solver_current()
 
     if np.any(~np.isfinite(solver(initial_params))):
         initial_params = model.get_default_parameters()
