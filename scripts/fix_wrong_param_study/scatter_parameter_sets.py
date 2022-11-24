@@ -126,8 +126,8 @@ def main():
             val1 = true_parameters[2*i]
             val2 = true_parameters[2*i + 1]
 
-            ax.axvline(val1, label=f"true {lab1}", linestyle='..')
-            ax.axhline(val2, label=f"true {lab2}", linestyle='..')
+            ax.axvline(val1, label=f"true {lab1}", linestyle='dotted')
+            ax.axhline(val2, label=f"true {lab2}", linestyle='dotted')
 
             if args.same_plot_lims:
                 ax.set_xlim(*xlims)
