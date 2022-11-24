@@ -30,13 +30,15 @@ pool_kws = {'maxtasksperchild': 1}
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None):
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
+    infer_E_rev = not args.dont_infer_Erev
+
     res_df = common.fit_well_data(model_class, well, protocol,
                                   args.data_directory, args.max_iterations,
                                   output_dir=this_output_dir, T=298, K_in=K_in,
                                   K_out=K_out,
                                   default_parameters=default_parameters,
                                   removal_duration=args.removal_duration,
-                                  repeats=args.repeats, infer_E_rev=True,
+                                  repeats=args.repeats, infer_E_rev=infer_E_rev,
                                   experiment_name=experiment_name)
 
     res_df['well'] = well
@@ -111,6 +113,7 @@ def main():
     parser.add_argument('--figsize', '-f', help='mcmc chains to run', type=int)
     parser.add_argument('--use_parameter_file')
     parser.add_argument('--refit', action='store_false')
+    parser.add_argument('--dont_infer_Erev', action='store_false')
     parser.add_argument('--selection_file')
 
     global args
