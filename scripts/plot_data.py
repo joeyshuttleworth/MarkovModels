@@ -40,7 +40,7 @@ def main():
     output_dir = common.setup_output_directory(args.output, 'plot_data')
 
     if args.fontsize:
-        matplotlib.rcParams.update({'font.size' : args.fontsize})
+        matplotlib.rcParams.update({'font.size': args.fontsize})
 
     if args.wells is None:
         args.wells = common.get_all_wells_in_directory(args.data_directory)
@@ -84,48 +84,47 @@ def main():
         for well in args.wells:
             for prediction_protocol in args.prediction_protocols:
                 predictions = []
+                prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(prediction_protocol)
+                if os.path.exists(os.path.join(args.data_directory,
+                                               f"{args.experiment_name}-{prediction_protocol}-times.csv")):
+                    current = common.get_data(well, prediction_protocol, args.data_directory,
+                                              args.experiment_name)
+                    times = pd.read_csv(os.path.join(args.data_directory,
+                                                     f"{args.experiment_name}-{prediction_protocol}-times.csv"))['time'].values.astype(np.float64).flatten()
+
+                voltages = np.array([prot_func(t) for t in times])
+                model = model_class(voltage=prot_func, times=times,
+                                    protocol_description=desc)
+                print(params_df)
                 for i, protocol in enumerate(args.protocols):
-                    if os.path.exists(os.path.join(args.data_directory,
-                                                   f"{args.experiment_name}-{prediction_protocol}-times.csv")):
-                        current = common.get_data(well, prediction_protocol, args.data_directory,
-                                                  args.experiment_name)
-                        times = pd.read_csv(os.path.join(args.data_directory,
-                                                         f"{args.experiment_name}-{prediction_protocol}-times.csv"))['time'].values.astype(np.float64).flatten()
+                    if params_df is not None:
+                        param_labels = model_class().get_parameter_labels()
+                        if protocol not in params_df.protocol.unique():
+                            continue
 
-                        prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(prediction_protocol)
+                        parameters = params_df[(params_df.well == well) &
+                                               (params_df.protocol == protocol)].head(1)[param_labels].values.flatten()
+                    else:
+                        parameters = None
 
-                        if params_df is not None:
-                            param_labels = model_class().get_parameter_labels()
-                            parameters = params_df[(params_df.well == well) &
-                                                (params_df.protocol == protocol)].head(1)[param_labels].values.flatten()
-                            model = model_class(voltage=prot_func, times=times,
-                                                parameters=parameters, protocol_description=desc)
+                    if len(args.protocols) == 1:
+                        color = 'green'
+                        label = model.get_model_name()
+                    elif args.show_uncertainty:
+                        color = 'grey'
+                        label = None
+                    else:
+                        color = cm[i]
+                        label = f"{prediction_protocol} fit"
 
-                        else:
-                            model = None
+                    if model:
+                        prediction = model.SimulateForwardModel(parameters)
+                        color = 'red'
+                        axs[0].plot(times, prediction, color=color,
+                                    label=label, linewidth=lw,
+                                    linestyle='--')
+                        predictions.append(prediction)
 
-                        voltages = np.array([prot_func(t) for t in times])
-
-                        if len(args.protocols) == 1:
-                            color = 'green'
-                            label = model.get_model_name()
-                        elif args.show_uncertainty:
-                            color = 'grey'
-                            label = None
-                        else:
-                            color = cm[i]
-                            label = f"{prediction_protocol} fit"
-
-                        if model:
-                            # print(protocol)
-                            # print(params_df[(params_df.well == well)
-                            # & (params_df.protocol == protocol)])
-                            prediction = model.SimulateForwardModel()
-                            color = 'red'
-                            axs[0].plot(times, prediction, color=color,
-                                        label=label, linewidth=lw,
-                                        linestyle='--')
-                            predictions.append(prediction)
                 if not args.no_voltage:
                     axs[1].plot(times, voltages, linewidth=lw)
                     axs[1].set_xlabel('time / ms')
