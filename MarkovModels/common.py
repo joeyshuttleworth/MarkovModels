@@ -776,8 +776,15 @@ def get_all_wells_in_directory(data_dir, experiment_name='newtonrun4'):
 def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
                              output_path=None, plot=False):
 
+    dirname = os.path.dirname(output_path)
+
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+
     if ax or output_path:
         plot = True
+
+    print(plot)
 
     protocol_func, _, _, _, protocol_desc = get_ramp_protocol_from_csv(protocol)
 
@@ -817,7 +824,7 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
         ax.set_xlabel('voltage mV')
         ax.set_ylabel('current nA')
         # Now plot current vs voltage
-        plt.plot(voltages, current, 'x', markersize=2, color='grey')
+        ax.plot(voltages, current, 'x', markersize=2, color='grey')
         ax.axvline(roots[-1], linestyle='--', color='grey', label="$E_{Kr}$")
         ax.axhline(0, linestyle='--', color='grey')
         ax.legend()

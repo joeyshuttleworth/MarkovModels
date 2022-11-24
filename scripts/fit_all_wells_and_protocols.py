@@ -111,7 +111,7 @@ def main():
     parser.add_argument('--figsize', '-f', help='mcmc chains to run', type=int)
     parser.add_argument('--use_parameter_file')
     parser.add_argument('--refit', action='store_false')
-    parser.add_argument('--dont_infer_Erev', action='store_false')
+    parser.add_argument('--dont_infer_Erev', action='store_true')
     parser.add_argument('--selection_file')
 
     global args
