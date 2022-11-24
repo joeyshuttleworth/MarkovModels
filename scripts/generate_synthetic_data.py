@@ -21,10 +21,10 @@ def main():
     parser.add_argument("--prefix", default='synthetic')
     parser.add_argument('-P', '--protocols', nargs='+', default=None)
     parser.add_argument('-p', '--plot', action='store_true', default=False)
-    parser.add_argument('--noise', 0=default.01, type=float)
+    parser.add_argument('--noise', default=0.05, type=float)
     parser.add_argument('--Erev', '-e', default=None)
     parser.add_argument('--cpus', '-c', default=1, type=int)
-    parser.add_argument('--repeats', '-r', default=1, type=int)
+    parser.add_argument('--repeats', '-r', default=10, type=int)
 
     global args
     args = parser.parse_args()
