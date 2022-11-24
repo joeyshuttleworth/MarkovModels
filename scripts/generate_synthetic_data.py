@@ -24,6 +24,7 @@ def main():
     parser.add_argument('--noise', default=0.01, type=float)
     parser.add_argument('--Erev', '-e', default=None)
     parser.add_argument('--cpus', '-c', default=1, type=int)
+    parser.add_argument('--repeats', '-c', default=1, type=int)
 
     global args
     args = parser.parse_args()
@@ -53,10 +54,12 @@ def main():
         if args.protocols is None\
         else args.protocols
 
+    tasks = [(p, args.repeats) for p in protocols]
     with multiprocessing.Pool(args.cpus) as pool:
-        pool.map(generate_data, protocols)
+        pool.starmap(generate_data, tasks)
 
-def generate_data(protocol):
+
+def generate_data(protocol, no_repeats):
     prot, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(protocol)
 
     times = np.linspace(tstart, tend, int((tend - tstart)/tstep))
@@ -69,25 +72,27 @@ def generate_data(protocol):
     model.protocol_description = desc
 
     mean = model.SimulateForwardModel()
-    data = mean + np.random.normal(0, sigma, times.shape)
 
-    # Output data
-    out_fname = os.path.join(output_dir, f"{args.prefix}-{protocol}-A01.csv")
-    pd.DataFrame(data.T, columns=('current',)).to_csv(out_fname)
+    for repeat in range(no_repeats):
+        data = mean + np.random.normal(0, sigma, times.shape)
 
-    if args.plot:
-        fig = plt.figure(figsize=(14, 12))
-        axs = fig.subplots(3)
-        axs[0].plot(times, mean, label='mean')
-        axs[0].plot(times, data, label='data', color='grey', alpha=0.5)
-        axs[1].plot(times, model.GetStateVariables())
-        axs[1].legend(model.state_labels)
-        axs[0].legend()
-        axs[1].set_xlabel('time / ms')
-        axs[0].set_ylabel('current / nA')
-        axs[2].plot(times, [model.voltage(t) for t in times], label='voltage / mV')
-        fig.savefig(os.path.join(output_dir, f"%s_plot.png" % protocol))
-        plt.close(fig)
+        # Output data
+        out_fname = os.path.join(output_dir, f"{args.prefix}_{protocol}_{repeat}.csv")
+        pd.DataFrame(data.T, columns=('current',)).to_csv(out_fname)
+
+        if args.plot:
+            fig = plt.figure(figsize=(14, 12))
+            axs = fig.subplots(3)
+            axs[0].plot(times, mean, label='mean')
+            axs[0].plot(times, data, label='data', color='grey', alpha=0.5)
+            axs[1].plot(times, model.GetStateVariables())
+            axs[1].legend(model.state_labels)
+            axs[0].legend()
+            axs[1].set_xlabel('time / ms')
+            axs[0].set_ylabel('current / nA')
+            axs[2].plot(times, [model.voltage(t) for t in times], label='voltage / mV')
+            fig.savefig(os.path.join(output_dir, f"%s_plot.png" % protocol))
+            plt.close(fig)
 
 
 
