@@ -14,16 +14,15 @@ import os
 import pandas as pd
 import numpy as np
 
-
 T=298
 K_in=5
 K_out=120
-
 
 global Erev
 Erev = common.calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
 
 pool_kws = {'maxtasksperchild': 1}
+
 
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None):
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
@@ -123,7 +122,7 @@ def main():
     global model_class
     model_class = common.get_model_class(args.model)
 
-    regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$")
+    regex = re.compile(f"^{experiment_name}_([a-z|A-Z|0-9]*)_([A-Z|0-9]*).csv$")
 
     if len(args.wells) == 0:
         args.wells = common.get_all_wells_in_directory(args.data_directory, experiment_name)
