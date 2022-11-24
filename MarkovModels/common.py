@@ -666,7 +666,8 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                 output_path = os.path.join(output_dir, 'infer_reversal_potential.png')
             Erev = infer_reversal_potential(protocol, data, times, plot=plot,
                                             output_path=output_path)
-            assert(Erev < -50 and Erev > -100)
+            if Erev > -50 or Erev < -100:
+                Erev = None
         except Exception:
             Erev = None
     else:

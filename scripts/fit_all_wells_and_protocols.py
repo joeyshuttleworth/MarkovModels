@@ -38,7 +38,8 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None):
                                   K_out=K_out,
                                   default_parameters=default_parameters,
                                   removal_duration=args.removal_duration,
-                                  repeats=args.repeats, infer_E_rev=infer_E_rev,
+                                  repeats=args.repeats,
+                                  infer_E_rev=infer_E_rev,
                                   experiment_name=experiment_name)
 
     res_df['well'] = well
