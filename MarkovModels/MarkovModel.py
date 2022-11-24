@@ -380,7 +380,8 @@ class MarkovModel:
 
         return njit(analytic_solver) if njitted else analytic_solver
 
-    def make_forward_solver_states(self, atol=None, rtol=None, protocol_description=None, njitted=True):
+    def make_forward_solver_states(self, atol=None, rtol=None,
+                                   protocol_description=None, njitted=True):
 
         if atol is None:
             atol = self.solver_tolerances[0]
@@ -775,15 +776,7 @@ class MarkovModel:
         return self.make_forward_solver_current(njitted=False)(p, times)
 
     def GetStateVariables(self, p=None):
-
-        if p is None:
-            p = self.get_default_parameters()
-
-        states = self.solve_rhs(p)['y'].T
-        state1 = np.array([1.0 - np.sum(row) for row in states])
-        state1 = state1.reshape(len(state1), 1)
-        states = np.concatenate((states, state1), axis=1)
-        return states
+        return self.make_forward_solver_states()()
 
     def GetVoltage(self, times=None):
         """

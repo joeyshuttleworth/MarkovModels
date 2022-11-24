@@ -77,7 +77,7 @@ def generate_data(protocol, no_repeats):
         data = mean + np.random.normal(0, sigma, times.shape)
 
         # Output data
-        out_fname = os.path.join(output_dir, f"{args.prefix}_{protocol}_{repeat}.csv")
+        out_fname = os.path.join(output_dir, f"{args.prefix}-{protocol}-{repeat}.csv")
         pd.DataFrame(data.T, columns=('current',)).to_csv(out_fname)
 
         if args.plot:
@@ -91,7 +91,7 @@ def generate_data(protocol, no_repeats):
             axs[1].set_xlabel('time / ms')
             axs[0].set_ylabel('current / nA')
             axs[2].plot(times, [model.voltage(t) for t in times], label='voltage / mV')
-            fig.savefig(os.path.join(output_dir, f"{protocol}_plot_{repeat}.png"))
+            fig.savefig(os.path.join(output_dir, f"plot_-{protocol}plot-{repeat}.png"))
             plt.close(fig)
 
 

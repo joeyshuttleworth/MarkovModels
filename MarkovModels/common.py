@@ -754,7 +754,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
 
 def get_all_wells_in_directory(data_dir, experiment_name='newtonrun4'):
 
-    regex = f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9]).csv$"
+    regex = f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z]|0-9]*).csv$"
     regex = re.compile(regex)
     wells = []
     group = 1
