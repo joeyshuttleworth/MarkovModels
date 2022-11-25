@@ -582,7 +582,6 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
                     new_rows[j] = np.insert(row, i, starting_parameters[i])
 
         parameter_sets = np.array(new_rows)
-        print(parameter_sets)
         fitting_df = pd.DataFrame(parameter_sets, columns=mm.get_parameter_labels())
         fitting_df['RMSE'] = scores
         return best_parameters, best_score, fitting_df
@@ -784,8 +783,6 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
     if ax or output_path:
         plot = True
 
-    print(plot)
-
     protocol_func, _, _, _, protocol_desc = get_ramp_protocol_from_csv(protocol)
 
     tstart = times[0]
@@ -958,8 +955,6 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
     if not np.isfinite(initial_likelihood):
         print("{model} MCMC failed, initial parameters had non-finite log likelihood")
         return np.full((no_chains, chain_length, len(starting_parameters)), np.nan)
-
-    print(starting_parameters)
 
     print(f"initial likelihood is {initial_likelihood}")
 

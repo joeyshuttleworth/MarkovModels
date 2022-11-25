@@ -195,6 +195,7 @@ def main():
     fitting_df.to_csv(os.path.join(output_dir, "prelim_fitting.csv"))
 
     params_df = get_best_params(fitting_df)
+    print(params_df)
 
     params_df.to_csv(os.path.join(output_dir, "prelim_best_fitting.csv"))
 
@@ -225,8 +226,6 @@ def main():
         param_labels = model_class().get_parameter_labels()
         best_params = best_params_row[param_labels].astype(np.float64).values.flatten()
         task[-1] = best_params
-
-    print(tasks)
 
     if args.refit:
         with multiprocessing.Pool(pool_size, **pool_kws) as pool:
@@ -385,15 +384,20 @@ def compute_predictions_df(params_df, label='predictions'):
 
 
 def get_best_params(fitting_df, protocol_label='protocol'):
-    protocols_list = fitting_df[protocol_label].unique()
-    wells_list = fitting_df['well'].unique()
     best_params = []
-    for protocol in np.unique(protocols_list):
-        for well in np.unique(wells_list):
+
+    print(fitting_df)
+    fitting_df = fitting_df[np.isfinite(fitting_df['score'])].copy()
+
+    for protocol in np.unique(fitting_df['protocol']):
+        for well in np.unique(fitting_df['well']):
             sub_df = fitting_df[(fitting_df['well'] == well)
                                 & (fitting_df[protocol_label] == protocol)].copy()
 
             # Get index of min score
+            if len(sub_df.index) == 0:
+                continue
+
             best_params.append(sub_df[sub_df.score.idxmax()].copy())
 
     return pd.concat(best_params, ignore_index=True)

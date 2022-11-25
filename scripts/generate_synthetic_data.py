@@ -91,7 +91,7 @@ def generate_data(protocol, no_repeats):
             axs[1].set_xlabel('time / ms')
             axs[0].set_ylabel('current / nA')
             axs[2].plot(times, [model.voltage(t) for t in times], label='voltage / mV')
-            fig.savefig(os.path.join(output_dir, f"plot_-{protocol}plot-{repeat}.png"))
+            fig.savefig(os.path.join(output_dir, f"plot-{protocol}plot-{repeat}.png"))
             plt.close(fig)
 
 
