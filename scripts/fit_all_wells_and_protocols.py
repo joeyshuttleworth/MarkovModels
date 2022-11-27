@@ -195,7 +195,6 @@ def main():
     fitting_df.to_csv(os.path.join(output_dir, "prelim_fitting.csv"))
 
     params_df = get_best_params(fitting_df)
-    print(params_df)
 
     params_df.to_csv(os.path.join(output_dir, "prelim_best_fitting.csv"))
 
@@ -387,9 +386,10 @@ def get_best_params(fitting_df, protocol_label='protocol'):
     best_params = []
 
     print(fitting_df)
+    fitting_df['score'] = fitting_df['score'].astype(np.float64)
     fitting_df = fitting_df[np.isfinite(fitting_df['score'])].copy()
 
-    for protocol in np.unique(fitting_df['protocol']):
+    for protocol in np.unique(fitting_df[protocol_label]):
         for well in np.unique(fitting_df['well']):
             sub_df = fitting_df[(fitting_df['well'] == well)
                                 & (fitting_df[protocol_label] == protocol)].copy()
@@ -397,8 +397,7 @@ def get_best_params(fitting_df, protocol_label='protocol'):
             # Get index of min score
             if len(sub_df.index) == 0:
                 continue
-
-            best_params.append(sub_df[sub_df.score.idxmax()].copy())
+            best_params.append(sub_df[sub_df.score == sub_df.score.idxmax()].head(1).copy())
 
     return pd.concat(best_params, ignore_index=True)
 

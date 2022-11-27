@@ -636,7 +636,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                   repeats=1, infer_E_rev=False, fit_initial_conductance=True,
                   experiment_name='newtonrun4', solver=None):
 
-    if default_parameters is None:
+    if default_parameters is None or len(default_parameters) == 0:
         default_parameters = model_class().get_default_parameters()
 
     if max_iterations == 0:
@@ -751,9 +751,12 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
             ax.cla()
             ax.plot(times, data)
 
-    df = pd.concat(dfs, ignore_index=True)
-    df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
+    if len(dfs) != 0:
+        df = pd.concat(dfs, ignore_index=True)
+    else:
+        df = pd.DataFrame(values=[], columns=[*model.get_parameter_labels(), 'protocol', 'well', 'experiment_name', 'score'])
 
+    df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
     return df
 
 
@@ -775,10 +778,11 @@ def get_all_wells_in_directory(data_dir, experiment_name='newtonrun4'):
 def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
                              output_path=None, plot=False):
 
-    dirname = os.path.dirname(output_path)
+    if output_path:
+        dirname = os.path.dirname(output_path)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
 
-    if not os.path.exists(dirname):
-        os.makedirs(dirname)
 
     if ax or output_path:
         plot = True
