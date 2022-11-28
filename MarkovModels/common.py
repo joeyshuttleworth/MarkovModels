@@ -427,7 +427,7 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
         # Assume that the conductance is the last parameter and that the parameters are arranged included
 
         if mm.transformations:
-            transformations = [t for i, t in enumerate(*mm.transformations) if i not in fix_parameters]
+            transformations = [t for i, t in enumerate(mm.transformations) if i not in fix_parameters]
             transformation = pints.ComposedTransformation(*mm.transformations)
 
         else:
