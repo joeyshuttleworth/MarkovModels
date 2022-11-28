@@ -17,15 +17,7 @@ import os
 import pandas as pd
 import numpy as np
 
-T = 298
-K_out = 5
-K_in = 120
-
-global Erev
-Erev = common.calculate_reversal_potential(T=T, K_in=K_in, K_out=K_out)
-
 pool_kws = {'maxtasksperchild': 1}
-
 
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None):
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
@@ -34,8 +26,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None):
 
     res_df = common.fit_well_data(model_class, well, protocol,
                                   args.data_directory, args.max_iterations,
-                                  output_dir=this_output_dir, T=298, K_in=K_in,
-                                  K_out=K_out,
+                                  output_dir=this_output_dir,
                                   default_parameters=default_parameters,
                                   removal_duration=args.removal_duration,
                                   repeats=args.repeats,

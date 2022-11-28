@@ -100,7 +100,7 @@ def get_parser(data_reqd=False, description=None):
     return parser
 
 
-def calculate_reversal_potential(T=293.15, K_in=120, K_out=5):
+def calculate_reversal_potential(T=293, K_in=120, K_out=5):
     """
     Compute the Nernst potential of a potassium channel.
 
