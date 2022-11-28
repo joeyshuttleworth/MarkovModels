@@ -1,7 +1,8 @@
 import numpy as np
 import sympy as sp
 import pints
-import common
+
+from . import common
 
 from markov_builder.example_models import construct_wang_chain
 from scipy.integrate import odeint

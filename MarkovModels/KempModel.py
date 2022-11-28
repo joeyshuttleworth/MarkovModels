@@ -3,7 +3,7 @@ import sympy as sp
 from markov_builder.example_models import construct_kemp_model
 from scipy.integrate import odeint
 
-import common
+from . import common
 from . MarkovModel import MarkovModel
 
 
