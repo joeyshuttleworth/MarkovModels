@@ -3,6 +3,7 @@ import sympy as sp
 from markov_builder.example_models import construct_kemp_model
 from scipy.integrate import odeint
 
+import common
 from . MarkovModel import MarkovModel
 
 
@@ -30,7 +31,7 @@ class KempModel(MarkovModel):
         if Erev is None:
             self.Erev = -80
         else:
-            self.Erev = Erev
+            self.Erev = common.calculate_reversal_potential()
 
         if times is None:
             times = np.linspace(0, 15000, 1000)

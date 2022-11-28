@@ -83,7 +83,9 @@ def mcmc_func(protocol, well, model_class, initial_params):
 
 
 def main():
-    Erev = common.calculate_reversal_potential(T=298, K_in=120, K_out=5)
+    # Default Erev (room temp)
+    Erev = common.calculate_reversal_potential()
+
     print(f"Erev is {Erev}")
     parser = common.get_parser(
         data_reqd=True, description="Fit a given well to the data from each\

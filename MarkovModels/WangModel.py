@@ -1,6 +1,8 @@
 import numpy as np
 import sympy as sp
 import pints
+import common
+
 from markov_builder.example_models import construct_wang_chain
 from scipy.integrate import odeint
 
@@ -31,6 +33,8 @@ class WangModel(MarkovModel):
         if Erev is None:
             self.Erev = -80
         else:
+            # Use default Erev
+            common.calculate_reversal_potential()
             self.Erev = Erev
 
         if times is None:
