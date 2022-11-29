@@ -284,6 +284,10 @@ def compute_predictions_df(params_df, label='predictions'):
 
     all_models_fig = plt.figure(figsize=args.figsize)
     all_models_axs = all_models_fig.subplots(2)
+
+    global param_labels
+    param_labels = model_class().get_parameter_labels()
+
     for sim_protocol in np.unique(protocols_list):
         prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
         full_times = pd.read_csv(os.path.join(args.data_directory,
@@ -318,7 +322,6 @@ def compute_predictions_df(params_df, label='predictions'):
                 if df.empty:
                     continue
 
-                param_labels = model.parameter_labels
                 params = df.iloc[0][param_labels].values\
                                                  .astype(np.float64)\
                                                  .flatten()
@@ -367,7 +370,6 @@ def compute_predictions_df(params_df, label='predictions'):
             for ax in all_models_axs:
                 ax.cla()
 
-    # TODO refactor so this can work with more than one model
     predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
                                                                       'validation_protocol',
                                                                       'score'] + param_labels)
@@ -382,15 +384,15 @@ def get_best_params(fitting_df, protocol_label='protocol'):
     fitting_df['score'] = fitting_df['score'].astype(np.float64)
     fitting_df = fitting_df[np.isfinite(fitting_df['score'])].copy()
 
-    for protocol in np.unique(fitting_df[protocol_label]):
-        for well in np.unique(fitting_df['well']):
+    for protocol in fitting_df[protocol_label].unique():
+        for well in fitting_df['well'].unique():
             sub_df = fitting_df[(fitting_df['well'] == well)
                                 & (fitting_df[protocol_label] == protocol)].copy()
 
             # Get index of min score
             if len(sub_df.index) == 0:
                 continue
-            best_params.append(sub_df[sub_df.score == sub_df.score.idxmax()].head(1).copy())
+            best_params.append(sub_df[sub_df.score == sub_df.score.max()].head(1).copy())
 
     return pd.concat(best_params, ignore_index=True)
 
