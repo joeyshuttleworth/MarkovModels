@@ -3,6 +3,7 @@ import sympy as sp
 from scipy.integrate import odeint
 
 from . MarkovModel import MarkovModel
+from . import common
 
 class BeattieModel(MarkovModel):
     """
@@ -30,6 +31,7 @@ class BeattieModel(MarkovModel):
 
         if Erev is None:
             self.Erev = -80
+            self.Erev = common.calculate_reversal_potential()
         else:
             self.Erev = Erev
 

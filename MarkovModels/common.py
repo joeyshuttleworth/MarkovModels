@@ -631,7 +631,7 @@ def get_data(well, protocol, data_directory, experiment_name='newtonrun4'):
 
 
 def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
-                  output_dir=None, T=298, K_in=120, K_out=5,
+                  output_dir=None, T=None, K_in=None, K_out=None,
                   default_parameters: float = None, removal_duration=5,
                   repeats=1, infer_E_rev=False, fit_initial_conductance=True,
                   experiment_name='newtonrun4', solver=None):
