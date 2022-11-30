@@ -304,16 +304,15 @@ def compute_predictions_df(params_df, label='predictions'):
                                              time_to_remove=args.removal_duration)
         times = full_times[indices]
 
+        # Probably not worth compiling solver
+        model.protocol_description = desc
+        solver = model.make_forward_solver_current(njitted=True)
+
         colours = sns.color_palette('husl', len(params_df['protocol'].unique()))
 
         for well in params_df['well'].unique():
             full_data = common.get_data(well, sim_protocol, args.data_directory, experiment_name=experiment_name)
             data = full_data[indices]
-
-            # Probably not worth compiling solver
-            model.protocol_description = desc
-            model.Erev = common.infer_reversal_potential(sim_protocol, full_data, full_times)
-            solver = model.make_forward_solver_current(njitted=False)
 
             for i, protocol_fitted in enumerate(params_df['protocol'].unique()):
                 df = params_df[params_df.well == well]
@@ -329,7 +328,8 @@ def compute_predictions_df(params_df, label='predictions'):
                 if not os.path.exists(sub_dir):
                     os.makedirs(sub_dir)
 
-                prediction = solver(params)[indices]
+                full_prediction = solver(params)
+                prediction = full_prediction[indices]
 
                 score = np.sqrt(np.mean((data - prediction)**2))
                 predictions_df.append((well, protocol_fitted, sim_protocol, score, *params))
@@ -339,7 +339,7 @@ def compute_predictions_df(params_df, label='predictions'):
                     from {protocol_fitted} gave non-finite values")
                 else:
                     # Output trace
-                    trace_axs[0].plot(times, prediction, label='prediction')
+                    trace_axs[0].plot(full_times, full_prediction, label='prediction')
 
                     trace_axs[1].set_xlabel("time / ms")
                     trace_axs[0].set_ylabel("current / nA")
