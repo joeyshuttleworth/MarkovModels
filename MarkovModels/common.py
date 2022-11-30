@@ -552,8 +552,8 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
             found_value = np.inf
             found_parameters = starting_parameters
 
-        if max_iterations is not None:
-            controller.set_max_iterations(max_iterations)
+            if max_iterations is not None:
+                controller.set_max_iterations(max_iterations)
 
         found_parameters, found_value = controller.run()
         parameter_sets.append(found_parameters)
