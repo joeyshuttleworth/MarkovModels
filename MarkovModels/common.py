@@ -468,25 +468,23 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
             self.parameters = parameters
 
         def check(self, parameters):
+            parameters = parameters.copy()
             if fix_parameters:
                 for i in np.unique(fix_parameters):
                     np.insert(parameters, i, starting_parameters)
 
-            # Make sure transition rates are not too big or small
-            for i in range(int(len(parameters)/2)):
-                a = parameters[2*i]
-                b = parameters[2*i + 1]
+            # rates function
+            rates_func = mm.get_rates_func(njitted=False)
 
-                vs = np.array([-120, 40])
+            Vs = [-120, 40]
+            rates_1 = rates_func(parameters, Vs[0])
+            rates_2 = rates_func(parameters, Vs[1])
 
-                extreme_rates = np.abs(a*np.exp(b*vs))
-                max_rate = np.max(extreme_rates)
-                min_rate = np.min(extreme_rates)
+            if max(rates_1.max(), rates_2.max()) > 1e7:
+                return False
 
-                if max_rate > 1e7:
-                    return False
-                if min_rate < 1e-12:
-                    return False
+            if min(rates_1.min(), rates_2.min()) > 1e-7:
+                return False
 
             # Ensure that all parameters > 0
             return np.all(parameters > 0)

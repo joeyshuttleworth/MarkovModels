@@ -345,7 +345,6 @@ class MarkovModel:
     #     return solver
 
     def get_rates_func(self, njitted=True):
-        n = len(self.rates_dict)
         inputs = (self.p, self.v)
         rates_expr = sp.Matrix(list(self.rates_dict.values()))
 
