@@ -483,7 +483,7 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
             if max(rates_1.max(), rates_2.max()) > 1e7:
                 return False
 
-            if min(rates_1.min(), rates_2.min()) > 1e-7:
+            if min(rates_1.min(), rates_2.min()) < 1e-9:
                 return False
 
             # Ensure that all parameters > 0
