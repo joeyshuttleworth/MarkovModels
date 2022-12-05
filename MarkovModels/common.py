@@ -469,9 +469,9 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
 
         def check(self, parameters):
             parameters = parameters.copy()
-            if fix_parameters:
-                for i in np.unique(fix_parameters):
-                    parameters = np.insert(parameters, i, starting_parameters)
+            if self.fix_parameters:
+                for i in np.unique(self.fix_parameters):
+                    parameters = np.insert(parameters, i, starting_parameters[i])
 
             # rates function
             rates_func = mm.get_rates_func(njitted=False)
@@ -544,9 +544,11 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
 
     scores, parameter_sets = [], []
     for i in range(repeats):
+        controller = pints.OptimisationController(error, params_not_fixed,
+                                                  boundaries=boundaries,
+                                                  method=method,
+                                                  transformation=transformation)
         try:
-            controller = pints.OptimisationController(
-                error, params_not_fixed, boundaries=boundaries, method=method, transformation=transformation)
             if max_iterations is not None:
                 controller.set_max_iterations(max_iterations)
 
