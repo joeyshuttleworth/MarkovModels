@@ -471,7 +471,7 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
             parameters = parameters.copy()
             if fix_parameters:
                 for i in np.unique(fix_parameters):
-                    np.insert(parameters, i, starting_parameters)
+                    parameters = np.insert(parameters, i, starting_parameters)
 
             # rates function
             rates_func = mm.get_rates_func(njitted=False)
