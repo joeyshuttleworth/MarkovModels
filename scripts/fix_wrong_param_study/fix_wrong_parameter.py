@@ -90,7 +90,7 @@ def main():
     data_sets = generate_synthetic_data_sets(args.protocols,
                                              args.no_repeats,
                                              parameters=true_params,
-                                             noise=None,
+                                             noise=args.noise,
                                              output_dir=output_dir)
 
     if not args.fix_params:
