@@ -398,7 +398,7 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
 
 def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
               max_iterations=None, subset_indices=None, method=pints.CMAES,
-              solver=None, log_transform=True, repeats=1, return_fitting_df=False):
+              solver=None, log_transform=True, repeats=1, return_fitting_df=False, parallel = False):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -548,6 +548,10 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
                                                   boundaries=boundaries,
                                                   method=method,
                                                   transformation=transformation)
+
+        if not parallel:
+            controller.set_parallel(False)
+
         try:
             if max_iterations is not None:
                 controller.set_max_iterations(max_iterations)

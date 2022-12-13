@@ -15,6 +15,8 @@ from MarkovModels.BeattieModel import BeattieModel
 from MarkovModels.ClosedOpenModel import ClosedOpenModel
 from MarkovModels.KempModel import KempModel
 
+from threadpoolctl import threadpool_limits
+
 import os
 import pandas as pd
 import numpy as np
@@ -442,4 +444,5 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
-    main()
+    with threadpool_limits(limits=1, user_api='blas'):
+        main()
