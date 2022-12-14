@@ -385,7 +385,7 @@ def compute_predictions_df(params_df, label='predictions'):
 def get_best_params(fitting_df, protocol_label='protocol'):
     best_params = []
 
-    print(fitting_df)
+    # Ensure score is a float - may be read from csv file
     fitting_df['score'] = fitting_df['score'].astype(np.float64)
     fitting_df = fitting_df[np.isfinite(fitting_df['score'])].copy()
 
