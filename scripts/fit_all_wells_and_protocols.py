@@ -392,7 +392,7 @@ def get_best_params(fitting_df, protocol_label='protocol'):
             # Get index of min score
             if len(sub_df.index) == 0:
                 continue
-            best_params.append(sub_df[sub_df.score == sub_df.score.max()].head(1).copy())
+            best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
 
     return pd.concat(best_params, ignore_index=True)
 
