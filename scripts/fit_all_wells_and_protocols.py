@@ -147,6 +147,11 @@ def main():
     else:
         best_params_df = None
 
+    if 'validation_protocol' in best_params_df:
+        best_params_df = get_best_params(best_params_df, 'validation_protocol')
+    else:
+        best_params_df = get_best_params(best_params_df, 'protocol')
+
     tasks = []
     protocols_list = []
 
