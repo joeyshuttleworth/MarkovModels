@@ -16,6 +16,7 @@ from numba import njit
 import subprocess
 import sys
 import datetime
+import logging
 import numpy.polynomial.polynomial as poly
 
 from .BeattieModel import BeattieModel
@@ -398,7 +399,8 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
 
 def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
               max_iterations=None, subset_indices=None, method=pints.CMAES,
-              solver=None, log_transform=True, repeats=1, return_fitting_df=False, parallel = False):
+              solver=None, log_transform=True, repeats=1, return_fitting_df=False, parallel=False,
+              randomise_initial_guess=True):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -494,6 +496,25 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
                 len(self.fix_parameters) if self.fix_parameters is not None\
                 else mm.get_no_parameters()
 
+        def sample(self, n=1):
+            min_log_p, max_log_p = [-7, -1]
+
+            def sample_once():
+                for i in range(1000):
+                    p = np.empty(starting_parameters.shape)
+                    p[-1] = starting_parameters[-1]
+                    p[:-1] = 10**np.random.uniform(min_log_p, max_log_p, starting_parameters[:-1].shape)
+                    # Check this lies in boundaries
+                    if self.check(p):
+                        return p
+                logging.warning("Couldn't sample from boundaries")
+                return np.NaN
+
+            ret_vec = np.full((n, len(starting_parameters)), np.nan)
+            for i in range(n):
+                ret_vec[i, :] = sample_once()
+            return ret_vec
+
     class PintsWrapper(pints.ForwardModelS1):
         def __init__(self, mm, parameters, fix_parameters=None):
             self.mm = mm
@@ -534,7 +555,6 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
                                         data[subset_indices])
 
     error = pints.SumOfSquaresError(problem)
-    boundaries = Boundaries(starting_parameters, fix_parameters)
 
     if fix_parameters is not None:
         params_not_fixed = [starting_parameters[i] for i in range(
@@ -542,8 +562,16 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
     else:
         params_not_fixed = starting_parameters
 
-    scores, parameter_sets = [], []
+    if randomise_initial_guess:
+        initial_guess_dist = Boundaries(starting_parameters, fix_parameters)
+        starting_parameter_sets = []
+
+    scores, parameter_sets, iterations = [], [], []
     for i in range(repeats):
+        if randomise_initial_guess:
+            starting_parameters = initial_guess_dist.sample(n=1).flatten()
+            starting_parameter_sets.append(starting_parameters)
+        boundaries = Boundaries(starting_parameters, fix_parameters)
         controller = pints.OptimisationController(error, params_not_fixed,
                                                   boundaries=boundaries,
                                                   method=method,
@@ -562,8 +590,10 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
             found_parameters = starting_parameters
 
         found_parameters, found_value = controller.run()
+        this_run_iterations = controller.iterations()
         parameter_sets.append(found_parameters)
         scores.append(found_value)
+        iterations.append(this_run_iterations)
 
     best_score = min(scores)
     best_parameters = parameter_sets[scores.index(best_score)]
@@ -585,9 +615,23 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
                 for j, row in enumerate(parameter_sets):
                     new_rows[j] = np.insert(row, i, starting_parameters[i])
 
-        parameter_sets = np.array(new_rows)
-        fitting_df = pd.DataFrame(parameter_sets, columns=mm.get_parameter_labels())
+            parameter_sets = np.array(new_rows)
+        else:
+            parameter_sets = np.vstack(parameter_sets)
+        fitting_df = pd.DataFrame(parameter_sets, columns=mm.get_parameter_labels()[:parameter_sets.shape[1]])
         fitting_df['RMSE'] = scores
+        fitting_df['iterations'] = iterations
+
+        # Append starting parameters also
+        if randomise_initial_guess:
+            columns = mm.get_parameter_labels()
+            initial_guess_df = pd.DataFrame(starting_parameter_sets,
+                                            columns=columns[:parameter_sets.shape[1]])
+            initial_guess_df['iterations'] = iterations
+            initial_guess_df['RMSE'] = np.NaN
+
+        fitting_df = pd.concat([fitting_df, initial_guess_df], ignore_index=True)
+
         return best_parameters, best_score, fitting_df
     else:
         return best_parameters, best_score
@@ -668,14 +712,12 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
             if output_dir:
                 plot = True
                 output_path = os.path.join(output_dir, 'infer_reversal_potential.png')
-            Erev = infer_reversal_potential(protocol, data, times, plot=plot,
+            inferred_Erev = infer_reversal_potential(protocol, data, times, plot=plot,
                                             output_path=output_path)
-            if Erev > -50 or Erev < -100:
-                Erev = None
+            if inferred_Erev < -50 or inferred_Erev > -100:
+                Erev = inferred_Erev
         except Exception:
-            Erev = None
-    else:
-        Erev = None
+            pass
 
     model = model_class(voltage_func, times, parameters=default_parameters,
                         Erev=Erev)
@@ -698,40 +740,23 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     initial_params = model.get_default_parameters()
     initial_params[model.GKr_index] = initial_gkr
 
-    # First fit only Gkr
-    if fit_initial_conductance:
-        def gkr_opt_func(gkr):
-            p = model.get_default_parameters()
-            p[model.GKr_index] = gkr
-            return ((model.SimulateForwardModel(p) - data)**2).sum()
-
-        if initial_gkr <= 0:
-            initial_gkr = model.get_default_parameters()[model.GKr_index]
-
-        initial_params[model.GKr_index] = initial_gkr
-
-    print(f"initial_gkr is {initial_gkr}")
-
-    initial_score = ((model.SimulateForwardModel(initial_params) - data)**2).sum()
-    print(f"initial score is {initial_score}")
-
-    # If this score is worse than the default parameters, use them
-    if initial_score > np.sum((solver() - data)**2) or np.any(~np.isfinite(model.SimulateForwardModel(initial_params))):
-        initial_params = model.get_default_parameters()
-        print('using default parameters')
-
-    columns = model.parameter_labels
+    columns = model.get_parameter_labels()
 
     if infer_E_rev:
         columns.append("E_rev")
 
-    dfs = []
-    for i in range(repeats):
-        fitted_params, score = fit_model(model, data, solver=solver,
-                                         starting_parameters=initial_params,
-                                         max_iterations=max_iterations,
-                                         subset_indices=indices)
+    fitted_params, score, fitting_df = fit_model(model, data,
+                                                 solver=solver,
+                                                 starting_parameters=initial_params,
+                                                 max_iterations=max_iterations,
+                                                 subset_indices=indices,
+                                                 parallel=parallel,
+                                                 randomise_initial_guess=randomise_initial_guess,
+                                                 return_fitting_df=True,
+                                                 repeats=repeats)
 
+    for i, row in fitting_df.iterrows():
+        fitted_params = row[model.get_parameter_labels()].values.flatten()
         fig = plt.figure(figsize=(14, 12))
         ax = fig.subplots(1)
         ax.plot(times, solver(fitted_params), label='fitted_parameters')
@@ -743,9 +768,6 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
         if infer_E_rev:
             fitted_params = np.append(fitted_params, Erev)
 
-        df = pd.DataFrame(fitted_params[None, :], columns=columns)
-        df['score'] = score
-        dfs.append(df)
         if output_dir is not None:
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
@@ -754,13 +776,9 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
             ax.cla()
             ax.plot(times, data)
 
-    if len(dfs) != 0:
-        df = pd.concat(dfs, ignore_index=True)
-    else:
-        df = pd.DataFrame(values=[], columns=[*model.get_parameter_labels(), 'protocol', 'well', 'experiment_name', 'score'])
-
-    df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
-    return df
+    fitting_df['score'] = fitting_df['RMSE']
+    fitting_df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
+    return fitting_df
 
 
 def get_all_wells_in_directory(data_dir, experiment_name='newtonrun4'):
