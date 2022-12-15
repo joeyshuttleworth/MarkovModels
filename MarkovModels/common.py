@@ -638,14 +638,15 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                   output_dir=None, T=None, K_in=None, K_out=None,
                   default_parameters: float = None, removal_duration=5,
                   repeats=1, infer_E_rev=False, fit_initial_conductance=True,
-                  experiment_name='newtonrun4', solver=None):
+                  experiment_name='newtonrun4', solver=None, Erev=None,
+                  randomise_initial_guess=True, parallel=False):
 
     if default_parameters is None or len(default_parameters) == 0:
         default_parameters = model_class().get_default_parameters()
 
     if max_iterations == 0:
         df = pd.DataFrame(default_parameters[None, :], columns=model_class().parameter_labels)
-        df['score'] = 0
+        df['score'] = np.inf
         return df
 
     # Ignore files that have been commented out
