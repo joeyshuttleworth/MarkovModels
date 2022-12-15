@@ -23,11 +23,10 @@ class WangModel(MarkovModel):
 
         self.default_parameters = np.array([val
                                             for key, val in mc.default_values.items()
-                                            if str(key) != 'E_Kr'])
+                                            if str(key) not in ['E_Kr', 'E_rev']])
         self.parameter_labels = [key
                                  for key in mc.default_values
-                                 if str(key) != 'E_Kr']
-
+                                 if str(key) not in ['E_Kr', 'E_rev']]
         if parameters is not None:
             self.default_parameters = parameters
 
