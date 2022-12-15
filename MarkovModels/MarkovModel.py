@@ -21,10 +21,10 @@ class MarkovModel:
         return self.model_name
 
     def get_parameter_labels(self):
-        return self.parameter_labels
+        return self.parameter_labels.copy()
 
     def __init__(self, symbols, A, B, rates_dict, times, voltage=None,
-                 tolerances=(1e-5, 1e-7), Q=None, protocol_description=None,
+                 tolerances=(1e-7, 1e-9), Q=None, protocol_description=None,
                  name=None):
 
         self.transformations = None
