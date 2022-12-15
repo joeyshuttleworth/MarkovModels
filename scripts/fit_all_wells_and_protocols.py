@@ -19,7 +19,7 @@ import numpy as np
 
 pool_kws = {'maxtasksperchild': 1}
 
-def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None):
+def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None, randomise_initial_guess=True):
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
     infer_E_rev = not args.dont_infer_Erev
@@ -31,7 +31,8 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None):
                                   removal_duration=args.removal_duration,
                                   repeats=args.repeats,
                                   infer_E_rev=infer_E_rev,
-                                  experiment_name=experiment_name)
+                                  experiment_name=experiment_name, Erev=E_rev,
+                                  randomise_initial_guess=randomise_initial_guess)
 
     res_df['well'] = well
     res_df['protocol'] = protocol
@@ -144,13 +145,13 @@ def main():
 
     if args.use_parameter_file:
         best_params_df = pd.read_csv(args.use_parameter_file)
+        if 'validation_protocol' in best_params_df:
+            best_params_df = get_best_params(best_params_df, 'validation_protocol')
+        else:
+            best_params_df = get_best_params(best_params_df, 'protocol')
+
     else:
         best_params_df = None
-
-    if 'validation_protocol' in best_params_df:
-        best_params_df = get_best_params(best_params_df, 'validation_protocol')
-    else:
-        best_params_df = get_best_params(best_params_df, 'protocol')
 
     tasks = []
     protocols_list = []
@@ -162,7 +163,7 @@ def main():
             continue
 
         if best_params_df is not None:
-            parameter_row = best_params_df[(best_params_df.well == well)
+            parameter_row = best_params_df[(best_params_df.well.astype(str) == str(well))
                                            & (best_params_df.protocol == protocol)].head(1)
             starting_parameters = parameter_row[param_labels].values.flatten().astype(np.float64)
         else:
@@ -237,7 +238,7 @@ def main():
             best_params_df = get_best_params(predictions_df, protocol_label='validation_protocol')
             print(best_params_df)
 
-            best_params_df.protocol = best_params_df.validation_protocol
+            best_params_df['protocol'] = best_params_df.['validation_protocol']
             best_params_df.to_csv(os.path.join(output_dir, 'best_fitting.csv'))
 
         # Setup MCMC
