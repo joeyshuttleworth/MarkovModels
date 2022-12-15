@@ -22,5 +22,3 @@ USER toto_user
 
 ENTRYPOINT ["/bin/bash", "-c", "-l"]
 CMD ["bash"]
-~                                                                                      
-~               
