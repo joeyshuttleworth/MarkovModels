@@ -238,7 +238,7 @@ def main():
             best_params_df = get_best_params(predictions_df, protocol_label='validation_protocol')
             print(best_params_df)
 
-            best_params_df['protocol'] = best_params_df.['validation_protocol']
+            best_params_df['protocol'] = best_params_df['validation_protocol']
             best_params_df.to_csv(os.path.join(output_dir, 'best_fitting.csv'))
 
         # Setup MCMC
