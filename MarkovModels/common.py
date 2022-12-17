@@ -334,10 +334,10 @@ def get_protocol_from_csv(protocol_name: str, directory=None, holding_potential=
     times = protocol["time"].values.flatten()
     voltages = protocol["voltage"].values.flatten()
 
-    def staircase_protocol_safe(t):
+    def protocol_safe(t):
         return np.interp([t], times, voltages)[0] if t < times[-1] and t > times[0] else holding_potential
 
-    return staircase_protocol_safe, times[0], times[-1], times[1] - times[0]
+    return protocol_safe, times[0], times[-1], times[1] - times[0]
 
 
 def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_potential=-80, threshold=0.001):
@@ -371,11 +371,17 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
     windows = zip([0] + list(window_locs), list(window_locs) + [len(voltages) - 1])
 
     lst = []
-    t_diff = times[1] - times[0]
     for start, end in windows:
-        start_t = start * t_diff
-        end_t = end * t_diff
-        lst.append((start_t, end_t, voltages[start + 1], voltages[end - 1]))
+        start_t = times[start]
+        end_t = times[end - 1]
+
+        v_start = voltages[start]
+        v_end = voltages[end - 1]
+
+        # if v_start != v_end:
+        #     v_end = voltages[end]
+
+        lst.append((start_t, end_t, v_start, v_end))
 
     lst.append((end_t, np.inf, voltages[-1], voltages[-1]))
 
@@ -387,14 +393,15 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
             return holding_potential
 
         for i in range(len(protocol)):
-            if t < protocol[i][1]:
-                if np.abs(protocol[i][3] - protocol[i][2]) > threshold:
+            if t <= protocol[i][1]:
+                # ramp_start = protocol[i][0]
+                if protocol[i][3] - protocol[i][2] != 0:
                     return protocol[i][2] + (t - protocol[i][0]) * (protocol[i][3] - protocol[i][2]) / (protocol[i][1] - protocol[i][0])
                 else:
                     return protocol[i][3]
 
         raise Exception()
-    return protocol_func, times[0], times[-1], times[1] - times[0], protocol
+    return protocol_func, times, protocol
 
 
 def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
