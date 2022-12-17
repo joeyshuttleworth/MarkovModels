@@ -690,7 +690,8 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                   default_parameters: float = None, removal_duration=5,
                   repeats=1, infer_E_rev=False, fit_initial_conductance=True,
                   experiment_name='newtonrun4', solver=None, Erev=None,
-                  randomise_initial_guess=True, parallel=False):
+                  randomise_initial_guess=True, parallel=False,
+                  use_hybrid_solver=False):
 
     if default_parameters is None or len(default_parameters) == 0:
         default_parameters = model_class().get_default_parameters()
@@ -731,13 +732,10 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     model.protocol_description = protocol_desc
 
     if not solver:
-        try:
+        if use_hybrid_solver:
             solver = model.make_hybrid_solver_current()
-        except Exception:
+        else:
             solver = model.make_forward_solver_current()
-
-    # Try fitting G_Kr on its own first
-    # Start with roughly the max conductance observed divided through by 10
 
     if default_parameters is None:
         initial_gkr = np.quantile(np.abs(data / (voltages - model.Erev)), .99)
