@@ -10,6 +10,7 @@ import pandas as pd
 import math
 import os
 import pints
+import pints.plot
 import regex as re
 import uuid
 from numba import njit
@@ -406,10 +407,11 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None,
     return protocol_func, times, protocol
 
 
-def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
-              max_iterations=None, subset_indices=None, method=pints.CMAES,
-              solver=None, log_transform=True, repeats=1, return_fitting_df=False, parallel=False,
-              randomise_initial_guess=True):
+def fit_model(mm, data, times=None, starting_parameters=None,
+              fix_parameters=[], max_iterations=None, subset_indices=None,
+              method=pints.CMAES, solver=None, log_transform=True, repeats=1,
+              return_fitting_df=False, parallel=False,
+              randomise_initial_guess=True, output_dir=None):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -629,6 +631,16 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
                                         i,
                                         starting_parameters[i])
 
+    fig, axes = pints.plot.function_between_points(error,
+                                                   point_1=best_parameters,
+                                                   point_2=starting_parameters,
+                                                   padding=0.5, evaluations=100)
+
+    if output_dir:
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        fig.savefig(os.path.join(output_dir, 'best_fitting_profile'))
+
     if return_fitting_df:
         if fix_parameters:
             new_rows = parameter_sets
@@ -767,15 +779,15 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     if infer_E_rev:
         columns.append("E_rev")
 
-    fitted_params, score, fitting_df = fit_model(model, data,
-                                                 solver=solver,
+    fitted_params, score, fitting_df = fit_model(model, data, solver=solver,
                                                  starting_parameters=initial_params,
                                                  max_iterations=max_iterations,
                                                  subset_indices=indices,
                                                  parallel=parallel,
                                                  randomise_initial_guess=randomise_initial_guess,
                                                  return_fitting_df=True,
-                                                 repeats=repeats)
+                                                 repeats=repeats,
+                                                 output_dir=output_dir)
 
     for i, row in fitting_df.iterrows():
         fitted_params = row[model.get_parameter_labels()].values.flatten()

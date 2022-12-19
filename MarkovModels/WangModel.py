@@ -103,8 +103,8 @@ class WangModel(MarkovModel):
         return {'p': p, 'y': y, 'v': v}
 
     def make_hybrid_solver_current(self, *args, **kwargs):
-        raise NotImplementedError
+        raise NotImplementedError('Hybrid solvers not implemented for Wang model')
 
     def make_hybrid_solver_states(self, *args, **kwargs):
-        raise NotImplementedError
+        raise NotImplementedError('Hybrid solvers not implemented for Wang model')
 
