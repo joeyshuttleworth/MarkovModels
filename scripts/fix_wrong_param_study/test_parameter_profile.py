@@ -72,7 +72,7 @@ def main():
         if args.data_directory:
             times = pd.read_csv(os.path.join(args.data_directory,
                                              f"{args.experiment_name}-{protocol}-times.csv"),
-                                loat_precision='round_trip')['time'].values.astype(np.float64).flatten()
+                                float_precision='round_trip')['time'].values.astype(np.float64).flatten()
 
         voltages = np.array([voltage_func(t) for t in times])
         spike_times, _ = common.detect_spikes(times, voltages, window_size=0)
@@ -103,7 +103,7 @@ def main():
         ax.axvline(parameters[args.parameter_index], ls='--')
         fig.savefig(os.path.join(output_dir,
                                  f"{args.model}_{protocol}_{parameter_labels[args.parameter_index]}"
-                                 "_profile_plot"))
+                                 "_plot"))
         ax.cla()
 
 
@@ -156,7 +156,7 @@ def utility_func(solver, data, parameters, subset_indices, noise):
 def do_parameter_profiles(solver, true_parameters, parameter_index, data,
                           indices, times, ax):
     true_val = true_parameters[parameter_index]
-    p_range = np.linspace(true_val*.999, true_val*1.001, 51)
+    p_range = np.linspace(true_val*.99, true_val*1.01, 51)
 
     utility_vec = np.empty(shape=p_range.shape)
 
