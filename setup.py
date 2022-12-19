@@ -59,7 +59,7 @@ setup(
         'regex>=2021.11.10',
         'myokit>=1.33.0',
         'seaborn>=0.12.0',
-        'markov_builder @ git+ssh://git@github.com/CardiacModelling/Markov-builder@add_wang_model'
+        'markov_builder @ git+https://git@github.com/CardiacModelling/Markov-builder@add_wang_model'
     ],
     extras_require={
         'test': [
