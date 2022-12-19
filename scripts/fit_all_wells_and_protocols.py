@@ -20,6 +20,7 @@ import numpy as np
 pool_kws = {'maxtasksperchild': 1}
 
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None, randomise_initial_guess=True):
+    print('model_class', model_class)
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
     infer_E_rev = not args.dont_infer_Erev
@@ -31,6 +32,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None, r
                                   removal_duration=args.removal_duration,
                                   repeats=args.repeats,
                                   infer_E_rev=infer_E_rev,
+                                  use_hybrid_solver=args.use_hybrid_solver,
                                   experiment_name=experiment_name, Erev=E_rev,
                                   randomise_initial_guess=randomise_initial_guess)
 
@@ -43,7 +45,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None, r
 def mcmc_func(protocol, well, model_class, initial_params):
 
     # Ignore files that have been commented out
-    voltage_func, t_start, t_end, t_step, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
+    voltage_func, times, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
 
     data = common.get_data(well, protocol, args.data_directory, experiment_name)
 
@@ -51,7 +53,7 @@ def mcmc_func(protocol, well, model_class, initial_params):
 
     voltages = np.array([voltage_func(t) for t in times])
 
-    model = model_class(voltage=voltage_func, Erev=Erev,
+    model = model_class(voltage=voltage_func,
                         protocol_description=protocol_desc,
                         times=times)
 
@@ -106,6 +108,7 @@ def main():
     parser.add_argument('--use_parameter_file')
     parser.add_argument('--refit', action='store_false')
     parser.add_argument('--dont_infer_Erev', action='store_true')
+    parser.add_argument('--use_hybrid_solver', action='store_true')
     parser.add_argument('--selection_file')
 
     global args
@@ -169,7 +172,7 @@ def main():
         else:
             starting_parameters = None
 
-        tasks.append([protocol, well, model_class, starting_parameters])
+        tasks.append([protocol, well, model_class, starting_parameters, Erev])
         protocols_list.append(protocol)
 
     print(f"fitting tasks are {tasks}")
@@ -218,12 +221,12 @@ def main():
     print(best_params_df)
 
     for task in tasks:
-        protocol, well, model_class, _ = task
+        protocol, well, model_class, default_parameters, Erev = task
         best_params_row = best_params_df[(best_params_df.well == well)
                                          & (best_params_df.validation_protocol == protocol)].head(1)
         param_labels = model_class().get_parameter_labels()
         best_params = best_params_row[param_labels].astype(np.float64).values.flatten()
-        task[-1] = best_params
+        task[3] = best_params
 
     if args.refit:
         with multiprocessing.Pool(pool_size, **pool_kws) as pool:
@@ -243,7 +246,7 @@ def main():
 
         # Setup MCMC
         for task in tasks:
-            protocol, well, model_class, _ = task
+            protocol, well, model_class, _, _ = task
             param_labels = model_class().get_parameter_labels()
 
             row = best_params_df[(best_params_df.well == well)
@@ -268,7 +271,7 @@ def do_mcmc(tasks, pool):
         # Do MCMC
         mcmc_res = pool.starmap(mcmc_func, tasks)
         for samples, task in zip(mcmc_res, tasks):
-            protocol, well, model_class, _ = task
+            protocol, well, model_class, _, _ = task
             model_name = model_class().get_model_name()
 
             np.save(os.path.join(mcmc_dir,
@@ -295,7 +298,7 @@ def compute_predictions_df(params_df, label='predictions'):
     param_labels = model_class().get_parameter_labels()
 
     for sim_protocol in np.unique(protocols_list):
-        prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
+        prot_func, times, desc = common.get_ramp_protocol_from_csv(sim_protocol)
         full_times = pd.read_csv(os.path.join(args.data_directory,
                                          f"{experiment_name}-{sim_protocol}-times.csv"))['time'].values.flatten()
 
@@ -399,6 +402,9 @@ def get_best_params(fitting_df, protocol_label='protocol'):
             if len(sub_df.index) == 0:
                 continue
             best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
+
+    if not best_params:
+        raise Exception()
 
     return pd.concat(best_params, ignore_index=True)
 

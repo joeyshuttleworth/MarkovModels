@@ -53,6 +53,7 @@ def main():
     parser.add_argument('--no_repeats', default=100, type=int)
     parser.add_argument('--no_parameter_steps', default=25, type=int)
     parser.add_argument('--fix_params', default=[], type=int, nargs='+')
+    parser.add_argument('--sampling_frequency', default=0.1, type=float)
 
     global args
     args = parser.parse_args()
@@ -173,7 +174,11 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
     protocol_index = args.protocols.index(protocol)
     times, data = data_sets[protocol_index][int(dataset_index)]
 
-    voltage_func, t_start, t_end, t_step, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
+    no_samples = int((times[-1] - times[0]) / args.sampling_frequency) + 1
+    times = np.linspace(times[0], no_samples * args.sampling_frequency,
+                        no_samples)
+
+    voltage_func, _, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
 
     model_class = common.get_model_class(model_class_name)
     default_fixed_param_val = true_params[fix_param]
@@ -197,9 +202,13 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
     voltages = np.array([voltage_func(t) for t in times])
     _, spike_indices = common.detect_spikes(times, voltages, window_size=0)
 
+    intervals_to_remove = [(spike,
+                            int(spike + np.argmin(times[spike: ] > times[spike]
+                                                  + args.removal_duration)))
+                           for spike in spike_indices]
+
     indices = common.remove_indices(list(range(len(times))),
-                                    [(spike, int(spike + args.removal_duration / t_step)) for spike in
-                                     spike_indices])
+                                    intervals_to_remove)
 
     params = true_params.copy()
     solver = mm.make_forward_solver_current()
@@ -250,7 +259,7 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
             append_df = pd.DataFrame([[*true_params.copy(), pre_score2]],
                                      columns=[*mm.get_parameter_labels(),
                                               'score'])
-            fitting_df = fitting_df.append(append_df, ignore_index=True)
+            fitting_df = pd.concat([fitting_df, append_df], ignore_index=True)
 
         score = np.sqrt(score/len(indices))
         params[fix_param] = fix_param_val
@@ -283,16 +292,19 @@ def generate_synthetic_data_sets(protocols, n_repeats, parameters=None,
 
     list_of_data_sets = []
     for protocol in protocols:
-        prot, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(protocol)
-        times = np.linspace(tstart, tend, int((tend - tstart)/sampling_timestep))
+        prot, _times, desc = common.get_ramp_protocol_from_csv(protocol)
+
+        no_samples = int((_times[-1] - _times[0]) / args.sampling_frequency) + 1
+        times = np.linspace(_times[0], (no_samples - 1) * args.sampling_frequency,
+                            no_samples)
 
         model_class = common.get_model_class(args.model)
-        model = model_class(prot, times, Erev=Erev, parameters=parameters,
-                            protocol_description=desc)
+        model = model_class(voltage=prot, times=times, Erev=Erev,
+                            parameters=parameters, protocol_description=desc)
 
         mean = model.make_forward_solver_current()()
 
-        data_sets = [(times, mean + np.random.normal(0, noise, times.shape)) for i in
+        data_sets = [(times, np.random.normal(mean, noise, times.shape)) for i in
                      range(n_repeats)]
 
         if output_dir:
@@ -338,7 +350,7 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
         fixed_param_label = param_labels[fix_param]
 
         for sim_protocol in protocols_list:
-            prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(sim_protocol)
+            prot_func, times, desc = common.get_ramp_protocol_from_csv(sim_protocol)
             protocol_index = datasets_df[datasets_df.protocol == sim_protocol]['protocol_index'].values[0]
             full_times = datasets[protocol_index][0][0]
 
