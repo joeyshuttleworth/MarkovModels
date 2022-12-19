@@ -204,11 +204,12 @@ def remove_spikes(times, voltages, spike_times, time_to_remove):
 
     tstep = times[1] - times[0]
     spike_indices = ((spike_times - times[0]) / tstep).astype(np.int)
-    indices = remove_indices(list(range(len(times))), [(spike, int(spike +
-                                                                   time_to_remove
-                                                                   / tstep))
-                                                       for spike in
-                                                       spike_indices])
+    intervals_to_remove = [(spike,
+                            int(spike + np.argmin(times[spike: ] > times[spike]\
+                                                  + time_to_remove)))
+                           for spike in spike_indices]
+
+    indices = remove_indices(list(range(len(times))), intervals_to_remove)
     return times[indices], voltages[indices], indices
 
 
@@ -329,7 +330,8 @@ def get_protocol_from_csv(protocol_name: str, directory=None, holding_potential=
     if directory is None:
         directory = get_protocol_directory()
 
-    protocol = pd.read_csv(os.path.join(directory, protocol_name + ".csv"))
+    protocol = pd.read_csv(os.path.join(directory, protocol_name + ".csv"),
+                           float_precision='round_trip')
 
     times = protocol["time"].values.flatten()
     voltages = protocol["voltage"].values.flatten()
@@ -340,7 +342,8 @@ def get_protocol_from_csv(protocol_name: str, directory=None, holding_potential=
     return protocol_safe, times[0], times[-1], times[1] - times[0]
 
 
-def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_potential=-80, threshold=0.001):
+def get_ramp_protocol_from_csv(protocol_name: str, directory=None,
+                               holding_potential=-80.0, threshold=0.001):
     """Generate a function by interpolating
     time-series data.
 
@@ -355,9 +358,10 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
     if directory is None:
         directory = get_protocol_directory()
 
-    protocol = pd.read_csv(os.path.join(directory, protocol_name + ".csv"))
+    protocol = pd.read_csv(os.path.join(directory, protocol_name + ".csv"),
+                           float_precision='round_trip')
 
-    times = protocol["time"].values.flatten()
+    times = protocol["time"].values.flatten().astype(np.float64)
     voltages = protocol["voltage"].values.flatten()
 
     # Find gradient changes
@@ -373,22 +377,19 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
     lst = []
     for start, end in windows:
         start_t = times[start]
-        end_t = times[end - 1]
+        end_t = times[end-1]
 
         v_start = voltages[start]
-        v_end = voltages[end - 1]
-
-        # if v_start != v_end:
-        #     v_end = voltages[end]
+        v_end = voltages[end-1]
 
         lst.append((start_t, end_t, v_start, v_end))
 
-    lst.append((end_t, np.inf, voltages[-1], voltages[-1]))
+    lst.append((end_t, np.inf, holding_potential, holding_potential))
 
     protocol = tuple(lst)
 
     @njit
-    def protocol_func(t):
+    def protocol_func(t: np.float64):
         if t < 0 or t >= protocol[-1][1]:
             return holding_potential
 
@@ -401,6 +402,7 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None, holding_poten
                     return protocol[i][3]
 
         raise Exception()
+
     return protocol_func, times, protocol
 
 
@@ -431,6 +433,8 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
     """
     if not times:
         times = mm.times
+
+    print('starting parameters', starting_parameters)
 
     if log_transform:
         # Assume that the conductance is the last parameter and that the parameters are arranged included
@@ -503,23 +507,32 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
                 len(self.fix_parameters) if self.fix_parameters is not None\
                 else mm.get_no_parameters()
 
+        def _sample_once(self, min_log_p, max_log_p):
+            for i in range(1000):
+                p = np.empty(starting_parameters.shape)
+                p[-1] = starting_parameters[-1]
+                p[:-1] = 10**np.random.uniform(min_log_p, max_log_p, starting_parameters[:-1].shape)
+
+                if fix_parameters:
+                    p = p[[i for i in range(len(starting_parameters)) if i not in
+                          self.fix_parameters]]
+
+                # Check this lies in boundaries
+                if self.check(p):
+                    return p
+            logging.warning("Couldn't sample from boundaries")
+            return np.NaN
+
         def sample(self, n=1):
             min_log_p, max_log_p = [-7, -1]
 
-            def sample_once():
-                for i in range(1000):
-                    p = np.empty(starting_parameters.shape)
-                    p[-1] = starting_parameters[-1]
-                    p[:-1] = 10**np.random.uniform(min_log_p, max_log_p, starting_parameters[:-1].shape)
-                    # Check this lies in boundaries
-                    if self.check(p):
-                        return p
-                logging.warning("Couldn't sample from boundaries")
-                return np.NaN
+            no_parameters = len(starting_parameters) if not self.fix_parameters\
+                else len(starting_parameters) - len(fix_parameters)
 
-            ret_vec = np.full((n, len(starting_parameters)), np.nan)
+            ret_vec = np.full((n, no_parameters), np.nan)
             for i in range(n):
-                ret_vec[i, :] = sample_once()
+                ret_vec[i, :] = self._sample_once(min_log_p, max_log_p)
+
             return ret_vec
 
     class PintsWrapper(pints.ForwardModelS1):
@@ -564,9 +577,11 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
     error = pints.SumOfSquaresError(problem)
 
     if fix_parameters is not None:
-        params_not_fixed = [starting_parameters[i] for i in range(
+        unfixed_indices = [i for i in range(
             len(starting_parameters)) if i not in fix_parameters]
+        params_not_fixed = starting_parameters[unfixed_indices]
     else:
+        unfixed_indices = list(range(len(starting_parameters)))
         params_not_fixed = starting_parameters
 
     if randomise_initial_guess:
@@ -576,14 +591,13 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
     scores, parameter_sets, iterations = [], [], []
     for i in range(repeats):
         if randomise_initial_guess:
-            starting_parameters = initial_guess_dist.sample(n=1).flatten()
-            starting_parameter_sets.append(starting_parameters)
-        boundaries = Boundaries(starting_parameters, fix_parameters)
+            initial_guess = initial_guess_dist.sample(n=1).flatten()
+            starting_parameter_sets.append(initial_guess)
+        boundaries = Boundaries(initial_guess, fix_parameters)
         controller = pints.OptimisationController(error, params_not_fixed,
                                                   boundaries=boundaries,
                                                   method=method,
                                                   transformation=transformation)
-
         if not parallel:
             controller.set_parallel(False)
 
@@ -621,23 +635,24 @@ def fit_model(mm, data, times=None, starting_parameters=None, fix_parameters=[],
             for i in np.unique(fix_parameters):
                 for j, row in enumerate(parameter_sets):
                     new_rows[j] = np.insert(row, i, starting_parameters[i])
-
             parameter_sets = np.array(new_rows)
         else:
             parameter_sets = np.vstack(parameter_sets)
-        fitting_df = pd.DataFrame(parameter_sets, columns=mm.get_parameter_labels()[:parameter_sets.shape[1]])
+        fitting_df = pd.DataFrame(parameter_sets,
+                                  columns=mm.get_parameter_labels()[:parameter_sets.shape[1]])
         fitting_df['RMSE'] = scores
         fitting_df['iterations'] = iterations
 
         # Append starting parameters also
         if randomise_initial_guess:
-            columns = mm.get_parameter_labels()
+            columns = np.array(mm.get_parameter_labels())
             initial_guess_df = pd.DataFrame(starting_parameter_sets,
-                                            columns=columns[:parameter_sets.shape[1]])
+                                            columns=columns[unfixed_indices])
             initial_guess_df['iterations'] = iterations
             initial_guess_df['RMSE'] = np.NaN
 
-        fitting_df = pd.concat([fitting_df, initial_guess_df], ignore_index=True)
+        fitting_df = pd.concat([fitting_df, initial_guess_df],
+                               ignore_index=True)
 
         return best_parameters, best_score, fitting_df
     else:
@@ -667,7 +682,7 @@ def get_protocol(protocol_name: str):
         possible_protocol_path = os.path.join(protocol_dir, protocol_name + ".csv")
         if os.path.exists(possible_protocol_path):
             try:
-                v, t_start, t_end, t_step, _ = get_ramp_protocol_from_csv(protocol_name)
+                v, times, _ = get_ramp_protocol_from_csv(protocol_name)
             except:
                 # TODO
                 raise
@@ -681,7 +696,8 @@ def get_data(well, protocol, data_directory, experiment_name='newtonrun4'):
     # Find data
     regex = re.compile(f"^{experiment_name}-{protocol}-{well}.csv$")
     fname = next(filter(regex.match, os.listdir(data_directory)))
-    data = pd.read_csv(os.path.join(data_directory, fname))['current'].values
+    data = pd.read_csv(os.path.join(data_directory, fname),
+                       float_precision='round_trip')['current'].values
     return data
 
 
@@ -702,34 +718,35 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
         return df
 
     # Ignore files that have been commented out
-    voltage_func, t_start, t_end, t_step, protocol_desc = get_ramp_protocol_from_csv(protocol)
+    voltage_func, times, protocol_desc = get_ramp_protocol_from_csv(protocol)
 
     data = get_data(well, protocol, data_directory, experiment_name)
 
-    times = pd.read_csv(os.path.join(data_directory, f"{experiment_name}-{protocol}-times.csv"))['time'].values
+    times = pd.read_csv(os.path.join(data_directory, f"{experiment_name}-{protocol}-times.csv"),
+                        float_precision='round_trip')['time'].values
 
     voltages = np.array([voltage_func(t) for t in times])
 
-    _, spike_indices = detect_spikes(times, voltages, window_size=0)
+    spike_times, _ = detect_spikes(times, voltages, window_size=0)
 
-    indices = remove_indices(list(range(len(times))), [(spike, int(spike +
-                                                                   removal_duration / t_step)) for spike in
-                                                       spike_indices])
+    _, _, indices = remove_spikes(times, voltages, spike_times,
+                                  removal_duration)
+
     if infer_E_rev:
         try:
             if output_dir:
                 plot = True
                 output_path = os.path.join(output_dir, 'infer_reversal_potential.png')
             inferred_Erev = infer_reversal_potential(protocol, data, times, plot=plot,
-                                            output_path=output_path)
+                                                     output_path=output_path)
             if inferred_Erev < -50 or inferred_Erev > -100:
                 Erev = inferred_Erev
         except Exception:
             pass
 
-    model = model_class(voltage_func, times, parameters=default_parameters,
-                        Erev=Erev)
-    model.protocol_description = protocol_desc
+    model = model_class(voltage=voltage_func, times=times,
+                        parameters=default_parameters, Erev=Erev,
+                        protocol_description=protocol_desc)
 
     if not solver:
         if use_hybrid_solver:

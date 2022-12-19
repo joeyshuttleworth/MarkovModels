@@ -212,7 +212,7 @@ class MarkovModel:
         TODO: Check that the matrix is well conditioned
         """
 
-       # Solve non-homogeneous part
+        # Solve non-homogeneous part
         X2 = -self.A.LUsolve(self.B)
 
         # Solve the homogenous part via diagonalisation
@@ -372,7 +372,8 @@ class MarkovModel:
             det = det_func(rates, rhs0)
 
             if np.abs(det) < 1e-3:
-                print("WARNING: Analytic solver determinant of C is < 1e-3")
+                logging.warning("MarkovModels_analytic_solver:\
+                Analytic solver determinant of C is < 1e-3")
 
             sol = CK @ np.exp(np.outer(eigvals, times)) + X2
             return sol.T
@@ -389,7 +390,6 @@ class MarkovModel:
 
         crhs = self.get_cfunc_rhs()
         crhs_ptr = crhs.address
-
         rhs_inf = self.rhs_inf
 
         voltage = self.voltage
@@ -401,7 +401,8 @@ class MarkovModel:
 
         if protocol_description is None:
             if self.protocol_description is None:
-                raise Exception("No protocol description has been provided")
+                protocol_description = ((self.times[0], self.times[1],
+                                         -80, -80),)
             else:
                 protocol_description = self.protocol_description
 
@@ -409,12 +410,17 @@ class MarkovModel:
 
         eps = np.finfo(float).eps
 
+        start_times = [val[0] for val in protocol_description]
+        intervals = tuple(zip(start_times[:-1], start_times[1:]))
+
         def forward_solver(p=p, times=times, atol=atol, rtol=rtol):
             rhs0 = rhs_inf(p, voltage(0)).flatten()
             solution = np.full((len(times), no_states), np.nan)
             solution[0, :] = rhs0
 
-            for tstart, tend, vstart, vend in protocol_description:
+            for i, (tstart, tend) in enumerate(intervals):
+                if i == len(intervals) - 1:
+                    tend = times[-1] + 1
                 istart = np.argmax(times > tstart)
                 iend = np.argmax(times > tend)
 
