@@ -20,7 +20,6 @@ import numpy as np
 pool_kws = {'maxtasksperchild': 1}
 
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None, randomise_initial_guess=True):
-    print('model_class', model_class)
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
     infer_E_rev = not args.dont_infer_Erev
