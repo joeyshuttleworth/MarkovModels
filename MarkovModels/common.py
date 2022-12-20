@@ -203,12 +203,15 @@ def cov_ellipse(cov, offset=[0, 0], q=None,
 
 def remove_spikes(times, voltages, spike_times, time_to_remove):
 
-    tstep = times[1] - times[0]
-    spike_indices = ((spike_times - times[0]) / tstep).astype(np.int)
-    intervals_to_remove = [(spike,
-                            int(spike + np.argmin(times[spike: ] > times[spike]\
-                                                  + time_to_remove)))
-                           for spike in spike_indices]
+    spike_indices = np.array([np.argmax(times > spike_time) for spike_time in
+                              spike_times])
+    print(spike_times)
+    print(spike_indices)
+
+    intervals_to_remove = [(spike, spike + int(np.argmax(times[spike: ] > times[spike]\
+                                                 + time_to_remove))) for spike in spike_indices]
+
+    intervals_to_remove = np.vstack(intervals_to_remove)
 
     indices = remove_indices(list(range(len(times))), intervals_to_remove)
     return times[indices], voltages[indices], indices
@@ -228,6 +231,17 @@ def remove_indices(lst, indices_to_remove):
     returns a new list
 
     """
+    print(indices_to_remove)
+    # Ensure intervals don't overlap
+    for interval1, interval2 in zip(indices_to_remove[:-1, :], indices_to_remove[1:, :]):
+        if interval1[1] > interval2[0]:
+            print('overlapping')
+            interval1[1] = interval2[1]
+            interval2[0] = -1
+            interval2[1] = -1
+    print(indices_to_remove)
+    indices_to_remove = [v for v in indices_to_remove if v[0] >= 0 and v[1] >= 0]
+
     if len(indices_to_remove) == 0:
         return lst
     if indices_to_remove is None:
@@ -262,12 +276,14 @@ def detect_spikes(x, y, threshold=100, window_size=0, earliest=True):
     spike_indices = np.argwhere(np.abs(deriv) > threshold)[:, 0]
 
     if window_size > 0:
-        spike_indices = [index - window_size + np.argmax(
-            np.abs(y[(index - window_size):(index + window_size)])) for index in spike_indices]
+        spike_indices = [index - window_size + np.argmax( np.abs(y[(index -
+                                                                    window_size):(index + window_size)])) for index in spike_indices]
         spike_indices = np.unique(spike_indices)
 
     if(len(spike_indices) == 0):
         return [], np.array([])
+
+    spike_indices -= 1
 
     return x[spike_indices], np.array(spike_indices)
 
@@ -590,12 +606,14 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         initial_guess_dist = Boundaries(starting_parameters, fix_parameters)
         starting_parameter_sets = []
 
+    boundaries = Boundaries(starting_parameters, fix_parameters)
+
     scores, parameter_sets, iterations = [], [], []
     for i in range(repeats):
         if randomise_initial_guess:
             initial_guess = initial_guess_dist.sample(n=1).flatten()
             starting_parameter_sets.append(initial_guess)
-        boundaries = Boundaries(initial_guess, fix_parameters)
+            boundaries = Boundaries(initial_guess, fix_parameters)
         controller = pints.OptimisationController(error, params_not_fixed,
                                                   boundaries=boundaries,
                                                   method=method,
@@ -625,22 +643,23 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         best_parameters = mm.get_default_parameters()
         best_score = np.inf
 
+    if output_dir:
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        point2 = [p for i, p in enumerate(starting_parameters) if i not in fix_parameters]
+        fig, axes = pints.plot.function_between_points(error,
+                                                       point_1=best_parameters,
+                                                       point_2=point2,
+                                                       padding=0.5, evaluations=100)
+
+        fig.savefig(os.path.join(output_dir, 'best_fitting_profile'))
+
     if fix_parameters:
         for i in np.unique(fix_parameters):
             best_parameters = np.insert(best_parameters,
                                         i,
                                         starting_parameters[i])
-
-    fig, axes = pints.plot.function_between_points(error,
-                                                   point_1=best_parameters,
-                                                   point_2=starting_parameters,
-                                                   padding=0.5, evaluations=100)
-
-    if output_dir:
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        fig.savefig(os.path.join(output_dir, 'best_fitting_profile'))
-
     if return_fitting_df:
         if fix_parameters:
             new_rows = parameter_sets
@@ -663,8 +682,8 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             initial_guess_df['iterations'] = iterations
             initial_guess_df['RMSE'] = np.NaN
 
-        fitting_df = pd.concat([fitting_df, initial_guess_df],
-                               ignore_index=True)
+            fitting_df = pd.concat([fitting_df, initial_guess_df],
+                                   ignore_index=True)
 
         return best_parameters, best_score, fitting_df
     else:
