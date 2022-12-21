@@ -231,7 +231,8 @@ def remove_indices(lst, indices_to_remove):
     returns a new list
 
     """
-    print(indices_to_remove)
+    indices_to_remove = np.vstack(indices_to_remove)
+
     # Ensure intervals don't overlap
     for interval1, interval2 in zip(indices_to_remove[:-1, :], indices_to_remove[1:, :]):
         if interval1[1] > interval2[0]:
@@ -256,6 +257,8 @@ def remove_indices(lst, indices_to_remove):
     lsts.append(lst[indices_to_remove[-1][1]:-1])
 
     lst = list(first_lst) + [index for lst in lsts for index in lst]
+    ret = np.unique(lst)
+
     return np.unique(lst)
 
 
