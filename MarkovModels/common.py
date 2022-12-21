@@ -240,7 +240,7 @@ def remove_indices(lst, indices_to_remove):
             interval1[1] = interval2[1]
             interval2[0] = -1
             interval2[1] = -1
-    print(indices_to_remove)
+
     indices_to_remove = [v for v in indices_to_remove if v[0] >= 0 and v[1] >= 0]
 
     if len(indices_to_remove) == 0:
