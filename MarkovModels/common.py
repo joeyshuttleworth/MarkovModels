@@ -205,9 +205,6 @@ def remove_spikes(times, voltages, spike_times, time_to_remove):
 
     spike_indices = np.array([np.argmax(times > spike_time) for spike_time in
                               spike_times])
-    print(spike_times)
-    print(spike_indices)
-
     intervals_to_remove = [(spike, spike + int(np.argmax(times[spike: ] > times[spike]\
                                                  + time_to_remove))) for spike in spike_indices]
 
@@ -257,7 +254,6 @@ def remove_indices(lst, indices_to_remove):
     lsts.append(lst[indices_to_remove[-1][1]:-1])
 
     lst = list(first_lst) + [index for lst in lsts for index in lst]
-    ret = np.unique(lst)
 
     return np.unique(lst)
 
