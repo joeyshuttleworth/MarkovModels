@@ -2,6 +2,7 @@ import numpy as np
 import sympy as sp
 from scipy.integrate import odeint
 
+from markov_builder.example_models import construct_four_state_chain
 from . MarkovModel import MarkovModel
 from . import common
 
@@ -22,8 +23,10 @@ class BeattieModel(MarkovModel):
         # Create symbols for symbolic functions
         symbols = self.CreateSymbols()
 
+        self.mc = construct_four_state_chain()
+
         if parameters is None:
-            self.default_parameters = np.array((2.26E-4, 6.99E-2, 3.445E-5,
+            self.default_parameters = np.array((2.26E-4, 6.99E-2, 3.448E-5,
                                                 5.460E-2, 0.0873, 8.91E-3,
                                                 5.15E-3, 0.03158, 0.1524))
         else:

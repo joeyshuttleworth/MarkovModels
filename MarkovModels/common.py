@@ -528,7 +528,8 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             for i in range(1000):
                 p = np.empty(starting_parameters.shape)
                 p[-1] = starting_parameters[-1]
-                p[:-1] = 10**np.random.uniform(min_log_p, max_log_p, starting_parameters[:-1].shape)
+                p[:-1] = 10**np.random.uniform(min_log_p, max_log_p,
+                                               starting_parameters[:-1].shape)
 
                 if fix_parameters:
                     p = p[[i for i in range(len(starting_parameters)) if i not in

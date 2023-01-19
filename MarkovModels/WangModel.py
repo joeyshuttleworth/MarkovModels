@@ -19,7 +19,8 @@ class WangModel(MarkovModel):
                  parameters=None, *args, **kwargs):
         # Create symbols for symbolic functions
 
-        mc = construct_wang_chain()
+        self.mc = construct_wang_chain()
+        mc = self.mc
 
         self.default_parameters = np.array([val
                                             for key, val in mc.default_values.items()
