@@ -80,7 +80,7 @@ def main():
     axes = create_axes(fig)
 
     global protocols
-    protocols = pd.read_csv(os.path.join(args.results_dirs[0], 'fitting.csv')).protocol.unique()
+    protocols = sorted(pd.read_csv(os.path.join(args.results_dirs[0], 'fitting.csv')).protocol.unique())
 
     global relabel_dict
     relabel_dict = {p: f"$d_{i+1}$" for i, p in enumerate([p for p in protocols if p not in args.ignore_protocols and p not in args.prediction_protocol])}
