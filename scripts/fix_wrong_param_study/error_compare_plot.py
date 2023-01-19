@@ -228,7 +228,7 @@ def do_interval_vs_error_plot(axes, scatter_ax, results_df,
                           cmap=palette, marker='.', s=.01, zorder=3)
 
     scatter_ax[0].set_ylabel(r'$\mathcal{B}_\textrm{upper} - \mathcal{B}_\textrm{lower}$')
-    scatter_ax[0].set_xlabel(r'$\left|\mathcal{B}_\textrm{mid} - \mathbf{y}(\mathbf \theta^*; d^*)\right|$')
+    scatter_ax[0].set_xlabel(r'$\mathbf{y}(\mathbf \theta^*; d^*) - \mathcal{B}_\textrm{mid}$')
 
     scatter_ax[1].set_ylabel(r'$I_{\textrm{Kr}}$ / mV')
     scatter_ax[1].set_xlabel('t / ms')
@@ -253,15 +253,15 @@ def create_axes(fig):
     for ax in axes[:-1]:
         ax.set_xticks([])
 
-    axes[0].set_title(r'\textbf c', loc='right', fontsize=12)
-    axes[1].set_title(r'\textbf d', loc='right', fontsize=12)
-    axes[2].set_title(r'\textbf e', loc='right', fontsize=12)
+    axes[0].set_title(r'\textbf c', loc='left', )
+    axes[1].set_title(r'\textbf d', loc='left', )
+    axes[2].set_title(r'\textbf e', loc='left', )
 
     scatter_axes = [fig.add_subplot(gs[1:, 0]),
                     fig.add_subplot(gs[0, 0])]
 
-    scatter_axes[1].set_title(r'\textbf a', loc='left', fontsize=12)
-    scatter_axes[0].set_title(r'\textbf b', loc='left', fontsize=12)
+    scatter_axes[1].set_title(r'\textbf a', loc='left', )
+    scatter_axes[0].set_title(r'\textbf b', loc='left', )
 
     for ax in list(axes) + list(scatter_axes):
         for side in ['top', 'right']:

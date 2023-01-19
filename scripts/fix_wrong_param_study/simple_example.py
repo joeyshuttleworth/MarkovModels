@@ -19,7 +19,19 @@ rc('figure', dpi=300)
 
 def create_axes(fig):
     gs = GridSpec(2, 6, figure=fig,
-                  bottom=0.1)
+                  height_ratios=[1, 1],
+                  bottom=.3)
+
+    # caption_axes = [fig.add_subplot(gs[0, 0]),
+    #                 fig.add_subplot(gs[0, 2:4]),
+    #                 fig.add_subplot(gs[0, 4:])]
+
+    # caption_axes[0].text(0, .5, r'\textbf a')
+    # caption_axes[1].text(0, .5, r'\textbf b')
+    # caption_axes[2].text(0, .5, r'\textbf c')
+
+    # for ax in caption_axes:
+    #     ax.axis('off')
 
     # Setup plots of observation times
     observation_time_axes = [
@@ -29,14 +41,17 @@ def create_axes(fig):
          fig.add_subplot(gs[1, 1]),
     ]
 
-    prediction_plot_ax = fig.add_subplot(gs[:, 2:4])
-    scatter_ax = fig.add_subplot(gs[:, 4:])
+    # observation_time_axes[2].set_title(r'\textbf a')
+
+    prediction_plot_ax = fig.add_subplot(gs[0:, 2:4])
+    scatter_ax = fig.add_subplot(gs[0:, 4:])
+
+    prediction_plot_ax.set_title(r'\textbf b')
+    scatter_ax.set_title(r'\textbf c')
 
     for ax in observation_time_axes + [prediction_plot_ax, scatter_ax]:
         for side in ['top', 'right']:
             ax.spines[side].set_visible(False)
-
-    gs.tight_layout(fig)
 
     return observation_time_axes, scatter_ax, prediction_plot_ax
 
@@ -92,7 +107,7 @@ def fit_model(dataset, T, ax=None, label=''):
             result = new_result
 
     if ax:
-        ax.plot(*observed_dataset.T, marker='.', ms=3, lw=0, color='red',
+        ax.plot(*observed_dataset.T, marker='.', ms=3, lw=0, color='grey',
                 zorder=10)
 
         all_T = np.linspace(0, max(*T, 1.2), 100)
@@ -103,7 +118,7 @@ def fit_model(dataset, T, ax=None, label=''):
         ax.set_xlim(0, 1.3)
         ax.set_ylim(0, 2.25)
 
-        ax.set_xlabel('$t$')
+        # ax.set_xlabel('$t$')
         ax.set_ylabel('$\mathbf{x}$', rotation=0)
 
         # ax.legend()
@@ -118,7 +133,7 @@ def main():
     argument_parser = argparse.ArgumentParser()
 
     argument_parser.add_argument('-o', '--output', default='output')
-    argument_parser.add_argument('--figsize', default=[4.5, 2.25], type=int,
+    argument_parser.add_argument('--figsize', default=[4.5, 2.6], type=int,
                                  nargs=2)
     argument_parser.add_argument('--no_datasets', default=10, type=int)
     argument_parser.add_argument('--sigma', default=0.01, type=float)
@@ -166,6 +181,10 @@ def main():
                                           observation_axes[i],
                                           label=f"{i}") for i, T in enumerate((Ts))]
 
+    observation_axes[1].set_title(r'\textbf a', loc='left')
+    observation_axes[2].set_xlabel(r'$t$')
+    observation_axes[3].set_xlabel(r'$t$')
+
     rows = []
     for x, T in zip(estimates, ['$T_1$', '$T_2$', '$T_3$', '$T_4$']):
         row = pd.DataFrame(x, columns=[r'$\theta_1$', r'$\theta_2$'])
@@ -175,7 +194,6 @@ def main():
 
     estimates_df = pd.concat(rows, ignore_index=True)
 
-    print(estimates_df)
     make_scatter_plots(estimates_df, scatter_ax)
     make_prediction_plots(estimates_df, datasets, prediction_ax)
 
@@ -220,7 +238,7 @@ def make_prediction_plots(estimates, datasets, ax):
     predictions = np.vstack(predictions)
 
     # ax.plot(datasets[0][:, 0], datasets[0][:, 1], color='grey', lw=0, marker='x')
-    ax.plot(T, true_dgp(true_theta, T), color='green', label='true DGP', lw=1)
+    ax.plot(T, true_dgp(true_theta, T), color='grey', label='true DGP', lw=1)
     max_predict = np.max(predictions, axis=0)
     min_predict = np.min(predictions, axis=0)
 

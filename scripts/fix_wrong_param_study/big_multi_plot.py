@@ -16,6 +16,8 @@ import seaborn as sns
 import os
 import string
 import re
+import scipy
+import math
 
 import matplotlib
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset, inset_axes
@@ -27,7 +29,9 @@ from matplotlib import rc
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 8})
 rc('text', usetex=True)
-rc('figure', dpi=300)
+rc('figure', dpi=300, facecolor=[0]*4)
+rc('axes', facecolor=[0]*4)
+rc('savefig', facecolor=[0]*4)
 
 
 def main():
@@ -35,11 +39,10 @@ def main():
     parser.add_argument('results_dir')
     parser.add_argument('--repeats', type=int, default=16)
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
-    parser.add_argument('--removal_duration', '-r', default=5, type=float)
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
     parser.add_argument('--no_chains', '-N', default=0, help='mcmc chains to run', type=int)
     parser.add_argument('--chain_length', '-l', default=500, help='mcmc chains to run', type=int)
-    parser.add_argument('--figsize', '-f', type=int, nargs=2, default=[4.5, 7.5])
+    parser.add_argument('--figsize', '-f', nargs=2, default=[4.685, 6.5])
     parser.add_argument('--use_parameter_file')
     parser.add_argument('-i', '--ignore_protocols', nargs='+',
                         default=['longap'])
@@ -50,6 +53,8 @@ def main():
     parser.add_argument('--true_param_file')
     parser.add_argument('--fixed_param', default='Gkr')
     parser.add_argument('--prediction_protocol', default='longap')
+
+    parser.add_argument("--vlim", nargs=2, type=float)
 
     global linestyles
     linestyles = [(0, ()),
@@ -86,7 +91,7 @@ def main():
 
     global protocols
     protocols = sorted(results_df.protocol.unique())
-    relabel_dict = {p: f"$d_{i+1}$" for i, p in enumerate(protocols)}
+    relabel_dict = {p: f"$d_{i+1}$" for i, p in enumerate([p for p in protocols if p not in args.ignore_protocols and p != 'longap'])}
 
     relabel_dict['longap'] = '$d^*$'
 
@@ -123,6 +128,7 @@ def main():
 
     do_prediction_plots(axes, results_df, args.prediction_protocol, data)
 
+    # gs.tight_layout(fig)
     fig.savefig(os.path.join(output_dir, f"figure.{args.file_format}"))
 
 
@@ -136,14 +142,10 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
 
     assert(len(vals) == 5)
 
-    voltage_func, t_start, t_end, t_step, protocol_desc = common.get_ramp_protocol_from_csv(prediction_protocol)
+    voltage_func, times, protocol_desc = common.get_ramp_protocol_from_csv(prediction_protocol)
 
     voltages = np.array([voltage_func(t) for t in times])
-    _, spike_indices = common.detect_spikes(times, voltages, window_size=0)
-
-    indices = common.remove_indices(list(range(len(times))),
-                                    [(spike, int(spike + args.removal_duration / t_step)) for spike in
-                                     spike_indices])
+    # _, spike_indices = common.detect_spikes(times, voltages, window_size=0)
 
     colno = 1
     prediction_axes = [axes[i] for i in range(len(axes)) if (i % 3) == colno
@@ -171,7 +173,9 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
         # plot data
         ax = prediction_axes[i]
 
-        ax.plot(times, current, color='grey', alpha=.2, lw=0.1)
+        ax.plot(times, current, color='grey', alpha=.2, lw=0.3,
+                )
+        # ax.plot(times, solver(), color='grey', lw=.3)
 
         val = vals[i]
 
@@ -193,21 +197,21 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
 
         max_pred = predictions.max(axis=0)
         min_pred = predictions.min(axis=0)
-        ax.plot(times, max_pred, color='red',
-                linewidth=.1)
-        ax.plot(times, min_pred, color='red',
-                linewidth=.1)
+        ax.plot(times, max_pred, '--', color='red',
+                linewidth=.3, )
+        ax.plot(times, min_pred, '--', color='red',
+                linewidth=.3, )
 
-        ax.fill_between(times, min_pred, max_pred, color='orange',
-                         alpha=.3, linewidth=0)
+        ax.fill_between(times, min_pred, max_pred, color='orange', alpha=0.25,
+                        linewidth=0, )
         axins = inset_axes(ax, width='50%', height='50%', loc='lower center')
 
         # axins.axis('off')
         axins.set_xticks([])
         axins.set_yticks([])
 
-        axins.fill_between(times, min_pred, max_pred,
-                            color='orange', alpha=.2, linewidth=0)
+        axins.fill_between(times, min_pred, max_pred, color='orange', alpha=.2,
+                           linewidth=0)
 
         for j in range(predictions.shape[0]):
             linestyle = linestyles[j]
@@ -230,7 +234,7 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
 
         ax.set_xlim([0, 9000])
         ax.set_xticks([0, 8000])
-        ax.set_xticklabels(['0s', '8s'], rotation='horizontal')
+        ax.set_xticklabels(['0', '8'], rotation='horizontal')
 
         yticks = [0, -2]
         ylabs = [str(l) + 'nA' for l in yticks]
@@ -248,6 +252,8 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
         box.x1 += 0.05
         ax.set_position(box)
 
+        ax.set_rasterization_zorder(2)
+
         if i != 4:
             ax.get_shared_x_axes().join(ax, prediction_axes[-1])
             ax.set_xticks([])
@@ -255,6 +261,8 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
     # Plot voltage
     axes[colno].plot(times[::50], [voltage_func(t) for t in times][::50], color='black',
                      linewidth=.5)
+
+    prediction_axes[-1].set_xlabel(r'$t$ / s')
 
     # axes[colno].yaxis.tick_right()
     labels = ['0s', '7.5s']
@@ -285,7 +293,12 @@ def plot_heatmaps(axes, prediction_df):
     vals = sorted(prediction_df[args.fixed_param].unique())
     print(args.fixed_param, vals)
 
-    vmin, vmax = averaged_df['RMSE'].min(), averaged_df['RMSE'].max()
+    if args.vlim is None:
+        vmin, vmax = averaged_df['RMSE'].min(), averaged_df['RMSE'].max()
+    else:
+        vmin, vmax = args.vlim
+    # vmin = 10**-1.5
+    # vmax = 10**0
 
     assert(len(vals) == 5)
 
@@ -300,7 +313,7 @@ def plot_heatmaps(axes, prediction_df):
         sub_df = averaged_df[averaged_df[args.fixed_param] == vals[i]].copy()
         sub_df = sub_df[~sub_df.fitting_protocol.isin(['V', '$d^*$'])]
 
-        pivot_df = sub_df.pivot(index='validation_protocol', columns='fitting_protocol',
+        pivot_df = sub_df.pivot(index='fitting_protocol', columns='validation_protocol',
                                 values='RMSE')
 
         hm = sns.heatmap(pivot_df, ax=ax, square=True, cbar=False, norm=norm,
@@ -314,47 +327,91 @@ def plot_heatmaps(axes, prediction_df):
             ax.set_yticks([])
             ax.set_xticks([])
         else:
-            ax.set_ylabel('validation')
-            ax.set_xlabel('fitting')
+            ax.set_xlabel('validation')
+            ax.set_ylabel('training')
             ax.xaxis.tick_top()
             ax.yaxis.tick_right()
 
     cbar_kws = {'orientation': 'horizontal',
                 'fraction': 1,
-                'aspect': 10}
+                'aspect': 10,
+                }
 
-    mappable = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap)
+    norm = matplotlib.colors.LogNorm(vmin=vmin, vmax=vmax)
+    cax = axes[colno]
+    cax.set_xticks([])
+    cax.set_yticks([])
 
-    axes[colno].axis('off')
-    cbar = plt.colorbar(ax=axes[colno], cmap=cmap, mappable=mappable,
-                        norm=matplotlib.colors.LogNorm(vmin=vmin, vmax=vmax), label='',
-                        **cbar_kws)
+    for side in ['left', 'top', 'right', 'bottom']:
+        cax.spines[side].set_visible(False)
 
-    cbar_ticks = [vmin]
+    im = cax.imshow([[vmin, vmax]], cmap=cmap, norm=norm)
+    im.set_visible(False)
+    cax.plot([0], [0])
 
-    cbar.set_ticks(cbar_ticks)
+    cbar = plt.colorbar(ax=cax,
+                        norm=norm, cmap=cmap, label='', **cbar_kws,
+                        mappable=im, ticks=matplotlib.ticker.LogLocator(base=10))
 
-    axes[colno].set_title('RMSE')
+    cax.xaxis.set_label_position('top')
+    cax.set_xlabel(r'$\log_{10}$ RMSE')
 
-
-def prediction_plots(axes, results_df):
-    pass
 
 
 def create_axes(fig):
-    gs = GridSpec(6, 3, height_ratios=[0.4, 1, 1, 1, 1, 1])
+    global gs
+    gs = GridSpec(6, 4, height_ratios=[0.4, 1, 1, 1, 1, 1],
+                  width_ratios=[.1, 1, 1, 1],
+                  figure=fig,
+                  wspace=.6,
+                  hspace=.25,
+                  bottom=0.1)
 
-    # set up padding and margins
-    gs.update(left=0.15, right=0.85, top=.975, bottom=0.075, wspace=0.75,
-              hspace=0.5)
+    axes = [fig.add_subplot(cell) for i, cell in enumerate(gs) if i % 4 != 0]
 
-    axes = [fig.add_subplot(cell) for cell in gs]
+    axes[0].set_title(r'\textbf{a}', loc='left')
+    axes[1].set_title(r'\textbf{b}', loc='left')
+    axes[2].set_title(r'\textbf{c}', loc='left', y=-2.15, x=4.2)
 
+    # move entire first row up
+    for i, ax in enumerate(axes[:3]):
+        box = ax.get_position()
+        box.y0 += .025
+        box.y1 += .025
+        ax.set_position(box)
 
     box = axes[0].get_position()
-    box.x0 -= 0.05
-    box.x1 -= 0.05
+    box.x0 -= 0.1
+    box.x1 -= 0.1
     axes[0].set_position(box)
+
+    number_line_axes = fig.add_subplot(gs[1:, 0])
+
+    number_line_axes.xaxis.set_visible(False)
+    number_line_axes.set_yticks([1, 2, 3, 4, 5])
+    number_line_axes.set_ylim([1, 5])
+    tick_labels = [
+        r'$\frac{1}{4}$',
+        r'$\frac{1}{2}$',
+        r'$1$',
+        r'$2$',
+        r'$4$',
+    ]
+
+    number_line_axes.set_yticklabels(tick_labels)
+    number_line_axes.set_ylabel(r'$\tilde{g}$', rotation=0, loc='top')
+    number_line_axes.invert_yaxis()
+    # number_line_axes.yaxis.tick_right()
+
+    for side in ['right', 'top', 'bottom']:
+        number_line_axes.spines[side].set_visible(False)
+
+    pos1 = number_line_axes.get_position()
+    pos1.y1 -= .05
+    pos1.y0 += .05
+    pos1.x0 -= 0.05
+    pos1.x1 -= 0.05
+    number_line_axes.set_position(pos1)
 
     return axes
 
@@ -380,12 +437,12 @@ def scatter_plots(axes, results_df, params=['p1', 'p2'], col=0):
 
     markers = ['1', '2', '3', '4', '+', 'x']
     markers = [markers[i] for i in range(len(results_df.protocol.unique()))]
-
-    colours = [palette[i] for i in range(len(protocols))]
+    print(markers)
+    colours = [palette[i] for i in range(len(results_df.protocol.unique()))]
 
     for i, val in enumerate(vals):
         ax = scatter_axes[i]
-        sub_df = results_df[results_df[args.fixed_param] == val]
+        sub_df = results_df[results_df[args.fixed_param] == val].copy()
         # make scatter plot
 
         legend = False
@@ -393,27 +450,31 @@ def scatter_plots(axes, results_df, params=['p1', 'p2'], col=0):
         sub_df[params[0]] *= 1000
 
         g = sns.scatterplot(data=sub_df, x=params[0], y=params[1],
-                             hue='protocol', style='protocol', legend=legend,
-                             markers=markers, linewidth=0.2, ax=ax, size=1,
-                             alpha=0.9)
+                            hue='protocol', style='protocol', legend=legend,
+                            palette=palette, markers=markers, linewidth=0.3,
+                            ax=ax, size=1, alpha=0.9)
 
-        ax.axvline(val1*1000, linestyle='dotted', color='grey',
-                   linewidth=.3)
+        # ax.axvline(val1*1000, linestyle='dotted', color='grey',
+        #            linewidth=.3)
 
-        ax.axhline(val2, linestyle='dotted',
-                   linewidth=.3, color='grey')
+        # ax.axhline(val2, linestyle='dotted',
+        #            linewidth=.3, color='grey')
 
-        g.set_xlabel(r'$p_1\times \textrm{1E3}$ / $\textrm{s}^{-1}$')
-        g.set_ylabel(r'$p_2$ / $\textrm{V}^{-1}$')
+        g.set_xlabel(r'$p_1$ / $\textrm{ms}^{-1}$')
+        g.set_ylabel(r'$p_2$ / V$^{-1}$')
 
-        ax.set_xlim(*xlim)
-        ax.set_ylim(*ylim)
+        # ax.set_xlim(*xlim)
+        # ax.set_ylim(*ylim)
 
         ax.spines.right.set_visible(False)
         ax.spines.top.set_visible(False)
 
         # xlabels = ['{:.1e}'.format(x) for x in g.get_xticks()]
         # g.set_xticklabels(xlabels)
+
+        if i != 4:
+            ax.set_xlabel('')
+            ax.set_xticks([])
 
     # Put legend on the top left axis
     ax = axes[0]
@@ -426,7 +487,7 @@ def scatter_plots(axes, results_df, params=['p1', 'p2'], col=0):
 
     handles = [mlines.Line2D(xdata=[1], ydata=[1], color=color, marker=marker,
                              linestyle=linestyles[i], markersize=5,
-                             label=label, linewidth=.5) for i, (label, marker,
+                             label=label, linewidth=.3) for i, (label, marker,
                                                                  color) in enumerate(zip(protocols, markers,
                                                                                          colours))]
 
@@ -434,6 +495,20 @@ def scatter_plots(axes, results_df, params=['p1', 'p2'], col=0):
     ax.legend(labels=labels, handles=handles, **legend_kws)
     ax.axis('off')
 
+    # Draw trajectories
+    traj_df = results_df.sort_values(args.fixed_param)
+    traj_df = traj_df[~traj_df.protocol.isin(args.ignore_protocols)]
+
+    print(sorted(traj_df.protocol.unique()))
+    for i, protocol in enumerate(sorted(traj_df.protocol.unique())):
+        xs = traj_df[traj_df.protocol == protocol][params[0]]
+        ys = traj_df[traj_df.protocol == protocol][params[1]]
+        # x_new = np.linspace(*np.quantile(traj_df[args.fixed_param], [0, 1]), 50)
+        # y_new = np.polynomial.polynomial.polyval(x_new, coefs)
+        tck, u = scipy.interpolate.splprep([xs, ys])
+        x_new, y_new = scipy.interpolate.splev(np.linspace(0, 1, 500), tck)
+        for ax in scatter_axes:
+            ax.plot(x_new*1e3, y_new, linewidth=.25, color=colours[i], alpha=.5)
 
 
 if __name__ == "__main__":
