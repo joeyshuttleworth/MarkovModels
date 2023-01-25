@@ -14,12 +14,12 @@ from matplotlib.gridspec import GridSpec
 from matplotlib import rc
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 8})
 rc('text', usetex=True)
-rc('figure', dpi=300)
+rc('figure', dpi=500)
 
 
 def create_axes(fig):
-    gs = GridSpec(2, 6, figure=fig,
-                  height_ratios=[1, 1],
+    gs = GridSpec(2, 4, figure=fig,
+                  height_ratios=[.4, 1],
                   bottom=.3)
 
     # caption_axes = [fig.add_subplot(gs[0, 0]),
@@ -37,17 +37,17 @@ def create_axes(fig):
     observation_time_axes = [
          fig.add_subplot(gs[0, 0]),
          fig.add_subplot(gs[0, 1]),
-         fig.add_subplot(gs[1, 0]),
-         fig.add_subplot(gs[1, 1]),
+         fig.add_subplot(gs[0, 2]),
+         fig.add_subplot(gs[0, 3]),
     ]
 
     # observation_time_axes[2].set_title(r'\textbf a')
 
-    prediction_plot_ax = fig.add_subplot(gs[0:, 2:4])
-    scatter_ax = fig.add_subplot(gs[0:, 4:])
+    prediction_plot_ax = fig.add_subplot(gs[1, 0:2])
+    scatter_ax = fig.add_subplot(gs[1, 2:])
 
-    prediction_plot_ax.set_title(r'\textbf b')
-    scatter_ax.set_title(r'\textbf c')
+    prediction_plot_ax.set_title(r'\textbf b', loc='left')
+    scatter_ax.set_title(r'\textbf c', loc='left')
 
     for ax in observation_time_axes + [prediction_plot_ax, scatter_ax]:
         for side in ['top', 'right']:
@@ -107,19 +107,19 @@ def fit_model(dataset, T, ax=None, label=''):
             result = new_result
 
     if ax:
-        ax.plot(*observed_dataset.T, marker='.', ms=3, lw=0, color='grey',
+        ax.plot(*observed_dataset.T, marker='.', ms=1, lw=0, color='grey',
                 zorder=10)
 
         all_T = np.linspace(0, max(*T, 1.2), 100)
         ax.plot(all_T, discrepant_forward_model(result.x, all_T), '--',
-                lw=.75, color='blue', label='fitted_model')
+                lw=.75, color='red', label='fitted_model')
         ax.plot(all_T, true_dgp(true_theta, all_T), label='true DGP', lw=.75)
 
         ax.set_xlim(0, 1.3)
         ax.set_ylim(0, 2.25)
 
         # ax.set_xlabel('$t$')
-        ax.set_ylabel('$\mathbf{x}$', rotation=0)
+        ax.set_ylabel('$x$', rotation=0)
 
         # ax.legend()
         # fig.savefig(os.path.join(output_dir, f"fitting_{label}"))
@@ -133,7 +133,7 @@ def main():
     argument_parser = argparse.ArgumentParser()
 
     argument_parser.add_argument('-o', '--output', default='output')
-    argument_parser.add_argument('--figsize', default=[4.5, 2.6], type=int,
+    argument_parser.add_argument('--figsize', default=[4.685, 3.5], type=int,
                                  nargs=2)
     argument_parser.add_argument('--no_datasets', default=10, type=int)
     argument_parser.add_argument('--sigma', default=0.01, type=float)
@@ -181,13 +181,20 @@ def main():
                                           observation_axes[i],
                                           label=f"{i}") for i, T in enumerate((Ts))]
 
-    observation_axes[1].set_title(r'\textbf a', loc='left')
+    observation_axes[0].set_title(r'\textbf a', loc='left')
+    observation_axes[0].set_xlabel(r'$t$')
+    observation_axes[1].set_xlabel(r'$t$')
     observation_axes[2].set_xlabel(r'$t$')
     observation_axes[3].set_xlabel(r'$t$')
 
+    observation_axes[0].set_xlabel(r'$T_1$')
+    observation_axes[1].set_xlabel(r'$T_2$')
+    observation_axes[2].set_xlabel(r'$T_3$')
+    observation_axes[3].set_xlabel(r'$T_4$')
+
     rows = []
     for x, T in zip(estimates, ['$T_1$', '$T_2$', '$T_3$', '$T_4$']):
-        row = pd.DataFrame(x, columns=[r'$\theta_1$', r'$\theta_2$'])
+        row = pd.DataFrame(x, columns=[r'$\hat\theta_1$', r'$\hat\theta_2$'])
         row['time_range'] = T
         row['dataset_index'] = list(range(row.values.shape[0]))
         rows.append(row)
@@ -207,7 +214,7 @@ def make_scatter_plots(df, ax, label=''):
     df['observation times'] = df['time_range']
     g = sns.scatterplot(ax=ax, data=df, x=df.columns[0], y=df.columns[1],
                         hue='observation times', style='observation times',
-                        lw=0)
+                        linewidth=0, size=1)
 
     g.legend_.set_title('')
 
@@ -229,16 +236,16 @@ def make_prediction_plots(estimates, datasets, ax):
     T = np.linspace(0, 2, 100)
 
     for time_range in df.time_range.unique():
-        params = df[df.time_range == time_range][[r'$\theta_1$', r'$\theta_2$']].values[0, :].astype(np.float64)
+        params = df[df.time_range == time_range][[r'$\hat\theta_1$', r'$\hat\theta_2$']].values[0, :].astype(np.float64)
         prediction = discrepant_forward_model(params, T)
         predictions.append(prediction)
 
-        ax.plot(T, prediction, '--', color='red', lw=1)
+        ax.plot(T, prediction, '--', color='red', lw=.5)
 
     predictions = np.vstack(predictions)
-
-    # ax.plot(datasets[0][:, 0], datasets[0][:, 1], color='grey', lw=0, marker='x')
-    ax.plot(T, true_dgp(true_theta, T), color='grey', label='true DGP', lw=1)
+    # colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    # blue = colors[0]
+    ax.plot(T, true_dgp(true_theta, T), label='true DGP', lw=1)
     max_predict = np.max(predictions, axis=0)
     min_predict = np.min(predictions, axis=0)
 
@@ -248,7 +255,7 @@ def make_prediction_plots(estimates, datasets, ax):
     ax.fill_between(T, min_predict, max_predict, color='orange', alpha=0.25)
 
     ax.set_xlabel(r'$t$')
-    ax.set_ylabel(r'$\mathbf{y}$', rotation=0)
+    ax.set_ylabel(r'$y$', rotation=0)
 
     # fig.savefig(os.path.join(output_dir, 'prediction_plot'))
 

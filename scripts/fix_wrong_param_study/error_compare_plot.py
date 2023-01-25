@@ -42,7 +42,7 @@ def main():
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
     parser.add_argument('--no_chains', '-N', default=0, help='mcmc chains to run', type=int)
     parser.add_argument('--chain_length', '-l', default=500, help='mcmc chains to run', type=int)
-    parser.add_argument('--figsize', '-f', type=int, nargs=2, default=[4.6, 4.6])
+    parser.add_argument('--figsize', '-f', type=int, nargs=2, default=[4.685, 4.])
     parser.add_argument('--use_parameter_file')
     parser.add_argument('-i', '--ignore_protocols', nargs='+',
                         default=['longap'])
@@ -74,7 +74,7 @@ def main():
 
     output_dir = common.setup_output_directory(args.output_dir, "error_compare")
 
-    fig = plt.figure(figsize=args.figsize, constrained_layout=True)
+    fig = plt.figure(figsize=args.figsize)# , constrained_layout=True)
     axes, scatter_axes = create_axes(fig)
 
     global protocols
@@ -112,7 +112,7 @@ def main():
     do_interval_vs_error_plot(axes, scatter_axes, results_dfs[0],
                               args.prediction_protocol, current, times)
 
-    fig.savefig(os.path.join(output_dir, f"figure.{args.file_format}"))
+    fig.savefig(os.path.join(output_dir, f"fig7.{args.file_format}"))
 
 
 def do_interval_vs_error_plot(axes, scatter_ax, results_df,
@@ -190,25 +190,25 @@ def do_interval_vs_error_plot(axes, scatter_ax, results_df,
 
     print(truth.shape, times.shape, max_pred.shape)
 
-    axes[2].fill_between(times[indices], min_pred[indices] - truth[indices],
+    axes[2].fill_between(times[indices]*1e-3, min_pred[indices] - truth[indices],
                          max_pred[indices] - truth[indices], lw=.5,
                          color='orange', alpha=.5)
-    axes[2].axhline(0, lw=.1, ls='--', color='grey')
-    # axes[1].set_ylim([axes[0].get_ylim()[0], 2])
 
-    axes[1].plot(times[indices], truth[indices], lw=.5)
-    axes[1].fill_between(times[indices], min_pred[indices],
+    axes[2].axhline(0, lw=.1, ls='--', color='grey')
+
+    axes[1].fill_between(times[indices] * 1e-3, min_pred[indices],
                          max_pred[indices], lw=.5,
                          color='orange', alpha=.5)
 
     axes[0].set_ylabel('V / mV')
-    axes[2].set_ylabel(r'$I_\textrm{Kr}$ / nA')
+    axes[2].set_ylabel(r'prediction range - $I_\textrm{Kr}$ / nA')
     axes[1].set_ylabel(r'$I_\textrm{Kr}$ / nA')
-    axes[2].set_xlabel(r't / ms')
+    axes[2].set_xlabel(r'$t$ / s')
 
     palette = sns.color_palette('cubehelix', as_cmap=True)
-    scatter_ax[0].scatter(midpoint_errors, interval_width, cmap=palette,
-                          c=range(interval_width.shape[0]), s=.2, marker='.')
+    scatter_ax[0].scatter(midpoint_errors, interval_width,
+                          cmap=palette, c=range(interval_width.shape[0]),
+                          marker='.', s=.3, lw=.5)
 
     xlims = scatter_ax[0].get_xlim()
     ylims = scatter_ax[0].get_ylim()
@@ -217,25 +217,66 @@ def do_interval_vs_error_plot(axes, scatter_ax, results_df,
     x_range = np.linspace(*xlims, 1000)
 
     x_pos = x_range[np.argwhere(x_range > 0)]
-    scatter_ax[0].plot(-x_pos, 2*np.abs(x_pos), color='red', lw=1, linestyle='--')
-    scatter_ax[0].plot(x_pos, 2*np.abs(x_pos), color='red', lw=1, linestyle='--')
+    scatter_ax[0].plot(-x_pos, 2*np.abs(x_pos), color='red', lw=1,
+                       linestyle='--')
+    scatter_ax[0].plot(x_pos, 2*np.abs(x_pos), color='red', lw=1,
+                       linestyle='--')
 
     # scatter_ax[0].set_xscale('log')
     # scatter_ax[0].set_yscale('log')
 
-    scatter_ax[1].plot(times, truth, '--', lw=.2, color='black', alpha=.5)
-    scatter_ax[1].scatter(times[indices], truth[indices], c=range(interval_width.shape[0]),
-                          cmap=palette, marker='.', s=.01, zorder=3)
+    scatter_ax[1].scatter(times[indices]*1e-3, truth[indices],
+                          c=range(interval_width.shape[0]), cmap=palette,
+                          marker='.', zorder=3, s=.3, lw=.5)
+    scatter_ax[1].plot(times*1e-3, truth, '--', lw=.2, color='black', alpha=.5)
 
     scatter_ax[0].set_ylabel(r'$\mathcal{B}_\textrm{upper} - \mathcal{B}_\textrm{lower}$')
-    scatter_ax[0].set_xlabel(r'$\mathbf{y}(\mathbf \theta^*; d^*) - \mathcal{B}_\textrm{mid}$')
+    scatter_ax[0].set_xlabel(r'error in midrange prediction')
 
-    scatter_ax[1].set_ylabel(r'$I_{\textrm{Kr}}$ / mV')
-    scatter_ax[1].set_xlabel('t / ms')
+    scatter_ax[0].text(0, 3.5, r'\centering $y$ within $\big[\mathcal{B}_\textrm{lower}, \mathcal{B}_\textrm{upper} \big]$',
+                       ha='center')
 
-    axes[0].scatter(times, voltages, lw=.2, cmap='cubehelix',
-                    c=range(times.shape[0]), s=1, marker='.')
-    axes[0].plot(times, voltages, '--', lw=.2, color='black', alpha=.5)
+    scatter_ax[0].text(-1.5, 0.5, r'$y < \mathcal{B}_\textrm{lower}$',
+                       rotation=90)
+
+    scatter_ax[0].text(1.5, 0.5, r'$y > \mathcal{B}_\textrm{upper}$',
+                       rotation=90)
+
+    scatter_ax[1].set_ylabel(r'$I_{\textrm{Kr}}$ / nA')
+    scatter_ax[1].set_xlabel('$t$ / s')
+
+    axes[0].scatter(times * 1e-3, voltages, cmap='cubehelix',
+                    c=range(times.shape[0]), marker='.', s=.3, lw=.5)
+    axes[0].plot(times * 1e-3, voltages, '--', lw=.5, color='black', alpha=.5)
+
+    left_edge_shift = .025
+
+    # Manually fix vertical position of axes in left column
+    shift_error_axes_amount = .055
+    pos1 = axes[1].get_position()
+    pos1.y1 += shift_error_axes_amount
+    pos1.y0 += shift_error_axes_amount / 2
+    pos1.x0 += left_edge_shift
+    axes[1].set_position(pos1)
+
+    pos2 = axes[2].get_position()
+    pos2.y1 += shift_error_axes_amount + .015
+    pos2.y0 += .015
+    pos2.x0 += left_edge_shift
+    axes[2].set_position(pos2)
+
+    pos3 = axes[0].get_position()
+    pos3.x0 += left_edge_shift
+    axes[0].set_position(pos3)
+
+    pos4 = scatter_ax[0].get_position()
+    pos4.y0 += 0.015
+    scatter_ax[0].set_position(pos4)
+
+    # axes[1].set_ylim([-1, 2.5])
+    axes[1].yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1f'))
+    axes[2].yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1f'))
+    axes[2].set_ylim([axes[2].get_ylim()[0], .8])
 
 
 def get_protocol_name(label):
@@ -246,22 +287,24 @@ def get_protocol_name(label):
 
 def create_axes(fig):
     gs = GridSpec(3, 2, figure=fig,
-                  height_ratios=[.6, 1, 1])
+                  height_ratios=[1, 1, 1],
+                  hspace=0,
+                  wspace=0)
 
-    axes = [fig.add_subplot(gs[i, 1]) for i in range(3)]
+    axes = [fig.add_subplot(gs[i, 0]) for i in range(3)]
 
     for ax in axes[:-1]:
         ax.set_xticks([])
 
-    axes[0].set_title(r'\textbf c', loc='left', )
-    axes[1].set_title(r'\textbf d', loc='left', )
-    axes[2].set_title(r'\textbf e', loc='left', )
+    axes[0].set_title(r'\textbf a', loc='left', )
+    axes[1].set_title(r'\textbf b', loc='left', )
+    axes[2].set_title(r'\textbf c', loc='left', )
 
-    scatter_axes = [fig.add_subplot(gs[1:, 0]),
-                    fig.add_subplot(gs[0, 0])]
+    scatter_axes = [fig.add_subplot(gs[1:, 1]),
+                    fig.add_subplot(gs[0, 1])]
 
-    scatter_axes[1].set_title(r'\textbf a', loc='left', )
-    scatter_axes[0].set_title(r'\textbf b', loc='left', )
+    scatter_axes[1].set_title(r'\textbf d', loc='left', )
+    scatter_axes[0].set_title(r'\textbf e', loc='left', )
 
     for ax in list(axes) + list(scatter_axes):
         for side in ['top', 'right']:
@@ -273,6 +316,8 @@ def create_axes(fig):
     # box = axes[0].get_position()
     # # box.y0 -= 0.025
     # axes[0].set_position(box)
+
+    gs.tight_layout(fig)
 
     return axes, scatter_axes
 

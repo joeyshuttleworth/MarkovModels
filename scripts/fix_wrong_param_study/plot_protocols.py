@@ -11,24 +11,22 @@ from matplotlib.gridspec import GridSpec
 
 from matplotlib import rc
 
-rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 8})
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 11})
 rc('text', usetex=True)
-rc('figure', dpi=300)
+rc('figure', dpi=500)
 
 protocols_list = sorted(['staircaseramp1', 'sis', 'spacefill19', 'hhbrute3gstep', 'wangbrute3gstep'])
 protocols_list = ['longap'] + protocols_list
 
-relabel_dict = {p: f"$d_{i+1}$" for i, p in enumerate([p for p in protocols_list if p != 'longap'])}
+relabel_dict = {p: f"$d_{i+1}$" for i, p in enumerate([p for p in
+                                                       protocols_list if p != 'longap'])}
 
-relabel_dict['longap'] = '$d^*$'
+relabel_dict['longap'] = '$d_0$'
 
 
 def setup_axes(fig):
-    gs = GridSpec(6, 3, width_ratios=[.25, 1, 1])
-
-    gs.update(top=.975, bottom=0.075, wspace=0.5, hspace=0.3, right=.85)
+    gs = GridSpec(6, 3, figure=fig, width_ratios=[.05, 1, 1])
     axes = [fig.add_subplot(cell) for cell in gs]
-
     return axes
 
 
@@ -51,25 +49,29 @@ def main():
 
     t_max = max([max(row) for row in all_times])
 
-    fig = plt.figure(figsize=args.figsize)
+    fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     axes = setup_axes(fig)
+
+    axes[1].set_title(r'$V$ / mV')
+    axes[2].set_title(r'$I_{\textrm{Kr}}$ / nA')
+
     for i, protocol in enumerate(protocols_list):
         voltage_func, times, desc = common.get_ramp_protocol_from_csv(protocol)
         model = BeattieModel(voltage_func, times=times,
                              protocol_description=desc)
         voltages = np.array([voltage_func(t) for t in times])
 
-        axes[i*3 + 1].plot(times*1e-3, voltages, color='black')
+        axes[i*3 + 1].plot(times*1e-3, voltages, color='black', lw=.5)
 
         current = model.SimulateForwardModel()
         observations = np.random.normal(current, args.noise)
 
-        axes[i*3 + 2].plot(times*1e-3, observations, color='grey')
-        axes[i*3 + 2].yaxis.tick_right()
-        axes[i*3 + 2].yaxis.set_label_position('right')
+        axes[i*3 + 2].plot(times*1e-3, observations, color='grey', lw=.5)
+        # axes[i*3 + 2].yaxis.tick_right()
+        # axes[i*3 + 2].yaxis.set_label_position('right')
 
-        axes[i*3 + 2].set_ylabel(r'$I_{\textrm{Kr}}$ / nA')
-        axes[i*3 + 1].set_ylabel(r'$V_{\textrm{m}}$ / mV')
+        # axes[i*3 + 2].set_ylabel(r'$I_{\textrm{Kr}}$ / nA')
+        # axes[i*3 + 1].set_ylabel(r'$V_{\textrm{m}}$ / mV')
 
         axes[i*3].text(-0.5, 0.5, relabel_dict[protocol], size=11)
 
@@ -84,14 +86,12 @@ def main():
 
         for side in ['top', 'right']:
             axes[i*3 + 1].spines[side].set_visible(False)
-
-        for side in ['top', 'left']:
             axes[i*3 + 2].spines[side].set_visible(False)
 
-    axes[5*3 + 1].set_xlabel('time / s')
-    axes[5*3 + 2].set_xlabel('time / s')
+    axes[5*3 + 1].set_xlabel('$t$ / s')
+    axes[5*3 + 2].set_xlabel('$t$ / s')
 
-    fig.savefig(os.path.join(output_dir, "protocols_table.png"))
+    fig.savefig(os.path.join(output_dir, "fig3.png"))
 
 if __name__ == '__main__':
     main()

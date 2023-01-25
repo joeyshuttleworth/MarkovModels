@@ -23,13 +23,15 @@ import matplotlib
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset, inset_axes
 from matplotlib.gridspec import GridSpec
 
+from matplotlib.patches import ConnectionPatch, Rectangle
+
 import matplotlib.lines as mlines
 
 from matplotlib import rc
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 8})
 rc('text', usetex=True)
-rc('figure', dpi=300)
+rc('figure', dpi=500)
 rc('axes', facecolor=[0]*4)
 rc('savefig', facecolor=[0]*4)
 
@@ -44,7 +46,7 @@ def main():
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
     parser.add_argument('--no_chains', '-N', default=0, help='mcmc chains to run', type=int)
     parser.add_argument('--chain_length', '-l', default=500, help='mcmc chains to run', type=int)
-    parser.add_argument('--figsize', '-f', type=int, nargs=2, default=[4.5, 7.5])
+    parser.add_argument('--figsize', '-f', type=int, nargs=2, default=[4.685, 6.5])
     parser.add_argument('--use_parameter_file')
     parser.add_argument('-i', '--ignore_protocols', nargs='+',
                         default=['longap'])
@@ -76,6 +78,7 @@ def main():
 
     output_dir = common.setup_output_directory(args.output_dir, "example2_plots")
 
+    global fig
     fig = plt.figure(figsize=args.figsize)
     axes = create_axes(fig)
 
@@ -85,6 +88,8 @@ def main():
     global relabel_dict
     relabel_dict = {p: f"$d_{i+1}$" for i, p in enumerate([p for p in protocols if p not in args.ignore_protocols and p not in args.prediction_protocol])}
     relabel_dict['longap'] = '$d^*$'
+
+    print("protocols protocols:", relabel_dict)
 
     results_dfs = []
     for results_dir in args.results_dirs:
@@ -134,12 +139,11 @@ def main():
     do_prediction_plots(axes, results_dfs, args.prediction_protocol, current, times)
 
     fig.set_canvas(plt.gcf().canvas)
-    fig.savefig(os.path.join(output_dir, f"figure.{args.file_format}"))
+    fig.savefig(os.path.join(output_dir, f"fig6.{args.file_format}"))
 
 
 def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
 
-    print(times)
     voltage_func, times, protocol_desc = common.get_ramp_protocol_from_csv(prediction_protocol)
 
     voltages = np.array([voltage_func(t) for t in times])
@@ -226,7 +230,7 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
                        )
 
         axins.plot(times, current, color='grey', alpha=.2,
-                   lw=0.1, )
+                   linewidth=0)
 
         axins.set_xlim([5000, 6000])
         axins.set_ylim(-0.5, 2)
@@ -261,21 +265,17 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
 
         ax.set_rasterization_zorder(10)
 
-        if i != 1:
-            ax.get_shared_x_axes().join(ax, prediction_axes[-1])
-            ax.set_xticks([])
-
     # Plot voltage
     axes[colno].plot(times[::50], [voltage_func(t) for t in times][::50], color='black',
                      linewidth=.5)
 
     # axes[colno].yaxis.tick_right()
-    labels = ['0s', '7.5s']
     axes[colno].spines.right.set_visible(False)
     axes[colno].spines.top.set_visible(False)
 
-    axes[colno].get_shared_x_axes().join(ax, prediction_axes[-1])
-    axes[colno].set_xticks([])
+    prediction_axes[-1].set_xlabel(r'$t$ / s')
+
+    prediction_axes[-1].sharex(axes[colno])
 
     axes[colno].set_yticks([-100, 40])
     axes[colno].set_yticklabels(['-100mV', '+40mV'])
@@ -286,15 +286,20 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
     box.x1 += 0.05
     ax.set_position(box)
 
+    axes[colno].set_xticks([])
+    axes[colno + 3].set_xticks([])
+    labels = ['0s', '7.5s']
+    axes[colno + 6].set_xticks([0, 7500])
+    axes[colno + 6].set_xticklabels(labels)
+
 
 def plot_heatmaps(axes, prediction_dfs):
 
     colno = 2
     # Drop parameter sets fitted to 'longap', for example
-
-
     # Get central column
     heatmap_axes = [axes[i] for i in range(len(axes)) if i > 2 and (i % 3) == colno]
+    prediction_axes = [axes[i] for i in range(len(axes)) if i > 2 and (i % 3) == colno - 1]
 
     for ax in heatmap_axes[2:]:
         ax.set_visible(False)
@@ -305,8 +310,6 @@ def plot_heatmaps(axes, prediction_dfs):
     averaged_df = joint_df.groupby(['fitting_protocol', 'validation_protocol',
                                     'model'])['RMSE'].mean().reset_index()
 
-    print(averaged_df)
-
     if args.vlim is None:
         vmin, vmax = averaged_df['RMSE'].min(), averaged_df['RMSE'].max()
     else:
@@ -314,22 +317,48 @@ def plot_heatmaps(axes, prediction_dfs):
 
     norm = matplotlib.colors.LogNorm(vmin=vmin, vmax=vmax)
 
-    # Alphabetical order ??
     for i, model in enumerate(sorted(averaged_df.model.unique())):
         ax = heatmap_axes[i]
         sub_df = averaged_df[averaged_df.model == model].copy()
 
-        # Ignore validation protocols, 'V' and '$d^*$', have been used for
-        # validation protocols
+        # Ignore training to validation protocols, labels 'V' and '$d^*$', have
+        # been used for validation protocols
         sub_df = sub_df[~sub_df.fitting_protocol.isin(['V', '$d^*$'])]
 
-        pivot_df = sub_df.pivot(columns='validation_protocol',
-                                index='fitting_protocol', values='RMSE')
+        pivot_df = sub_df.pivot(columns='fitting_protocol',
+                                index='validation_protocol', values='RMSE')
 
         hm = sns.heatmap(pivot_df, ax=ax, square=True, cbar=False, norm=norm,
                          cmap=cmap)
 
         hm.set_yticklabels(hm.get_yticklabels(), rotation=0)
+
+        # Add arrow from heatmap to prediction plot
+        ax2 = prediction_axes[i]
+        xyA = [7750, 1]
+        xyB = [-.1, 0.5]
+        con = ConnectionPatch(
+            xyA=xyB, coordsA=ax.transData,
+            xyB=xyA, coordsB=ax2.transData,
+            arrowstyle="->", shrinkB=5)
+
+        # Add yellow highlight to first row
+        autoAxis = ax.axis()
+        rec = Rectangle(
+            (autoAxis[0] - 0.05, autoAxis[3] - 0.05),
+            (autoAxis[1] - autoAxis[0] + 0.1),
+            1.1,
+            fill=False,
+            color='yellow',
+            lw=.75
+            )
+
+        if i == 0:
+            fig.add_artist(con)
+            rec = ax.add_patch(rec)
+            rec.set_clip_on(False)
+
+
 
         if i != 0:
             ax.set_ylabel('')
@@ -337,8 +366,8 @@ def plot_heatmaps(axes, prediction_dfs):
             ax.set_yticks([])
             ax.set_xticks([])
         else:
-            ax.set_xlabel('validation')
-            ax.set_ylabel('training')
+            ax.set_xlabel('training')
+            ax.set_ylabel('validation')
             ax.xaxis.tick_top()
             ax.yaxis.tick_right()
 
@@ -365,34 +394,59 @@ def plot_heatmaps(axes, prediction_dfs):
                         norm=norm, cmap=cmap, label='', **cbar_kws,
                         mappable=im, ticks=matplotlib.ticker.LogLocator(base=10))
 
+    cax = cbar.ax
+    # Move cbar up
+    box = cax.get_position()
+    box.y1 += 0.06
+    box.y0 += 0.06
+    cax.set_position(box)
+
     cax.xaxis.set_label_position('top')
     cax.set_xlabel(r'$\log_{10}$ RMSE')
-    # cbar.set_ticks(list(cbar.get_ticks()) + [.03])
 
 
 def create_axes(fig):
-    global gs
-    gs = GridSpec(6, 4, height_ratios=[0.4, 1, 1, 1, 1, 1],
-                  width_ratios=[.05, 1, 1, 1],
-                  figure=fig,
-                  wspace=.6,
-                  hspace=.25,
-                  bottom=0.1)
 
-    axes = [fig.add_subplot(cell) for i, cell in enumerate(gs) if i % 4 != 0]
+    ncols = 4
+    nrows = 6
+
+    global gs
+
+    gs = GridSpec(nrows, ncols, height_ratios=[0.3, 1, 1, 1, 1, 1],
+                  width_ratios=[.05, 1, 1, .8], wspace=.55,
+                  right=.95,
+                  left=.11,
+                  bottom=0.1,
+                  figure=fig)
+
+    bottom_axes = [fig.add_subplot(gs[2, i]) for i in range(ncols) if i % 4 != 0]
+
+    axes = []
+    for i in range(2):
+        cells = [gs[i, j + 1] for j in range(ncols - 1)]
+
+        for j, cell in enumerate(cells):
+            # if j != 2:
+            #     sharex = bottom_axes[j]
+            # else:
+            # sharex = None
+            axes.append(fig.add_subplot(cell))
+
+    axes = axes + list(bottom_axes)
 
     for ax in axes:
         ax.set_rasterization_zorder(2)
 
-    axes[0].set_title(r'\textbf{a}', loc='left')
+    axes[3].set_title(r'\textbf{a}', loc='left', y=1.2)
     axes[1].set_title(r'\textbf{b}', loc='left')
-    axes[2].set_title(r'\textbf{c}', loc='left', y=-2.15, x=4.2)
+    axes[5].set_title(r'\textbf{d}', loc='left')
+    axes[4].set_title(r'\textbf{c}', loc='left', y=1.2)
 
     # move entire first row up
     for i, ax in enumerate(axes[:3]):
         box = ax.get_position()
-        box.y0 += .025
-        box.y1 += .025
+        box.y0 += .075
+        box.y1 += .075
         ax.set_position(box)
 
     box = axes[0].get_position()
@@ -453,19 +507,18 @@ def scatter_plots(axes, results_dfs, params=['p1', 'p2'], col=0):
     for i, results_df in enumerate(results_dfs):
         ax = scatter_axes[i]
 
+        ax.axhline(BeattieModel().get_default_parameters()[-1], ls='--',
+                   color='grey', alpha=.9, lw=.5)
         sns.scatterplot(ax=ax, data=results_df, y=r'Gkr', x='protocol',
                         palette=palette, hue='protocol', style='protocol',
-                        legend=False, size=1)
+                        legend=False, size=2, linewidth=0)
         ax.set_ylim(ylims)
-        ax.set_ylabel(r'$\tilde g$', rotation=0)
+        ax.set_ylabel(r'$g$', rotation=0)
+        ax.set_xlabel(r'protocol', rotation=0)
 
     for i, ax in enumerate(scatter_axes[:2]):
         ax.spines.right.set_visible(False)
         ax.spines.top.set_visible(False)
-
-        if i == 0:
-            ax.set_xticks([])
-
         ax.set_xlabel('')
 
     # Put legend on the top left axis
@@ -476,6 +529,13 @@ def scatter_plots(axes, results_dfs, params=['p1', 'p2'], col=0):
                   'ncol': 2,
                   'fontsize': 8
                   }
+
+    ticks = scatter_axes[0].get_xticks()
+    tick_labels = scatter_axes[0].get_xticklabels()
+    scatter_axes[0].set_xticks([])
+    scatter_axes[1].set_xticks(ticks)
+    scatter_axes[1].set_xticklabels(tick_labels)
+    scatter_axes[1].set_xlabel('protocol')
 
     handles = [mlines.Line2D(xdata=[1], ydata=[1], color=color, marker=marker,
                              linestyle=linestyles[i], markersize=5,

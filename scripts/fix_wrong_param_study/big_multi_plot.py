@@ -23,13 +23,15 @@ import matplotlib
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset, inset_axes
 from matplotlib.gridspec import GridSpec
 
+from matplotlib.patches import ConnectionPatch, Rectangle
+
 import matplotlib.lines as mlines
 
 from matplotlib import rc
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 8})
 rc('text', usetex=True)
-rc('figure', dpi=300, facecolor=[0]*4)
+rc('figure', dpi=500, facecolor=[0]*4)
 rc('axes', facecolor=[0]*4)
 rc('savefig', facecolor=[0]*4)
 
@@ -79,6 +81,7 @@ def main():
 
     output_dir = common.setup_output_directory(args.output_dir, "multi_plot")
 
+    global fig
     fig = plt.figure(figsize=args.figsize)
     axes = create_axes(fig)
 
@@ -93,7 +96,7 @@ def main():
     protocols = sorted(results_df.protocol.unique())
     relabel_dict = {p: f"$d_{i+1}$" for i, p in enumerate([p for p in protocols if p not in args.ignore_protocols and p != 'longap'])}
 
-    relabel_dict['longap'] = '$d^*$'
+    relabel_dict['longap'] = '$d_0$'
 
     results_df.replace({'protocol': relabel_dict}, inplace=True)
 
@@ -129,7 +132,7 @@ def main():
     do_prediction_plots(axes, results_df, args.prediction_protocol, data)
 
     # gs.tight_layout(fig)
-    fig.savefig(os.path.join(output_dir, f"figure.{args.file_format}"))
+    fig.savefig(os.path.join(output_dir, f"fig4.{args.file_format}"))
 
 
 def do_prediction_plots(axes, results_df, prediction_protocol, data):
@@ -188,7 +191,7 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
 
             prediction = solver(parameters)
             predictions.append(prediction)
-            # ax.plot(prediction, times, linewidth=0.1)
+            # ax.plot(prediction, times, lw=0.1)
 
             ymin = min(ymin, prediction.min())
             ymax = max(ymax, prediction.max())
@@ -198,12 +201,12 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
         max_pred = predictions.max(axis=0)
         min_pred = predictions.min(axis=0)
         ax.plot(times, max_pred, '--', color='red',
-                linewidth=.3, )
+                lw=.3, )
         ax.plot(times, min_pred, '--', color='red',
-                linewidth=.3, )
+                lw=.3, )
 
         ax.fill_between(times, min_pred, max_pred, color='orange', alpha=0.25,
-                        linewidth=0, )
+                        lw=0, )
         axins = inset_axes(ax, width='50%', height='50%', loc='lower center')
 
         # axins.axis('off')
@@ -211,13 +214,13 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
         axins.set_yticks([])
 
         axins.fill_between(times, min_pred, max_pred, color='orange', alpha=.2,
-                           linewidth=0)
+                           lw=0)
 
         for j in range(predictions.shape[0]):
             linestyle = linestyles[j]
             prediction = predictions[j, :]
             axins.plot(times, prediction, ls=linestyle,
-                       linewidth=0.5, color=colours[j])
+                       lw=0.5, color=colours[j])
 
         # axins.plot(times, current, color='grey', alpha=.2,
         #            lw=0.1)
@@ -226,7 +229,7 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
         axins.set_ylim(-0.15, 0.75)
 
         mark_inset(ax, axins, edgecolor="black", fc="none", loc1=1, loc2=2,
-                   linewidth=.3, alpha=.8)
+                   lw=.3, alpha=.8)
 
     for i, ax in enumerate(prediction_axes):
         ax.set_xlim(ymin, max(ymax, np.quantile(current, 0.9)))
@@ -254,13 +257,9 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
 
         ax.set_rasterization_zorder(2)
 
-        if i != 4:
-            ax.get_shared_x_axes().join(ax, prediction_axes[-1])
-            ax.set_xticks([])
-
     # Plot voltage
     axes[colno].plot(times[::50], [voltage_func(t) for t in times][::50], color='black',
-                     linewidth=.5)
+                     lw=.5)
 
     prediction_axes[-1].set_xlabel(r'$t$ / s')
 
@@ -269,8 +268,13 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
     axes[colno].spines.right.set_visible(False)
     axes[colno].spines.top.set_visible(False)
 
-    axes[colno].get_shared_x_axes().join(ax, prediction_axes[-1])
     axes[colno].set_xticks([])
+
+    for ax in prediction_axes[:-1]:
+        ax.set_xticks([])
+
+    prediction_axes[-1].set_xticks([0, 7500])
+    prediction_axes[-1].set_xticklabels(labels)
 
     axes[colno].set_yticks([-100, 40])
     axes[colno].set_yticklabels(['-100mV', '+40mV'])
@@ -304,6 +308,7 @@ def plot_heatmaps(axes, prediction_df):
 
     # Get central column
     heatmap_axes = [axes[i] for i in range(len(axes)) if i > 2 and (i % 3) == colno]
+    prediction_axes = [axes[i] for i in range(len(axes)) if i > 2 and (i % 3) == colno - 1]
 
     cmap = sns.cm.mako_r
     norm = matplotlib.colors.LogNorm(vmin=vmin, vmax=vmax)
@@ -311,13 +316,38 @@ def plot_heatmaps(axes, prediction_df):
     for i in range(5):
         ax = heatmap_axes[i]
         sub_df = averaged_df[averaged_df[args.fixed_param] == vals[i]].copy()
-        sub_df = sub_df[~sub_df.fitting_protocol.isin(['V', '$d^*$'])]
+        sub_df = sub_df[~sub_df.fitting_protocol.isin(['V', '$d_0$'])]
 
-        pivot_df = sub_df.pivot(index='fitting_protocol', columns='validation_protocol',
-                                values='RMSE')
+        pivot_df = sub_df.pivot(columns='fitting_protocol',
+                                index='validation_protocol', values='RMSE')
 
         hm = sns.heatmap(pivot_df, ax=ax, square=True, cbar=False, norm=norm,
                          cmap=cmap)
+
+        # Add arrow from heatmap to prediction plot
+        ax2 = prediction_axes[i]
+        xyA = [7750, .2]
+        xyB = [-.1, 0.5]
+        con = ConnectionPatch(
+            xyA=xyB, coordsA=ax.transData,
+            xyB=xyA, coordsB=ax2.transData,
+            arrowstyle="->", shrinkB=5)
+
+        # Add yellow highlight to first row
+        autoAxis = ax.axis()
+        rec = Rectangle(
+            (autoAxis[0] - 0.05, autoAxis[3] - 0.05),
+            (autoAxis[1] - autoAxis[0] + 0.1),
+            1.1,
+            fill=False,
+            color='yellow',
+            lw=.75
+            )
+
+        if i == 0:
+            fig.add_artist(con)
+            rec = ax.add_patch(rec)
+            rec.set_clip_on(False)
 
         hm.set_yticklabels(hm.get_yticklabels(), rotation=0)
 
@@ -327,8 +357,8 @@ def plot_heatmaps(axes, prediction_df):
             ax.set_yticks([])
             ax.set_xticks([])
         else:
-            ax.set_xlabel('validation')
-            ax.set_ylabel('training')
+            ax.set_xlabel('training')
+            ax.set_ylabel('validation')
             ax.xaxis.tick_top()
             ax.yaxis.tick_right()
 
@@ -353,36 +383,62 @@ def plot_heatmaps(axes, prediction_df):
                         norm=norm, cmap=cmap, label='', **cbar_kws,
                         mappable=im, ticks=matplotlib.ticker.LogLocator(base=10))
 
+    cax = cbar.ax
+    # Move cbar up and make thinner
+    box = cax.get_position()
+    box.y1 += 0.035
+    box.y0 += 0.035
+    cax.set_position(box)
+
     cax.xaxis.set_label_position('top')
     cax.set_xlabel(r'$\log_{10}$ RMSE')
 
 
-
 def create_axes(fig):
     global gs
-    gs = GridSpec(6, 4, height_ratios=[0.4, 1, 1, 1, 1, 1],
-                  width_ratios=[.1, 1, 1, 1],
-                  figure=fig,
-                  wspace=.6,
-                  hspace=.25,
-                  bottom=0.1)
+    ncols = 4
+    nrows = 6
 
-    axes = [fig.add_subplot(cell) for i, cell in enumerate(gs) if i % 4 != 0]
+    gs = GridSpec(nrows, ncols, height_ratios=[0.3, 1, 1, 1, 1, 1],
+                  width_ratios=[.05, 1, 1, .8], wspace=.55,
+                  right=.95,
+                  left=.11,
+                  bottom=0.1,
+                  figure=fig)
 
-    axes[0].set_title(r'\textbf{a}', loc='left')
+    bottom_axes = [fig.add_subplot(gs[-1, i]) for i in range(ncols) if i % 4 != 0]
+    axes = []
+    for i in range(nrows - 1):
+        cells = [gs[i, j + 1] for j in range(ncols - 1)]
+
+        for j, cell in enumerate(cells):
+            # If not heatmap
+            if j != 2:
+                sharex = bottom_axes[j]
+            else:
+                sharex = None
+            # axes.append(fig.add_subplot(cell, sharex=sharex))
+            axes.append(fig.add_subplot(cell))
+
+    axes = axes + list(bottom_axes)
+    print(axes)
+
+    axes[3].set_title(r'\textbf{a}', loc='left', y=1.2)
     axes[1].set_title(r'\textbf{b}', loc='left')
-    axes[2].set_title(r'\textbf{c}', loc='left', y=-2.15, x=4.2)
+    axes[5].set_title(r'\textbf{d}', loc='left')
+    axes[4].set_title(r'\textbf{c}', loc='left', y=1.2)
 
     # move entire first row up
     for i, ax in enumerate(axes[:3]):
         box = ax.get_position()
-        box.y0 += .025
-        box.y1 += .025
+        box.y0 += .06
+        box.y1 += .06
         ax.set_position(box)
 
+    # Move legend left
     box = axes[0].get_position()
-    box.x0 -= 0.1
-    box.x1 -= 0.1
+    # box.x0 -= 0.15
+    box.x1 -= 0.15
     axes[0].set_position(box)
 
     number_line_axes = fig.add_subplot(gs[1:, 0])
@@ -399,7 +455,7 @@ def create_axes(fig):
     ]
 
     number_line_axes.set_yticklabels(tick_labels)
-    number_line_axes.set_ylabel(r'$\tilde{g}$', rotation=0, loc='top')
+    number_line_axes.set_ylabel(r'$\lambda$', rotation=0, loc='top')
     number_line_axes.invert_yaxis()
     # number_line_axes.yaxis.tick_right()
 
@@ -420,7 +476,6 @@ def scatter_plots(axes, results_df, params=['p1', 'p2'], col=0):
     # Use p1, p2
     xlim = results_df[params[0]].min()*.9, results_df[params[0]].max()*1.1
     ylim = results_df[params[1]].min()*.9, results_df[params[1]].max()*1.1
-
     xlim = np.array(xlim) * 1000
 
     scatter_axes = [ax for i, ax in enumerate(axes) if (i % 3) == col and i > 2]
@@ -451,30 +506,26 @@ def scatter_plots(axes, results_df, params=['p1', 'p2'], col=0):
 
         g = sns.scatterplot(data=sub_df, x=params[0], y=params[1],
                             hue='protocol', style='protocol', legend=legend,
-                            palette=palette, markers=markers, linewidth=0.3,
-                            ax=ax, size=1, alpha=0.9)
+                            palette=palette, size=1, markers=markers,
+                            linewidth=0.5, ax=ax)
 
         # ax.axvline(val1*1000, linestyle='dotted', color='grey',
-        #            linewidth=.3)
+        #            lw=.3)
 
         # ax.axhline(val2, linestyle='dotted',
-        #            linewidth=.3, color='grey')
+        #            lw=.3, color='grey')
 
-        g.set_xlabel(r'$p_1$ / $\textrm{ms}^{-1}$')
-        g.set_ylabel(r'$p_2$ / V$^{-1}$')
+        # g.set_xlabel(r'$p_1$ / $\textrm{ms}^{-1}$')
+        g.set_ylabel(r'$p_2$ (V$^{-1})$')
 
-        # ax.set_xlim(*xlim)
-        # ax.set_ylim(*ylim)
+        ax.set_xlim(*xlim)
+        ax.set_ylim(*ylim)
 
         ax.spines.right.set_visible(False)
         ax.spines.top.set_visible(False)
 
         # xlabels = ['{:.1e}'.format(x) for x in g.get_xticks()]
         # g.set_xticklabels(xlabels)
-
-        if i != 4:
-            ax.set_xlabel('')
-            ax.set_xticks([])
 
     # Put legend on the top left axis
     ax = axes[0]
@@ -485,11 +536,21 @@ def scatter_plots(axes, results_df, params=['p1', 'p2'], col=0):
                   'fontsize': 8
                   }
 
+    ticks = scatter_axes[0].get_xticks()
+    ticks = [ticks[0], ticks[-1]]
+    tick_labels = [f"{v:.2f}" for v in ticks]
+    for i in range(4):
+        scatter_axes[i].set_xticks([])
+        scatter_axes[i].set_xlabel('')
+
+    scatter_axes[4].set_xticks(ticks)
+    scatter_axes[4].set_xticklabels(tick_labels)
+    scatter_axes[4].set_xlabel(r'$p_1 \times 10^3$ (s$^{-1})$')
+
     handles = [mlines.Line2D(xdata=[1], ydata=[1], color=color, marker=marker,
                              linestyle=linestyles[i], markersize=5,
-                             label=label, linewidth=.3) for i, (label, marker,
-                                                                 color) in enumerate(zip(protocols, markers,
-                                                                                         colours))]
+                             label=label, lw=.3) for i, (label, marker, color)
+               in enumerate(zip(protocols, markers, colours))]
 
     handles, labels = list(handles), list(protocols)
     ax.legend(labels=labels, handles=handles, **legend_kws)
@@ -508,7 +569,7 @@ def scatter_plots(axes, results_df, params=['p1', 'p2'], col=0):
         tck, u = scipy.interpolate.splprep([xs, ys])
         x_new, y_new = scipy.interpolate.splev(np.linspace(0, 1, 500), tck)
         for ax in scatter_axes:
-            ax.plot(x_new*1e3, y_new, linewidth=.25, color=colours[i], alpha=.5)
+            ax.plot(x_new*1e3, y_new, lw=.3, color=colours[i], alpha=.75)
 
 
 if __name__ == "__main__":
