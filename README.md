@@ -33,12 +33,12 @@ A list of voltage-clamp protocols are provided in  `/MarkovModels/protocols`. Th
 
 | protocol      | filename        |
 | : ----------- | :-----------    |
+| d0            | longap          |
 | d1            | hhbrute3gstep'  |
 | d2            | sis             |
 | d3            | spacefill19     |
 | d4            | staircaseramp1  |
 | d5            | wangbrute3gstep |
-| d^*           | longap          |
 
 ## Results
 All of the computational results mentioned in the paper are provided in the `/results` directory. In `/results`, each subdirectory includes an `info.txt` file which lists the command run to produce the output.

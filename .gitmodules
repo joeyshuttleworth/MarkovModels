@@ -1,6 +1,3 @@
-[submodule "NumbaIDA"]
-	path = NumbaIDA
-	url = https://github.com/joeyshuttleworth/NumbaIDA
 [submodule "Markov-builder"]
 	path = Markov-builder
 	url = git@github.com:CardiacModelling/Markov-builder
