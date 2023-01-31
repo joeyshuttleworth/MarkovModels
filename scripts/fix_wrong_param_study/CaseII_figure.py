@@ -214,7 +214,7 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
 
         ax.fill_between(times, min_pred, max_pred, color='orange', alpha=0,
                         linewidth=0, rasterized=False)
-        axins = inset_axes(ax, width='50%', height='50%', loc='lower center')
+        axins = inset_axes(ax, width='50%', height='45%', loc='lower center')
 
         # axins.axis('off')
         axins.set_xticks([])
@@ -293,6 +293,8 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
 
     for ax in prediction_axes:
         ax.set_xlim([0, 9000])
+
+    axes[1].set_xlim([0, 9000])
 
 
 def plot_heatmaps(axes, prediction_dfs):

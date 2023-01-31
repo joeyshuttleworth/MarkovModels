@@ -201,7 +201,7 @@ def do_interval_vs_error_plot(axes, scatter_ax, results_df,
                          color='orange', alpha=.5)
 
     axes[0].set_ylabel('V (mV)')
-    axes[2].set_ylabel(r'prediction range - $I_\textrm{Kr}$ (nA)')
+    axes[2].set_ylabel(r'$\big[\mathcal{B}_\textrm{lower}, \mathcal{B}_\textrm{upper}\big] - I_\textrm{Kr}$ (nA)')
     axes[1].set_ylabel(r'$I_\textrm{Kr}$ (nA)')
     axes[2].set_xlabel(r'$t$ (s)')
 

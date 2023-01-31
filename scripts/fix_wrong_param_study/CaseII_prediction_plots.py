@@ -176,14 +176,25 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
 
         ax.fill_between(times, min_pred, max_pred, color='orange', alpha=0.25,
                         lw=0, )
+
         axins = inset_axes(ax, width='50%', height='50%', loc='lower center')
+        axins2 = inset_axes(ax, width='15%', height='40%', loc='lower left')
+
+        axins.plot(times, current, color='grey', alpha=.3, lw=0.3)
+        axins2.plot(times, current, color='grey', alpha=.3, lw=0.3)
 
         # axins.axis('off')
         axins.set_xticks([])
         axins.set_yticks([])
 
+        axins2.set_xticks([])
+        axins2.set_yticks([])
+
         axins.fill_between(times, min_pred, max_pred, color='orange', alpha=.2,
                            lw=0)
+
+        axins2.fill_between(times, min_pred, max_pred, color='orange', alpha=.2,
+                            lw=0)
 
         for j in range(predictions.shape[0]):
             linestyle = linestyles[j]
@@ -191,10 +202,19 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
             axins.plot(times, prediction, ls=linestyle,
                        lw=0.5, color=colours[j])
 
-        axins.set_xlim([4250, 6000])
+            axins2.plot(times, prediction, ls=linestyle,
+                        lw=0.5, color=colours[j])
+
+        axins.set_xlim([3250, 6000])
         axins.set_ylim(-0.5, 2.25)
 
+        axins2.set_xlim([750, 1250])
+        axins2.set_ylim(-0.65, 1)
+
         mark_inset(ax, axins, edgecolor="black", fc="none", loc1=1, loc2=2,
+                   lw=.3, alpha=.8)
+
+        mark_inset(ax, axins2, edgecolor="black", fc="none", loc1=1, loc2=2,
                    lw=.3, alpha=.8)
 
     axes[1].set_xlim([0, 9000])
@@ -226,7 +246,7 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
     axes[1].plot(times[::50], [voltage_func(t) for t in times][::50],
                      color='black', lw=.5)
 
-    prediction_axes[-1].set_xlabel(r'$t$ / s')
+    prediction_axes[1].set_xlabel(r'$t$ (s)')
 
     # axes[colno].yaxis.tick_right()
     labels = ['0s', '7.5s']

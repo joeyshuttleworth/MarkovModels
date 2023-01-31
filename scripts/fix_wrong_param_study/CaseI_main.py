@@ -206,7 +206,7 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
 
         ax.fill_between(times, min_pred, max_pred, color='orange', alpha=0.25,
                         lw=0, )
-        axins = inset_axes(ax, width='50%', height='50%', loc='lower center')
+        axins = inset_axes(ax, width='50%', height='45%', loc='lower center')
 
         # axins.axis('off')
         axins.set_xticks([])
@@ -571,7 +571,7 @@ def scatter_plots(axes, results_df, params=['p1', 'p2'], col=0):
             ax.plot(x_new*1e3, y_new, lw=.3, color=colours[i], alpha=.75)
 
     xlim = scatter_axes[0].get_xlim()
-    xlim = (min(-0.05, xlim[0]), xlim[1])
+    xlim = (min(0, xlim[0]), xlim[1])
     for ax in scatter_axes:
         ax.set_xlim(*xlim)
         ax.set_ylim(*ylim)

@@ -119,7 +119,7 @@ def fit_model(dataset, T, ax=None, label=''):
         ax.set_ylim(0, 2.25)
 
         # ax.set_xlabel('$t$')
-        ax.set_ylabel('$x$', rotation=0)
+        ax.set_ylabel('$y$', rotation=0)
 
         # ax.legend()
         # fig.savefig(os.path.join(output_dir, f"fitting_{label}"))
@@ -187,10 +187,15 @@ def main():
     # observation_axes[2].set_xlabel(r'$t$')
     # observation_axes[3].set_xlabel(r'$t$')
 
-    observation_axes[0].set_xlabel(r'$t \in T_1$')
-    observation_axes[1].set_xlabel(r'$t \in T_2$')
-    observation_axes[2].set_xlabel(r'$t \in T_3$')
-    observation_axes[3].set_xlabel(r'$t \in T_4$')
+    observation_axes[0].set_xlabel(r'$t$')
+    observation_axes[1].set_xlabel(r'$t$')
+    observation_axes[2].set_xlabel(r'$t$')
+    observation_axes[3].set_xlabel(r'$t$')
+
+    observation_axes[0].set_title(r'$T_1$')
+    observation_axes[1].set_title(r'$T_2$')
+    observation_axes[2].set_title(r'$T_3$')
+    observation_axes[3].set_title(r'$T_4$')
 
     rows = []
     for x, T in zip(estimates, ['$T_1$', '$T_2$', '$T_3$', '$T_4$']):
@@ -214,7 +219,7 @@ def make_scatter_plots(df, ax, label=''):
     df['observation times'] = df['time_range']
     g = sns.scatterplot(ax=ax, data=df, x=df.columns[0], y=df.columns[1],
                         hue='observation times', style='observation times',
-                        linewidth=0, size=.25)
+                        linewidth=0, s=.5)
 
     g.legend_.set_title('')
 
