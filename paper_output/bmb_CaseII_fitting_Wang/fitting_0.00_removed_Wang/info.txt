@@ -1,0 +1,3 @@
+Date: 2022-12-28 17:59:26.747714
+Commit d4daa2ea91ee00e89856304b940e9a6aeb62c584
+Command: scripts/fit_all_wells_and_protocols.py output/bmb_synthetic_data/synthetic_data_Wang/ --repeats 10 -w 0 1 2 3 4 5 6 7 8 9 --experiment_name synthetic -c 25 --dont_infer_Erev --model Wang --removal_duration 0

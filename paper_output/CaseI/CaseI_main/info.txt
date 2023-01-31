@@ -1,0 +1,3 @@
+Date: 2023-01-31 15:03:38.466873
+Commit 2012fbc520133fc52f4c2a148c1b915f7c64bbfe
+Command: scripts/fix_wrong_param_study/CaseI_main.py paper_output/fix_wrong_parameter/ --file_format png --vlim 0.01 1 --output paper_output/CaseI

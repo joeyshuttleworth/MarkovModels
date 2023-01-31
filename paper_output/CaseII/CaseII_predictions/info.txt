@@ -1,0 +1,3 @@
+Date: 2023-01-31 15:18:39.818724
+Commit 8ff4baf82aa05af894b69288f1a0c085c7f7f7d6
+Command: scripts/fix_wrong_param_study/CaseII_prediction_plots.py /home/joey/Downloads/bmb_synthetic_data/synthetic_data_Wang/ paper_output/bmb_CaseII_fitting_Beattie/fitting_0.00_removed_Beattie/ paper_output/bmb_CaseII_fitting_Wang/fitting_0.00_removed_Wang/ --file_format png --vlim .01 1 -o paper_output/CaseII

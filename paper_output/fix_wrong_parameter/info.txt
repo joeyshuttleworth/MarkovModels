@@ -1,0 +1,3 @@
+Date: 2022-12-21 14:25:25.919348
+Commit 89328ac80a94eb679a71bf4768b467f1458d67cc
+Command: scripts/fix_wrong_param_study/fix_wrong_parameter.py --protocols staircaseramp1 sis spacefill19 longap hhbrute3gstep wangbrute3gstep -c 35 --no_repeats 10 --no_parameter_steps 5 --repeats 20 --fix_params 8 --noise 0.03 --removal_duration 0
