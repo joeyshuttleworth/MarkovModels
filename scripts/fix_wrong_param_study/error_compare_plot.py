@@ -243,7 +243,7 @@ def do_interval_vs_error_plot(axes, scatter_ax, results_df,
                        rotation=90)
 
     scatter_ax[1].set_ylabel(r'$I_{\textrm{Kr}}$ / nA')
-    scatter_ax[1].set_xlabel('$t$ / s')
+    scatter_ax[1].set_xlabel('$t$ (s)')
 
     axes[0].scatter(times * 1e-3, voltages, cmap='cubehelix',
                     c=range(times.shape[0]), marker='.', s=.3, lw=.5)
