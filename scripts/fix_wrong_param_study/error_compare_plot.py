@@ -29,7 +29,7 @@ from matplotlib import rc
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 8})
 rc('text', usetex=True)
-rc('figure', dpi=300)
+rc('figure', dpi=500)
 
 
 def main():
@@ -72,7 +72,7 @@ def main():
     global true_parameters
     true_parameters = model_class().get_default_parameters()
 
-    output_dir = common.setup_output_directory(args.output_dir, "error_compare")
+    output_dir = common.setup_output_directory(args.output_dir, "CaseII_error_compare")
 
     fig = plt.figure(figsize=args.figsize)# , constrained_layout=True)
     axes, scatter_axes = create_axes(fig)
@@ -112,7 +112,7 @@ def main():
     do_interval_vs_error_plot(axes, scatter_axes, results_dfs[0],
                               args.prediction_protocol, current, times)
 
-    fig.savefig(os.path.join(output_dir, f"fig7.{args.file_format}"))
+    fig.savefig(os.path.join(output_dir, f"Fig8.{args.file_format}"))
 
 
 def do_interval_vs_error_plot(axes, scatter_ax, results_df,
@@ -200,10 +200,10 @@ def do_interval_vs_error_plot(axes, scatter_ax, results_df,
                          max_pred[indices], lw=.5,
                          color='orange', alpha=.5)
 
-    axes[0].set_ylabel('V / mV')
-    axes[2].set_ylabel(r'prediction range - $I_\textrm{Kr}$ / nA')
-    axes[1].set_ylabel(r'$I_\textrm{Kr}$ / nA')
-    axes[2].set_xlabel(r'$t$ / s')
+    axes[0].set_ylabel('V (mV)')
+    axes[2].set_ylabel(r'prediction range - $I_\textrm{Kr}$ (nA)')
+    axes[1].set_ylabel(r'$I_\textrm{Kr}$ (nA)')
+    axes[2].set_xlabel(r'$t$ (s)')
 
     palette = sns.color_palette('cubehelix', as_cmap=True)
     scatter_ax[0].scatter(midpoint_errors, interval_width,

@@ -107,7 +107,7 @@ def fit_model(dataset, T, ax=None, label=''):
             result = new_result
 
     if ax:
-        ax.plot(*observed_dataset.T, marker='.', ms=1, lw=0, color='grey',
+        ax.plot(*observed_dataset.T, marker='x', ms=1.5, lw=0, color='grey',
                 zorder=10)
 
         all_T = np.linspace(0, max(*T, 1.2), 100)
@@ -142,7 +142,7 @@ def main():
     global args
     args = argument_parser.parse_args()
     global output_dir
-    output_dir = common.setup_output_directory(subdir_name='simple_example')
+    output_dir = common.setup_output_directory(args.output, subdir_name='simple_example')
 
     sigma = args.sigma
 
@@ -182,15 +182,15 @@ def main():
                                           label=f"{i}") for i, T in enumerate((Ts))]
 
     observation_axes[0].set_title(r'\textbf a', loc='left')
-    observation_axes[0].set_xlabel(r'$t$')
-    observation_axes[1].set_xlabel(r'$t$')
-    observation_axes[2].set_xlabel(r'$t$')
-    observation_axes[3].set_xlabel(r'$t$')
+    # observation_axes[0].set_xlabel(r'$t$')
+    # observation_axes[1].set_xlabel(r'$t$')
+    # observation_axes[2].set_xlabel(r'$t$')
+    # observation_axes[3].set_xlabel(r'$t$')
 
-    observation_axes[0].set_xlabel(r'$T_1$')
-    observation_axes[1].set_xlabel(r'$T_2$')
-    observation_axes[2].set_xlabel(r'$T_3$')
-    observation_axes[3].set_xlabel(r'$T_4$')
+    observation_axes[0].set_xlabel(r'$t \in T_1$')
+    observation_axes[1].set_xlabel(r'$t \in T_2$')
+    observation_axes[2].set_xlabel(r'$t \in T_3$')
+    observation_axes[3].set_xlabel(r'$t \in T_4$')
 
     rows = []
     for x, T in zip(estimates, ['$T_1$', '$T_2$', '$T_3$', '$T_4$']):
@@ -255,7 +255,7 @@ def make_prediction_plots(estimates, datasets, ax):
     ax.fill_between(T, min_predict, max_predict, color='orange', alpha=0.25)
 
     ax.set_xlabel(r'$t$')
-    ax.set_ylabel(r'$y$', rotation=0)
+    ax.set_ylabel(r'$x$', rotation=0)
 
     # fig.savefig(os.path.join(output_dir, 'prediction_plot'))
 

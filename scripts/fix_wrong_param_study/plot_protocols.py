@@ -91,7 +91,7 @@ def main():
     axes[5*3 + 1].set_xlabel('$t$ (s)')
     axes[5*3 + 2].set_xlabel('$t$ (s)')
 
-    fig.savefig(os.path.join(output_dir, "fig3.png"))
+    fig.savefig(os.path.join(output_dir, "Fig3.png"))
 
 if __name__ == '__main__':
     main()

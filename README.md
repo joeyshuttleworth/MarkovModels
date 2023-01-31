@@ -20,9 +20,15 @@ The synthetic dataset used for Case II was produced using `scripts/fix_param_stu
 
 The scripts used to produce each figure are shown in the following table:
 
-| Figure  | script  |
-| ------- | ------- |
-|         |         |
+| Figure   | script            |
+| -------  | -------           |
+| Fig1.pdf | simple_example.py |
+| Fig3.pdf | plot_protocols.py |
+| Fig4.pdf | CaseI_prediction_plots.py |
+| Fig5.pdf | CaseI_main.py |
+| Fig6.pdf | CaseII_prediction_plots.py |
+| Fig7.pdf | CaseII_figure.py |
+| Fig8.pdf | error_compare_plot.py |
 
 ## Running
 To run a script execute it using Python. For example,
@@ -32,7 +38,7 @@ To run a script execute it using Python. For example,
 A list of voltage-clamp protocols are provided in  `/MarkovModels/protocols`. These are `.csv` files which describe time-series data. The filenames which correspond to the protocols used in the data are shown in the table below.
 
 | protocol      | filename        |
-| : ----------- | :-----------    |
+| -----------   | -----------     |
 | d0            | longap          |
 | d1            | hhbrute3gstep'  |
 | d2            | sis             |

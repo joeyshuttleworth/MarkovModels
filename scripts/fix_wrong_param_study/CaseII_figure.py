@@ -76,7 +76,7 @@ def main():
     global true_parameters
     true_parameters = model_class().get_default_parameters()
 
-    output_dir = common.setup_output_directory(args.output_dir, "example2_plots")
+    output_dir = common.setup_output_directory(args.output_dir, "CaseII_main")
 
     global fig
     fig = plt.figure(figsize=args.figsize)
@@ -139,7 +139,7 @@ def main():
     do_prediction_plots(axes, results_dfs, args.prediction_protocol, current, times)
 
     fig.set_canvas(plt.gcf().canvas)
-    fig.savefig(os.path.join(output_dir, f"fig6.{args.file_format}"))
+    fig.savefig(os.path.join(output_dir, f"Fig7.{args.file_format}"))
 
 
 def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
