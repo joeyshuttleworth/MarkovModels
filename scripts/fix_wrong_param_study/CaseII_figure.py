@@ -31,7 +31,7 @@ from matplotlib import rc
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 8})
 rc('text', usetex=True)
-rc('figure', dpi=500)
+rc('figure', dpi=1000)
 rc('axes', facecolor=[0]*4)
 rc('savefig', facecolor=[0]*4)
 
@@ -175,6 +175,7 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
     for i, results_df in enumerate(results_dfs):
         # plot data
         ax = prediction_axes[i]
+        ax.plot(times, current, color='grey', alpha=.5, lw=0.3)
 
         model_class = common.get_model_class(model_names[i])
         parameter_labels = model_class().get_parameter_labels()
@@ -229,8 +230,8 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
                        linewidth=0.5, color=palette[j],
                        )
 
-        axins.plot(times, current, color='grey', alpha=.2,
-                   linewidth=0)
+        # axins.plot(times, current, color='grey', alpha=.2,
+                   # linewidth=0)
 
         axins.set_xlim([5000, 6000])
         axins.set_ylim(-0.5, 2)
@@ -417,7 +418,7 @@ def create_axes(fig):
                   width_ratios=[.05, 1, 1, .8], wspace=.55,
                   right=.95,
                   left=.11,
-                  hspace=.5,
+                  # hspace=.5,
                   bottom=0.1,
                   figure=fig)
 
