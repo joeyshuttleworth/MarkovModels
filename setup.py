@@ -44,22 +44,22 @@ setup(
     include_package_data=True,
 
     # Required Python version
-    python_requires='>=3.6',
+    python_requires='==3.6',
 
     # List of dependencies
     install_requires=[
-        'pints>=0.3',
-        'scipy>=1.7',
-        'numpy>=1.17',
-        'matplotlib>=3.4',
-        'pandas>=1.3',
-        'sympy>=1.8',
-        'numba>=0.54.1',
-        'NumbaLSODA>=0.1.7',
-        'regex>=2021.11.10',
-        'myokit>=1.33.0',
-        'seaborn>=0.12.0',
-        'markov_builder @ git+https://git@github.com/CardiacModelling/Markov-builder@add_wang_model'
+        'pints==0.3',
+        'scipy==1.7',
+        'numpy==1.17',
+        'matplotlib==3.4',
+        'pandas==1.3',
+        'sympy==1.8',
+        'numba==0.54.1',
+        'NumbaLSODA==0.1.7',
+        'regex==2021.11.10',
+        'myokit==1.33.0',
+        'seaborn==0.12.0',
+        'markov_builder @ git+https://git@github.com/CardiacModelling/Markov-builder@10f4e35ceee5bb722733bc74dc84f1b66a4fd0cd'
     ],
     extras_require={
         'test': [
