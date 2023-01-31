@@ -11,7 +11,7 @@ from matplotlib.gridspec import GridSpec
 
 from matplotlib import rc
 
-rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 11})
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 8})
 rc('text', usetex=True)
 rc('figure', dpi=500)
 
@@ -52,8 +52,8 @@ def main():
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     axes = setup_axes(fig)
 
-    axes[1].set_title(r'$V$ / mV')
-    axes[2].set_title(r'$I_{\textrm{Kr}}$ / nA')
+    axes[1].set_title(r'$V$ (mV)')
+    axes[2].set_title(r'$I_{\textrm{Kr}}$ (nA)')
 
     for i, protocol in enumerate(protocols_list):
         voltage_func, times, desc = common.get_ramp_protocol_from_csv(protocol)
@@ -88,8 +88,8 @@ def main():
             axes[i*3 + 1].spines[side].set_visible(False)
             axes[i*3 + 2].spines[side].set_visible(False)
 
-    axes[5*3 + 1].set_xlabel('$t$ / s')
-    axes[5*3 + 2].set_xlabel('$t$ / s')
+    axes[5*3 + 1].set_xlabel('$t$ (s)')
+    axes[5*3 + 2].set_xlabel('$t$ (s)')
 
     fig.savefig(os.path.join(output_dir, "fig3.png"))
 

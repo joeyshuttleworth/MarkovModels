@@ -106,6 +106,8 @@ def main():
     results_df.replace({'protocol': relabel_dict}, inplace=True)
     results_df = results_df.sort_values('protocol')
 
+    print(relabel_dict)
+
     protocols = results_df.protocol.unique()
 
     axes = create_axes(fig)
@@ -131,8 +133,13 @@ def main():
                                     f"synthetic_data_{args.prediction_protocol}_0.csv"))
 
     do_prediction_plots(axes, results_df, args.prediction_protocol, data)
+    axes[1].set_title(r'\textbf{a}', loc='left')
+    axes[2].set_title(r'\textbf{b}', loc='left')
+    axes[3].set_title(r'\textbf{c}', loc='left')
+    axes[4].set_title(r'\textbf{d}', loc='left')
 
-    fig.savefig(os.path.join(output_dir, f"pred_plots.{args.file_format}"))
+
+    fig.savefig(os.path.join(output_dir, f"Fig4.{args.file_format}"))
 
 
 def do_prediction_plots(axes, results_df, prediction_protocol, data):
@@ -215,7 +222,7 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
                        lw=0.5, color=colours[j])
 
         axins.set_xlim([4250, 6000])
-        axins.set_ylim(-0.15, 0.6)
+        axins.set_ylim(-0.15, 0.65)
 
         mark_inset(ax, axins, edgecolor="black", fc="none", loc1=1, loc2=2,
                    lw=.3, alpha=.8)
@@ -240,6 +247,8 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
         ax.spines.top.set_visible(False)
 
         ax.set_rasterization_zorder(2)
+
+        ax.set_ylabel(r'$I_\textrm{Kr}$ (nA)')
 
     # Plot voltage
     axes[1].plot(times[::50], [voltage_func(t) for t in times][::50],

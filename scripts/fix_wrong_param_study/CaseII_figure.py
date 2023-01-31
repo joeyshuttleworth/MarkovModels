@@ -239,10 +239,6 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
                    linewidth=.3, alpha=.8)
 
     for i, ax in enumerate(prediction_axes):
-        ax.set_xlim(ymin, max(ymax, np.quantile(current, 0.9)))
-        # ax.yaxis.tick_right()
-
-        ax.set_xlim([0, 9000])
         ax.set_xticks([0, 8000])
         ax.set_xticklabels(['0s', '8s'], rotation='horizontal')
 
@@ -265,6 +261,8 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
 
         ax.set_rasterization_zorder(10)
 
+        ax.set_ylabel(r'$I_\textrm{Kr}$ (nA)')
+
     # Plot voltage
     axes[colno].plot(times[::50], [voltage_func(t) for t in times][::50], color='black',
                      linewidth=.5)
@@ -273,7 +271,7 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
     axes[colno].spines.right.set_visible(False)
     axes[colno].spines.top.set_visible(False)
 
-    prediction_axes[-1].set_xlabel(r'$t$ / s')
+    prediction_axes[-1].set_xlabel(r'$t$ (s)')
 
     prediction_axes[-1].sharex(axes[colno])
 
@@ -291,6 +289,9 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
     labels = ['0s', '7.5s']
     axes[colno + 6].set_xticks([0, 7500])
     axes[colno + 6].set_xticklabels(labels)
+
+    for ax in prediction_axes:
+        ax.set_xlim([0, 9000])
 
 
 def plot_heatmaps(axes, prediction_dfs):
@@ -366,7 +367,7 @@ def plot_heatmaps(axes, prediction_dfs):
             ax.set_yticks([])
             ax.set_xticks([])
         else:
-            ax.set_xlabel('training')
+            ax.set_xlabel('training', labelpad=0)
             ax.set_ylabel('validation')
             ax.xaxis.tick_top()
             ax.yaxis.tick_right()
@@ -416,6 +417,7 @@ def create_axes(fig):
                   width_ratios=[.05, 1, 1, .8], wspace=.55,
                   right=.95,
                   left=.11,
+                  hspace=.5,
                   bottom=0.1,
                   figure=fig)
 

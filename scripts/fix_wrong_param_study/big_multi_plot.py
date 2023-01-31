@@ -261,7 +261,7 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
     axes[colno].plot(times[::50], [voltage_func(t) for t in times][::50], color='black',
                      lw=.5)
 
-    prediction_axes[-1].set_xlabel(r'$t$ / s')
+    prediction_axes[-1].set_xlabel(r'$t$ (s)')
 
     # axes[colno].yaxis.tick_right()
     labels = ['0s', '7.5s']
@@ -402,6 +402,7 @@ def create_axes(fig):
     gs = GridSpec(nrows, ncols, height_ratios=[0.3, 1, 1, 1, 1, 1],
                   width_ratios=[.05, 1, 1, .8], wspace=.55,
                   right=.95,
+                  hspace=.5,
                   left=.11,
                   bottom=0.1,
                   figure=fig)
@@ -518,9 +519,6 @@ def scatter_plots(axes, results_df, params=['p1', 'p2'], col=0):
         # g.set_xlabel(r'$p_1$ / $\textrm{ms}^{-1}$')
         g.set_ylabel(r'$p_2$ (V$^{-1})$')
 
-        ax.set_xlim(*xlim)
-        ax.set_ylim(*ylim)
-
         ax.spines.right.set_visible(False)
         ax.spines.top.set_visible(False)
 
@@ -571,6 +569,9 @@ def scatter_plots(axes, results_df, params=['p1', 'p2'], col=0):
         for ax in scatter_axes:
             ax.plot(x_new*1e3, y_new, lw=.3, color=colours[i], alpha=.75)
 
+    for ax in scatter_axes:
+        ax.set_xlim(*xlim)
+        ax.set_ylim(*ylim)
 
 if __name__ == "__main__":
     main()

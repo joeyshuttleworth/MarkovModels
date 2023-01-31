@@ -204,7 +204,7 @@ def main():
     make_scatter_plots(estimates_df, scatter_ax)
     make_prediction_plots(estimates_df, datasets, prediction_ax)
 
-    fig.savefig(os.path.join(output_dir, f"simple_example_plot.{args.file_format}"))
+    fig.savefig(os.path.join(output_dir, f"Fig1.{args.file_format}"))
 
     estimates_df.to_csv(os.path.join(output_dir, 'fitting_results.csv'))
 
@@ -214,7 +214,7 @@ def make_scatter_plots(df, ax, label=''):
     df['observation times'] = df['time_range']
     g = sns.scatterplot(ax=ax, data=df, x=df.columns[0], y=df.columns[1],
                         hue='observation times', style='observation times',
-                        linewidth=0, size=1)
+                        linewidth=0, size=.25)
 
     g.legend_.set_title('')
 
