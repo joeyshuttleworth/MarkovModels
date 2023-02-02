@@ -218,8 +218,7 @@ def make_scatter_plots(df, ax, label=''):
 
     df['observation times'] = df['time_range']
     g = sns.scatterplot(ax=ax, data=df, x=df.columns[0], y=df.columns[1],
-                        hue='observation times', style='observation times',
-                        linewidth=0, s=.5)
+                        hue='observation times', style='observation times', s=25)
 
     g.legend_.set_title('')
 
