@@ -48,15 +48,15 @@ setup(
 
     # List of dependencies
     install_requires=[
-        'pints==0.3',
-        'scipy==1.7',
-        'numpy==1.21',
-        'matplotlib==3.4',
-        'pandas==1.3',
-        'sympy==1.8',
-        'numba==0.54.1',
-        'NumbaLSODA==0.1.7',
-        'regex==2021.11.10',
+        'pints==0.4.0',
+        'scipy==1.9.1',
+        'numpy==1.23.3',
+        'matplotlib==3.6.2',
+        'pandas==1.5.0',
+        'sympy==1.11.1',
+        'numba==0.56.2',
+        'numbalsoda==0.3.4',
+        'regex==2022.9.13',
         'myokit==1.33.0',
         'seaborn==0.12.0',
         'markov_builder @ git+https://git@github.com/CardiacModelling/Markov-builder@10f4e35ceee5bb722733bc74dc84f1b66a4fd0cd'
