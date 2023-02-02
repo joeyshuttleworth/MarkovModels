@@ -1,6 +1,6 @@
 FROM python:3.9-buster
 
-ARG UID
+ARG UID=1001
 
 COPY requirements.txt /opt/app/requirements.txt
 
