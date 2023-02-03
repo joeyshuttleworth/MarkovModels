@@ -218,11 +218,12 @@ def make_scatter_plots(df, ax, label=''):
 
     df['observation times'] = df['time_range']
     g = sns.scatterplot(ax=ax, data=df, x=df.columns[0], y=df.columns[1],
-                        hue='observation times', style='observation times', s=25)
+                        hue='observation times', style='observation times',
+                        s=25)
+
+    ax.legend(markerscale=0.5)
 
     g.legend_.set_title('')
-
-    # fig.savefig(os.path.join(output_dir, f"parameter_scatter_{label}"))
 
 
 def make_prediction_plots(estimates, datasets, ax):
