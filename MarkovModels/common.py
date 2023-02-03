@@ -647,7 +647,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     if output_dir:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        if starting_parameter_sets:
+        if randomise_initial_guess:
             point2 = [p for i, p in enumerate(starting_parameter_sets[best_index]) if i not
                       in fix_parameters]
         else:
