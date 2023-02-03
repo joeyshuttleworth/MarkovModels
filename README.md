@@ -47,4 +47,4 @@ A list of voltage-clamp protocols are provided in  `/MarkovModels/protocols`. Th
 | d5            | wangbrute3gstep |
 
 ## Results
-All of the computational results mentioned in the paper are provided in the `/results` directory. In `/results`, each subdirectory includes an `info.txt` file which lists the command run to produce the output.
+All of the computational results mentioned in the paper are provided in the `paper_output` directory. In `paper_output`, each subdirectory includes an `info.txt` file which lists the command run to produce the output.
