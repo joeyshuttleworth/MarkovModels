@@ -257,10 +257,10 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
         ax.set_xticklabels(['0', '8'], rotation='horizontal')
 
         yticks = [0, -2]
-        ylabs = [str(l) + 'nA' for l in yticks]
-
         ax.set_yticks(yticks)
-        ax.set_yticklabels(ylabs, rotation='horizontal')
+
+        yticklabs = ax.get_yticklabels()
+        ax.set_yticklabels(yticklabs, rotation='horizontal')
         ax.set_ylim([-2, 1])
 
         # remove spines
@@ -280,7 +280,7 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
     prediction_axes[-1].set_xlabel(r'$t$ (s)')
 
     # axes[colno].yaxis.tick_right()
-    labels = ['0s', '7.5s']
+    labels = ['0', '7.5']
     axes[colno].spines.right.set_visible(False)
     axes[colno].spines.top.set_visible(False)
 
@@ -293,7 +293,8 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
     prediction_axes[-1].set_xticklabels(labels)
 
     axes[colno].set_yticks([-100, 40])
-    axes[colno].set_yticklabels(['-100mV', '+40mV'])
+    axes[colno].set_ylabel(r'$V$ (mV)')
+    # axes[colno].set_yticklabels(['-100mV', '+40mV'])
 
 
 def create_axes(fig):

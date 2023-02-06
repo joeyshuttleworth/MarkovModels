@@ -260,7 +260,7 @@ def make_prediction_plots(estimates, datasets, ax):
     ax.fill_between(T, min_predict, max_predict, color='orange', alpha=0.25)
 
     ax.set_xlabel(r'$t$')
-    ax.set_ylabel(r'$x$', rotation=0)
+    ax.set_ylabel(r'$y$', rotation=0)
 
     # fig.savefig(os.path.join(output_dir, 'prediction_plot'))
 

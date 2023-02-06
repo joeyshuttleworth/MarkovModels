@@ -226,13 +226,14 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
         ax.set_xticks([0, 8000])
         ax.set_xticklabels(['0', '8'], rotation='horizontal')
 
-        ylims = [-7.5, 3]
-        ax.set_yticks(ylims)
+        ylims = [-7.5,  3]
+        ax.set_yticks([-7.5, 0, 3])
         ax.set_ylim(ylims)
-        ylabs = [str(l) + 'nA' for l in ylims]
 
         ax.set_yticks(ylims)
-        ax.set_yticklabels(ylabs, rotation='horizontal')
+
+        yticklabs = ax.get_yticklabels()
+        ax.set_yticklabels(yticklabs, rotation='horizontal')
         ax.set_ylim()
 
         # remove spines
@@ -249,7 +250,7 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
     prediction_axes[1].set_xlabel(r'$t$ (s)')
 
     # axes[colno].yaxis.tick_right()
-    labels = ['0s', '7.5s']
+    labels = ['0', '7.5']
     axes[colno].spines.right.set_visible(False)
     axes[colno].spines.top.set_visible(False)
 
@@ -264,7 +265,8 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
     prediction_axes[-1].set_visible(False)
 
     axes[colno].set_yticks([-100, 40])
-    axes[colno].set_yticklabels(['-100mV', '+40mV'])
+    axes[colno].set_ylabel(r'$V$ (mV)')
+    # axes[colno].set_yticklabels(['-100', '40'])
 
 
 def create_axes(fig):

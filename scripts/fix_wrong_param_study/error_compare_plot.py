@@ -188,21 +188,22 @@ def do_interval_vs_error_plot(axes, scatter_ax, results_df,
 
     interval_error[bound_correct_args] = 0
 
-    print(truth.shape, times.shape, max_pred.shape)
-
     axes[2].fill_between(times[indices]*1e-3, min_pred[indices] - truth[indices],
                          max_pred[indices] - truth[indices], lw=.5,
                          color='orange', alpha=.5)
 
+    # axes[1].axhline(0, lw=.1, ls='--', color='grey')
     axes[2].axhline(0, lw=.1, ls='--', color='grey')
 
     axes[1].fill_between(times[indices] * 1e-3, min_pred[indices],
                          max_pred[indices], lw=.5,
                          color='orange', alpha=.5)
 
+    # axes[1].plot(times*1e-3, truth, lw=.5, color='blue')
+
     axes[0].set_ylabel('V (mV)')
-    axes[2].set_ylabel(r'$\big[\mathcal{B}_\textrm{lower}, \mathcal{B}_\textrm{upper}\big] - I_\textrm{Kr}$ (nA)')
-    axes[1].set_ylabel(r'$I_\textrm{Kr}$ (nA)')
+    axes[2].set_ylabel(r'$\big[\mathcal{B}_\textrm{lower}, \mathcal{B}_\textrm{upper}\big] - I_\textrm{Kr}$')
+    axes[1].set_ylabel(r'$\big[\mathcal{B}_\textrm{lower}, \mathcal{B}_\textrm{upper}\big]$ (nA)')
     axes[2].set_xlabel(r'$t$ (s)')
 
     palette = sns.color_palette('cubehelix', as_cmap=True)
@@ -230,19 +231,19 @@ def do_interval_vs_error_plot(axes, scatter_ax, results_df,
                           marker='.', zorder=3, s=.3, lw=.5)
     scatter_ax[1].plot(times*1e-3, truth, '--', lw=.2, color='black', alpha=.5)
 
-    scatter_ax[0].set_ylabel(r'$\mathcal{B}_\textrm{upper} - \mathcal{B}_\textrm{lower}$')
-    scatter_ax[0].set_xlabel(r'error in midrange prediction')
+    scatter_ax[0].set_ylabel(r'$\mathcal{B}_\textrm{upper} - \mathcal{B}_\textrm{lower}$ (nA)')
+    scatter_ax[0].set_xlabel(r'error ($\mathcal{B}_\textrm{mid} - I_\textrm{Kr}$) (nA)')
 
-    scatter_ax[0].text(0, 3.5, r'\centering $y$ within $\big[\mathcal{B}_\textrm{lower}, \mathcal{B}_\textrm{upper} \big]$',
+    scatter_ax[0].text(0, 3.0, r'\centering $\mathcal{B}_\textrm{lower} < I_\textrm{Kr} < \mathcal{B}_\textrm{upper}$',
                        ha='center')
 
-    scatter_ax[0].text(-1.5, 0.5, r'$y < \mathcal{B}_\textrm{lower}$',
-                       rotation=90)
+    scatter_ax[0].text(-1.15, 0.5, r'$\mathcal{B}_\textrm{upper} < I_\textrm{Kr}$',
+                       rotation=0, horizontalalignment='center')
 
-    scatter_ax[0].text(1.5, 0.5, r'$y > \mathcal{B}_\textrm{upper}$',
-                       rotation=90)
+    scatter_ax[0].text(1.5, 0.5, r'$\mathcal{B}_\textrm{lower} > I_\textrm{Kr}$',
+                       rotation=0, horizontalalignment='center')
 
-    scatter_ax[1].set_ylabel(r'$I_{\textrm{Kr}}$ / nA')
+    scatter_ax[1].set_ylabel(r'$I_{\textrm{Kr}}$ (nA)')
     scatter_ax[1].set_xlabel('$t$ (s)')
 
     axes[0].scatter(times * 1e-3, voltages, cmap='cubehelix',
@@ -276,7 +277,7 @@ def do_interval_vs_error_plot(axes, scatter_ax, results_df,
     # axes[1].set_ylim([-1, 2.5])
     axes[1].yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1f'))
     axes[2].yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.1f'))
-    axes[2].set_ylim([axes[2].get_ylim()[0], .8])
+    # axes[2].set_ylim([axes[2].get_ylim()[0], .8])
 
 
 def get_protocol_name(label):

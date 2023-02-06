@@ -243,10 +243,10 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
         ax.set_xticks([0, 8000])
         ax.set_xticklabels(['0s', '8s'], rotation='horizontal')
 
-        ax.set_yticks([-20, -10, 0, 10])
+        ax.set_yticks([-20, 0, 10])
         yticks = ax.get_yticks()
 
-        ylabs = [str(l) + 'nA' for l in yticks]
+        ylabs = [str(l) + '' for l in yticks]
 
         ax.set_yticklabels(ylabs, rotation='horizontal')
         ax.set_ylim([-20, 14])
@@ -264,9 +264,12 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
 
         ax.set_ylabel(r'$I_\textrm{Kr}$ (nA)')
 
+
     # Plot voltage
     axes[colno].plot(times[::50], [voltage_func(t) for t in times][::50], color='black',
                      linewidth=.5)
+
+    axes[colno].set_ylabel(r'$V$ (mV)')
 
     # axes[colno].yaxis.tick_right()
     axes[colno].spines.right.set_visible(False)
@@ -277,7 +280,7 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
     prediction_axes[-1].sharex(axes[colno])
 
     axes[colno].set_yticks([-100, 40])
-    axes[colno].set_yticklabels(['-100mV', '+40mV'])
+    # axes[colno].set_yticklabels(['-100mV', '+40mV'])
 
     ax = axes[colno]
     box = ax.get_position()
@@ -287,7 +290,7 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
 
     axes[colno].set_xticks([])
     axes[colno + 3].set_xticks([])
-    labels = ['0s', '7.5s']
+    labels = ['0', '7.5']
     axes[colno + 6].set_xticks([0, 7500])
     axes[colno + 6].set_xticklabels(labels)
 
