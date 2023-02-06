@@ -11,7 +11,6 @@ RUN apt-get update && apt-get install git graphviz graphviz-dev gcc bash -y
 RUN useradd --uid ${UID} --create-home toto_user
 
 RUN pip install --upgrade pip
-RUN pip install -r MarkovModels/requirements.txt
 
 WORKDIR /MarkovModels
 RUN pip install -e .
