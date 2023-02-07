@@ -1,4 +1,5 @@
 .venv/
+.git/
 output/
 paper_output/
 NumbaIDA
