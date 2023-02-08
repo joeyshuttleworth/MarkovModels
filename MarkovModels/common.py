@@ -233,7 +233,7 @@ def remove_indices(lst, indices_to_remove):
     # Ensure intervals don't overlap
     for interval1, interval2 in zip(indices_to_remove[:-1, :], indices_to_remove[1:, :]):
         if interval1[1] > interval2[0]:
-            print('overlapping')
+            # print('overlapping')
             interval1[1] = interval2[1]
             interval2[0] = -1
             interval2[1] = -1
@@ -792,7 +792,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
         else:
             solver = model.make_forward_solver_current()
 
-    if default_parameters:
+    if default_parameters is not None:
         initial_params = default_parameters
 
     columns = model.get_parameter_labels()
