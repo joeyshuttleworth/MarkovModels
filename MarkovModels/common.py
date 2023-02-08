@@ -355,7 +355,7 @@ def get_protocol_from_csv(protocol_name: str, directory=None, holding_potential=
     def protocol_safe(t):
         return np.interp([t], times, voltages)[0] if t < times[-1] and t > times[0] else holding_potential
 
-    return protocol_safe, times[0], times[-1], times[1] - times[0]
+    return protocol_safe, times
 
 
 def get_ramp_protocol_from_csv(protocol_name: str, directory=None,
@@ -864,11 +864,10 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
         if not os.path.exists(dirname):
             os.makedirs(dirname)
 
-
     if ax or output_path:
         plot = True
 
-    protocol_func, _, _, _, protocol_desc = get_ramp_protocol_from_csv(protocol)
+    protocol_func, _, protocol_desc = get_ramp_protocol_from_csv(protocol)
 
     tstart = times[0]
     tstep = times[1] - times[0]
