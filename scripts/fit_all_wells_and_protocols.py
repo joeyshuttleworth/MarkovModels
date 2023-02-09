@@ -19,7 +19,9 @@ import numpy as np
 
 pool_kws = {'maxtasksperchild': 1}
 
-def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None, randomise_initial_guess=True):
+
+def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
+             randomise_initial_guess=True):
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
     infer_E_rev = not args.dont_infer_Erev
@@ -96,6 +98,7 @@ def main():
 
     parser.add_argument('--max_iterations', '-i', type=int, default=100000)
     parser.add_argument('--repeats', type=int, default=16)
+    parser.add_argument('--dont_randomise_initial_guess', action='store_true')
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--removal_duration', '-r', default=5, type=float)
@@ -172,7 +175,9 @@ def main():
         else:
             starting_parameters = None
 
-        tasks.append([protocol, well, model_class, starting_parameters, Erev])
+        tasks.append([protocol, well, model_class, starting_parameters, Erev,
+                      not args.dont_randomise_initial_guess])
+
         protocols_list.append(protocol)
 
     print(f"fitting tasks are {tasks}")
@@ -253,7 +258,8 @@ def main():
                                  & (best_params_df.validation_protocol ==
                                     protocol)][param_labels].copy().head(1).astype(np.float64)
 
-            task[-1] = row.values.flatten()
+            task[3] = row.values.flatten()
+            task[5] = False
 
     print(tasks)
 
