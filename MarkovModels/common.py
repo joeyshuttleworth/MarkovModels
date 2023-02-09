@@ -506,14 +506,15 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             # rates function
             rates_func = mm.get_rates_func(njitted=False)
 
-            Vs = [-120, 40]
+            Vs = [-120, 60]
             rates_1 = rates_func(parameters, Vs[0])
             rates_2 = rates_func(parameters, Vs[1])
 
-            if max(rates_1.max(), rates_2.max()) > 1e5:
+            # Taken from https://doi.org/10.1016/j.bpj.2019.08.001 S2.2
+            if max(rates_1.max(), rates_2.max()) > 1e3:
                 return False
 
-            if min(rates_1.min(), rates_2.min()) < 1e-9:
+            if min(rates_1.min(), rates_2.min()) < 1.67e-5:
                 return False
 
             # Ensure that all parameters > 0
@@ -542,7 +543,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             return np.NaN
 
         def sample(self, n=1):
-            min_log_p, max_log_p = [-7, -1]
+            min_log_p, max_log_p = [-7, 1]
 
             no_parameters = len(starting_parameters) if not self.fix_parameters\
                 else len(starting_parameters) - len(fix_parameters)
@@ -614,6 +615,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             initial_guess = initial_guess_dist.sample(n=1).flatten()
             starting_parameter_sets.append(initial_guess)
             boundaries = Boundaries(initial_guess, fix_parameters)
+            params_not_fixed = initial_guess
         controller = pints.OptimisationController(error, params_not_fixed,
                                                   boundaries=boundaries,
                                                   method=method,
@@ -814,8 +816,8 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
         fitted_params = row[model.get_parameter_labels()].values.flatten()
         fig = plt.figure(figsize=(14, 12))
         ax = fig.subplots(1)
-        ax.plot(times, solver(fitted_params), label='fitted_parameters')
-        ax.plot(times, solver(), label='initial_parameters')
+        ax.plot(times, solver(fitted_params), label='fitted parameters')
+        ax.plot(times, solver(), label='default parameters')
         ax.plot(times, data, color='grey', label='data', alpha=.5)
 
         ax.legend()
