@@ -52,7 +52,7 @@ def get_protocol_list(input_dir):
 
 def setup_subtraction_grid(fig, nsweeps):
     # Use 5 x 2 grid
-    gs = GridSpec(6, 1, figure=fig)
+    gs = GridSpec(6, nsweeps, figure=fig)
 
     # plot protocol at the top
     protocol_axs = [fig.add_subplot(gs[0, i]) for i in range(nsweeps)]
@@ -131,11 +131,7 @@ def main():
     with multiprocessing.Pool(pool_size, **pool_kws) as pool:
         res = pool.starmap(subtract_leak, tasks)
 
-    df = pd.DataFrame(res, columns=('protocol', 'well', 'sweep', 'before/after',
-                                    'fitted_E_rev', 'passed QC6a', 'passed QC6b',
-                                    'passed QC6c', 'passed QC.Erev', 'R_leftover',
-                                    'pre-drug leak conductance', 'post-drug leak conductance',
-                                    'leak reversal', 'post-drug leak reversal'))
+    df = pd.concat(res, ignore_index=True)
 
     df.to_csv(os.path.join(output, "subtraction_qc.csv"))
     print(df)
@@ -248,6 +244,8 @@ def subtract_leak(well, protocol):
                                                         ax=reversal_ax,
                                                         plot=True)
 
+        plt.close(reversal_fig)
+
         subtracted_trace_df = pd.DataFrame(np.column_stack(
             (observation_times, subtracted_trace)), columns=('time', 'current'))
 
@@ -354,6 +352,13 @@ def subtract_leak(well, protocol):
     long_protocol_ax.set_xlabel("time /ms")
 
     fig.savefig(os.path.join(output, f"{well}_{protocol}_traces_from_leak_subtraction"))
+    plt.close(fig)
+
+    df = pd.DataFrame(df, columns=('protocol', 'well', 'sweep', 'before/after',
+                                   'fitted_E_rev', 'passed QC6a', 'passed QC6b',
+                                   'passed QC6c', 'passed QC.Erev', 'R_leftover',
+                                   'pre-drug leak conductance', 'post-drug leak conductance',
+                                   'leak reversal', 'post-drug leak reversal'))
 
     return df
 
