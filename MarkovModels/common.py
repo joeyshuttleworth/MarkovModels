@@ -510,11 +510,10 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             rates_1 = rates_func(parameters, Vs[0])
             rates_2 = rates_func(parameters, Vs[1])
 
-            # Taken from https://doi.org/10.1016/j.bpj.2019.08.001 S2.2
-            if max(rates_1.max(), rates_2.max()) > 1e3:
+            if max(rates_1.max(), rates_2.max()) > 1e5:
                 return False
 
-            if min(rates_1.min(), rates_2.min()) < 1.67e-5:
+            if min(rates_1.min(), rates_2.min()) < 1e-8:
                 return False
 
             # Ensure that all parameters > 0
