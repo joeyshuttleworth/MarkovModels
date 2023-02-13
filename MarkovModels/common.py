@@ -811,9 +811,9 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                                                  repeats=repeats,
                                                  output_dir=output_dir)
 
+    fig = plt.figure(figsize=(14, 12))
     for i, row in fitting_df.iterrows():
         fitted_params = row[model.get_parameter_labels()].values.flatten()
-        fig = plt.figure(figsize=(14, 12))
         ax = fig.subplots(1)
         ax.plot(times, solver(fitted_params), label='fitted parameters')
         ax.plot(times, solver(), label='default parameters')
@@ -831,6 +831,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
             fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit_{i}"))
             ax.cla()
             ax.plot(times, data)
+    plt.close(fig)
 
     fitting_df['score'] = fitting_df['RMSE']
     fitting_df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
