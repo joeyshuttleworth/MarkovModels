@@ -34,7 +34,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
                                   repeats=args.repeats,
                                   infer_E_rev=infer_E_rev,
                                   use_hybrid_solver=args.use_hybrid_solver,
-                                  experiment_name=experiment_name, Erev=E_rev,
+                                  experiment_name=args.experiment_name, Erev=E_rev,
                                   randomise_initial_guess=randomise_initial_guess)
 
     res_df['well'] = well
@@ -105,8 +105,8 @@ def main():
     parser.add_argument('--cores', '-c', default=1, type=int)
     parser.add_argument('--model', '-m', default='Beattie', type=str)
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
-    parser.add_argument('--no_chains', '-N', default=0, help='mcmc chains to run', type=int)
-    parser.add_argument('--chain_length', '-l', default=500, help='mcmc chains to run', type=int)
+    parser.add_argument('--no_chains', '-N', default=0, type=int)
+    parser.add_argument('--chain_length', '-l', default=500, type=int)
     parser.add_argument('--figsize', '-f', help='mcmc chains to run', type=int)
     parser.add_argument('--use_parameter_file')
     parser.add_argument('--refit', action='store_false')
@@ -212,7 +212,8 @@ def main():
 
     params_df.to_csv(os.path.join(output_dir, "prelim_best_fitting.csv"))
 
-    predictions_df = compute_predictions_df(params_df, 'prelim_predictions')
+    predictions_df = compute_predictions_df(params_df, output_dir,
+                                            'prelim_predictions', args=args, model_class=model_class)
 
     # Plot predictions
     print(predictions_df)
@@ -247,7 +248,10 @@ def main():
             fitting_df = pd.concat(res + [fitting_df], ignore_index=True)
             fitting_df.to_csv(os.path.join(output_dir, "fitting.csv"))
 
-            predictions_df = compute_predictions_df(params_df)
+            predictions_df = compute_predictions_df(params_df, output_dir,
+                                                    model_class=model_class,
+                                                    args=args)
+
             predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
 
             best_params_df = get_best_params(predictions_df, protocol_label='validation_protocol')
@@ -289,7 +293,8 @@ def do_mcmc(tasks, pool):
                                  f"mcmc_{model_name}_{well}_{protocol}.npy"), samples)
 
 
-def compute_predictions_df(params_df, label='predictions'):
+def compute_predictions_df(params_df, output_dir, label='predictions',
+                           model_class=None, args=None):
 
     predictions_dir = os.path.join(output_dir, label)
 
@@ -311,7 +316,7 @@ def compute_predictions_df(params_df, label='predictions'):
     for sim_protocol in np.unique(protocols_list):
         prot_func, times, desc = common.get_ramp_protocol_from_csv(sim_protocol)
         full_times = pd.read_csv(os.path.join(args.data_directory,
-                                         f"{experiment_name}-{sim_protocol}-times.csv"))['time'].values.flatten()
+                                         f"{args.experiment_name}-{sim_protocol}-times.csv"))['time'].values.flatten()
 
         model = model_class(prot_func,
                             times=full_times)
@@ -331,7 +336,8 @@ def compute_predictions_df(params_df, label='predictions'):
         colours = sns.color_palette('husl', len(params_df['protocol'].unique()))
 
         for well in params_df['well'].unique():
-            full_data = common.get_data(well, sim_protocol, args.data_directory, experiment_name=experiment_name)
+            full_data = common.get_data(well, sim_protocol,
+                                        args.data_directory, experiment_name=args.experiment_name)
             data = full_data[indices]
 
             for i, protocol_fitted in enumerate(params_df['protocol'].unique()):
