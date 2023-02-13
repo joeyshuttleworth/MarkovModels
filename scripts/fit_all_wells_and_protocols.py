@@ -113,6 +113,8 @@ def main():
     parser.add_argument('--dont_infer_Erev', action='store_true')
     parser.add_argument('--use_hybrid_solver', action='store_true')
     parser.add_argument('--selection_file')
+    parser.add_argument('--ignore_protocols', nargs='+', default=[])
+    parser.add_argument('--ignore_wells', nargs='+', default=[])
 
     global args
     args = parser.parse_args()
@@ -169,6 +171,8 @@ def main():
     for f in filter(regex.match, os.listdir(args.data_directory)):
         protocol, well = re.search(regex, f).groups()
         if protocol not in protocols or well not in args.wells:
+            continue
+        if protocol in args.ignore_protocols or well in args.ignore_wells:
             continue
 
         if best_params_df is not None:
