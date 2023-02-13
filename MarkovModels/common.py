@@ -516,6 +516,9 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             if min(rates_1.min(), rates_2.min()) < 1e-8:
                 return False
 
+            if parameters.min() < 1e-7 or parameters.max() > 1e3:
+                return False
+
             # Ensure that all parameters > 0
             return np.all(parameters > 0)
 
