@@ -408,6 +408,7 @@ def get_best_params(fitting_df, protocol_label='protocol'):
         for well in fitting_df['well'].unique():
             sub_df = fitting_df[(fitting_df['well'] == well)
                                 & (fitting_df[protocol_label] == protocol)].copy()
+            sub_df = sub_df.dropna()
 
             # Get index of min score
             if len(sub_df.index) == 0:
