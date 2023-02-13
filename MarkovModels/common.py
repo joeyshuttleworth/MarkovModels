@@ -519,6 +519,9 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             if max([p for i, p in enumerate(parameters) if i != mm.GKr_index]) > 1e5:
                 return False
 
+            if min([p for i, p in enumerate(parameters) if i != mm.GKr_index]) < 1e-7:
+                return False
+
             # Ensure that all parameters > 0
             return np.all(parameters > 0)
 
