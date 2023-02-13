@@ -156,9 +156,12 @@ def main():
         # parameters for each validation protocol as the initial guess
         best_params_df = pd.read_csv(args.use_parameter_file)
         if 'validation_protocol' in best_params_df:
-            best_params_df = get_best_params(best_params_df, 'validation_protocol')
+            protocol_label = 'validation_protocol'
         else:
-            best_params_df = get_best_params(best_params_df, 'protocol')
+            protocol_label = 'protocol'
+
+        best_params_df = get_best_params(best_params_df,
+                                         protocol_label=protocol_label)
         assert(args.dont_randomise_initial_guess)
 
     else:
@@ -177,7 +180,7 @@ def main():
 
         if best_params_df is not None:
             parameter_row = best_params_df[(best_params_df.well.astype(str) == str(well))
-                                           & (best_params_df.protocol == protocol)].head(1)
+                                           & (best_params_df[protocol_label] == protocol)].head(1)
             starting_parameters = parameter_row[param_labels].values.flatten().astype(np.float64)
         else:
             starting_parameters = None
