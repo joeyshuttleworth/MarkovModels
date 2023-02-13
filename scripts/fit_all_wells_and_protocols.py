@@ -256,22 +256,20 @@ def main():
             best_params_df['protocol'] = best_params_df['validation_protocol']
             best_params_df.to_csv(os.path.join(output_dir, 'best_fitting.csv'))
 
+    if args.no_chains > 0:
         # Setup MCMC
         for task in tasks:
-            protocol, well, model_class, _, _ = task
+            protocol, well, model_class, default_parameters, Erev, _ = task
             param_labels = model_class().get_parameter_labels()
 
             row = best_params_df[(best_params_df.well == well)
-                                 & (best_params_df.validation_protocol ==
+                                    & (best_params_df.validation_protocol ==
                                     protocol)][param_labels].copy().head(1).astype(np.float64)
 
             task[3] = row.values.flatten()
             task[5] = False
 
-    print(tasks)
-
-    # do mcmc
-    do_mcmc(tasks, pool)
+            do_mcmc(tasks, pool)
 
 
 def do_mcmc(tasks, pool):
