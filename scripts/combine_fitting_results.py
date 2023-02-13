@@ -59,9 +59,48 @@ def main():
 
     df.to_csv(os.path.join(output_dir, 'combined_fitting_results.csv'))
 
+    param_labels = model_class().get_parameter_labels()
+
+    # filter out parameters that dont lie in parameter set
+    remove = []
+    for i, row in df.iterrows:
+        params = row[param_labels]
+        remove.append(not check(model_class, parameters=params))
+
+    df = df[~remove]
+
     predictions_df = compute_predictions_df(df, output_dir, args=args,
                                             model_class=model_class)
     predictions_df.to_csv(os.path.join(output_dir, 'combined_predictions_df.csv'))
+
+
+def check(model_class, parameters):
+    parameters = parameters.copy()
+
+    mm = model_class()
+
+    # rates function
+    rates_func = mm.get_rates_func(njitted=False)
+
+    Vs = [-120, 60]
+    rates_1 = rates_func(parameters, Vs[0])
+    rates_2 = rates_func(parameters, Vs[1])
+
+    if max(rates_1.max(), rates_2.max()) > 1e4:
+        return False
+
+    if min(rates_1.min(), rates_2.min()) < 1e-8:
+        return False
+
+    if max([p for i, p in enumerate(parameters) if i != mm.GKr_index]) > 1e5:
+        return False
+
+    if min([p for i, p in enumerate(parameters) if i != mm.GKr_index]) < 1e-7:
+        return False
+
+    # Ensure that all parameters > 0
+    return np.all(parameters > 0)
+
 
 
 if __name__ == '__main__':
