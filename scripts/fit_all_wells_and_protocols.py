@@ -150,11 +150,14 @@ def main():
     print(args.wells, protocols)
 
     if args.use_parameter_file:
+        # Here we can use previous results to refit. Just use the best
+        # parameters for each validation protocol as the initial guess
         best_params_df = pd.read_csv(args.use_parameter_file)
         if 'validation_protocol' in best_params_df:
             best_params_df = get_best_params(best_params_df, 'validation_protocol')
         else:
             best_params_df = get_best_params(best_params_df, 'protocol')
+        assert(args.dont_randomise_initial_guess)
 
     else:
         best_params_df = None
