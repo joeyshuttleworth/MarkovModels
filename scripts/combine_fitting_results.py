@@ -63,11 +63,11 @@ def main():
 
     # filter out parameters that dont lie in parameter set
     remove = []
-    for i, row in df.iterrows:
+    for i, row in df.iterrows():
         params = row[param_labels]
         remove.append(not check(model_class, parameters=params))
 
-    df = df[~remove]
+    df = df[~np.array(remove)]
 
     predictions_df = compute_predictions_df(df, output_dir, args=args,
                                             model_class=model_class)
