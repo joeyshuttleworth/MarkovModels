@@ -614,7 +614,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
 
     boundaries = Boundaries(starting_parameters, fix_parameters)
 
-    scores, parameter_sets, iterations = [], [], []
+    scores, parameter_sets, iterations, times_taken = [], [], [], []
     for i in range(repeats):
         if randomise_initial_guess:
             initial_guess = initial_guess_dist.sample(n=1).flatten()
@@ -637,11 +637,16 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             found_value = np.inf
             found_parameters = starting_parameters
 
+        timer_start = time.process_time()
         found_parameters, found_value = controller.run()
+        timer_end = time.process_time()
+        time_elapsed = timer_end - timer_start
+
         this_run_iterations = controller.iterations()
         parameter_sets.append(found_parameters)
         scores.append(found_value)
         iterations.append(this_run_iterations)
+        times_taken.append(time_elapsed)
 
     best_score = min(scores)
     best_index = scores.index(best_score)
@@ -687,6 +692,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                                   columns=mm.get_parameter_labels()[:parameter_sets.shape[1]])
         fitting_df['RMSE'] = scores
         fitting_df['iterations'] = iterations
+        fitting_df['CPU_time'] = times_taken
 
         # Append starting parameters also
         if randomise_initial_guess:
