@@ -18,12 +18,13 @@ import subprocess
 import sys
 import datetime
 import logging
+import time
 import numpy.polynomial.polynomial as poly
 
 from .BeattieModel import BeattieModel
-from .KempModel import KempModel
 from .ClosedOpenModel import ClosedOpenModel
 from .WangModel import WangModel
+from .KempModel import KempModel
 
 
 def get_protocol_directory():
@@ -426,7 +427,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
               fix_parameters=[], max_iterations=None, subset_indices=None,
               method=pints.CMAES, solver=None, log_transform=True, repeats=1,
               return_fitting_df=False, parallel=False,
-              randomise_initial_guess=True, output_dir=None):
+              randomise_initial_guess=True, output_dir=None, solver_type=None):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -485,7 +486,14 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         return starting_parameters, np.inf
 
     if solver is None:
-        solver = mm.make_forward_solver_current()
+        if solver_type is None:
+            solver = mm.make_forward_solver_current()
+        elif solver_type == 'hybrid':
+            solver = mm.make_hybrid_solver_current()
+        elif solver_type == 'ida':
+            solver = mm.make_ida_solver_current()
+        else:
+            raise Exception('Invalid solver type')
 
     if subset_indices is None:
         subset_indices = np.array(list(range(len(mm.times))))
@@ -758,7 +766,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                   repeats=1, infer_E_rev=False, fit_initial_conductance=True,
                   experiment_name='newtonrun4', solver=None, Erev=None,
                   randomise_initial_guess=True, parallel=False,
-                  use_hybrid_solver=False):
+                  solver_type=None):
 
     if default_parameters is None or len(default_parameters) == 0:
         default_parameters = model_class().get_default_parameters()
@@ -799,12 +807,6 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                         parameters=default_parameters, Erev=Erev,
                         protocol_description=protocol_desc)
 
-    if not solver:
-        if use_hybrid_solver:
-            solver = model.make_hybrid_solver_current()
-        else:
-            solver = model.make_forward_solver_current()
-
     if default_parameters is not None:
         initial_params = default_parameters
 
@@ -824,6 +826,10 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                                                  output_dir=output_dir)
 
     fig = plt.figure(figsize=(14, 12))
+
+    if solver is None:
+        solver = model.make_forward_solver_current()
+
     for i, row in fitting_df.iterrows():
         fitted_params = row[model.get_parameter_labels()].values.flatten()
         ax = fig.subplots(1)

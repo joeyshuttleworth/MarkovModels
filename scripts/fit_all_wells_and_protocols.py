@@ -21,7 +21,7 @@ pool_kws = {'maxtasksperchild': 1}
 
 
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
-             randomise_initial_guess=True):
+             randomise_initial_guess=True, solver_type=None):
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
     infer_E_rev = not args.dont_infer_Erev
@@ -33,9 +33,9 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
                                   removal_duration=args.removal_duration,
                                   repeats=args.repeats,
                                   infer_E_rev=infer_E_rev,
-                                  use_hybrid_solver=args.use_hybrid_solver,
                                   experiment_name=args.experiment_name, Erev=E_rev,
-                                  randomise_initial_guess=randomise_initial_guess)
+                                  randomise_initial_guess=randomise_initial_guess,
+                                  solver_type=solver_type)
 
     res_df['well'] = well
     res_df['protocol'] = protocol
@@ -111,7 +111,7 @@ def main():
     parser.add_argument('--use_parameter_file')
     parser.add_argument('--refit', action='store_false')
     parser.add_argument('--dont_infer_Erev', action='store_true')
-    parser.add_argument('--use_hybrid_solver', action='store_true')
+    parser.add_argument('--solver_type')
     parser.add_argument('--selection_file')
     parser.add_argument('--ignore_protocols', nargs='+', default=[])
     parser.add_argument('--ignore_wells', nargs='+', default=[])
@@ -270,7 +270,7 @@ def main():
             param_labels = model_class().get_parameter_labels()
 
             row = best_params_df[(best_params_df.well == well)
-                                    & (best_params_df.validation_protocol ==
+                                 & (best_params_df.validation_protocol ==
                                     protocol)][param_labels].copy().head(1).astype(np.float64)
 
             task[3] = row.values.flatten()
@@ -299,6 +299,7 @@ def do_mcmc(tasks, pool):
 def compute_predictions_df(params_df, output_dir, label='predictions',
                            model_class=None, args=None):
 
+    params_df = get_best_params(params_df, protocol_label='protocol')
     predictions_dir = os.path.join(output_dir, label)
 
     if not os.path.exists(predictions_dir):

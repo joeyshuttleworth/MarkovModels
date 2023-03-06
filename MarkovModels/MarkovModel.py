@@ -5,7 +5,7 @@ from scipy.integrate import solve_ivp
 from numbalsoda import lsoda_sig, lsoda
 from numba import njit, cfunc, literal_unroll
 import numba as nb
-# from NumbaIDA import ida_sig, ida
+from NumbaIDA import ida_sig, ida
 
 
 class MarkovModel:
@@ -244,105 +244,109 @@ class MarkovModel:
 
         return njit(Q_func) if njitted else Q_func
 
-    # def make_dae_residual_func(self):
-    #     if self.Q is None:
-    #         Exception("Q Matrix not defined")
+    def make_ida_residual_func(self):
+        if self.Q is None:
+            Exception("Q Matrix not defined")
 
-    #     Q_func = self.make_Q_func()
-    #     rates_func = self.get_rates_func()
+        Q_func = self.make_Q_func()
+        rates_func = self.get_rates_func()
 
-    #     voltage_func = self.voltage
+        voltage_func = self.voltage
 
-    #     neq = self.get_no_states()
+        neq = self.get_no_states()
 
-    #     np = len(self.get_default_parameters())
+        np = len(self.get_default_parameters())
 
-    #     @cfunc(ida_sig)
-    #     def residual_func(t, y, dy, res, p):
-    #         y_vec = nb.carray(y, neq)
-    #         dy_vec = nb.carray(dy, neq)
-    #         p_vec = nb.carray(p, np)
-    #         res_vec = nb.carray(res, neq + 1)
+        @cfunc(ida_sig)
+        def residual_func(t, y, dy, res, p):
+            y_vec = nb.carray(y, neq)
+            dy_vec = nb.carray(dy, neq)
+            p_vec = nb.carray(p, np)
+            res_vec = nb.carray(res, neq + 1)
 
-    #         V = voltage_func(t)
-    #         rates = rates_func(p_vec, V).flatten()
-    #         Q = Q_func(rates)
+            V = voltage_func(t)
+            rates = rates_func(p_vec, V).flatten()
+            Q = Q_func(rates)
 
-    #         # Calculate derivatives
-    #         derivs = Q.T @ y_vec
-    #         res_vec[0:-1] = derivs - dy_vec
+            # Calculate derivatives
+            derivs = Q.T @ y_vec
+            res_vec[0:-1] = derivs - dy_vec
 
-    #         res_vec[-1] = 1 - sum(y_vec)
+            res_vec[-1] = 1 - sum(y_vec)
 
-    #         return None
+            return None
 
-    #     return residual_func
+        return residual_func
 
-    # def make_dae_solver_states(self, njitted=True):
-    #     res_func = self.make_dae_residual_func()
-    #     n = self.Q.shape[0]
-    #     nres = n + 1
-    #     rhs_inf = self.rhs_inf
+    def make_ida_solver_current(self, njitted=True, atol=None, rtol=None):
+        state_solver = self.make_dae_solver_states(njitted=njitted)
+        return self.make_solver_current(self, state_solver, njitted=njitted)
 
-    #     voltage = self.voltage
-    #     Q_func = self.make_Q_func(njitted)
+    def make_ida_solver_states(self, njitted=True):
+        res_func = self.make_ida_residual_func()
+        n = self.Q.shape[0]
+        nres = n + 1
+        rhs_inf = self.rhs_inf
 
-    #     rates_func = self.get_rates_func(njitted)
+        voltage = self.voltage
+        Q_func = self.make_Q_func(njitted)
 
-    #     atol, rtol = self.solver_tolerances
+        rates_func = self.get_rates_func(njitted)
 
-    #     times = self.times
-    #     func_ptr = res_func.address
-    #     p = self.get_default_parameters()
+        atol, rtol = self.solver_tolerances
 
-    #     neq = self.get_no_states()
+        times = self.times
+        func_ptr = res_func.address
+        p = self.get_default_parameters()
 
-    #     protocol_description = self.protocol_description
+        neq = self.get_no_states()
 
-    #     if protocol_description is None:
-    #         Exception("No protocol defined")
+        protocol_description = self.protocol_description
 
-    #     def solver(p=p, times=times,
-    #                atol=atol, rtol=rtol):
-    #         rhs0 = np.empty(neq)
-    #         rhs0[0:-1] = rhs_inf(p, voltage(0)).flatten()
-    #         rhs0[-1] = 1 - np.sum(rhs0)
+        if protocol_description is None:
+            Exception("No protocol defined")
 
-    #         res = np.empty(nres)
+        def solver(p=p, times=times,
+                   atol=atol, rtol=rtol):
+            rhs0 = np.empty(neq)
+            rhs0[0:-1] = rhs_inf(p, voltage(0)).flatten()
+            rhs0[-1] = 1 - np.sum(rhs0)
 
-    #         solution = np.empty((len(times), neq))
-    #         for tstart, tend, vstart, vend in protocol_description:
-    #             istart = np.argmax(times >= tstart)
-    #             iend = np.argmax(times >= tend)
-    #             if iend == 0:
-    #                 step_times = times[istart:]
-    #                 iend = len(times)
-    #             else:
-    #                 iend += 1
-    #                 step_times = times[istart:iend + 1]
-    #             rates = rates_func(p, voltage(step_times[0])).flatten()
-    #             du0 = (Q_func(rates).T @ rhs0).flatten()
-    #             step_sol, success = ida(
-    #                 func_ptr, rhs0, du0, res, step_times, p, atol=atol, rtol=rtol)
+            res = np.empty(nres)
 
-    #             if not success:
-    #                 break
+            solution = np.empty((len(times), neq))
+            for tstart, tend, vstart, vend in protocol_description:
+                istart = np.argmax(times >= tstart)
+                iend = np.argmax(times >= tend)
+                if iend == 0:
+                    step_times = times[istart:]
+                    iend = len(times)
+                else:
+                    iend += 1
+                    step_times = times[istart:iend + 1]
+                rates = rates_func(p, voltage(step_times[0])).flatten()
+                du0 = (Q_func(rates).T @ rhs0).flatten()
+                step_sol, success = ida(
+                    func_ptr, rhs0, du0, res, step_times, p, atol=atol, rtol=rtol)
 
-    #             if iend == len(times):
-    #                 solution[istart:, ] = step_sol[:, ]
-    #                 break
+                if not success:
+                    break
 
-    #             else:
-    #                 rhs0 = step_sol[-1, :]
-    #                 rhs0[-1] = 1 - sum(rhs0[:-1])
-    #                 solution[istart:iend, ] = step_sol[:-1, ]
+                if iend == len(times):
+                    solution[istart:, ] = step_sol[:, ]
+                    break
 
-    #         return solution
+                else:
+                    rhs0 = step_sol[-1, :]
+                    rhs0[-1] = 1 - sum(rhs0[:-1])
+                    solution[istart:iend, ] = step_sol[:-1, ]
 
-    #     if njitted:
-    #         solver = njit(solver)
+            return solution
 
-    #     return solver
+        if njitted:
+            solver = njit(solver)
+
+        return solver
 
     def get_rates_func(self, njitted=True):
         inputs = (self.p, self.v)
