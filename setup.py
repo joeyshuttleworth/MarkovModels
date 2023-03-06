@@ -59,7 +59,8 @@ setup(
         'regex==2022.9.13',
         'myokit==1.33.0',
         'seaborn==0.12.0',
-        'markov_builder @ git+https://git@github.com/CardiacModelling/Markov-builder@10f4e35ceee5bb722733bc74dc84f1b66a4fd0cd'
+        'markov_builder @ git+https://git@github.com/CardiacModelling/Markov-builder@master',
+        'numbaida @ git+https://git@github.com/joeyshuttleworth/NumbaIDA@master'
     ],
     extras_require={
         'test': [
