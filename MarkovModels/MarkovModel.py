@@ -306,6 +306,9 @@ class MarkovModel:
         if protocol_description is None:
             Exception("No protocol defined")
 
+        start_times = [val[0] for val in protocol_description]
+        intervals = tuple(zip(start_times[:-1], start_times[1:]))
+
         def solver(p=p, times=times,
                    atol=atol, rtol=rtol):
             rhs0 = np.empty(neq)
@@ -315,7 +318,7 @@ class MarkovModel:
             res = np.empty(nres)
 
             solution = np.empty((len(times), neq))
-            for tstart, tend, vstart, vend in protocol_description:
+            for tstart, tend in intervals:
                 istart = np.argmax(times >= tstart)
                 iend = np.argmax(times >= tend)
                 if iend == 0:
