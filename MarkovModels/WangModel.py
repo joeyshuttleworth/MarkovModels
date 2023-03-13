@@ -45,7 +45,9 @@ class WangModel(MarkovModel):
 
         A, B = mc.eliminate_state_from_transition_matrix()
 
-        Q = mc.get_transition_matrix()
+        _, Q = mc.get_transition_matrix()
+
+        print(Q)
 
         symbols = {}
         symbols['v'] = sp.sympify('V')

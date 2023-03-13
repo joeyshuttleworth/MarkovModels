@@ -14,7 +14,7 @@ class BeattieModel(MarkovModel):
     n_params = 9
     n_states = 4
     n_state_vars = n_states - 1
-    GKr_index = 8
+    GKr_index = -1
     open_state_index = 1
     holding_potential = -80
 
@@ -28,7 +28,7 @@ class BeattieModel(MarkovModel):
         if parameters is None:
             self.default_parameters = np.array((2.26E-4, 6.99E-2, 3.448E-5,
                                                 5.460E-2, 0.0873, 8.91E-3,
-                                                5.15E-3, 0.03158, 0.1524))
+                                                5.15E-3, 0.003158, 0.1524))
         else:
             self.default_parameters = parameters
 
@@ -55,13 +55,12 @@ class BeattieModel(MarkovModel):
         A = sp.Matrix([['-k1 - k3 - k4', 'k2 - k4', '-k4'],
                        ['k1', '-k2 - k3', 'k4'],
                        ['-k1', 'k3 - k1', '-k2 - k4 - k1']])
-        B = sp.Matrix(['k4', 0, 'k1'])
-        # Call the constructor of the parent class, MarkovModel
+        B = sp.Matrix([['k4', 0, 'k1']]).T
 
-        Q = sp.Matrix([['-k3 - k1', 'k2', .0, 'k4'],
-                       ['k1', '-k2 - k3', 'k4', .0],
-                       [.0, 'k3', '-k2 - k4', 'k3'],
-                       ['k3', .0, 'k2', '-k4 - k1']]).T
+        Q = sp.Matrix([['-k3 - k1', 'k2', '0', 'k4'],
+                       ['k1', '-k2 - k3', 'k4', '0'],
+                       ['0', 'k3', '-k2 - k4', 'k1'],
+                       ['k3', '0', 'k2', '-k4 - k1']]).T
 
         super().__init__(symbols, A, B, rates, times, voltage=voltage, Q=Q,
                          name='BeattieModel', *args, **kwargs)

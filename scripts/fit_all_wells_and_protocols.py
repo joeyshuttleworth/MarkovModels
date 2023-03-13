@@ -21,7 +21,7 @@ pool_kws = {'maxtasksperchild': 1}
 
 
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
-             randomise_initial_guess=True, solver_type=None):
+             randomise_initial_guess=True):
     this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
 
     infer_E_rev = not args.dont_infer_Erev
@@ -35,7 +35,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
                                   infer_E_rev=infer_E_rev,
                                   experiment_name=args.experiment_name, Erev=E_rev,
                                   randomise_initial_guess=randomise_initial_guess,
-                                  solver_type=solver_type)
+                                  solver_type=args.solver_type)
 
     res_df['well'] = well
     res_df['protocol'] = protocol
@@ -87,11 +87,8 @@ def mcmc_func(protocol, well, model_class, initial_params):
 
 
 def main():
-    # Default Erev (room temp)
     Erev = common.calculate_reversal_potential()
-    print('Erev is ', Erev)
 
-    print(f"Erev is {Erev}")
     parser = common.get_parser(
         data_reqd=True, description="Fit a given well to the data from each\
         of the protocols. Output the resulting parameters to a file for later use")
@@ -401,8 +398,8 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                 ax.cla()
 
     predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
-                                                                      'validation_protocol',
-                                                                      'score'] + param_labels)
+                                                                     'validation_protocol',
+                                                                     'score'] + param_labels)
     predictions_df['RMSE'] = predictions_df['score']
     return predictions_df
 
