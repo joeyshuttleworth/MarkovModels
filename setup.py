@@ -55,13 +55,13 @@ setup(
         'pandas>=1.5.0',
         'sympy>=1.11.1',
         'numba>=0.56.2',
-        'numbalsoda>=0.3.4',
         'regex>=2022.9.13',
         'myokit>=1.33.0',
         'seaborn>=0.12.0',
         'markov_builder @ git+https://git@github.com/CardiacModelling/Markov-builder@master',
         'scikit-build>=0.16.7',
-        'NumbaIDA @ git+https://git@github.com/joeyshuttleworth/NumbaIDA@master'
+        'NumbaIDA @ git+https://git@github.com/joeyshuttleworth/NumbaIDA@master',
+        'numbalsoda @ git+https://git@github.com/joeyshuttleworth/NumbaLSODA@exit_on_warning'
     ],
     extras_require={
         'test': [

@@ -47,8 +47,6 @@ class WangModel(MarkovModel):
 
         _, Q = mc.get_transition_matrix()
 
-        print(Q)
-
         symbols = {}
         symbols['v'] = sp.sympify('V')
         symbols['p'] = sp.Matrix([sp.sympify(p) for p in self.parameter_labels if p != 'E_Kr'])

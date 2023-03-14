@@ -844,8 +844,6 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
             raise Exception(f"solver type: {solver_type} is not valid")
         solver = model.make_forward_solver_current()
 
-    print("using solver type ", solver_type)
-
     for i, row in fitting_df.iterrows():
         fitted_params = row[model.get_parameter_labels()].values.flatten()
         ax = fig.subplots(1)

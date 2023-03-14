@@ -164,9 +164,6 @@ class MarkovModel:
         self.sensitivity_ics = sp.lambdify(self.p, self.sensitivity_ics_expr, cse=True)
 
 
-
-
-
     def rhs(self, t, y, p):
         """ Evaluates the RHS of the model (including sensitivities)
 
@@ -223,8 +220,7 @@ class MarkovModel:
         # dX/dt = AX because dX/dt = CKdZ/dt = CKDZ = KCC^-1ACZ = KACZ = AKX
 
         IC = sp.Matrix(self.y)
-        IC_KZ = P.LUsolve(IC - X2)
-        K = sp.matrices.diag(*IC_KZ)
+        K = P.LUsolve(IC - X2)
 
         # solution = (C@K@np.exp(times*eigenvalues[:,None]) + X2[:, None]).T
         return P, K, D, X2, P.det()
@@ -253,24 +249,31 @@ class MarkovModel:
             X2_func = njit(X2_func, fastmath=True)
 
         rates_func = self.get_rates_func(njitted=njitted)
-        A_func, _ = self.get_A_B_funcs(njitted)
+        A_func, B_func = self.get_A_B_funcs(njitted)
 
         times = self.times
         voltage = self.voltage(0)
         p = self.get_default_parameters()
-        y0 = self.rhs_inf(p, voltage)
+        y0 = self.rhs_inf(p, voltage).flatten()
 
         def analytic_solution_func(times=times, voltage=voltage, p=p, y0=y0):
             rates = rates_func(p, voltage).flatten()
+
             A = A_func(rates)
-            K = np.diag(K_func(rates, y0))
-            print(K)
-            X2 = X2_func(rates).flatten()
+            B = B_func(rates).flatten().astype(np.float64)
 
-            D, C = np.linalg.eig(A)
-            D = D.flatten()
+            IC = y0
+            X2 = -np.linalg.solve(A, B)
 
-            solution = (C@K@np.exp(np.outer(D, times))).T + X2
+            D, P = np.linalg.eig(A)
+
+            if np.abs(np.linalg.det(A)) < 1e-3:
+                return np.array([[np.nan]]), False
+
+            K = np.linalg.solve(P, IC - X2)
+
+            solution = (P@np.diag(K.flatten())@np.exp(np.outer(D, times))).T + X2
+
             return solution, True
 
         return analytic_solution_func if not njitted else njit(analytic_solution_func)
@@ -332,37 +335,6 @@ class MarkovModel:
             jacobian = nb.carray(JJ, (neq, neq))
             p_vec = nb.carray(p, (n_p,))
             V = voltage(t)
-            # k = rates_func(p_vec, V).flatten()
-
-            # # Diagonals first
-            # jacobian[0, 0] = -k[2] - k[0]
-            # jacobian[1, 1] = -k[1] - k[2]
-            # jacobian[2, 2] = -k[1] - k[3]
-            # jacobian[3, 3] = -k[3] - k[0]
-
-            # # Subtract cj
-            # jacobian -= np.eye(neq)*cj
-
-            # # Open state
-            # jacobian[0, 1] = k[1]
-            # jacobian[0, 2] = 0
-            # jacobian[0, 3] = k[3]
-
-            # # Inactive state
-            # jacobian[1, 0] = k[0]
-            # jacobian[1, 2] = k[3]
-            # jacobian[1, 3] = 0
-
-            # # Inactive-Closed state
-            # jacobian[2, 0] = 0
-            # jacobian[2, 1] = k[2]
-            # jacobian[2, 3] = k[0]
-
-            # # Closed state
-            # jacobian[3, 0] = k[2]
-            # jacobian[3, 1] = 0
-            # jacobian[3, 0] = k[1]
-
             jacobian[:, :] = Q_func(rates_func(p_vec, V).flatten()).T - cj * np.eye(neq)
 
             return None
@@ -451,7 +423,8 @@ class MarkovModel:
                 step_sol[start_int: end_int], success = ida(func_ptr, y0, du0,
                                                             step_times[start_int:end_int],
                                                             data=p, atol=atol,
-                                                            rtol=rtol)
+                                                            rtol=rtol,
+                                                            jac_ptr=jac_ptr)
 
                 if not success:
                     print('NumbaIDA failed')
@@ -465,7 +438,7 @@ class MarkovModel:
                     # break
 
                 else:
-                    y0 = step_sol[-1, :] / step_sol[-1, :].sum()
+                    y0 = step_sol[-1, :]
                     solution[istart:iend, ] = step_sol[1:-1, ]
             return solution
 
@@ -550,9 +523,11 @@ class MarkovModel:
                 else:
                     end_int = None
 
-                step_sol[start_int: end_int] = lsoda(crhs_ptr, y0,
-                                                     step_times[start_int:end_int], data=p,
-                                                     rtol=rtol, atol=atol)[0]
+                step_sol[start_int: end_int], _ = lsoda(crhs_ptr, y0,
+                                                        step_times[start_int:end_int],
+                                                        data=p, rtol=rtol,
+                                                        atol=atol,
+                                                        exit_on_warning=True)
 
                 if end_int == -1:
                     step_sol[-1, :] = step_sol[-2, :]
@@ -612,6 +587,8 @@ class MarkovModel:
         start_times = [val[0] for val in protocol_description]
         intervals = tuple(zip(start_times[:-1], start_times[1:]))
 
+        mxstep = 10000
+
         def hybrid_forward_solve(p=p, times=times, atol=atol, rtol=rtol):
             y0 = rhs_inf(p, voltage(0)).flatten()
 
@@ -632,7 +609,7 @@ class MarkovModel:
                 vend = protocol_description[i][3]
 
                 analytic_success = False
-                if vstart == vend:
+                if vstart == vend and tend - tstart > 100:
                     step_sol, analytic_success = analytic_solver(times[istart:iend] - tstart, vstart, p, y0)
                     if analytic_success:
                         solution[istart: iend, :] = step_sol
@@ -661,10 +638,12 @@ class MarkovModel:
                     else:
                         end_int = None
 
-                    step_sol[start_int: end_int] = lsoda(crhs_ptr, y0,
-                                                         step_times[start_int:end_int],
-                                                         data=p, rtol=rtol,
-                                                         atol=atol)[0]
+                    step_sol[start_int: end_int], _ = lsoda(crhs_ptr, y0,
+                                                            step_times[start_int:end_int],
+                                                            data=p, rtol=rtol,
+                                                            atol=atol,
+                                                            mxstep=mxstep,
+                                                            exit_on_warning=True)
 
                     if end_int == -1:
                         step_sol[-1, :] = step_sol[-2, :]
