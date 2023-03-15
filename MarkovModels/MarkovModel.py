@@ -4,7 +4,7 @@ import logging
 import time
 from scipy.integrate import solve_ivp
 import time
-from numbalsoda import lsoda_sig, lsoda
+from numbalsoda import lsoda_sig, lsoda, dop853
 from numba import njit, cfunc, literal_unroll
 import numba as nb
 import NumbaIDA
@@ -456,7 +456,8 @@ class MarkovModel:
         return njit(rates_func) if njitted else rates_func
 
     def make_forward_solver_states(self, atol=None, rtol=None,
-                                   protocol_description=None, njitted=True):
+                                   protocol_description=None, njitted=True, solver=lsoda):
+        # Solver can be either numba.lsoda or numba.dop853
         if atol is None:
             atol = self.solver_tolerances[0]
         if rtol is None:
@@ -523,11 +524,11 @@ class MarkovModel:
                 else:
                     end_int = None
 
-                step_sol[start_int: end_int], _ = lsoda(crhs_ptr, y0,
-                                                        step_times[start_int:end_int],
-                                                        data=p, rtol=rtol,
-                                                        atol=atol,
-                                                        exit_on_warning=True)
+                step_sol[start_int: end_int], _ = solver(crhs_ptr, y0,
+                                                         step_times[start_int:end_int],
+                                                         data=p, rtol=rtol,
+                                                         atol=atol,
+                                                         exit_on_warning=True)
 
                 if end_int == -1:
                     step_sol[-1, :] = step_sol[-2, :]
@@ -683,7 +684,8 @@ class MarkovModel:
 
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve
 
-    def make_forward_solver_current(self, voltages=None, atol=None, rtol=None, njitted=True, protocol_description=None):
+    def make_forward_solver_current(self, voltages=None, atol=None, rtol=None,
+                                    njitted=True, protocol_description=None, solver=lsoda):
         if atol is None:
             atol = self.solver_tolerances[0]
 
@@ -691,7 +693,9 @@ class MarkovModel:
             rtol = self.solver_tolerances[1]
 
         solver_states = self.make_forward_solver_states(atol=atol, rtol=rtol,
-                                                        njitted=njitted, protocol_description=protocol_description)
+                                                        njitted=njitted,
+                                                        protocol_description=protocol_description,
+                                                        solver=solver)
 
         gkr_index = self.GKr_index
         open_index = self.open_state_index
