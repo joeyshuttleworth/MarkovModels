@@ -495,7 +495,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         elif solver_type == 'ida':
             solver = mm.make_ida_solver_current()
         elif solver_type == 'dop853':
-            solver = mm.make_forward_solver_current(solver='dop853')
+            solver = mm.make_forward_solver_current(solver_type='dop853')
         else:
             raise Exception(f"Invalid solver type: {solver_type}")
 
@@ -843,7 +843,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
         elif solver_type == 'default' or solver_type is None:
             solver = model.make_forward_solver_current()
         elif solver_type == 'dop853':
-            solver = model.make_forward_solver_current(solver='dop853')
+            solver = model.make_forward_solver_current(solver_type='dop853')
         else:
             raise Exception(f"solver type: {solver_type} is not valid")
         solver = model.make_forward_solver_current()

@@ -700,7 +700,8 @@ class MarkovModel:
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve
 
     def make_forward_solver_current(self, voltages=None, atol=None, rtol=None,
-                                    njitted=True, protocol_description=None, solver=lsoda):
+                                    njitted=True, protocol_description=None,
+                                    solver_type='lsoda'):
         if atol is None:
             atol = self.solver_tolerances[0]
 
@@ -710,7 +711,7 @@ class MarkovModel:
         solver_states = self.make_forward_solver_states(atol=atol, rtol=rtol,
                                                         njitted=njitted,
                                                         protocol_description=protocol_description,
-                                                        solver=solver)
+                                                        solver_type=solver_type)
 
         gkr_index = self.GKr_index
         open_index = self.open_state_index
