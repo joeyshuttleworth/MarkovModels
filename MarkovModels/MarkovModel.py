@@ -495,11 +495,6 @@ class MarkovModel:
 
         eps = np.finfo(float).eps
 
-        if solver_type == 'lsoda':
-            solver_kws = {'exit_on_warning': True}
-        else:
-            solver_kws = {}
-
         start_times = [val[0] for val in protocol_description]
         intervals = tuple(zip(start_times[:-1], start_times[1:]))
 
@@ -539,11 +534,17 @@ class MarkovModel:
                 else:
                     end_int = None
 
-                step_sol[start_int: end_int], _ = solver(crhs_ptr, y0,
-                                                         step_times[start_int:end_int],
-                                                         data=p, rtol=rtol,
-                                                         atol=atol,
-                                                         **solver_kws)
+                if solver_type == 'lsoda':
+                    step_sol[start_int: end_int], _ = lsoda(crhs_ptr, y0,
+                                                            step_times[start_int:end_int],
+                                                            data=p, rtol=rtol,
+                                                            atol=atol,
+                                                            exit_on_warning=True)
+                else:
+                    step_sol[start_int: end_int], _ = dop853(crhs_ptr, y0,
+                                                             step_times[start_int:end_int],
+                                                             data=p, rtol=rtol,
+                                                             atol=atol)
 
                 if end_int == -1:
                     step_sol[-1, :] = step_sol[-2, :]
