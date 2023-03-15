@@ -456,8 +456,18 @@ class MarkovModel:
         return njit(rates_func) if njitted else rates_func
 
     def make_forward_solver_states(self, atol=None, rtol=None,
-                                   protocol_description=None, njitted=True, solver=lsoda):
-        # Solver can be either numba.lsoda or numba.dop853
+                                   protocol_description=None, njitted=True,
+                                   solver_type='lsoda'):
+        # Solver can be either lsoda or dop853
+        # For IDA solver use make_IDA_solver_states
+
+        if solver_type == 'lsoda':
+            solver = lsoda
+        elif solver_type == 'dop853':
+            solver = dop853
+        else:
+            raise Exception('solver_type invalid for make_forward_solver_states')
+
         if atol is None:
             atol = self.solver_tolerances[0]
         if rtol is None:
@@ -484,6 +494,11 @@ class MarkovModel:
         p = self.get_default_parameters()
 
         eps = np.finfo(float).eps
+
+        if solver_type == 'lsoda':
+            solver_kws = {'exit_on_warning': True}
+        else:
+            solver_kws = {}
 
         start_times = [val[0] for val in protocol_description]
         intervals = tuple(zip(start_times[:-1], start_times[1:]))
@@ -528,7 +543,7 @@ class MarkovModel:
                                                          step_times[start_int:end_int],
                                                          data=p, rtol=rtol,
                                                          atol=atol,
-                                                         exit_on_warning=True)
+                                                         **solver_kws)
 
                 if end_int == -1:
                     step_sol[-1, :] = step_sol[-2, :]
