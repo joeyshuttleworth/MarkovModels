@@ -61,7 +61,7 @@ setup(
         'markov_builder @ git+https://git@github.com/CardiacModelling/Markov-builder@master',
         'scikit-build>=0.16.7',
         'NumbaIDA @ git+https://git@github.com/joeyshuttleworth/NumbaIDA@master',
-        'numbalsoda @ git+https://git@github.com/joeyshuttleworth/NumbaLSODA@exit_on_warning'
+        'numbalsoda @ git+https://git@github.com/NicholasWogan/NumbaLSODA@main'
     ],
     extras_require={
         'test': [
