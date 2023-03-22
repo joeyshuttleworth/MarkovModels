@@ -910,10 +910,15 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
 
     if step[1] - step[0] > 200 or step[1] - step[0] < 50:
         raise Exception("Failed to find reversal ramp in protocol")
+    else:
+        step = step[0:2]
 
     # Next extract steps
-    istart = int((step[0] + tstart) / tstep)
-    iend = int((step[1] + tstart) / tstep)
+    istart = np.argmax(times >= step[0])
+    iend = np.argmax(times > step[1])
+
+    if istart == 0 or iend == 0 or istart == iend:
+        raise Exception(f"Couldn't identify reversal ramp")
 
     times = times[istart:iend]
     current = current[istart:iend]
@@ -925,7 +930,10 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
     roots = np.unique([np.real(root) for root in fitted_poly.roots()
                        if root > np.min(voltages) and root < np.max(voltages)])
 
-    # Take the last root (greatest voltage). This should be the first time that the current crosses 0 and where the ion-channel kinetics are too slow to play a role
+    # Take the last root (greatest voltage). This should be the first time that
+    # the current crosses 0 and where the ion-channel kinetics are too slow to
+    # play a role
+
     if len(roots) == 0:
         return np.nan
 

@@ -161,10 +161,14 @@ def main():
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
-    erev_dir = os.path.join(output, "erev_plots")
+    erev_dir = os.path.join(output, "combined_plots")
+
+    # Plot every reversal ramp for each well
+    # overlay_reversal_fits()
 
     if not os.path.exists(erev_dir):
         os.makedirs(erev_dir)
+
 
 def subtract_leak(well, protocol):
     fig = plt.figure(figsize=args.figsize, clear=True, constrained_layout=True)
@@ -334,12 +338,11 @@ def subtract_leak(well, protocol):
             print(f"{protocol}, {well}, {tracename} \tfailed QC.Erev")
             passed_Erev = False
 
-
         R_leftover = np.sqrt(np.sum(after_corrected**2)/(np.sum(after_trace**2)))
         df.append((protocol, well, sweep, tracename, fitted_E_rev,
-                    passed1, passed2, passed3, passed_Erev, R_leftover,
-                    g_leak_before, g_leak_after, E_leak_before,
-                    E_leak_after))
+                   passed1, passed2, passed3, passed_Erev, R_leftover,
+                   g_leak_before, g_leak_after, E_leak_before,
+                   E_leak_after))
 
     subtracted_ax.set_xlabel('time / ms')
     subtracted_ax.set_ylabel('current / pA')
@@ -355,10 +358,11 @@ def subtract_leak(well, protocol):
     plt.close(fig)
 
     df = pd.DataFrame(df, columns=('protocol', 'well', 'sweep', 'before/after',
-                                   'fitted_E_rev', 'passed QC6a', 'passed QC6b',
-                                   'passed QC6c', 'passed QC.Erev', 'R_leftover',
-                                   'pre-drug leak conductance', 'post-drug leak conductance',
-                                   'leak reversal', 'post-drug leak reversal'))
+                                   'fitted_E_rev', 'passed QC6', 'passed QC.Erev',
+                                   'R_leftover', 'pre-drug leak conductance',
+                                   'post-drug leak conductance',
+                                   'pre-drug leak reversal',
+                                   'post-drug leak reversal'))
 
     return df
 
