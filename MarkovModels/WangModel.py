@@ -44,7 +44,6 @@ class WangModel(MarkovModel):
         self.state_labels = list(mc.graph)
 
         A, B = mc.eliminate_state_from_transition_matrix()
-
         _, Q = mc.get_transition_matrix()
 
         symbols = {}
@@ -102,10 +101,4 @@ class WangModel(MarkovModel):
         # Create voltage symbol
         v = sp.symbols('v')
         return {'p': p, 'y': y, 'v': v}
-
-    def make_hybrid_solver_current(self, *args, **kwargs):
-        raise NotImplementedError('Hybrid solvers not implemented for Wang model')
-
-    def make_hybrid_solver_states(self, *args, **kwargs):
-        raise NotImplementedError('Hybrid solvers not implemented for Wang model')
 
