@@ -85,8 +85,6 @@ def main():
             passed_wells.append(well)
 
     leak_parameters_df['passed QC6a'] = leak_parameters_df['passed QC6a'].astype(bool)
-    leak_parameters_df = leak_parameters_df[leak_parameters_df.well.isin(passed_wells)]
-    print(leak_parameters_df.well.unique())
 
     global wells
     wells = leak_parameters_df.well.unique()
@@ -105,6 +103,8 @@ def main():
         leak_parameters_df.sort_values('protocol', inplace=True)
         do_chronological_plots(leak_parameters_df)
 
+    plot_reversal_spread(leak_parameters_df)
+    do_scatter_matrix(leak_parameters_df)
     make_reversal_histogram(leak_parameters_df)
     overlay_reversal_plots(leak_parameters_df)
     do_combined_plots(leak_parameters_df)
@@ -114,33 +114,20 @@ def do_chronological_plots(leak_parameters_df):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
 
-    sns.scatterplot(data=leak_parameters_df, x='protocol', y='fitted_E_rev', hue='well', ax=ax)
-    fig.savefig(os.path.join(output_dir, 'chrono_reversal_potentials'))
-    ax.cla()
+    sub_dir = os.path.join(output_dir, 'chrono_plots')
 
-    sns.scatterplot(data=leak_parameters_df, x='protocol', y='post-drug leak conductance', hue='well', ax=ax)
-    fig.savefig(os.path.join(output_dir, 'chrono_post_drug_leak_g'))
-    ax.cla()
+    if not os.path.exists(sub_dir):
+        os.makedirs(sub_dir)
 
-    sns.scatterplot(data=leak_parameters_df, x='protocol', y='pre-drug leak conductance', hue='well', ax=ax)
-    fig.savefig(os.path.join(output_dir, 'chrono_pre_drug_leak_g'))
-    ax.cla()
+    print(leak_parameters_df.columns)
 
-    sns.scatterplot(data=leak_parameters_df, x='protocol', y='leak reversal', hue='well', ax=ax)
-    fig.savefig(os.path.join(output_dir, 'chrono_pre_drug_leak_reversal'))
-    ax.cla()
-
-    sns.scatterplot(data=leak_parameters_df, x='protocol', y='post-drug leak reversal', hue='well', ax=ax)
-    fig.savefig(os.path.join(output_dir, 'chrono_post_drug_leak_leak_reversal'))
-    ax.cla()
-
-    sns.scatterplot(data=leak_parameters_df, x='protocol', y='leak reversal', hue='well', ax=ax)
-    fig.savefig(os.path.join(output_dir, 'chrono_pre_drug_Vleak'))
-    ax.cla()
-
-    sns.scatterplot(data=leak_parameters_df, x='protocol', y='R_leftover', hue='well', ax=ax)
-    fig.savefig(os.path.join(output_dir, 'chrono_R_leftover'))
-    ax.cla()
+    vars = ['post-drug leak conductance', 'pre-drug leak conductance', 'leak reversal',
+            'leak reversal', 'post-drug leak reversal', 'R_leftover', 'leak reversal', 'fitted_E_rev']
+    for var in vars:
+        sns.scatterplot(data=leak_parameters_df, x='protocol', y=var, hue='passed QC6a', ax=ax)
+        sns.lineplot(data=leak_parameters_df, x='protocol', y=var, hue='passed QC6a', ax=ax, style='well', legend=False)
+        fig.savefig(os.path.join(sub_dir, var.replace(' ', '_')))
+        ax.cla()
 
 
 def do_combined_plots(leak_parameters_df):
@@ -219,6 +206,44 @@ def do_combined_plots(leak_parameters_df):
         axs2[1].cla()
 
 
+def do_scatter_matrix(df):
+    df = df.drop(['passed QC6b', 'passed QC6c', 'fitted_E_rev',
+                  'sweep', 'passed QC.Erev'],
+                 axis='columns')
+    grid = sns.pairplot(data=df, hue='passed QC6a')
+    grid.savefig(os.path.join(output_dir, 'scatter_matrix'))
+
+
+def plot_reversal_spread(df):
+    passed_wells = [well for well in df.well.unique() if np.all(df[df.well == well]['passed QC6a'].values)]
+
+    df.fitted_E_rev = df.fitted_E_rev.values.astype(np.float64)
+
+    failed_to_infer = [well for well in df.well.unique() if not np.all(np.isfinite(df[df.well==well]['fitted_E_rev'].values))]
+
+    df = df[~df.well.isin(failed_to_infer)]
+
+    df = df.pivot_table(index='well', columns='protocol', values='fitted_E_rev')
+
+    df['E_Kr min'] = df.values.min(axis=1)
+    df['E_Kr max'] = df.values.max(axis=1)
+    df['E_Kr range'] = df['E_Kr max'] - df['E_Kr min']
+
+    df['passed'] = [well in passed_wells and well not in failed_to_infer for well in df.index]
+
+    print(df.columns)
+    print(df)
+
+    fig = plt.figure(figsize=args.figsize, constrained_layout=True)
+    ax = fig.subplots()
+
+    sns.histplot(data=df, x='E_Kr range', hue='passed', ax=ax)
+
+    ax.set_xlabel(r'spread in inferred $E_Kr$ / mV')
+
+    fig.savefig(os.path.join(output_dir, 'spread_of_fitted_E_Kr'))
+
+
 def make_reversal_histogram(leak_parameters_df):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
@@ -232,6 +257,11 @@ def overlay_reversal_plots(leak_parameters_df):
     ax = fig.subplots()
 
     palette = sns.color_palette('husl', len(leak_parameters_df.protocol.unique()))
+
+    sub_dir = os.path.join(output_dir, 'overlaid_reversal_plots')
+
+    if not os.path.exists(sub_dir):
+        os.makedirs(sub_dir)
 
     for well in wells:
         # Setup figure
@@ -267,7 +297,7 @@ def overlay_reversal_plots(leak_parameters_df):
 
         ax.legend()
         # Save figure
-        fig.savefig(os.path.join(output_dir, f"overlaid_reversal_ramps_{well}"))
+        fig.savefig(os.path.join(sub_dir, f"overlaid_reversal_ramps_{well}"))
 
         # Clear figure
         ax.cla()

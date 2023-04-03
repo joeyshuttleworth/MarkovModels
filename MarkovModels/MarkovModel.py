@@ -250,7 +250,7 @@ class MarkovModel:
 
             K = np.diag(np.linalg.solve(P, y0 - X2))
 
-            solution = (P @ (K @ np.exp(np.outer(D, times)))).T + X2
+            solution = (P @ K) @ np.exp(np.outer(D, times)).T + X2
 
             return solution, True
 
@@ -388,7 +388,7 @@ class MarkovModel:
 
                 if step_times[1] - tstart < 2 * eps * np.abs(step_times[1]):
                     start_int = 1
-                    step_sol[0] = y0
+                    step_sol[0, :] = y0
                 else:
                     start_int = 0
 
@@ -501,7 +501,7 @@ class MarkovModel:
 
                 if step_times[1] - tstart < 2 * eps * np.abs(step_times[1]):
                     start_int = 1
-                    step_sol[0] = y0
+                    step_sol[0, :] = y0
                 else:
                     start_int = 0
 
@@ -600,25 +600,30 @@ class MarkovModel:
                 vstart = protocol_description[i][2]
                 vend = protocol_description[i][3]
 
+                start_int = 0
+                end_int = None
+
+                step_times = np.full(iend-istart + 2, np.nan)
+
+                step_times = np.full(iend-istart + 2, np.nan)
+                if iend == len(times):
+                    step_times[1:-1] = times[istart:]
+                else:
+                    step_times[1:-1] = times[istart:iend]
+
+                step_times[0] = tstart
+                step_times[-1] = tend
+
                 analytic_success = False
-                if vstart == vend and tend - tstart > 100:
-                    step_sol, analytic_success = analytic_solver(times[istart:iend] - tstart,
-                                                                 vstart, p, y0)
-                    if analytic_success:
-                        solution[istart: iend, :] = step_sol
-                        y0 = step_sol[-1, :]
+                step_sol = np.full((len(step_times), no_states), np.nan)
+
+                if vstart == vend:
+                    step_sol[:, :], analytic_success = analytic_solver(step_times - tstart,
+                                                                       vstart, p, y0)
 
                 if not analytic_success:
-                    step_times = np.full(iend-istart + 2, np.nan)
-                    if iend == len(times):
-                        step_times[1:-1] = times[istart:]
-                    else:
-                        step_times[1:-1] = times[istart:iend]
-
                     step_times[0] = tstart
                     step_times[-1] = tend
-
-                    step_sol = np.full((len(step_times), no_states), np.nan)
 
                     if step_times[1] - tstart < 2 * eps * np.abs(step_times[1]):
                         start_int = 1
@@ -637,16 +642,16 @@ class MarkovModel:
                                                             atol=atol,
                                                             exit_on_warning=True)
 
-                    if end_int == -1:
-                        step_sol[-1, :] = step_sol[-2, :]
+                if end_int == -1:
+                    step_sol[-1, :] = step_sol[-2, :]
 
-                    if iend == len(times):
-                        solution[istart:, ] = step_sol[1:-1, ]
-                        break
+                if iend == len(times):
+                    solution[istart:, ] = step_sol[1:-1, ]
+                    break
 
-                    else:
-                        y0 = step_sol[-1, :]
-                        solution[istart:iend, ] = step_sol[1:-1, ]
+                else:
+                    y0 = step_sol[-1, :]
+                    solution[istart:iend, ] = step_sol[1:-1, ]
 
             return solution
 
