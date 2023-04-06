@@ -426,9 +426,7 @@ class MarkovModel:
                 else:
                     end_int = None
 
-                print(tstart)
                 v = voltage(tstart)
-                print(v)
                 rates = rates_func(p, v).flatten()
 
                 Q = Q_func(rates)
