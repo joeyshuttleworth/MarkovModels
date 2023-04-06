@@ -890,14 +890,14 @@ def get_all_wells_in_directory(data_dir, experiment_name='newtonrun4'):
 
 
 def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
-                             output_path=None, plot=False):
+                             output_path=None, plot=None):
 
     if output_path:
         dirname = os.path.dirname(output_path)
         if not os.path.exists(dirname):
             os.makedirs(dirname)
 
-    if ax or output_path:
+    if (ax or output_path) and plot is not False:
         plot = True
 
     protocol_func, _, protocol_desc = get_ramp_protocol_from_csv(protocol)

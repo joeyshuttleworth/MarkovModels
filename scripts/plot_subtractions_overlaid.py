@@ -76,15 +76,21 @@ def main():
 
     leak_parameters_df = pd.read_csv(os.path.join(args.data_dir, 'subtraction_qc.csv'))
 
-    passed_wells = []
-    for well in leak_parameters_df.well.unique():
-        if False in leak_parameters_df[leak_parameters_df.well == well]['passed QC6a']\
-           .values:
-            continue
-        else:
-            passed_wells.append(well)
+    if 'selected' not in leak_parameters_df.columns and args.selection_file:
+        with open(args.selection_file) as fin:
+            selected_wells = fin.read.splitlines()
+        leak_parameters_df['selected'] = [well in selected_wells for well in leak_parameters_df]
 
-    leak_parameters_df['passed QC6a'] = leak_parameters_df['passed QC6a'].astype(bool)
+    with open(os.path.join(args.data_dir, 'passed_wells.txt')) as fin:
+        global passed_wells
+        passed_wells = fin.read().splitlines()
+
+    leak_parameters_df['passed QC'] = [
+        well in passed_wells
+        for well in leak_parameters_df.well
+    ]
+
+    # TODO manually selected wells
 
     global wells
     wells = leak_parameters_df.well.unique()
@@ -103,6 +109,14 @@ def main():
         leak_parameters_df.sort_values('protocol', inplace=True)
         do_chronological_plots(leak_parameters_df)
 
+    if 'passed QC' not in leak_parameters_df.columns and\
+       'passed QC6a' in leak_parameters_df.columns:
+        leak_parameters_df['passed QC'] = leak_parameters_df['passed QC6a']
+
+    if 'selected' in leak_parameters_df.columns:
+        leak_parameters_df['passed QC'] = leak_parameters_df['passed QC'] \
+            & leak_parameters_df['selected']
+
     plot_reversal_spread(leak_parameters_df)
     do_scatter_matrix(leak_parameters_df)
     make_reversal_histogram(leak_parameters_df)
@@ -115,17 +129,18 @@ def do_chronological_plots(leak_parameters_df):
     ax = fig.subplots()
 
     sub_dir = os.path.join(output_dir, 'chrono_plots')
-
+    
     if not os.path.exists(sub_dir):
         os.makedirs(sub_dir)
 
     print(leak_parameters_df.columns)
 
-    vars = ['post-drug leak conductance', 'pre-drug leak conductance', 'leak reversal',
-            'leak reversal', 'post-drug leak reversal', 'R_leftover', 'leak reversal', 'fitted_E_rev']
+    vars = ['post-drug leak conductance', 'pre-drug leak conductance',
+            'post-drug leak reversal', 'R_leftover', 'pre-drug leak reversal',
+            'post-drug leak reversal', 'fitted_E_rev']
     for var in vars:
-        sns.scatterplot(data=leak_parameters_df, x='protocol', y=var, hue='passed QC6a', ax=ax)
-        sns.lineplot(data=leak_parameters_df, x='protocol', y=var, hue='passed QC6a', ax=ax, style='well', legend=False)
+        sns.scatterplot(data=leak_parameters_df, x='protocol', y=var, hue='passed QC', ax=ax)
+        sns.lineplot(data=leak_parameters_df, x='protocol', y=var, hue='passed QC', ax=ax, style='well', legend=False)
         fig.savefig(os.path.join(sub_dir, var.replace(' ', '_')))
         ax.cla()
 
@@ -137,8 +152,9 @@ def do_combined_plots(leak_parameters_df):
 
     palette = sns.color_palette('husl', len(leak_parameters_df.well.unique()))
 
-    for protocol in leak_parameters_df.protocol.unique():
+    wells = [well for well in leak_parameters_df.well.unique() if well in passed_wells]
 
+    for protocol in leak_parameters_df.protocol.unique():
         times_fname = f"{experiment_name}-{protocol}-times.csv"
         times = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', times_fname))
         times = times['time'].values.flatten().astype(np.float64)
@@ -147,7 +163,12 @@ def do_combined_plots(leak_parameters_df):
 
         for i, well in enumerate(leak_parameters_df.well.unique()):
             fname = f"{experiment_name}-{protocol}-{well}.csv"
-            data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
+            try:
+                data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
+
+            except FileNotFoundError:
+                continue
+
             current = data['current'].values.flatten().astype(np.float64)
 
             if reference_current is None:
@@ -175,7 +196,11 @@ def do_combined_plots(leak_parameters_df):
             times = times_df['time'].values.flatten().astype(np.float64)
 
             fname = f"{experiment_name}-{protocol}-{well}.csv"
-            data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
+            try:
+                data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
+            except FileNotFoundError:
+                continue
+
             current = data['current'].values.flatten().astype(np.float64)
 
             indices_pre_ramp = times < 3000
@@ -207,47 +232,46 @@ def do_combined_plots(leak_parameters_df):
 
 
 def do_scatter_matrix(df):
-    df = df.drop(['passed QC6b', 'passed QC6c', 'fitted_E_rev',
+    df = df.drop(['fitted_E_rev',
                   'sweep', 'passed QC.Erev'],
                  axis='columns')
-    grid = sns.pairplot(data=df, hue='passed QC6a')
+
+    grid = sns.pairplot(data=df, hue='passed QC')
     grid.savefig(os.path.join(output_dir, 'scatter_matrix'))
 
 
 def plot_reversal_spread(df):
-    passed_wells = [well for well in df.well.unique() if np.all(df[df.well == well]['passed QC6a'].values)]
-
     df.fitted_E_rev = df.fitted_E_rev.values.astype(np.float64)
 
-    failed_to_infer = [well for well in df.well.unique() if not np.all(np.isfinite(df[df.well==well]['fitted_E_rev'].values))]
+    failed_to_infer = [well for well in df.well.unique() if not
+                       np.all(np.isfinite(df[df.well==well]['fitted_E_rev'].values))]
 
     df = df[~df.well.isin(failed_to_infer)]
 
-    df = df.pivot_table(index='well', columns='protocol', values='fitted_E_rev')
+    pivot_df = df.pivot_table(index='well', columns='protocol', values='fitted_E_rev')
 
-    df['E_Kr min'] = df.values.min(axis=1)
-    df['E_Kr max'] = df.values.max(axis=1)
-    df['E_Kr range'] = df['E_Kr max'] - df['E_Kr min']
+    pivot_df['E_Kr min'] = pivot_df.values.min(axis=1)
+    pivot_df['E_Kr max'] = pivot_df.values.max(axis=1)
+    pivot_df['E_Kr range'] = pivot_df['E_Kr max'] - pivot_df['E_Kr min']
 
-    df['passed'] = [well in passed_wells and well not in failed_to_infer for well in df.index]
-
-    print(df.columns)
-    print(df)
+    pivot_df['passed QC'] = [well in passed_wells for well in pivot_df.index]
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
 
-    sns.histplot(data=df, x='E_Kr range', hue='passed', ax=ax)
+    sns.histplot(data=pivot_df, x='E_Kr range', hue='passed QC', ax=ax)
 
     ax.set_xlabel(r'spread in inferred $E_Kr$ / mV')
 
     fig.savefig(os.path.join(output_dir, 'spread_of_fitted_E_Kr'))
+    df.to_csv(os.path.join(output_dir, 'spread_of_fitted_E_Kr.csv'))
 
 
-def make_reversal_histogram(leak_parameters_df):
+def make_reversal_histogram(df):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
-    sns.histplot(leak_parameters_df, x='fitted_E_rev', hue='well', ax=ax)
+    sns.histplot(df[df['passed QC'].values.astype(bool)],
+                 x='fitted_E_rev', hue='well', ax=ax)
     fig.savefig(os.path.join(output_dir, 'reversal_potential_histogram'))
 
 
@@ -265,10 +289,16 @@ def overlay_reversal_plots(leak_parameters_df):
 
     for well in wells:
         # Setup figure
+        if False in leak_parameters_df[leak_parameters_df.well == well]['passed QC'].values:
+            continue
         for i, protocol in enumerate(protocols):
             protocol_func, _, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
             fname = f"{experiment_name}-{protocol}-{well}.csv"
-            data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
+            try:
+                data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
+            except FileNotFoundError:
+                continue
+
             times = data['time'].values.astype(np.float64)
 
             # First, find the reversal ramp. Search backwards along the protocol until we find a >= 40mV step
