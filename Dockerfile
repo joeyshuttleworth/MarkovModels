@@ -6,7 +6,7 @@ COPY requirements.txt /opt/app/requirements.txt
 
 COPY . MarkovModels
 
-RUN apt-get update && apt-get install git graphviz graphviz-dev gcc bash build-essential cmake -y
+RUN apt-get update && apt-get install git graphviz graphviz-dev gcc bash build-essential cmake gfortran -y
 
 RUN python3 -m venv .venv && . .venv/bin/activate
 
