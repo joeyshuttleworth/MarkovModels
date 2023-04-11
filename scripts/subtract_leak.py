@@ -39,7 +39,6 @@ def main():
     parser.add_argument('--output', '-o', default=None)
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--percentage_to_remove', default=0, type=float)
-    parser.add_argument('-e', '--extra_points', nargs=2, default=(0, 0), type=int)
     parser.add_argument('--selection_file', default=None, type=str)
     parser.add_argument('--experiment_name', default='newtonrun4')
     parser.add_argument('--ramp_start', type=float, default=300)
@@ -58,7 +57,7 @@ def main():
         args.protocols = get_protocol_list(args.data_directory)
 
     global output
-    output = common.setup_output_directory(args.output, f"subtract_leak_{args.extra_points[0]}_{experiment_name}")
+    output = common.setup_output_directory(args.output, f"subtract_leak_{experiment_name}")
 
     if not os.path.exists(output):
         os.makedirs(output)
@@ -188,16 +187,6 @@ def subtract_leak(well, protocol):
     protocol_voltages = np.array([protocol_func(t) for t in observation_times])
     dt = observation_times[1] - observation_times[0]
 
-    extra_points = [int(val / dt) for val in args.extra_points]
-
-    # Find first few steps where voltage is big
-    if args.extra_points[1] > 0:
-        extra_steps = np.array(list(itertools.islice(filter(lambda x:
-                                                            x[1] > 20, enumerate(protocol_voltages)),
-                                                        extra_points[1])))[extra_points[0]:, 0].astype(int)
-    else:
-        extra_steps = []
-
     df = []
     for sweep in range(1, nsweeps + 1):
         before_filename = f"{experiment_name}-{protocol}-{well}-before-sweep{sweep}.csv"
@@ -221,7 +210,6 @@ def subtract_leak(well, protocol):
             g_leak_before, E_leak_before, _, _, _, x, y = fit_leak_lr(
                 protocol_voltages, before_trace, dt=dt,
                 percentage_to_remove=args.percentage_to_remove,
-                extra_points=extra_steps,
                 ramp_start=args.ramp_start,
                 ramp_end=args.ramp_end
             )
@@ -238,7 +226,6 @@ def subtract_leak(well, protocol):
             g_leak_after, E_leak_after, _, _, _, x, y = fit_leak_lr(
                 protocol_voltages, after_trace, dt=dt,
                 percentage_to_remove=args.percentage_to_remove,
-                extra_points=extra_steps,
                 ramp_start=args.ramp_start,
                 ramp_end=args.ramp_end
             )

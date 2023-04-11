@@ -4,6 +4,7 @@ import sys
 from scipy import stats
 import pints
 
+
 class LeakModel(pints.ForwardModel):
     def __init__(self, voltage_trace):
         self._V = voltage_trace
@@ -14,7 +15,6 @@ class LeakModel(pints.ForwardModel):
 
     def dimension(self):
         return 2
-
 
 def linear_and_diode(a, v, T):
     # a[0] = g_leak
@@ -165,7 +165,7 @@ def fit(model, values, times, N=3):
 
 
 def fit_leak_lr(staircase_protocol, current, percentage_to_remove=0, V_full=[-120, -80],
-                ramp_start=300, ramp_end=700, dt=1e-1, extra_points=[]):
+                ramp_start=300, ramp_end=700, dt=1e-1):
 
     # Fitting leak during the first ramp in staircaseramp prt
     #
@@ -192,14 +192,6 @@ def fit_leak_lr(staircase_protocol, current, percentage_to_remove=0, V_full=[-12
     # Assumed V_win, V_full where given correctly!!
     x = staircase_protocol[rampi:rampf]
     y = current[rampi:rampf]
-    x = np.append(x, staircase_protocol[rampi:rampf])
-    y = np.append(y, current[rampi:rampf])
-
-    if len(extra_points) > 0:
-        extra_voltage = staircase_protocol[extra_points]
-        extra_current = current[extra_points]
-        x = np.append(x, extra_voltage)
-        y = np.append(y, extra_current)
 
     slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
 
@@ -216,10 +208,8 @@ def fit_leak_lr(staircase_protocol, current, percentage_to_remove=0, V_full=[-12
 
     return g_leak, E_leak, r_value, s_alpha, s_beta, x, y
 
-
-
 def plot_ramp(cell, before, after, leak_model, param, param2,
-        staircase_protocol, temperature, saveas):
+              staircase_protocol, temperature, saveas):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt

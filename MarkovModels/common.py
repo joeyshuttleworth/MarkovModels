@@ -918,7 +918,7 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
     iend = np.argmax(times > step[1])
 
     if istart == 0 or iend == 0 or istart == iend:
-        raise Exception(f"Couldn't identify reversal ramp")
+        raise Exception("Couldn't identify reversal ramp")
 
     times = times[istart:iend]
     current = current[istart:iend]
