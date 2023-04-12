@@ -586,7 +586,8 @@ class MarkovModel:
 
         return crhs
 
-    def make_hybrid_solver_states(self, protocol_description=None, njitted=False, analytic_solver=None):
+    def make_hybrid_solver_states(self, protocol_description=None, njitted=False, analytic_solver=None,
+                                  strict=True):
 
         if protocol_description is None:
             if self.protocol_description is None:
@@ -613,7 +614,7 @@ class MarkovModel:
         start_times = [val[0] for val in protocol_description]
         intervals = tuple(zip(start_times[:-1], start_times[1:]))
 
-        def hybrid_forward_solve(p=p, times=times, atol=atol, rtol=rtol):
+        def hybrid_forward_solve(p=p, times=times, atol=atol, rtol=rtol, strict=strict):
             y0 = rhs_inf(p, voltage(.0)).flatten()
 
             solution = np.full((len(times), no_states), np.nan)
@@ -652,6 +653,10 @@ class MarkovModel:
                 if vstart == vend:
                     step_sol[:, :], analytic_success = analytic_solver(step_times - tstart,
                                                                        vstart, p, y0)
+
+                    if strict and not analytic_success:
+                        solution[:, :] = np.nan
+                        return solution
 
                 if not analytic_success:
                     step_times[0] = tstart
@@ -694,11 +699,13 @@ class MarkovModel:
 
     def make_hybrid_solver_current(self, protocol_description=None,
                                    njitted=True,
-                                   analytic_solver=None):
+                                   analytic_solver=None,
+                                   strict=True):
         hybrid_solver =\
             self.make_hybrid_solver_states(protocol_description=protocol_description,
                                            njitted=njitted,
-                                           analytic_solver=analytic_solver)
+                                           analytic_solver=analytic_solver,
+                                           strict=strict)
 
         open_index = self.open_state_index
         Erev = self.Erev
