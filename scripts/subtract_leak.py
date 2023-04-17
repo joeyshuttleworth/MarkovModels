@@ -93,8 +93,11 @@ def main():
     if args.selection_file:
         df['selected'] = [well in selected_wells for well in df['well']]
 
+    E_Kr_spread = compute_E_Kr_spread(df)
+    df['E_Kr_spread'] = [E_Kr_spread[well] if well in E_Kr_spread else np.nan for well in df.well]
     df.to_csv(os.path.join(output, "subtraction_qc.csv"))
-    print(df)
+
+    df['QC E_Kr_spread'] = np.abs(df.E_Kr_spread.values) <= 5
 
     # Find wells passing all traces
     passed_lst = []
@@ -109,6 +112,13 @@ def main():
             elif not np.isfinite(row['fitted_E_rev']):
                 failed = True
                 break
+            elif not row['QC E_Kr_spread']:
+                failed = True
+                break
+            elif args.selection_file:
+                if well not in selected_wells:
+                    failed = True
+                    break
         if not failed:
             passed_lst.append(well)
 
@@ -118,6 +128,21 @@ def main():
         for well in passed_lst:
             fout.write(well)
             fout.write("\n")
+
+
+def compute_E_Kr_spread(df):
+    df.fitted_E_rev = df.fitted_E_rev.values.astype(np.float64)
+
+    failed_to_infer = [well for well in df.well.unique() if not
+                       np.all(np.isfinite(df[df.well == well]['fitted_E_rev'].values))]
+
+    df = df[~df.well.isin(failed_to_infer)]
+    pivot_df = df.pivot_table(index='well', columns='protocol', values='fitted_E_rev')
+    pivot_df['E_Kr min'] = pivot_df.values.min(axis=1)
+    pivot_df['E_Kr max'] = pivot_df.values.max(axis=1)
+    pivot_df['E_Kr range'] = pivot_df['E_Kr max'] - pivot_df['E_Kr min']
+
+    return dict(zip(pivot_df.index, pivot_df['E_Kr range'].values.flatten()))
 
 
 def get_wells_list(input_dir):
@@ -163,7 +188,6 @@ def setup_subtraction_grid(fig, nsweeps):
     long_protocol_ax = fig.add_subplot(gs[5, :])
 
     return protocol_axs, before_axs, after_axs, corrected_axs, subtracted_ax, long_protocol_ax
-
 
 
 def subtract_leak(well, protocol):
@@ -271,9 +295,9 @@ def subtract_leak(well, protocol):
             subtracted_trace_df = pd.DataFrame(np.column_stack(
                 (observation_times, subtracted_trace)), columns=('time', 'current'))
 
-            fname = f"{experiment_name}-{protocol}-{well}.csv"
-
+            fname = f"{experiment_name}-{protocol}-{well}-sweep{sweep}.csv"
             subtracted_trace_df.to_csv(os.path.join(output, subtracted_trace_dirname, fname))
+
             subtracted_trace_df['time'].to_csv(os.path.join(
                 output, subtracted_trace_dirname, f"{experiment_name}-{protocol}-times.csv"))
 
@@ -320,16 +344,16 @@ def subtract_leak(well, protocol):
             trace = trace[first_step_indices]
             n = len(trace)
             if trace.mean() > 2*estimated_noise:
-                print(f"{protocol} {well} {tracename} \tpassed QC6a")
+                print(f"{protocol} {well} {tracename} \tpassed QC6")
                 passed1 = True
             else:
-                print(f"{protocol}, {well}, {tracename} \tfailed QC6a")
+                print(f"{protocol}, {well}, {tracename} \tfailed QC6")
                 passed1 = False
 
         # Can we infer reversal potential from subtracted trace
         try:
             output_path = os.path.join(args.output_path,
-                                        f"{protocol}_{well}_{tracename}_infer_reversal_potential.png")
+                                       f"{protocol}_{well}_{tracename}_infer_reversal_potential.png")
             Erev = common.infer_reversal_potential(protocol, subtracted_trace,
                                                    observation_times, plot=True,
                                                    output_path=output_path)
@@ -344,7 +368,7 @@ def subtract_leak(well, protocol):
             passed_Erev = False
 
         if after_trace is not None:
-            R_leftover = np.sqrt(np.sum(after_corrected**2)/(np.sum(after_trace**2)))
+            R_leftover = np.sqrt(np.sum(after_corrected**2)/(np.sum(before_corrected**2)))
         else:
             R_leftover = np.nan
 
