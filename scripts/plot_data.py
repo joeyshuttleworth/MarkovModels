@@ -84,7 +84,7 @@ def main():
         for well in args.wells:
             for prediction_protocol in args.prediction_protocols:
                 predictions = []
-                prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(prediction_protocol)
+                prot_func, _, desc = common.get_ramp_protocol_from_csv(prediction_protocol)
                 if os.path.exists(os.path.join(args.data_directory,
                                                f"{args.experiment_name}-{prediction_protocol}-times.csv")):
                     current = common.get_data(well, prediction_protocol, args.data_directory,
@@ -213,9 +213,9 @@ def main():
                 axs[0].plot(times, fit, color=colour, linewidth=lw)
 
                 # remove frame
-                for ax in axs:
-                    for side in ['top', 'right', 'bottom', 'left']:
-                        ax.spines[side].set_visible(False)
+                # for ax in axs:
+                #     for side in ['top', 'right', 'bottom', 'left']:
+                #         ax.spines[side].set_visible(False)
 
                 axs[0].set_title(args.fig_title)
                 fig.savefig(os.path.join(output_dir,
@@ -232,7 +232,7 @@ def get_data_voltages_fit_times(protocol, well, params_df, model_class):
         times = pd.read_csv(os.path.join(args.data_directory,
                                          f"{args.experiment_name}-{protocol}-times.csv"))['time'].values.astype(np.float64).flatten()
 
-        prot_func, tstart, tend, tstep, desc = common.get_ramp_protocol_from_csv(protocol)
+        prot_func, _, desc = common.get_ramp_protocol_from_csv(protocol)
         voltages = np.array([prot_func(t) for t in times])
 
         fit = None
@@ -247,6 +247,8 @@ def get_data_voltages_fit_times(protocol, well, params_df, model_class):
 
         else:
             fit = None
+    else:
+        raise Exception('could not open data')
 
     return current, voltages, fit, times
 
