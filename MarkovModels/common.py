@@ -755,9 +755,12 @@ def get_protocol(protocol_name: str):
     return v, t_start, t_end, t_step
 
 
-def get_data(well, protocol, data_directory, experiment_name='newtonrun4'):
+def get_data(well, protocol, data_directory, experiment_name='newtonrun4', sweep=None):
     # Find data
-    regex = re.compile(f"^{experiment_name}-{protocol}-{well}.csv$")
+    if sweep:
+        regex = re.compile(f"^{experiment_name}-{protocol}-{well}-sweep{sweep}.csv$")
+    else:
+        regex = re.compile(f"^{experiment_name}-{protocol}-{well}.csv$")
     fname = next(filter(regex.match, os.listdir(data_directory)))
     data = pd.read_csv(os.path.join(data_directory, fname),
                        float_precision='round_trip')['current'].values
@@ -770,7 +773,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                   repeats=1, infer_E_rev=False, fit_initial_conductance=True,
                   experiment_name='newtonrun4', solver=None, Erev=None,
                   randomise_initial_guess=True, parallel=False,
-                  solver_type=None):
+                  solver_type=None, sweep=None):
 
     if default_parameters is None or len(default_parameters) == 0:
         default_parameters = model_class().get_default_parameters()
@@ -783,7 +786,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     # Ignore files that have been commented out
     voltage_func, times, protocol_desc = get_ramp_protocol_from_csv(protocol)
 
-    data = get_data(well, protocol, data_directory, experiment_name)
+    data = get_data(well, protocol, data_directory, experiment_name, sweep=sweep)
 
     times = pd.read_csv(os.path.join(data_directory, f"{experiment_name}-{protocol}-times.csv"),
                         float_precision='round_trip')['time'].values

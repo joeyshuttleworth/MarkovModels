@@ -21,8 +21,8 @@ pool_kws = {'maxtasksperchild': 1}
 
 
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
-             randomise_initial_guess=True):
-    this_output_dir = os.path.join(output_dir, f"{protocol}_{well}")
+             randomise_initial_guess=True, sweep=None):
+    this_output_dir = os.path.join(output_dir, f"{protocol}_{well}_sweep{sweep}")
 
     infer_E_rev = not args.dont_infer_Erev
 
@@ -35,11 +35,13 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
                                   infer_E_rev=infer_E_rev,
                                   experiment_name=args.experiment_name, Erev=E_rev,
                                   randomise_initial_guess=randomise_initial_guess,
-                                  solver_type=args.solver_type)
+                                  solver_type=args.solver_type, sweep=sweep)
 
     res_df['well'] = well
     res_df['protocol'] = protocol
+    res_df['sweep'] = sweep if sweep else -1
 
+    print(res_df)
     return res_df
 
 
@@ -112,6 +114,7 @@ def main():
     parser.add_argument('--selection_file')
     parser.add_argument('--ignore_protocols', nargs='+', default=[])
     parser.add_argument('--ignore_wells', nargs='+', default=[])
+    parser.add_argument('--sweeps', nargs='+', default=None)
 
     global args
     args = parser.parse_args()
@@ -132,8 +135,6 @@ def main():
 
     global model_class
     model_class = common.get_model_class(args.model)
-
-    regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z|0-9]*).csv$")
 
     if len(args.wells) == 0:
         args.wells = common.get_all_wells_in_directory(args.data_directory, experiment_name)
@@ -167,9 +168,15 @@ def main():
     tasks = []
     protocols_list = []
 
+    if args.sweeps:
+        regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z|0-9]*)-sweep([0-9]).csv$")
+    else:
+        regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z|0-9]*).csv$")
     param_labels = model_class().get_parameter_labels()
     for f in filter(regex.match, os.listdir(args.data_directory)):
-        protocol, well = re.search(regex, f).groups()
+        groups = re.search(regex, f).groups()
+        protocol = groups[0]
+        well = groups[1]
         if protocol not in protocols or well not in args.wells:
             continue
         if protocol in args.ignore_protocols or well in args.ignore_wells:
@@ -182,8 +189,13 @@ def main():
         else:
             starting_parameters = None
 
-        tasks.append([protocol, well, model_class, starting_parameters, Erev,
-                      not args.dont_randomise_initial_guess])
+        if args.sweeps:
+            sweep = groups[2]
+            tasks.append([protocol, well, model_class, starting_parameters, Erev,
+                          not args.dont_randomise_initial_guess, sweep])
+        else:
+            tasks.append([protocol, well, model_class, starting_parameters, Erev,
+                          not args.dont_randomise_initial_guess])
 
         protocols_list.append(protocol)
 
@@ -234,7 +246,10 @@ def main():
     print(best_params_df)
 
     for task in tasks:
-        protocol, well, model_class, default_parameters, Erev, randomise = task
+        if args.sweep:
+            protocol, well, model_class, default_parameters, Erev, randomise, sweep = task
+        else:
+            protocol, well, model_class, default_parameters, Erev, randomise = task
         best_params_row = best_params_df[(best_params_df.well == well)
                                          & (best_params_df.validation_protocol == protocol)].head(1)
         param_labels = model_class().get_parameter_labels()
@@ -416,11 +431,12 @@ def get_best_params(fitting_df, protocol_label='protocol'):
             sub_df = fitting_df[(fitting_df['well'] == well)
                                 & (fitting_df[protocol_label] == protocol)].copy()
             sub_df = sub_df.dropna()
-
-            # Get index of min score
-            if len(sub_df.index) == 0:
-                continue
-            best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
+            for sweep in sub_df['sweep'].unique():
+                sub_df = sub_df[sub_df.sweep == sweep]
+                # Get index of min score
+                if len(sub_df.index) == 0:
+                    continue
+                best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
 
     if not best_params:
         raise Exception()
