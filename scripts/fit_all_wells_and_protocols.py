@@ -352,8 +352,13 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
         colours = sns.color_palette('husl', len(params_df['protocol'].unique()))
 
         for well in params_df['well'].unique():
-            full_data = common.get_data(well, sim_protocol,
-                                        args.data_directory, experiment_name=args.experiment_name)
+            try:
+                full_data = common.get_data(well, sim_protocol,
+                                            args.data_directory, experiment_name=args.experiment_name)
+            except FileNotFoundError as exc:
+                print(str(exc))
+                continue
+
             data = full_data[indices]
 
             for i, protocol_fitted in enumerate(params_df['protocol'].unique()):
