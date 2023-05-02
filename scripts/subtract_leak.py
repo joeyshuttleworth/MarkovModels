@@ -90,6 +90,12 @@ def main():
 
     df = pd.concat(res, ignore_index=True)
 
+    df['passed QC7'] = False
+
+    for well in df.well.unique():
+        passed_QC7  = QC7(well)
+        df[df.well==well]['passed QC7'] = passed_QC7
+
     if args.selection_file:
         df['selected'] = [well in selected_wells for well in df['well']]
 
@@ -97,7 +103,7 @@ def main():
     df['E_Kr_spread'] = [E_Kr_spread[well] if well in E_Kr_spread else np.nan for well in df.well]
     df.to_csv(os.path.join(output, "subtraction_qc.csv"))
 
-    df['QC E_Kr_spread'] = np.abs(df.E_Kr_spread.values) <= 5
+    df['QC E_Kr_spread'] = np.abs(df.E_Kr_spread.values) <= 10
 
     # Find wells passing all traces
     passed_lst = []
@@ -343,7 +349,7 @@ def subtract_leak(well, protocol):
             estimated_noise = trace[0:200].std()
             trace = trace[first_step_indices]
             n = len(trace)
-            if trace.mean() > 2*estimated_noise:
+            if trace.mean() > -2*estimated_noise:
                 print(f"{protocol} {well} {tracename} \tpassed QC6")
                 passed1 = True
             else:
@@ -392,13 +398,40 @@ def subtract_leak(well, protocol):
         plt.close(fig)
 
     df = pd.DataFrame(df, columns=('protocol', 'well', 'sweep', 'before/after',
-                                   'fitted_E_rev', 'passed QC6', 'passed QC.Erev',
-                                   'R_leftover', 'pre-drug leak conductance',
-                                   'post-drug leak conductance',
-                                   'pre-drug leak reversal',
+                                   'fitted_E_rev', 'passed QC6',
+                                   'passed QC.Erev', 'R_leftover', 'pre-drug'
+                                   ' leak conductance', 'post-drug leak'
+                                   ' conductance', 'pre-drug leak reversal',
                                    'post-drug leak reversal'))
 
     return df
+
+
+def QC7(well):
+    try:
+        first_staircase_df = pd.read_csv(os.path.join(output, 'subtracted_traces',
+                                                      f"{args.experiment_name}-staircaseramp1-{well}-sweep1.csv"))
+        last_staircase_df = pd.read_csv(os.path.join(output, 'subtracted_traces',
+                                                     f"{args.experiment_name}-staircaseramp2-{well}-sweep2.csv"))
+
+    except FileNotFoundError as e:
+        print(str(e))
+        return False
+
+    recording1 = first_staircase_df['current'].values
+    recording2 = last_staircase_df['current'].values
+
+    noise_1 = np.std(first_staircase_df['current'].values[:200])
+    noise_2 = np.std(last_staircase_df['current'].values[:200])
+    rmsd0_1 = np.sqrt(np.mean((recording1) ** 2))
+    rmsd0_2 = np.sqrt(np.mean((recording2) ** 2))
+
+    rmsdc = max(np.mean([rmsd0_1, rmsd0_2]) * 2,
+                np.mean([noise_1, noise_2]) * 6)
+
+    rmsd = np.sqrt(np.mean((recording1 - recording2) ** 2))
+
+    return rmsd > rmsdc or not (np.isfinite(rmsd) and np.isfinite(rmsdc))
 
 
 if __name__ == "__main__":

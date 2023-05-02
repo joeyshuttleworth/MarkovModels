@@ -61,6 +61,7 @@ def main():
     parser.add_argument('--wells', '-w', nargs='+', default=None)
     parser.add_argument('--output', '-o', default=None)
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
+    parser.add_argument('-r', '--reversal', type=float, default=np.nan)
     parser.add_argument('--selection_file', default=None, type=str)
     parser.add_argument('--experiment_name', default='newtonrun4')
     parser.add_argument('--figsize', type=int, nargs=2, default=[12, 16])
@@ -175,9 +176,14 @@ def do_chronological_plots(leak_parameters_df):
     df = leak_parameters_df[leak_parameters_df['selected']]
 
     for var in vars:
-        sns.scatterplot(data=df, x='protocol', y=var, hue='passed QC', ax=ax)
+        sns.scatterplot(data=df, x='protocol', y=var, hue='passed QC', ax=ax,
+                        hue_order=[False, True])
         sns.lineplot(data=leak_parameters_df, x='protocol', y=var, hue='passed QC', ax=ax, style='well', legend=False)
+
+        if var == 'fitted_E_rev':
+            ax.axhline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
         fig.savefig(os.path.join(sub_dir, var.replace(' ', '_')))
+
         ax.cla()
 
 
@@ -272,7 +278,10 @@ def do_scatter_matrix(df):
                   'selected', 'pre-drug leak reversal', 'post-drug leak reversal'],
                  axis='columns')
 
-    grid = sns.pairplot(data=df, hue='passed QC', diag_kind='hist')
+    print(df['passed QC'])
+    grid = sns.pairplot(data=df, hue='passed QC', diag_kind='hist',
+                        plot_kws={'alpha':0.4, 'edgecolor': None},
+                        hue_order=[False, True])
     grid.savefig(os.path.join(output_dir, 'scatter_matrix'))
 
 
@@ -298,7 +307,7 @@ def plot_reversal_spread(df):
     sns.histplot(data=pivot_df, x='E_Kr range', hue='passed QC', ax=ax,
                  stat='probability')
 
-    ax.set_xlabel(r'spread in inferred $E_Kr$ / mV')
+    ax.set_xlabel(r'spread in inferred E_Kr / mV')
 
     fig.savefig(os.path.join(output_dir, 'spread_of_fitted_E_Kr'))
     df.to_csv(os.path.join(output_dir, 'spread_of_fitted_E_Kr.csv'))
@@ -311,6 +320,7 @@ def plot_histograms(df):
     sns.histplot(df,
                  x='fitted_E_rev', hue='passed QC', ax=ax,
                  stat='probability', common_norm=False)
+    ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
     fig.savefig(os.path.join(output_dir, 'reversal_potential_histogram'))
 
     ax.cla()
@@ -334,14 +344,12 @@ def plot_histograms(df):
     fig.savefig(os.path.join(output_dir, 'R_leftover'))
 
 
-
-
 def overlay_reversal_plots(leak_parameters_df):
     ''' Method copied from common.infer_reversal_potential'''
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
 
-    palette = sns.color_palette('husl', len(leak_parameters_df.protocol.unique()))
+    palette = sns.color_palette('husl', len(protocols))
 
     sub_dir = os.path.join(output_dir, 'overlaid_reversal_plots')
 
@@ -353,38 +361,42 @@ def overlay_reversal_plots(leak_parameters_df):
         if False in leak_parameters_df[leak_parameters_df.well == well]['passed QC'].values:
             continue
         for i, protocol in enumerate(protocols):
-            protocol_func, _, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
-            fname = f"{experiment_name}-{protocol}-{well}.csv"
-            try:
-                data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
-            except FileNotFoundError:
-                continue
+            for sweep in [1, 2]:
+                protocol_func, _, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
+                fname = f"{experiment_name}-{protocol}-{well}-sweep{sweep}.csv"
+                try:
+                    data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
+                except FileNotFoundError:
+                    continue
 
-            times = data['time'].values.astype(np.float64)
+                times = data['time'].values.astype(np.float64)
 
-            # First, find the reversal ramp. Search backwards along the protocol until we find a >= 40mV step
-            step = next(filter(lambda x: x[2] >= -74, reversed(protocol_desc)))
-            step = step[0:2]
+                # First, find the reversal ramp. Search backwards along the protocol until we find a >= 40mV step
+                step = next(filter(lambda x: x[2] >= -74, reversed(protocol_desc)))
+                step = step[0:2]
 
-            # Next extract steps
-            istart = np.argmax(times >= step[0])
-            iend = np.argmax(times > step[1])
+                # Next extract steps
+                istart = np.argmax(times >= step[0])
+                iend = np.argmax(times > step[1])
 
-            if istart == 0 or iend == 0 or istart == iend:
-                raise Exception("Couldn't identify reversal ramp")
+                if istart == 0 or iend == 0 or istart == iend:
+                    raise Exception("Couldn't identify reversal ramp")
 
-            # Plot voltage vs current
-            current = data['current'].values.astype(np.float64)
+                # Plot voltage vs current
+                current = data['current'].values.astype(np.float64)
 
-            voltages = np.array([protocol_func(t) for t in times])
+                voltages = np.array([protocol_func(t) for t in times])
 
-            col = palette[i]
+                print(i)
+                col = palette[i]
 
-            ax.scatter(voltages[istart:iend], current[istart:iend], label=protocol,
-                       color=col, s=1.2)
+                ax.scatter(voltages[istart:iend], current[istart:iend], label=protocol,
+                           color=col, s=1.2)
 
-            fitted_poly = np.poly1d(np.polyfit(voltages[istart:iend], current[istart:iend], 4))
-            ax.plot(voltages[istart:iend], fitted_poly(voltages[istart:iend]), color=col)
+                fitted_poly = np.poly1d(np.polyfit(voltages[istart:iend], current[istart:iend], 4))
+                ax.plot(voltages[istart:iend], fitted_poly(voltages[istart:iend]), color=col)
+
+        ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
 
         ax.legend()
         # Save figure
