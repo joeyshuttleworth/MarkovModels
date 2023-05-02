@@ -354,7 +354,9 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
         for well in params_df['well'].unique():
             try:
                 full_data = common.get_data(well, sim_protocol,
-                                            args.data_directory, experiment_name=args.experiment_name)
+                                            args.data_directory,
+                                            experiment_name=args.experiment_name,
+                                            sweep=1 if args.sweeps else None)
             except FileNotFoundError as exc:
                 print(str(exc))
                 continue
