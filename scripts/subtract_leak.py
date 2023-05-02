@@ -93,8 +93,8 @@ def main():
     df['passed QC7'] = False
 
     for well in df.well.unique():
-        passed_QC7  = QC7(well)
-        df[df.well==well]['passed QC7'] = passed_QC7
+        passed_QC7 = QC7(well)
+        df.loc[df.well == well, 'passed QC7'] = passed_QC7
 
     if args.selection_file:
         df['selected'] = [well in selected_wells for well in df['well']]
