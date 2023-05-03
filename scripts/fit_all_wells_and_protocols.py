@@ -246,7 +246,7 @@ def main():
     print(best_params_df)
 
     for task in tasks:
-        if args.sweep:
+        if args.sweeps:
             protocol, well, model_class, default_parameters, Erev, randomise, sweep = task
         else:
             protocol, well, model_class, default_parameters, Erev, randomise = task
