@@ -352,72 +352,73 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
         colours = sns.color_palette('husl', len(params_df['protocol'].unique()))
 
         for well in params_df['well'].unique():
-            try:
-                full_data = common.get_data(well, sim_protocol,
-                                            args.data_directory,
-                                            experiment_name=args.experiment_name,
-                                            sweep=1 if args.sweeps else None)
-            except FileNotFoundError as exc:
-                print(str(exc))
-                continue
-
-            data = full_data[indices]
-
-            for i, protocol_fitted in enumerate(params_df['protocol'].unique()):
-                df = params_df[params_df.well == well]
-                df = df[df.protocol == protocol_fitted]
-
-                if df.empty:
+            for sweep in args.sweeps:
+                try:
+                    full_data = common.get_data(well, sim_protocol,
+                                                args.data_directory,
+                                                experiment_name=args.experiment_name,
+                                                sweep=1 if args.sweeps else None)
+                except FileNotFoundError as exc:
+                    print(str(exc))
                     continue
 
-                params = df.iloc[0][param_labels].values\
-                                                 .astype(np.float64)\
-                                                 .flatten()
-                sub_dir = os.path.join(predictions_dir, f"{well}_{sim_protocol}_predictions")
-                if not os.path.exists(sub_dir):
-                    os.makedirs(sub_dir)
+                data = full_data[indices]
 
-                full_prediction = solver(params)
-                prediction = full_prediction[indices]
+                for i, protocol_fitted in enumerate(params_df['protocol'].unique()):
+                    df = params_df[params_df.well == well]
+                    df = df[df.protocol == protocol_fitted]
 
-                score = np.sqrt(np.mean((data - prediction)**2))
-                predictions_df.append((well, protocol_fitted, sim_protocol, score, *params))
+                    if df.empty:
+                        continue
 
-                if not np.all(np.isfinite(prediction)):
-                    logging.warning(f"running {sim_protocol} with parameters\
-                    from {protocol_fitted} gave non-finite values")
-                else:
-                    # Output trace
-                    trace_axs[0].plot(full_times, full_prediction, label='prediction')
+                    params = df.iloc[0][param_labels].values\
+                                                    .astype(np.float64)\
+                                                    .flatten()
+                    sub_dir = os.path.join(predictions_dir, f"{well}_{sim_protocol}_predictions")
+                    if not os.path.exists(sub_dir):
+                        os.makedirs(sub_dir)
 
-                    trace_axs[1].set_xlabel("time / ms")
-                    trace_axs[0].set_ylabel("current / nA")
-                    trace_axs[0].plot(times, data, label='data', alpha=0.25, color='grey')
-                    trace_axs[0].legend()
-                    trace_axs[1].plot(full_times, voltages)
-                    trace_axs[1].set_ylabel('voltage / mV')
-                    fname = f"fitted_to_{protocol_fitted}.png" if protocol_fitted != sim_protocol else "fit.png"
-                    trace_fig.savefig(os.path.join(sub_dir, fname))
+                    full_prediction = solver(params)
+                    prediction = full_prediction[indices]
 
-                    for ax in trace_axs:
-                        ax.cla()
+                    score = np.sqrt(np.mean((data - prediction)**2))
+                    predictions_df.append((well, protocol_fitted, sim_protocol, score, *params))
 
-                    all_models_axs[0].plot(times, prediction, label=protocol_fitted, color=colours[i])
+                    if not np.all(np.isfinite(prediction)):
+                        logging.warning(f"running {sim_protocol} with parameters\
+                        from {protocol_fitted} gave non-finite values")
+                    else:
+                        # Output trace
+                        trace_axs[0].plot(full_times, full_prediction, label='prediction')
 
-            all_models_axs[1].set_xlabel("time / ms")
-            all_models_axs[0].set_ylabel("current / nA")
-            all_models_axs[0].plot(times, data, color='grey', alpha=0.5, label='data')
-            all_models_axs[0].legend()
-            all_models_axs[0].set_title(f"{well} {sim_protocol} fits comparison")
-            all_models_axs[0].set_ylabel("Current / nA")
+                        trace_axs[1].set_xlabel("time / ms")
+                        trace_axs[0].set_ylabel("current / nA")
+                        trace_axs[0].plot(times, data, label='data', alpha=0.25, color='grey')
+                        trace_axs[0].legend()
+                        trace_axs[1].plot(full_times, voltages)
+                        trace_axs[1].set_ylabel('voltage / mV')
+                        fname = f"fitted_to_{protocol_fitted}_{sweep}.png" if protocol_fitted != sim_protocol else "fit.png"
+                        trace_fig.savefig(os.path.join(sub_dir, fname))
 
-            all_models_axs[1].plot(full_times, voltages)
-            all_models_axs[1].set_ylabel('voltage / mV')
+                        for ax in trace_axs:
+                            ax.cla()
 
-            all_models_fig.savefig(os.path.join(sub_dir, "all_fits.png"))
+                        all_models_axs[0].plot(times, prediction, label=protocol_fitted, color=colours[i])
 
-            for ax in all_models_axs:
-                ax.cla()
+                all_models_axs[1].set_xlabel("time / ms")
+                all_models_axs[0].set_ylabel("current / nA")
+                all_models_axs[0].plot(times, data, color='grey', alpha=0.5, label='data')
+                all_models_axs[0].legend()
+                all_models_axs[0].set_title(f"{well} {sim_protocol} fits comparison")
+                all_models_axs[0].set_ylabel("Current / nA")
+
+                all_models_axs[1].plot(full_times, voltages)
+                all_models_axs[1].set_ylabel('voltage / mV')
+
+                all_models_fig.savefig(os.path.join(sub_dir, "all_fits.png"))
+
+                for ax in all_models_axs:
+                    ax.cla()
 
     predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
                                                                      'validation_protocol',
@@ -432,6 +433,9 @@ def get_best_params(fitting_df, protocol_label='protocol'):
     # Ensure score is a float - may be read from csv file
     fitting_df['score'] = fitting_df['score'].astype(np.float64)
     fitting_df = fitting_df[np.isfinite(fitting_df['score'])].copy()
+
+    if 'sweep' not in fitting_df.columns:
+        fitting_df['sweep'] = -1
 
     for protocol in fitting_df[protocol_label].unique():
         for well in fitting_df['well'].unique():
