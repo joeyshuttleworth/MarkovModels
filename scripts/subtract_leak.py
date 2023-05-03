@@ -109,16 +109,17 @@ def main():
     passed_lst = []
     for well in np.unique(df['well'].values):
         failed = False
-        for _, row in df.iterrows():
-            if row['well'] != well:
-                continue
-            elif row['passed QC6'] is False:
+        for _, row in df[df.well == well].iterrows():
+            if row['passed QC6'] is False:
                 failed = True
                 break
             elif not np.isfinite(row['fitted_E_rev']):
                 failed = True
                 break
             elif not row['QC E_Kr_spread']:
+                failed = True
+                break
+            elif not row['passed QC7']:
                 failed = True
                 break
             elif args.selection_file:
