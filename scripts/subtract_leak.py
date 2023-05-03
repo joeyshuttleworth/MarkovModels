@@ -92,8 +92,11 @@ def main():
 
     df['passed QC7'] = False
 
-    for well in df.well.unique():
-        passed_QC7 = QC7(well)
+    with multiprocessing.Pool(pool_size, **pool_kws) as pool:
+        QC7_res = pool.map(subtract_leak, df.well.unique)
+
+    for i, well in enumerate(df.well.unique()):
+        passed_QC7 = QC7_res[i]
         df.loc[df.well == well, 'passed QC7'] = passed_QC7
 
     if args.selection_file:
