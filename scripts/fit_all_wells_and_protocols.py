@@ -357,7 +357,7 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                     full_data = common.get_data(well, sim_protocol,
                                                 args.data_directory,
                                                 experiment_name=args.experiment_name,
-                                                sweep=1 if args.sweeps else None)
+                                                sweep=sweep if args.sweeps else None)
                 except FileNotFoundError as exc:
                     print(str(exc))
                     continue
@@ -372,8 +372,8 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                         continue
 
                     params = df.iloc[0][param_labels].values\
-                                                    .astype(np.float64)\
-                                                    .flatten()
+                                                     .astype(np.float64)\
+                                                     .flatten()
                     sub_dir = os.path.join(predictions_dir, f"{well}_{sim_protocol}_predictions")
                     if not os.path.exists(sub_dir):
                         os.makedirs(sub_dir)
@@ -382,7 +382,7 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                     prediction = full_prediction[indices]
 
                     score = np.sqrt(np.mean((data - prediction)**2))
-                    predictions_df.append((well, protocol_fitted, sim_protocol, score, *params))
+                    predictions_df.append((well, protocol_fitted, sweep, sim_protocol, score, *params))
 
                     if not np.all(np.isfinite(prediction)):
                         logging.warning(f"running {sim_protocol} with parameters\
@@ -420,9 +420,12 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                 for ax in all_models_axs:
                     ax.cla()
 
-    predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well', 'fitting_protocol',
+    predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well',
+                                                                     'fitting_protocol',
+                                                                     'sweep',
                                                                      'validation_protocol',
-                                                                     'score'] + param_labels)
+                                                                     'score'] +
+                                  param_labels)
     predictions_df['RMSE'] = predictions_df['score']
     return predictions_df
 
