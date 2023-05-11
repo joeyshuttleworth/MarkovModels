@@ -34,12 +34,12 @@ def main():
     parser = argparse.ArgumentParser(description)
 
     parser.add_argument('data_directory', type=str, help="path to the directory containing the raw data")
+    parser.add_argument('selection_file', type=str)
     parser.add_argument('--cpus', '-c', default=1, type=int)
     parser.add_argument('--wells', '-w', nargs='+', default=None)
     parser.add_argument('--output', '-o', default=None)
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--percentage_to_remove', default=0, type=float)
-    parser.add_argument('--selection_file', default=None, type=str)
     parser.add_argument('--experiment_name', default='newtonrun4')
     parser.add_argument('--ramp_start', type=float, default=300)
     parser.add_argument('--ramp_end', type=float, default=900)
@@ -93,7 +93,7 @@ def main():
     df['passed QC7'] = False
 
     with multiprocessing.Pool(pool_size, **pool_kws) as pool:
-        QC7_res = pool.map(subtract_leak, df.well.unique)
+        QC7_res = pool.map(QC7, df.well.unique())
 
     for i, well in enumerate(df.well.unique()):
         passed_QC7 = QC7_res[i]
@@ -104,9 +104,9 @@ def main():
 
     E_Kr_spread = compute_E_Kr_spread(df)
     df['E_Kr_spread'] = [E_Kr_spread[well] if well in E_Kr_spread else np.nan for well in df.well]
-    df.to_csv(os.path.join(output, "subtraction_qc.csv"))
 
-    df['QC E_Kr_spread'] = np.abs(df.E_Kr_spread.values) <= 10
+    df['QC E_Kr_spread'] = np.abs(df.E_Kr_spread.values) <= 5
+    df.to_csv(os.path.join(output, "subtraction_qc.csv"))
 
     # Find wells passing all traces
     passed_lst = []
@@ -138,6 +138,9 @@ def main():
         for well in passed_lst:
             fout.write(well)
             fout.write("\n")
+
+    with multiprocessing.Pool(pool_size, **pool_kws) as pool:
+        pool.map(overlay_first_last_staircases, df.well.unique())
 
 
 def compute_E_Kr_spread(df):
@@ -200,6 +203,51 @@ def setup_subtraction_grid(fig, nsweeps):
     return protocol_axs, before_axs, after_axs, corrected_axs, subtracted_ax, long_protocol_ax
 
 
+def overlay_first_last_staircases(well):
+
+    first_filename = f"{experiment_name}-staircaseramp1-{well}-sweep1.csv"
+    final_filename = f"{experiment_name}-staircaseramp2-{well}-sweep2.csv"
+
+    times_filename = f"{experiment_name}-staircaseramp1-times.csv"
+
+    subtracted_traces_dir = os.path.join(output, 'subtracted_traces')
+
+    try:
+        times = pd.read_csv(os.path.join(subtracted_traces_dir, times_filename))['time'].values.flatten()
+    except FileNotFoundError as exc:
+        print(str(exc))
+        return
+
+    fig = plt.figure(figsize=args.figsize, constrained_layout=True)
+    ax1, ax2 = fig.subplots(2, 1, height_ratios=[3, 1])
+
+    try:
+        before_trace = pd.read_csv(os.path.join(subtracted_traces_dir, first_filename))['current'].values.flatten()
+    except FileNotFoundError as exc:
+        before_trace = np.full(times.shape, np.nan)
+        print(str(exc))
+
+    try:
+        after_trace = pd.read_csv(os.path.join(subtracted_traces_dir, final_filename))['current'].values.flatten()
+    except FileNotFoundError as exc:
+        after_trace = np.full(times.shape, np.nan)
+        print(str(exc))
+
+    ax1.plot(times, before_trace, label='staircaseramp1 sweep-1')
+    ax1.plot(times, after_trace, label='staircaseramp2 sweep-2')
+
+    prot_func, _, _, = common.get_ramp_protocol_from_csv('staircaseramp1')
+    voltages = np.array([prot_func(t) for t in times])
+    ax2.plot(times, voltages)
+
+    sub_dir = os.path.join(output, 'first_last_staircase_compare')
+
+    if not os.path.exists(sub_dir):
+        os.makedirs(sub_dir)
+
+    fig.savefig(os.path.join(sub_dir, f"{well}_overlaid.png"))
+
+
 def subtract_leak(well, protocol):
     if not args.no_plot:
         fig = plt.figure(figsize=args.figsize, clear=True, constrained_layout=True)
@@ -215,7 +263,7 @@ def subtract_leak(well, protocol):
         protocol_axs, before_axs, after_axs, corrected_axs, subtracted_ax, \
             long_protocol_ax = setup_subtraction_grid(fig, nsweeps)
 
-    protocol_func, _ = common.get_protocol_from_csv(protocol)
+    protocol_func, _, _ = common.get_ramp_protocol_from_csv(protocol)
     observation_times = pd.read_csv(os.path.join(
         args.data_directory, f"{experiment_name}-{protocol}-times.csv")).values.flatten() * 1e3
     protocol_voltages = np.array([protocol_func(t) for t in observation_times])
@@ -430,12 +478,12 @@ def QC7(well):
     rmsd0_1 = np.sqrt(np.mean((recording1) ** 2))
     rmsd0_2 = np.sqrt(np.mean((recording2) ** 2))
 
-    rmsdc = max(np.mean([rmsd0_1, rmsd0_2]) * 2,
+    rmsdc = max(np.mean([rmsd0_1, rmsd0_2]) * 0.2,
                 np.mean([noise_1, noise_2]) * 6)
 
     rmsd = np.sqrt(np.mean((recording1 - recording2) ** 2))
 
-    return rmsd > rmsdc or not (np.isfinite(rmsd) and np.isfinite(rmsdc))
+    return rmsd < rmsdc and np.isfinite(rmsd) and np.isfinite(rmsdc)
 
 
 if __name__ == "__main__":
