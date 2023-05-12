@@ -45,47 +45,47 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
     return res_df
 
 
-def mcmc_func(protocol, well, model_class, initial_params):
+# def mcmc_func(protocol, well, model_class, initial_params):
 
-    # Ignore files that have been commented out
-    voltage_func, times, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
+#     # Ignore files that have been commented out
+#     voltage_func, times, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
 
-    data = common.get_data(well, protocol, args.data_directory, experiment_name)
+#     data = common.get_data(well, protocol, args.data_directory, experiment_name)
 
-    times = pd.read_csv(os.path.join(args.data_directory, f"{experiment_name}-{protocol}-times.csv"))['time'].values
+#     times = pd.read_csv(os.path.join(args.data_directory, f"{experiment_name}-{protocol}-times.csv"))['time'].values
 
-    voltages = np.array([voltage_func(t) for t in times])
+#     voltages = np.array([voltage_func(t) for t in times])
 
-    model = model_class(voltage=voltage_func,
-                        protocol_description=protocol_desc,
-                        times=times)
+#     model = model_class(voltage=voltage_func,
+#                         protocol_description=protocol_desc,
+#                         times=times)
 
-    if initial_params is None:
-        initial_params = model.get_default_parameters()
+#     if initial_params is None:
+#         initial_params = model.get_default_parameters()
 
-    reversal_potential = common.infer_reversal_potential(protocol, data, times)
-    model.Erev = reversal_potential
+#     reversal_potential = common.infer_reversal_potential(protocol, data, times)
+#     model.Erev = reversal_potential
 
-    solver = model.make_forward_solver_current()
+#     solver = model.make_forward_solver_current()
 
-    if np.any(~np.isfinite(solver(initial_params))):
-        initial_params = model.get_default_parameters()
+#     if np.any(~np.isfinite(solver(initial_params))):
+#         initial_params = model.get_default_parameters()
 
-    sigma2 = np.var(data[10:100])
-    print("sigma2 is ", sigma2)
+#     sigma2 = np.var(data[10:100])
+#     print("sigma2 is ", sigma2)
 
-    spike_times, spike_indices = common.detect_spikes(times, voltages, threshold=10)
+#     spike_times, spike_indices = common.detect_spikes(times, voltages, threshold=10)
 
-    _, _, indices = common.remove_spikes(times, voltages, spike_times,
-                                         time_to_remove=args.removal_duration)
+#     _, _, indices = common.remove_spikes(times, voltages, spike_times,
+#                                          time_to_remove=args.removal_duration)
 
-    return common.compute_mcmc_chains(model, solver=solver, times=times,
-                                      indices=indices, data=data,
-                                      chain_length=args.chain_length,
-                                      no_chains=args.no_chains,
-                                      starting_parameters=initial_params,
-                                      sigma2=sigma2, burn_in=0,
-                                      log_likelihood_func=None)
+#     return common.compute_mcmc_chains(model, solver=solver, times=times,
+#                                       indices=indices, data=data,
+#                                       chain_length=args.chain_length,
+#                                       no_chains=args.no_chains,
+#                                       starting_parameters=initial_params,
+#                                       sigma2=sigma2, burn_in=0,
+#                                       log_likelihood_func=None)
 
 
 def main():
@@ -221,14 +221,13 @@ def main():
     fitting_df.to_csv(os.path.join(output_dir, "prelim_fitting.csv"))
 
     params_df = get_best_params(fitting_df)
-
     params_df.to_csv(os.path.join(output_dir, "prelim_best_fitting.csv"))
 
+    print(params_df)
     predictions_df = compute_predictions_df(params_df, output_dir,
                                             'prelim_predictions', args=args, model_class=model_class)
 
     # Plot predictions
-    print(predictions_df)
     predictions_df.to_csv(os.path.join(output_dir, "prelim_predictions_df.csv"))
 
     # Select best parameters for each protocol
@@ -275,37 +274,37 @@ def main():
             best_params_df['protocol'] = best_params_df['validation_protocol']
             best_params_df.to_csv(os.path.join(output_dir, 'best_fitting.csv'))
 
-    if args.no_chains > 0:
-        # Setup MCMC
-        for task in tasks:
-            protocol, well, model_class, default_parameters, Erev, _ = task
-            param_labels = model_class().get_parameter_labels()
+    # if args.no_chains > 0:
+    #     # Setup MCMC
+    #     for task in tasks:
+    #         protocol, well, model_class, default_parameters, Erev, _ = task
+    #         param_labels = model_class().get_parameter_labels()
 
-            row = best_params_df[(best_params_df.well == well)
-                                 & (best_params_df.validation_protocol ==
-                                    protocol)][param_labels].copy().head(1).astype(np.float64)
+    #         row = best_params_df[(best_params_df.well == well)
+    #                              & (best_params_df.validation_protocol ==
+    #                                 protocol)][param_labels].copy().head(1).astype(np.float64)
 
-            task[3] = row.values.flatten()
-            task[5] = False
+    #         task[3] = row.values.flatten()
+    #         task[5] = False
 
-            do_mcmc(tasks, pool)
+    #         # do_mcmc(tasks, pool)
 
 
-def do_mcmc(tasks, pool):
-    if args.chain_length > 0 and args.no_chains > 0:
-        mcmc_dir = os.path.join(output_dir, 'mcmc_samples')
+# def do_mcmc(tasks, pool):
+#     if args.chain_length > 0 and args.no_chains > 0:
+#         mcmc_dir = os.path.join(output_dir, 'mcmc_samples')
 
-        if not os.path.exists(mcmc_dir):
-            os.makedirs(mcmc_dir)
+#         if not os.path.exists(mcmc_dir):
+#             os.makedirs(mcmc_dir)
 
-        # Do MCMC
-        mcmc_res = pool.starmap(mcmc_func, tasks)
-        for samples, task in zip(mcmc_res, tasks):
-            protocol, well, model_class, _, _ = task
-            model_name = model_class().get_model_name()
+#         # Do MCMC
+#         mcmc_res = pool.starmap(mcmc_func, tasks)
+#         for samples, task in zip(mcmc_res, tasks):
+#             protocol, well, model_class, _, _ = task
+#             model_name = model_class().get_model_name()
 
-            np.save(os.path.join(mcmc_dir,
-                                 f"mcmc_{model_name}_{well}_{protocol}.npy"), samples)
+#             np.save(os.path.join(mcmc_dir,
+#                                  f"mcmc_{model_name}_{well}_{protocol}.npy"), samples)
 
 
 def compute_predictions_df(params_df, output_dir, label='predictions',
@@ -328,7 +327,7 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
 
     global param_labels
     param_labels = model_class().get_parameter_labels()
-
+    print(params_df)
     for sim_protocol in np.unique(protocols_list):
         prot_func, times, desc = common.get_ramp_protocol_from_csv(sim_protocol)
         full_times = pd.read_csv(os.path.join(args.data_directory,
@@ -352,58 +351,65 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
         colours = sns.color_palette('husl', len(params_df['protocol'].unique()))
 
         for well in params_df['well'].unique():
-            for sweep in args.sweeps:
+            for predict_sweep in params_df[params_df.protocol == sim_protocol].sweep.unique():
+                print(predict_sweep)
                 try:
                     full_data = common.get_data(well, sim_protocol,
                                                 args.data_directory,
                                                 experiment_name=args.experiment_name,
-                                                sweep=sweep if args.sweeps else None)
-                except FileNotFoundError as exc:
+                                                sweep=predict_sweep)
+                except (FileNotFoundError, StopIteration) as exc:
                     print(str(exc))
                     continue
 
                 data = full_data[indices]
 
                 for i, protocol_fitted in enumerate(params_df['protocol'].unique()):
-                    df = params_df[params_df.well == well]
-                    df = df[df.protocol == protocol_fitted]
+                    for fitting_sweep in params_df[params_df.protocol == protocol_fitted].sweep:
+                        # Get parameters
+                        df = params_df[params_df.well == well]
+                        df = df[(df.protocol == protocol_fitted) & (df.sweep == fitting_sweep)]
+                        if df.empty:
+                            print(protocol_fitted, fitting_sweep)
+                            continue
+                        params = df.iloc[0][param_labels].values\
+                                                         .astype(np.float64)\
+                                                         .flatten()
 
-                    if df.empty:
-                        continue
+                        subdir_name = f"{well}_{sim_protocol}_sweep{predict_sweep}_predictions"\
+                            if predict_sweep is not None else f"{well}_{sim_protocol}_predictions"
+                        sub_dir = os.path.join(predictions_dir, subdir_name)
+                        if not os.path.exists(sub_dir):
+                            os.makedirs(sub_dir)
 
-                    params = df.iloc[0][param_labels].values\
-                                                     .astype(np.float64)\
-                                                     .flatten()
-                    sub_dir = os.path.join(predictions_dir, f"{well}_{sim_protocol}_predictions")
-                    if not os.path.exists(sub_dir):
-                        os.makedirs(sub_dir)
+                        full_prediction = solver(params)
+                        prediction = full_prediction[indices]
 
-                    full_prediction = solver(params)
-                    prediction = full_prediction[indices]
+                        score = np.sqrt(np.mean((data - prediction)**2))
+                        predictions_df.append((well, protocol_fitted,
+                                               fitting_sweep, predict_sweep, sim_protocol, score,
+                                               * params))
 
-                    score = np.sqrt(np.mean((data - prediction)**2))
-                    predictions_df.append((well, protocol_fitted, sweep, sim_protocol, score, *params))
+                        if not np.all(np.isfinite(prediction)):
+                            logging.warning(f"running {sim_protocol} with parameters\
+                            from {protocol_fitted} gave non-finite values")
+                        else:
+                            # Output trace
+                            trace_axs[0].plot(full_times, full_prediction, label='prediction')
 
-                    if not np.all(np.isfinite(prediction)):
-                        logging.warning(f"running {sim_protocol} with parameters\
-                        from {protocol_fitted} gave non-finite values")
-                    else:
-                        # Output trace
-                        trace_axs[0].plot(full_times, full_prediction, label='prediction')
+                            trace_axs[1].set_xlabel("time / ms")
+                            trace_axs[0].set_ylabel("current / nA")
+                            trace_axs[0].plot(times, data, label='data', alpha=0.25, color='grey')
+                            trace_axs[0].legend()
+                            trace_axs[1].plot(full_times, voltages)
+                            trace_axs[1].set_ylabel('voltage / mV')
+                            fname = f"fitted_to_{protocol_fitted}_{fitting_sweep}.png" if protocol_fitted != sim_protocol else "fit.png"
+                            trace_fig.savefig(os.path.join(sub_dir, fname))
 
-                        trace_axs[1].set_xlabel("time / ms")
-                        trace_axs[0].set_ylabel("current / nA")
-                        trace_axs[0].plot(times, data, label='data', alpha=0.25, color='grey')
-                        trace_axs[0].legend()
-                        trace_axs[1].plot(full_times, voltages)
-                        trace_axs[1].set_ylabel('voltage / mV')
-                        fname = f"fitted_to_{protocol_fitted}_{sweep}.png" if protocol_fitted != sim_protocol else "fit.png"
-                        trace_fig.savefig(os.path.join(sub_dir, fname))
+                            for ax in trace_axs:
+                                ax.cla()
 
-                        for ax in trace_axs:
-                            ax.cla()
-
-                        all_models_axs[0].plot(times, prediction, label=protocol_fitted, color=colours[i])
+                            all_models_axs[0].plot(times, prediction, label=protocol_fitted, color=colours[i])
 
                 all_models_axs[1].set_xlabel("time / ms")
                 all_models_axs[0].set_ylabel("current / nA")
@@ -422,11 +428,13 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
 
     predictions_df = pd.DataFrame(np.array(predictions_df), columns=['well',
                                                                      'fitting_protocol',
-                                                                     'sweep',
+                                                                     'fitting_sweep',
+                                                                     'prediction_sweep',
                                                                      'validation_protocol',
                                                                      'score'] +
                                   param_labels)
     predictions_df['RMSE'] = predictions_df['score']
+    predictions_df['sweep'] = predictions_df.fitting_sweep
     return predictions_df
 
 
@@ -442,11 +450,11 @@ def get_best_params(fitting_df, protocol_label='protocol'):
 
     for protocol in fitting_df[protocol_label].unique():
         for well in fitting_df['well'].unique():
-            sub_df = fitting_df[(fitting_df['well'] == well)
-                                & (fitting_df[protocol_label] == protocol)].copy()
-            sub_df = sub_df.dropna()
-            for sweep in sub_df['sweep'].unique():
+            for sweep in fitting_df['sweep'].unique():
+                sub_df = fitting_df[(fitting_df['well'] == well)
+                                    & (fitting_df[protocol_label] == protocol)].copy()
                 sub_df = sub_df[sub_df.sweep == sweep]
+                sub_df = sub_df.dropna()
                 # Get index of min score
                 if len(sub_df.index) == 0:
                     continue
