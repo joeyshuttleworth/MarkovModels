@@ -33,7 +33,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
                                   removal_duration=args.removal_duration,
                                   repeats=args.repeats,
                                   infer_E_rev=infer_E_rev,
-                                  experiment_name=args.experiment_name, Erev=E_rev,
+                                  experiment_name=args.experiment_name, E_rev=E_rev,
                                   randomise_initial_guess=randomise_initial_guess,
                                   solver_type=args.solver_type, sweep=sweep)
 
@@ -332,10 +332,6 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
         prot_func, times, desc = common.get_ramp_protocol_from_csv(sim_protocol)
         full_times = pd.read_csv(os.path.join(args.data_directory,
                                          f"{args.experiment_name}-{sim_protocol}-times.csv"))['time'].values.flatten()
-
-        model = model_class(prot_func,
-                            times=full_times)
-
         voltages = np.array([prot_func(t) for t in full_times])
 
         spike_times, spike_indices = common.detect_spikes(full_times, voltages,
@@ -344,15 +340,10 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                                              time_to_remove=args.removal_duration)
         times = full_times[indices]
 
-        # Probably not worth compiling solver
-        model.protocol_description = desc
-        solver = model.make_forward_solver_current(njitted=True)
-
         colours = sns.color_palette('husl', len(params_df['protocol'].unique()))
 
         for well in params_df['well'].unique():
             for predict_sweep in params_df[params_df.protocol == sim_protocol].sweep.unique():
-                print(predict_sweep)
                 try:
                     full_data = common.get_data(well, sim_protocol,
                                                 args.data_directory,
@@ -361,6 +352,16 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                 except (FileNotFoundError, StopIteration) as exc:
                     print(str(exc))
                     continue
+
+                inferred_Erev = common.infer_reversal_potential(sim_protocol, full_data, full_times)
+
+                model = model_class(prot_func,
+                                    times=full_times,
+                                    E_rev=inferred_Erev)
+
+                # Probably not worth compiling solver
+                model.protocol_description = desc
+                solver = model.make_forward_solver_current(njitted=True)
 
                 data = full_data[indices]
 
@@ -409,7 +410,8 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                             for ax in trace_axs:
                                 ax.cla()
 
-                            all_models_axs[0].plot(times, prediction, label=protocol_fitted, color=colours[i])
+                            all_models_axs[0].plot(full_times, full_prediction,
+                                                   label=protocol_fitted, color=colours[i])
 
                 all_models_axs[1].set_xlabel("time / ms")
                 all_models_axs[0].set_ylabel("current / nA")

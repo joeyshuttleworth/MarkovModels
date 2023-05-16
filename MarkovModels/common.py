@@ -21,11 +21,6 @@ import logging
 import time
 import numpy.polynomial.polynomial as poly
 
-from .BeattieModel import BeattieModel
-from .ClosedOpenModel import ClosedOpenModel
-from .WangModel import WangModel
-from .KempModel import KempModel
-
 
 def get_protocol_directory():
     return os.path.join(os.path.dirname(os.path.realpath(__file__)), "protocols")
@@ -771,7 +766,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                   output_dir=None, T=None, K_in=None, K_out=None,
                   default_parameters: float = None, removal_duration=5,
                   repeats=1, infer_E_rev=False, fit_initial_conductance=True,
-                  experiment_name='newtonrun4', solver=None, Erev=None,
+                  experiment_name='newtonrun4', solver=None, E_rev=None,
                   randomise_initial_guess=True, parallel=False,
                   solver_type=None, sweep=None):
 
@@ -803,15 +798,15 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
             if output_dir:
                 plot = True
                 output_path = os.path.join(output_dir, 'infer_reversal_potential.png')
-            inferred_Erev = infer_reversal_potential(protocol, data, times, plot=plot,
+            inferred_E_rev = infer_reversal_potential(protocol, data, times, plot=plot,
                                                      output_path=output_path)
-            if inferred_Erev < -50 or inferred_Erev > -100:
-                Erev = inferred_Erev
+            if inferred_E_rev < -50 or inferred_E_rev > -100:
+                E_rev = inferred_E_rev
         except Exception:
             pass
 
     model = model_class(voltage=voltage_func, times=times,
-                        parameters=default_parameters, Erev=Erev,
+                        parameters=default_parameters, E_rev=E_rev,
                         protocol_description=protocol_desc)
 
     if default_parameters is not None:
@@ -1103,6 +1098,11 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
 
 
 def get_model_class(name: str):
+    from .BeattieModel import BeattieModel
+    from .ClosedOpenModel import ClosedOpenModel
+    from .WangModel import WangModel
+    from .KempModel import KempModel
+
     if name == 'Beattie' or name == 'BeattieModel':
         model_class = BeattieModel
     elif name == 'Kemp' or name == 'KempModel':

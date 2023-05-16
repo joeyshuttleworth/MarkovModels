@@ -9,6 +9,7 @@ from numba import njit, cfunc, literal_unroll
 import numba as nb
 import NumbaIDA
 
+from .common import calculate_reversal_potential
 from NumbaIDA import ida_sig, ida
 
 
@@ -29,7 +30,11 @@ class MarkovModel:
 
     def __init__(self, symbols, A, B, rates_dict, times, voltage=None,
                  tolerances=(1e-8, 1e-8), Q=None, protocol_description=None,
-                 name=None):
+                 name=None, E_rev=None):
+        if E_rev is None:
+            self.E_rev = calculate_reversal_potential()
+        else:
+            self.E_rev = E_rev
 
         self.Q = sp.sympify(Q)
 
@@ -85,7 +90,7 @@ class MarkovModel:
                                            modules='numpy', cse=True))
 
         self.auxillary_expression = self.p[self.GKr_index] * \
-            self.y[self.open_state_index] * (self.v - self.Erev)
+            self.y[self.open_state_index] * (self.v - self.E_rev)
 
         self.current_inf_expr = self.auxillary_expression.subs(self.y, self.rhs_inf)
         self.current_inf = lambda p: np.array(self.current_inf_expr.subs(
@@ -708,7 +713,7 @@ class MarkovModel:
                                            strict=strict)
 
         open_index = self.open_state_index
-        Erev = self.Erev
+        E_rev = self.E_rev
         gkr_index = self.GKr_index
 
         times = self.times
@@ -724,7 +729,7 @@ class MarkovModel:
                 voltages[i] = voltage_func(times[i])
 
             states = hybrid_solver(p, times=times)
-            return ((states[:, open_index] * p[gkr_index]) * (voltages - Erev)).flatten()
+            return ((states[:, open_index] * p[gkr_index]) * (voltages - E_rev)).flatten()
 
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve
 
@@ -744,7 +749,7 @@ class MarkovModel:
 
         gkr_index = self.GKr_index
         open_index = self.open_state_index
-        Erev = self.Erev
+        E_rev = self.E_rev
 
         if voltages is None:
             voltages = self.GetVoltage()
@@ -754,7 +759,7 @@ class MarkovModel:
 
         def forward_solver(p=params, times=times, voltages=voltages, atol=atol, rtol=rtol):
             states = solver_states(p, times, atol, rtol)
-            return ((states[:, open_index] * p[gkr_index]) * (voltages - Erev)).flatten()
+            return ((states[:, open_index] * p[gkr_index]) * (voltages - E_rev)).flatten()
 
         return njit(forward_solver) if njitted else forward_solver
 
@@ -767,7 +772,7 @@ class MarkovModel:
 
         gkr_index = self.GKr_index
         open_index = self.open_state_index
-        Erev = self.Erev
+        E_rev = self.E_rev
 
         if voltages is None:
             voltages = self.GetVoltage()
@@ -778,7 +783,7 @@ class MarkovModel:
 
         def forward_solver(p=default_parameters, times=times, voltages=voltages, atol=atol, rtol=rtol):
             states = solver_states(p, times, atol, rtol)
-            return ((states[:, open_index] * p[gkr_index]) * (voltages - Erev)).flatten()
+            return ((states[:, open_index] * p[gkr_index]) * (voltages - E_rev)).flatten()
 
         return forward_solver
 
@@ -963,11 +968,11 @@ class MarkovModel:
 
         voltages = self.GetVoltage(times=times)
 
-        current = p[self.GKr_index] * o * (voltages - self.Erev)
+        current = p[self.GKr_index] * o * (voltages - self.E_rev)
 
-        dIdo = (voltages - self.Erev) * p[-1]
+        dIdo = (voltages - self.E_rev) * p[-1]
         values = sensitivities * dIdo[:, None]
-        values[:, self.GKr_index] += o * (voltages - self.Erev)
+        values[:, self.GKr_index] += o * (voltages - self.E_rev)
 
         return current, values
 
