@@ -832,14 +832,17 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
             return np.sum((data - solver(p_vec))**2)
 
         res = scipy.optimize.minimize_scalar(optim_func,
-                                            default_parameters[model.GKr_index],
-                                            method='bounded', bounds=[0, 1e3])
+                                             default_parameters[model.GKr_index],
+                                             method='bounded', bounds=[0, 1e3])
+
         params_scaled = default_parameters.copy()
         params_scaled[model.GKr_index] = res.x
-        starting_parameters = params_scaled
+
+        if optim_func(params_scaled) < optim_func(default_parameters[model.GKr_index]):
+            default_parameters = params_scaled
 
     fitted_params, score, fitting_df = fit_model(model, data, solver=solver,
-                                                 starting_parameters=starting_parmaeters,
+                                                 starting_parameters=default_parameters,
                                                  max_iterations=max_iterations,
                                                  subset_indices=indices,
                                                  parallel=parallel,
