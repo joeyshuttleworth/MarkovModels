@@ -18,7 +18,7 @@ class BeattieModel(MarkovModel):
     open_state_index = 1
     holding_potential = -80
 
-    def __init__(self, voltage=None, times=None, Erev: float = None,
+    def __init__(self, voltage=None, times=None,
                  parameters=None, *args, **kwargs):
         # Create symbols for symbolic functions
         symbols = self.CreateSymbols()
@@ -28,15 +28,9 @@ class BeattieModel(MarkovModel):
         if parameters is None:
             self.default_parameters = np.array((2.26E-4, 6.99E-2, 3.448E-5,
                                                 5.460E-2, 0.0873, 8.91E-3,
-                                                5.15E-3, 0.003158, 0.1524))
+                                                5.15E-3, 0.03158, 0.1524))
         else:
             self.default_parameters = parameters
-
-        if Erev is None:
-            self.Erev = -80
-            self.Erev = common.calculate_reversal_potential()
-        else:
-            self.Erev = Erev
 
         if times is None:
             times = np.linspace(0, 15000, 1000)

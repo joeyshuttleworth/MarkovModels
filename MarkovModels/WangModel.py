@@ -15,7 +15,7 @@ class WangModel(MarkovModel):
     constructed using Markov_builder
     """
 
-    def __init__(self, voltage=None, times=None, Erev: float = None,
+    def __init__(self, voltage=None, times=None,
                  parameters=None, *args, **kwargs):
         # Create symbols for symbolic functions
 
@@ -30,13 +30,6 @@ class WangModel(MarkovModel):
                                  if str(key) not in ['E_Kr', 'E_rev']]
         if parameters is not None:
             self.default_parameters = parameters
-
-        if Erev is None:
-            self.Erev = -80
-        else:
-            # Use default Erev
-            common.calculate_reversal_potential()
-            self.Erev = Erev
 
         if times is None:
             times = np.linspace(0, 15000, 1000)

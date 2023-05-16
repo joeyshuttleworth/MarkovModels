@@ -21,11 +21,6 @@ import logging
 import time
 import numpy.polynomial.polynomial as poly
 
-from .BeattieModel import BeattieModel
-from .ClosedOpenModel import ClosedOpenModel
-from .WangModel import WangModel
-from .KempModel import KempModel
-
 
 def get_protocol_directory():
     return os.path.join(os.path.dirname(os.path.realpath(__file__)), "protocols")
@@ -672,19 +667,26 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         if randomise_initial_guess:
-            point2 = [p for i, p in enumerate(starting_parameter_sets[best_index]) if i not
+            point2 = [p for i, p in enumerate(mm.get_default_parameters()) if i not
                       in fix_parameters]
-        else:
-            point2 = [p for i, p in enumerate(mm.get_default_parameters()) if i
-                      not in fix_parameters]
-
         fig, axes = pints.plot.function_between_points(error,
                                                        point_1=best_parameters,
                                                        point_2=point2,
                                                        padding=0.1,
                                                        evaluations=100)
 
-        fig.savefig(os.path.join(output_dir, 'best_fitting_profile'))
+        fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_default'))
+        fig.clf()
+        point_2 = starting_parameter_sets[best_index % len(starting_parameter_sets)]
+
+        fig, axes = pints.plot.function_between_points(error,
+                                                       point_1=best_parameters,
+                                                       point_2=point_2,
+                                                       padding=0.1,
+                                                       evaluations=100)
+
+        fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_default'))
+        fig.clf()
 
     if fix_parameters:
         for i in np.unique(fix_parameters):
@@ -771,7 +773,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                   output_dir=None, T=None, K_in=None, K_out=None,
                   default_parameters: float = None, removal_duration=5,
                   repeats=1, infer_E_rev=False, fit_initial_conductance=True,
-                  experiment_name='newtonrun4', solver=None, Erev=None,
+                  experiment_name='newtonrun4', solver=None, E_rev=None,
                   randomise_initial_guess=True, parallel=False,
                   solver_type=None, sweep=None):
 
@@ -803,15 +805,15 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
             if output_dir:
                 plot = True
                 output_path = os.path.join(output_dir, 'infer_reversal_potential.png')
-            inferred_Erev = infer_reversal_potential(protocol, data, times, plot=plot,
+            inferred_E_rev = infer_reversal_potential(protocol, data, times, plot=plot,
                                                      output_path=output_path)
-            if inferred_Erev < -50 or inferred_Erev > -100:
-                Erev = inferred_Erev
+            if inferred_E_rev < -50 or inferred_E_rev > -100:
+                E_rev = inferred_E_rev
         except Exception:
             pass
 
     model = model_class(voltage=voltage_func, times=times,
-                        parameters=default_parameters, Erev=Erev,
+                        parameters=default_parameters, E_rev=E_rev,
                         protocol_description=protocol_desc)
 
     if default_parameters is not None:
@@ -851,17 +853,29 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
             raise Exception(f"solver type: {solver_type} is not valid")
         solver = model.make_forward_solver_current()
 
+    # scale conductance to match data
+    def optim_func(p):
+        p_vec = default_parameters.copy()
+        p_vec[model.GKr_index] = p
+        return np.sum((data - solver(p_vec))**2)
+
+    res = scipy.optimize.minimize_scalar(optim_func,
+                                         default_parameters[model.GKr_index],
+                                         method='bounded', bounds=[0, 1e3])
+    params_scaled = default_parameters.copy()
+    params_scaled[model.GKr_index] = res.x
+
     for i, row in fitting_df.iterrows():
         fitted_params = row[model.get_parameter_labels()].values.flatten()
-        ax = fig.subplots(1)
+        ax = fig.subplots()
         ax.plot(times, solver(fitted_params), label='fitted parameters')
-        ax.plot(times, solver(), label='default parameters')
+        ax.plot(times, solver(params_scaled), label='default parameters')
         ax.plot(times, data, color='grey', label='data', alpha=.5)
 
         ax.legend()
 
         if infer_E_rev:
-            fitted_params = np.append(fitted_params, Erev)
+            fitted_params = np.append(fitted_params, E_rev)
 
         if output_dir is not None:
             if not os.path.exists(output_dir):
@@ -869,7 +883,6 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
 
             fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit_{i}"))
             ax.cla()
-            ax.plot(times, data)
     plt.close(fig)
 
     fitting_df['score'] = fitting_df['RMSE']
@@ -1103,6 +1116,11 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
 
 
 def get_model_class(name: str):
+    from .BeattieModel import BeattieModel
+    from .ClosedOpenModel import ClosedOpenModel
+    from .WangModel import WangModel
+    from .KempModel import KempModel
+
     if name == 'Beattie' or name == 'BeattieModel':
         model_class = BeattieModel
     elif name == 'Kemp' or name == 'KempModel':
