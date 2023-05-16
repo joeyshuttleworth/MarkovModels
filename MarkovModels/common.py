@@ -685,7 +685,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                                                        padding=0.1,
                                                        evaluations=100)
 
-        fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_default'))
+        fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_initial_guess'))
         fig.clf()
 
     if fix_parameters:
@@ -775,7 +775,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                   repeats=1, infer_E_rev=False, fit_initial_conductance=True,
                   experiment_name='newtonrun4', solver=None, E_rev=None,
                   randomise_initial_guess=True, parallel=False,
-                  solver_type=None, sweep=None):
+                  solver_type=None, sweep=None, scale_conductance=True):
 
     if default_parameters is None or len(default_parameters) == 0:
         default_parameters = model_class().get_default_parameters()
@@ -806,7 +806,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                 plot = True
                 output_path = os.path.join(output_dir, 'infer_reversal_potential.png')
             inferred_E_rev = infer_reversal_potential(protocol, data, times, plot=plot,
-                                                     output_path=output_path)
+                                                      output_path=output_path)
             if inferred_E_rev < -50 or inferred_E_rev > -100:
                 E_rev = inferred_E_rev
         except Exception:
@@ -824,8 +824,22 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     if infer_E_rev:
         columns.append("E_rev")
 
+    if scale_conductance:
+        # scale conductance to match data
+        def optim_func(p):
+            p_vec = default_parameters.copy()
+            p_vec[model.GKr_index] = p
+            return np.sum((data - solver(p_vec))**2)
+
+        res = scipy.optimize.minimize_scalar(optim_func,
+                                            default_parameters[model.GKr_index],
+                                            method='bounded', bounds=[0, 1e3])
+        params_scaled = default_parameters.copy()
+        params_scaled[model.GKr_index] = res.x
+        starting_parameters = params_scaled
+
     fitted_params, score, fitting_df = fit_model(model, data, solver=solver,
-                                                 starting_parameters=initial_params,
+                                                 starting_parameters=starting_parmaeters,
                                                  max_iterations=max_iterations,
                                                  subset_indices=indices,
                                                  parallel=parallel,
@@ -852,18 +866,6 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
         else:
             raise Exception(f"solver type: {solver_type} is not valid")
         solver = model.make_forward_solver_current()
-
-    # scale conductance to match data
-    def optim_func(p):
-        p_vec = default_parameters.copy()
-        p_vec[model.GKr_index] = p
-        return np.sum((data - solver(p_vec))**2)
-
-    res = scipy.optimize.minimize_scalar(optim_func,
-                                         default_parameters[model.GKr_index],
-                                         method='bounded', bounds=[0, 1e3])
-    params_scaled = default_parameters.copy()
-    params_scaled[model.GKr_index] = res.x
 
     for i, row in fitting_df.iterrows():
         fitted_params = row[model.get_parameter_labels()].values.flatten()
