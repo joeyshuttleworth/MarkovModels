@@ -824,36 +824,6 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     if infer_E_rev:
         columns.append("E_rev")
 
-    if scale_conductance:
-        # scale conductance to match data
-        def optim_func(p):
-            p_vec = default_parameters.copy()
-            p_vec[model.GKr_index] = p
-            return np.sum((data - solver(p_vec))**2)
-
-        res = scipy.optimize.minimize_scalar(optim_func,
-                                             default_parameters[model.GKr_index],
-                                             method='bounded', bounds=[0, 1e3])
-
-        params_scaled = default_parameters.copy()
-        params_scaled[model.GKr_index] = res.x
-
-        if optim_func(params_scaled) < optim_func(default_parameters[model.GKr_index]):
-            default_parameters = params_scaled
-
-    fitted_params, score, fitting_df = fit_model(model, data, solver=solver,
-                                                 starting_parameters=default_parameters,
-                                                 max_iterations=max_iterations,
-                                                 subset_indices=indices,
-                                                 parallel=parallel,
-                                                 randomise_initial_guess=randomise_initial_guess,
-                                                 return_fitting_df=True,
-                                                 repeats=repeats,
-                                                 output_dir=output_dir,
-                                                 solver_type=solver_type)
-
-    fig = plt.figure(figsize=(14, 12))
-
     if solver is not None and solver_type is not None:
         raise Exception('solver and solver type provided')
 
@@ -870,6 +840,35 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
             raise Exception(f"solver type: {solver_type} is not valid")
         solver = model.make_forward_solver_current()
 
+    if scale_conductance:
+        # scale conductance to match data
+        def optim_func(p):
+            p_vec = default_parameters.copy()
+            p_vec[model.GKr_index] = p
+            return np.sum((data - solver(p_vec))**2)
+
+        res = scipy.optimize.minimize_scalar(optim_func,
+                                             default_parameters[model.GKr_index],
+                                             method='bounded', bounds=[0, 1e3])
+
+        params_scaled = default_parameters.copy()
+        params_scaled[model.GKr_index] = res.x
+
+        if optim_func(params_scaled[model.GKr_index]) < optim_func(default_parameters[model.GKr_index]):
+            default_parameters = params_scaled
+
+    fitted_params, score, fitting_df = fit_model(model, data, solver=solver,
+                                                 starting_parameters=default_parameters,
+                                                 max_iterations=max_iterations,
+                                                 subset_indices=indices,
+                                                 parallel=parallel,
+                                                 randomise_initial_guess=randomise_initial_guess,
+                                                 return_fitting_df=True,
+                                                 repeats=repeats,
+                                                 output_dir=output_dir,
+                                                 solver_type=solver_type)
+
+    fig = plt.figure(figsize=(14, 12))
     for i, row in fitting_df.iterrows():
         fitted_params = row[model.get_parameter_labels()].values.flatten()
         ax = fig.subplots()
