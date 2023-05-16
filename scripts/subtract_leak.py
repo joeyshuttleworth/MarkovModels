@@ -18,7 +18,11 @@ import uuid
 from matplotlib import rc
 import multiprocessing
 
-# rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+import matplotlib
+matplotlib.use('agg')
+
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+rc('text', usetex=True)
 
 from matplotlib.gridspec import GridSpec
 
@@ -270,6 +274,17 @@ def subtract_leak(well, protocol):
     dt = observation_times[1] - observation_times[0]
 
     df = []
+
+    if not args.no_plot:
+        subtract_scatter_fig = plt.figure(figsize=args.figsize)
+        axs = subtract_scatter_fig.subplots(2, 2, sharex=True)
+        [[scatter_ax_before, window_ax_before], [scatter_ax_after, window_ax_after]] = axs
+
+    scatter_plots_dir = os.path.join(output, 'scatter_plots')
+
+    if not os.path.exists(scatter_plots_dir):
+        os.makedirs(scatter_plots_dir)
+
     for sweep in range(1, nsweeps + 1):
         before_filename = f"{experiment_name}-{protocol}-{well}-before-sweep{sweep}.csv"
         after_filename = f"{experiment_name}-{protocol}-{well}-after-sweep{sweep}.csv"
@@ -304,6 +319,22 @@ def subtract_leak(well, protocol):
             g_leak_before = np.nan
             E_leak_before = np.nan
 
+        if not args.no_plot:
+            scatter_ax_before.scatter(x, y, marker='s', color='grey', s=2)
+            ypred = (x - E_leak_before) * g_leak_before
+            scatter_ax_before.plot(x, ypred, color='red')
+
+            indices_to_plot = [i for i, t in enumerate(observation_times) if t
+                               <= args.ramp_end * 2]
+
+            window_ax_before.plot(observation_times[indices_to_plot],
+                                  before_trace[indices_to_plot], alpha=.5, color='grey')
+
+            window_ax_before.plot(observation_times[indices_to_plot],
+                                  (protocol_voltages[indices_to_plot] - E_leak_before) * g_leak_before)
+
+            window_ax_before.axvspan(args.ramp_start, args.ramp_end,
+                                     alpha=.5)
         if after_trace is not None:
             g_leak_after, E_leak_after, _, _, _, x, y = fit_leak_lr(
                 protocol_voltages, after_trace, dt=dt,
@@ -317,6 +348,38 @@ def subtract_leak(well, protocol):
         else:
             g_leak_after = np.nan
             E_leak_after = np.nan
+
+        if not args.no_plot:
+            scatter_ax_after.scatter(x, y, color='grey', s=2, marker='s')
+            ypred = (x - E_leak_after) * g_leak_after
+            scatter_ax_after.plot(x, ypred, color='red')
+            window_ax_after.plot(observation_times[indices_to_plot],
+                                 after_trace[indices_to_plot], alpha=.5, color='grey')
+
+            window_ax_after.plot(observation_times[indices_to_plot],
+                                  (protocol_voltages[indices_to_plot] - E_leak_after) * g_leak_after)
+
+            window_ax_after.axvspan(args.ramp_start, args.ramp_end,
+                                    color='grey', alpha=.25)
+
+            window_ax_before.set_xlabel('time / ms')
+            window_ax_after.set_xlabel('time / ms')
+
+            window_ax_before.set_ylabel(r'$I_{\textrm{Kr}}$ / pA')
+            window_ax_after.set_ylabel(r'$I_{\textrm{Kr}}$ / pA')
+
+            scatter_ax_before.set_xlabel(r'$V$ / mV')
+            scatter_ax_after.set_xlabel(r'$V$ / mV')
+
+            scatter_ax_after.set_xlim([-125, -75])
+
+            subtract_scatter_fig.savefig(os.path.join(scatter_plots_dir,
+                                                      f"{well}_{protocol}_sweep{sweep}_subtraction_scatter"))
+
+            window_ax_after.cla()
+            window_ax_before.cla()
+            scatter_ax_after.cla()
+            scatter_ax_before.cla()
 
         if before_trace is not None:
             before_corrected = before_trace - (g_leak_before * (protocol_voltages - E_leak_before))
