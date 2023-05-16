@@ -23,7 +23,7 @@ from numba import njit
 
 # rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 
-Erev = common.calculate_reversal_potential(T=298.15, K_in=120, K_out=5)
+Erev = common.calculate_reversal_potential(T=298.15, K_in=130, K_out=4)
 
 pool_kws = {'maxtasksperchild': 1}
 
@@ -316,12 +316,30 @@ def plot_reversal_spread(df):
 def plot_histograms(df):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
-    # df = df[df['selected']]
     sns.histplot(df,
                  x='fitted_E_rev', hue='passed QC', ax=ax,
-                 stat='probability', common_norm=False)
+                 # stat='probability',
+                 # common_norm=False
+                 )
     ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
     fig.savefig(os.path.join(output_dir, 'reversal_potential_histogram'))
+    ax.cla()
+
+    averaged_fitted_EKr = df.groupby(['well'])['fitted_E_rev'].mean().copy().to_frame()
+    print(averaged_fitted_EKr)
+    averaged_fitted_EKr['passed QC'] = [np.all(df[df.well == well]['passed QC']) for well in averaged_fitted_EKr.index]
+
+    sns.histplot(averaged_fitted_EKr,
+                 x='fitted_E_rev', hue='passed QC', ax=ax,
+                 # stat='probability',
+                 # common_norm=False
+                 )
+    fig.savefig(os.path.join(output_dir, 'averaged_reversal_potential_histogram'))
+
+    ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
+    fig.savefig(os.path.join(output_dir, 'reversal_potential_histogram'))
+
+
 
     ax.cla()
     sns.histplot(df,
@@ -387,7 +405,6 @@ def overlay_reversal_plots(leak_parameters_df):
 
                 voltages = np.array([protocol_func(t) for t in times])
 
-                print(i)
                 col = palette[i]
 
                 ax.scatter(voltages[istart:iend], current[istart:iend], label=protocol,
