@@ -277,7 +277,7 @@ def subtract_leak(well, protocol):
 
     if not args.no_plot:
         subtract_scatter_fig = plt.figure(figsize=args.figsize)
-        axs = subtract_scatter_fig.subplots(2, 2, sharex=True)
+        axs = subtract_scatter_fig.subplots(2, 2)
         [[scatter_ax_before, window_ax_before], [scatter_ax_after, window_ax_after]] = axs
 
     scatter_plots_dir = os.path.join(output, 'scatter_plots')
