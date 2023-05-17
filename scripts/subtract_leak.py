@@ -246,8 +246,13 @@ def overlay_first_last_staircases(well):
 
     sub_dir = os.path.join(output, 'first_last_staircase_compare')
 
-    if not os.path.exists(sub_dir):
-        os.makedirs(sub_dir)
+    try:
+        if not os.path.exists(sub_dir):
+            os.makedirs(sub_dir)
+
+    except FileExistsError as exc:
+        # Directory already exists or there's a file here
+        print(str(exc))
 
     fig.savefig(os.path.join(sub_dir, f"{well}_overlaid.png"))
     plt.close(fig)
@@ -513,6 +518,7 @@ def subtract_leak(well, protocol):
 
         fig.savefig(os.path.join(output, f"{well}_{protocol}_traces_from_leak_subtraction"))
         plt.close(fig)
+        plt.close(subtract_scatter_fig)
 
     df = pd.DataFrame(df, columns=('protocol', 'well', 'sweep', 'before/after',
                                    'fitted_E_rev', 'passed QC6',
@@ -521,7 +527,6 @@ def subtract_leak(well, protocol):
                                    ' conductance', 'pre-drug leak reversal',
                                    'post-drug leak reversal'))
 
-    plt.close(subtract_scatter_fig)
     return df
 
 
