@@ -255,6 +255,7 @@ def main():
         best_params = best_params_row[param_labels].astype(np.float64).values.flatten()
         task[3] = best_params
         task[6] = ''
+        task[5] = False
 
     if args.refit:
         with multiprocessing.Pool(pool_size, **pool_kws) as pool:
