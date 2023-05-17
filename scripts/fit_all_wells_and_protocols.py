@@ -21,8 +21,8 @@ pool_kws = {'maxtasksperchild': 1}
 
 
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
-             randomise_initial_guess=True, sweep=None):
-    this_output_dir = os.path.join(output_dir, f"{protocol}_{well}_sweep{sweep}")
+             randomise_initial_guess=True, prefix='', sweep=None):
+    this_output_dir = os.path.join(output_dir, f"{prefix}_{protocol}_{well}_sweep{sweep}")
 
     infer_E_rev = not args.dont_infer_Erev
 
@@ -192,9 +192,9 @@ def main():
         if args.sweeps:
             sweep = groups[2]
             tasks.append([protocol, well, model_class, starting_parameters, Erev,
-                          not args.dont_randomise_initial_guess, sweep])
+                          not args.dont_randomise_initial_guess, 'prelim', sweep])
         else:
-            tasks.append([protocol, well, model_class, starting_parameters, Erev,
+            tasks.append([protocol, well, model_class, starting_parameters, Erev, 'prelim',
                           not args.dont_randomise_initial_guess])
 
         protocols_list.append(protocol)
@@ -246,14 +246,15 @@ def main():
 
     for task in tasks:
         if args.sweeps:
-            protocol, well, model_class, default_parameters, Erev, randomise, sweep = task
+            protocol, well, model_class, default_parameters, Erev, randomise, _, sweep = task
         else:
-            protocol, well, model_class, default_parameters, Erev, randomise = task
+            protocol, well, model_class, default_parameters, Erev, randomise, _ = task
         best_params_row = best_params_df[(best_params_df.well == well)
                                          & (best_params_df.validation_protocol == protocol)].head(1)
         param_labels = model_class().get_parameter_labels()
         best_params = best_params_row[param_labels].astype(np.float64).values.flatten()
         task[3] = best_params
+        task[6] = ''
 
     if args.refit:
         with multiprocessing.Pool(pool_size, **pool_kws) as pool:
