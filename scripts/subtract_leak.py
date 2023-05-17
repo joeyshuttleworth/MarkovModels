@@ -250,6 +250,7 @@ def overlay_first_last_staircases(well):
         os.makedirs(sub_dir)
 
     fig.savefig(os.path.join(sub_dir, f"{well}_overlaid.png"))
+    plt.close(fig)
 
 
 def subtract_leak(well, protocol):
@@ -334,7 +335,8 @@ def subtract_leak(well, protocol):
                                   (protocol_voltages[indices_to_plot] - E_leak_before) * g_leak_before)
 
             window_ax_before.axvspan(args.ramp_start, args.ramp_end,
-                                     alpha=.5)
+                                     color='grey', alpha=.5)
+
         if after_trace is not None:
             g_leak_after, E_leak_after, _, _, _, x, y = fit_leak_lr(
                 protocol_voltages, after_trace, dt=dt,
@@ -519,6 +521,7 @@ def subtract_leak(well, protocol):
                                    ' conductance', 'pre-drug leak reversal',
                                    'post-drug leak reversal'))
 
+    plt.close(subtract_scatter_fig)
     return df
 
 
