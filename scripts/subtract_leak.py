@@ -63,8 +63,11 @@ def main():
     global output
     output = common.setup_output_directory(args.output, f"subtract_leak_{experiment_name}")
 
-    if not os.path.exists(output):
-        os.makedirs(output)
+    global leak_subtraction_plots_dir
+    leak_subtraction_plots_dir = os.path.join(output, 'subtraction_plots')
+
+    if not os.path.exists(leak_subtraction_plots_dir):
+        os.makedirs(leak_subtraction_plots_dir)
 
     global reversal_plot_dir
     reversal_plot_dir = os.path.join(output, 'reversal_plots')
@@ -321,8 +324,10 @@ def subtract_leak(well, protocol):
             sd = np.sqrt(msres * (1 / n + (40 - x.mean())**2 / ((x**2).sum())))
             # before_sd = sd
 
-            common.infer_reversal_potential(protocol, before_trace, observation_times,
-                                            os.path.join(reversal_plot_dir, "{well}_{protocol}_sweep{sweep}_before"))
+            common.infer_reversal_potential(protocol, before_trace,
+                                            observation_times, plot=True,
+                                            output_path=os.path.join(reversal_plot_dir,
+                                                                    f"{well}_{protocol}_sweep{sweep}_before"))
 
         else:
             g_leak_before = np.nan
@@ -355,8 +360,10 @@ def subtract_leak(well, protocol):
             n = len(x)
             msres = (((x - E_leak_before) * g_leak_before - y)**2 / (n - 2)).sum()
 
-            common.infer_reversal_potential(protocol, before_trace, observation_times,
-                                            os.path.join(reversal_plot_dir, "{well}_{protocol}_sweep{sweep}_after"))
+            common.infer_reversal_potential(protocol, before_trace,
+                                            observation_times, plot=True,
+                                            output_path=os.path.join(reversal_plot_dir,
+                                                                    f"{well}_{protocol}_sweep{sweep}_after"))
 
         else:
             g_leak_after = np.nan
@@ -412,7 +419,7 @@ def subtract_leak(well, protocol):
                                                            subtracted_trace,
                                                            observation_times,
                                                            output_path=os.path.join(reversal_plot_dir,
-                                                                                    f"reversal_potential_{protocol}_{well}"),
+                                                                                    f"subtracted_{protocol}_{well}"),
                                                            ax=reversal_ax,
                                                            plot=not args.no_plot)
 
@@ -486,11 +493,11 @@ def subtract_leak(well, protocol):
 
         # Can we infer reversal potential from subtracted trace
         try:
-            output_path = os.path.join(args.output_path,
+            output_path = os.path.join(reversal_plot_dir,
                                        f"{protocol}_{well}_sweep{sweep}_subtracted.png")
             Erev = common.infer_reversal_potential(protocol, subtracted_trace,
-                                                   observation_times, plot=True,
-                                                   output_path=output_path)
+                                                   observation_times,
+                                                   plot=False)
         except Exception:
             Erev = -np.inf
 
@@ -522,7 +529,7 @@ def subtract_leak(well, protocol):
         long_protocol_ax.set_ylabel("Voltage /mV")
         long_protocol_ax.set_xlabel("time /ms")
 
-        fig.savefig(os.path.join(output, f"{well}_{protocol}_traces_from_leak_subtraction"))
+        fig.savefig(os.path.join(leak_subtraction_plots_dir, f"{well}_{protocol}_traces_from_leak_subtraction"))
         plt.close(fig)
         plt.close(subtract_scatter_fig)
 
