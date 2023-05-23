@@ -19,6 +19,10 @@ import numba
 import uuid
 from matplotlib import rc
 import multiprocessing
+
+import string
+import matplotlib
+
 from numba import njit
 
 # rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
@@ -124,11 +128,12 @@ def main():
         leak_parameters_df['passed QC'] = leak_parameters_df['passed QC'] \
             & leak_parameters_df['selected']
 
+    plot_spatial_Erev(leak_parameters_df)
     plot_reversal_spread(leak_parameters_df)
     do_scatter_matrix(leak_parameters_df)
     plot_histograms(leak_parameters_df)
     overlay_reversal_plots(leak_parameters_df)
-    # do_combined_plots(leak_parameters_df)
+    do_combined_plots(leak_parameters_df)
 
 
 def compute_leak_magnitude(df, lims=[-120, 60]):
@@ -188,17 +193,19 @@ def do_chronological_plots(leak_parameters_df):
 
 
 def do_combined_plots(leak_parameters_df):
-
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
 
     palette = sns.color_palette('husl', len(leak_parameters_df.well.unique()))
-
     wells = [well for well in leak_parameters_df.well.unique() if well in passed_wells]
 
     for protocol in leak_parameters_df.protocol.unique():
         times_fname = f"{experiment_name}-{protocol}-times.csv"
-        times = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', times_fname))
+        try:
+            times = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', times_fname))
+        except FileNotFoundError:
+            continue
+
         times = times['time'].values.flatten().astype(np.float64)
 
         reference_current = None
@@ -284,6 +291,11 @@ def do_scatter_matrix(df):
                         hue_order=[False, True])
     grid.savefig(os.path.join(output_dir, 'scatter_matrix'))
 
+    grid = sns.pairplot(data=df, hue=df['fitted_E_rev'] > args.reversal, diag_kind='hist',
+                        plot_kws={'alpha':0.4, 'edgecolor': None},
+                        hue_order=[False, True])
+    grid.savefig(os.path.join(output_dir, 'scatter_matrix'))
+
 
 def plot_reversal_spread(df):
     df.fitted_E_rev = df.fitted_E_rev.values.astype(np.float64)
@@ -311,6 +323,67 @@ def plot_reversal_spread(df):
 
     fig.savefig(os.path.join(output_dir, 'spread_of_fitted_E_Kr'))
     df.to_csv(os.path.join(output_dir, 'spread_of_fitted_E_Kr.csv'))
+
+
+def plot_spatial_Erev(df):
+    fig = plt.figure(figsize=args.figsize)
+    ax = fig.subplots()
+
+    def func(protocol, sweep):
+        zs = []
+        found_value = False
+        for row in range(18):
+            for column in range(24):
+                well = f"{string.ascii_uppercase[row]}{column+1:02d}"
+                sub_df = df[(df.protocol == protocol) & (df.sweep == sweep)
+                            & (df.well == well)]
+
+                if len(sub_df.index) > 1:
+                    Exception("Multiple rows values for same (protocol, sweep, well)"
+                              "\n ({protocol}, {sweep}, {well})")
+                elif len(sub_df.index) == 0:
+                    EKr = np.nan
+                else:
+                    EKr = sub_df['fitted_E_rev'].values.astype(np.float64)[0]
+
+                found_value = True
+
+                zs.append(EKr)
+
+        print(zs)
+        zs = np.array(zs).reshape((18, 24))
+        print(zs)
+
+        if found_value:
+            return
+
+        im = ax.pcolormesh(zs, cmap=matplotlib.cm.gray, edgecolors='white',
+                           linewidths=1, antialiased=True)
+        try:
+            fig.colorbar(im)
+        except Exception as exc:
+            print(str(exc))
+        fig.savefig(os.path.join(output_dir, f"{protocol}_sweep{sweep}_E_Kr_map"))
+
+        ax.cla()
+
+        zs = np.array(zs) > args.reversal
+        im = ax.pcolormesh(zs, cmap='binary', edgecolors='white',
+                           linewidths=1, antialiased=True)
+
+        try:
+            fig.colorbar(im)
+        except Exception as exc:
+            print(str(exc))
+
+        fig.savefig(os.path.join(output_dir, f"{protocol}_sweep{sweep}_E_Kr_map_binary"))
+
+    plt.close(fig)
+
+    for protocol in df.protocol.unique():
+        for sweep in df.sweep.unique():
+            func(protocol, sweep)
+    return
 
 
 def plot_histograms(df):
@@ -379,6 +452,8 @@ def overlay_reversal_plots(leak_parameters_df):
         if False in leak_parameters_df[leak_parameters_df.well == well]['passed QC'].values:
             continue
         for i, protocol in enumerate(protocols):
+            if protocol == np.nan:
+                continue
             for sweep in [1, 2]:
                 protocol_func, _, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
                 fname = f"{experiment_name}-{protocol}-{well}-sweep{sweep}.csv"

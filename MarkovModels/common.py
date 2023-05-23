@@ -666,19 +666,24 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     if output_dir:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        point2 = [p for i, p in enumerate(mm.get_default_parameters()) if i not
-                  in fix_parameters]
+        if randomise_initial_guess:
+            point2 = [p for i, p in enumerate(mm.get_default_parameters()) if i not
+                      in fix_parameters]
+            fig, axes = pints.plot.function_between_points(error,
+                                                           point_1=best_parameters,
+                                                           point_2=point2,
+                                                           padding=0.1,
+                                                           evaluations=100)
+
+            fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_default'))
+            fig.clf()
+
+        point_2 = starting_parameter_sets[best_index % len(starting_parameter_sets)]
         fig, axes = pints.plot.function_between_points(error,
                                                        point_1=best_parameters,
-                                                       point_2=point2,
+                                                       point_2=point_2,
                                                        padding=0.1,
                                                        evaluations=100)
-
-        fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_default'))
-        fig.clf()
-
-        if randomise_initial_guess:
-            point_2 = starting_parameter_sets[best_index % len(starting_parameter_sets)]
 
             fig, axes = pints.plot.function_between_points(error,
                                                            point_1=best_parameters,
@@ -923,9 +928,6 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
 
     protocol_func, _, protocol_desc = get_ramp_protocol_from_csv(protocol)
 
-    tstart = times[0]
-    tstep = times[1] - times[0]
-
     # First, find the reversal ramp. Search backwards along the protocol until we find a >= 40mV step
     step = next(filter(lambda x: x[2] >= -74, reversed(protocol_desc)))
 
@@ -959,7 +961,9 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
         return np.nan
 
     if plot:
+        created_fig = False
         if ax is None:
+            created_fig = True
             fig = plt.figure()
             ax = fig.subplots()
 
@@ -975,6 +979,9 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
         if output_path is not None:
             fig = ax.figure
             fig.savefig(output_path)
+
+        if created_fig:
+            plt.close(fig)
 
     return roots[-1]
 

@@ -63,8 +63,11 @@ def main():
     global output
     output = common.setup_output_directory(args.output, f"subtract_leak_{experiment_name}")
 
-    if not os.path.exists(output):
-        os.makedirs(output)
+    global leak_subtraction_plots_dir
+    leak_subtraction_plots_dir = os.path.join(output, 'subtraction_plots')
+
+    if not os.path.exists(leak_subtraction_plots_dir):
+        os.makedirs(leak_subtraction_plots_dir)
 
     global reversal_plot_dir
     reversal_plot_dir = os.path.join(output, 'reversal_plots')
@@ -246,10 +249,16 @@ def overlay_first_last_staircases(well):
 
     sub_dir = os.path.join(output, 'first_last_staircase_compare')
 
-    if not os.path.exists(sub_dir):
-        os.makedirs(sub_dir)
+    try:
+        if not os.path.exists(sub_dir):
+            os.makedirs(sub_dir)
+
+    except FileExistsError as exc:
+        # Directory already exists or there's a file here
+        print(str(exc))
 
     fig.savefig(os.path.join(sub_dir, f"{well}_overlaid.png"))
+    plt.close(fig)
 
 
 def subtract_leak(well, protocol):
@@ -312,8 +321,13 @@ def subtract_leak(well, protocol):
             )
             n = len(x)
             msres = (((x - E_leak_before) * g_leak_before - y)**2 / (n - 2)).sum()
-            sd = np.sqrt(msres * (1 / n + (40 - x.mean())**2 / ((x**2).sum())))
-            before_sd = sd
+            # sd = np.sqrt(msres * (1 / n + (40 - x.mean())**2 / ((x**2).sum())))
+            # before_sd = sd
+
+            common.infer_reversal_potential(protocol, before_trace,
+                                            observation_times, plot=True,
+                                            output_path=os.path.join(reversal_plot_dir,
+                                                                     f"{well}_{protocol}_sweep{sweep}_before"))
 
         else:
             g_leak_before = np.nan
@@ -334,7 +348,8 @@ def subtract_leak(well, protocol):
                                   (protocol_voltages[indices_to_plot] - E_leak_before) * g_leak_before)
 
             window_ax_before.axvspan(args.ramp_start, args.ramp_end,
-                                     alpha=.5)
+                                     color='grey', alpha=.5)
+
         if after_trace is not None:
             g_leak_after, E_leak_after, _, _, _, x, y = fit_leak_lr(
                 protocol_voltages, after_trace, dt=dt,
@@ -344,7 +359,12 @@ def subtract_leak(well, protocol):
             )
             n = len(x)
             msres = (((x - E_leak_before) * g_leak_before - y)**2 / (n - 2)).sum()
-            sd = np.sqrt(msres * (1 / n + (40 - x.mean())**2 / ((x**2).sum())))
+
+            common.infer_reversal_potential(protocol, before_trace,
+                                            observation_times, plot=True,
+                                            output_path=os.path.join(reversal_plot_dir,
+                                                                    f"{well}_{protocol}_sweep{sweep}_after"))
+
         else:
             g_leak_after = np.nan
             E_leak_after = np.nan
@@ -383,8 +403,22 @@ def subtract_leak(well, protocol):
 
         if before_trace is not None:
             before_corrected = before_trace - (g_leak_before * (protocol_voltages - E_leak_before))
+            common.infer_reversal_potential(protocol, before_corrected,
+                                            observation_times,
+                                            output_path=os.path.join(reversal_plot_dir,
+                                                                     f"{protocol}_{well}_before_drug_leak_corrected"),
+                                            ax=reversal_ax, plot=not
+                                            args.no_plot)
+
+
         if after_trace is not None:
             after_corrected = after_trace - (g_leak_after * (protocol_voltages - E_leak_after))
+            common.infer_reversal_potential(protocol, after_corrected,
+                                            observation_times,
+                                            output_path=os.path.join(reversal_plot_dir,
+                                                                     f"{protocol}_{well}_after_drug_leak_corrected"),
+                                            ax=reversal_ax, plot=not
+                                            args.no_plot)
 
         if before_trace is not None and after_trace is not None:
             subtracted_trace = before_corrected - after_corrected
@@ -399,7 +433,7 @@ def subtract_leak(well, protocol):
                                                            subtracted_trace,
                                                            observation_times,
                                                            output_path=os.path.join(reversal_plot_dir,
-                                                                                    f"reversal_potential_{protocol}_{well}"),
+                                                                                    f"{protocol}_{well}_subtracted"),
                                                            ax=reversal_ax,
                                                            plot=not args.no_plot)
 
@@ -473,11 +507,11 @@ def subtract_leak(well, protocol):
 
         # Can we infer reversal potential from subtracted trace
         try:
-            output_path = os.path.join(args.output_path,
-                                       f"{protocol}_{well}_{tracename}_infer_reversal_potential.png")
+            output_path = os.path.join(reversal_plot_dir,
+                                       f"{protocol}_{well}_sweep{sweep}_subtracted.png")
             Erev = common.infer_reversal_potential(protocol, subtracted_trace,
-                                                   observation_times, plot=True,
-                                                   output_path=output_path)
+                                                   observation_times,
+                                                   plot=False)
         except Exception:
             Erev = -np.inf
 
@@ -509,8 +543,9 @@ def subtract_leak(well, protocol):
         long_protocol_ax.set_ylabel("Voltage /mV")
         long_protocol_ax.set_xlabel("time /ms")
 
-        fig.savefig(os.path.join(output, f"{well}_{protocol}_traces_from_leak_subtraction"))
+        fig.savefig(os.path.join(leak_subtraction_plots_dir, f"{well}_{protocol}_traces_from_leak_subtraction"))
         plt.close(fig)
+        plt.close(subtract_scatter_fig)
 
     df = pd.DataFrame(df, columns=('protocol', 'well', 'sweep', 'before/after',
                                    'fitted_E_rev', 'passed QC6',
