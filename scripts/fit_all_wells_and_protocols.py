@@ -404,14 +404,20 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                             trace_axs[0].legend()
                             trace_axs[1].plot(full_times, voltages)
                             trace_axs[1].set_ylabel('voltage / mV')
-                            fname = f"fitted_to_{protocol_fitted}_{fitting_sweep}.png" if protocol_fitted != sim_protocol else "fit.png"
+                            fname = f"fitted_to_{protocol_fitted}_{fitting_sweep}.png" if protocol_fitted != sim_protocol and \
+                                fitting_sweep == predict_sweep else "fit.png"
+
+                            handles, labels = trace_axs[1].get_legend_handles_labels()
+                            by_label = dict(zip(labels, handles))
+                            plt.legend(by_label.values(), by_label.keys())
+
                             trace_fig.savefig(os.path.join(sub_dir, fname))
 
                             for ax in trace_axs:
                                 ax.cla()
 
                             all_models_axs[0].plot(full_times, full_prediction,
-                                                   label=protocol_fitted, color=colours[i])
+                                                   label=f"{protocol_fitted}_{fitting_sweep}", color=colours[i])
 
                 all_models_axs[1].set_xlabel("time / ms")
                 all_models_axs[0].set_ylabel("current / nA")

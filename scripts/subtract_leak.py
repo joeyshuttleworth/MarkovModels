@@ -420,8 +420,6 @@ def subtract_leak(well, protocol):
                                             ax=reversal_ax, plot=not
                                             args.no_plot)
 
-
-
         if before_trace is not None and after_trace is not None:
             subtracted_trace = before_corrected - after_corrected
         else:

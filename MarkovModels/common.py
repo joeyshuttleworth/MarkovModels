@@ -669,16 +669,16 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         if randomise_initial_guess:
             point2 = [p for i, p in enumerate(mm.get_default_parameters()) if i not
                       in fix_parameters]
-        fig, axes = pints.plot.function_between_points(error,
-                                                       point_1=best_parameters,
-                                                       point_2=point2,
-                                                       padding=0.1,
-                                                       evaluations=100)
+            fig, axes = pints.plot.function_between_points(error,
+                                                           point_1=best_parameters,
+                                                           point_2=point2,
+                                                           padding=0.1,
+                                                           evaluations=100)
 
-        fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_default'))
-        fig.clf()
+            fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_default'))
+            fig.clf()
+
         point_2 = starting_parameter_sets[best_index % len(starting_parameter_sets)]
-
         fig, axes = pints.plot.function_between_points(error,
                                                        point_1=best_parameters,
                                                        point_2=point_2,
