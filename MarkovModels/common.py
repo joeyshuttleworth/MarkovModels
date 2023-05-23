@@ -685,15 +685,6 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                                                        padding=0.1,
                                                        evaluations=100)
 
-            fig, axes = pints.plot.function_between_points(error,
-                                                           point_1=best_parameters,
-                                                           point_2=point_2,
-                                                           padding=0.1,
-                                                           evaluations=100)
-
-            fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_initial_guess'))
-            fig.clf()
-
     if fix_parameters:
         for i in np.unique(fix_parameters):
             best_parameters = np.insert(best_parameters,
