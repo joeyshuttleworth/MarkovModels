@@ -481,18 +481,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         return starting_parameters, np.inf
 
     if solver is None:
-        if solver_type is None:
-            solver = mm.make_forward_solver_current()
-        elif solver_type == 'default':
-            solver = mm.make_forward_solver_current()
-        elif solver_type == 'hybrid':
-            solver = mm.make_hybrid_solver_current()
-        elif solver_type == 'ida':
-            solver = mm.make_ida_solver_current()
-        elif solver_type == 'dop853':
-            solver = mm.make_forward_solver_current(solver_type='dop853')
-        else:
-            raise Exception(f"Invalid solver type: {solver_type}")
+        solver = mm.make_forward_solver_of_type(solver_type)
 
     if subset_indices is None:
         subset_indices = np.array(list(range(len(mm.times))))
@@ -881,8 +870,9 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
         if output_dir is not None:
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
+            fname = f"{well}_{protocol}_fit_{i}" if i < repeats else f"{well}_{protocol}_initial_guess_{i}"
 
-            fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit_{i}"))
+            fig.savefig(os.path.join(output_dir, fname))
             ax.cla()
     plt.close(fig)
 

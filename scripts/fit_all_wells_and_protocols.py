@@ -22,7 +22,7 @@ pool_kws = {'maxtasksperchild': 1}
 
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
              randomise_initial_guess=True, prefix='', sweep=None):
-    this_output_dir = os.path.join(output_dir, f"{prefix}_{protocol}_{well}_sweep{sweep}")
+    this_output_dir = os.path.join(output_dir, f"{prefix}{protocol}_{well}_sweep{sweep}")
 
     infer_E_rev = not args.dont_infer_Erev
 
@@ -45,49 +45,6 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
     return res_df
 
 
-# def mcmc_func(protocol, well, model_class, initial_params):
-
-#     # Ignore files that have been commented out
-#     voltage_func, times, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
-
-#     data = common.get_data(well, protocol, args.data_directory, experiment_name)
-
-#     times = pd.read_csv(os.path.join(args.data_directory, f"{experiment_name}-{protocol}-times.csv"))['time'].values
-
-#     voltages = np.array([voltage_func(t) for t in times])
-
-#     model = model_class(voltage=voltage_func,
-#                         protocol_description=protocol_desc,
-#                         times=times)
-
-#     if initial_params is None:
-#         initial_params = model.get_default_parameters()
-
-#     reversal_potential = common.infer_reversal_potential(protocol, data, times)
-#     model.Erev = reversal_potential
-
-#     solver = model.make_forward_solver_current()
-
-#     if np.any(~np.isfinite(solver(initial_params))):
-#         initial_params = model.get_default_parameters()
-
-#     sigma2 = np.var(data[10:100])
-#     print("sigma2 is ", sigma2)
-
-#     spike_times, spike_indices = common.detect_spikes(times, voltages, threshold=10)
-
-#     _, _, indices = common.remove_spikes(times, voltages, spike_times,
-#                                          time_to_remove=args.removal_duration)
-
-#     return common.compute_mcmc_chains(model, solver=solver, times=times,
-#                                       indices=indices, data=data,
-#                                       chain_length=args.chain_length,
-#                                       no_chains=args.no_chains,
-#                                       starting_parameters=initial_params,
-#                                       sigma2=sigma2, burn_in=0,
-#                                       log_likelihood_func=None)
-
-
 def main():
     Erev = common.calculate_reversal_potential()
 
@@ -108,9 +65,9 @@ def main():
     parser.add_argument('--chain_length', '-l', default=500, type=int)
     parser.add_argument('--figsize', '-f', help='mcmc chains to run', type=int)
     parser.add_argument('--use_parameter_file')
-    parser.add_argument('--refit', action='store_false')
+    parser.add_argument('--dont_refit', action='store_true')
     parser.add_argument('--dont_infer_Erev', action='store_true')
-    parser.add_argument('--solver_type')
+    parser.add_argument('--solver_type', default='hybrid')
     parser.add_argument('--selection_file')
     parser.add_argument('--ignore_protocols', nargs='+', default=[])
     parser.add_argument('--ignore_wells', nargs='+', default=[])
@@ -189,12 +146,17 @@ def main():
         else:
             starting_parameters = None
 
+        if args.dont_refit:
+            prefix = ''
+        else:
+            prefix = 'prelim_'
+
         if args.sweeps:
             sweep = groups[2]
             tasks.append([protocol, well, model_class, starting_parameters, Erev,
-                          not args.dont_randomise_initial_guess, 'prelim', sweep])
+                          not args.dont_randomise_initial_guess, prefix, sweep])
         else:
-            tasks.append([protocol, well, model_class, starting_parameters, Erev, 'prelim',
+            tasks.append([protocol, well, model_class, starting_parameters, Erev, prefix,
                           not args.dont_randomise_initial_guess])
 
         protocols_list.append(protocol)
@@ -218,17 +180,17 @@ def main():
     # wells_rep = [task[1] for task in tasks]
     # protocols_rep = [task[0] for task in tasks]
 
-    fitting_df.to_csv(os.path.join(output_dir, "prelim_fitting.csv"))
+    fitting_df.to_csv(os.path.join(output_dir, f"{prefix}fitting.csv"))
 
     params_df = get_best_params(fitting_df)
-    params_df.to_csv(os.path.join(output_dir, "prelim_best_fitting.csv"))
+    params_df.to_csv(os.path.join(output_dir, f"{prefix}best_fitting.csv"))
 
     print(params_df)
     predictions_df = compute_predictions_df(params_df, output_dir,
-                                            'prelim_predictions', args=args, model_class=model_class)
+                                            '{prefix}predictions', args=args, model_class=model_class)
 
     # Plot predictions
-    predictions_df.to_csv(os.path.join(output_dir, "prelim_predictions_df.csv"))
+    predictions_df.to_csv(os.path.join(output_dir, "{prefix}predictions_df.csv"))
 
     # Select best parameters for each protocol
     best_params_df_rows = []
@@ -257,7 +219,7 @@ def main():
         task[6] = ''
         task[5] = False
 
-    if args.refit:
+    if not args.dont_refit:
         with multiprocessing.Pool(pool_size, **pool_kws) as pool:
             res = pool.starmap(fit_func, tasks)
 
@@ -310,8 +272,12 @@ def main():
 
 
 def compute_predictions_df(params_df, output_dir, label='predictions',
-                           model_class=None, args=None):
+                           model_class=None, fix_EKr=None,
+                           adjust_kinetic_parameters=False, args=None):
 
+    assert(not (fix_EKr is not None and adjust_kinetic_parameters))
+
+    param_labels = model_class().get_parameter_labels()
     params_df = get_best_params(params_df, protocol_label='protocol')
     predictions_dir = os.path.join(output_dir, label)
 
@@ -327,13 +293,11 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
     all_models_fig = plt.figure(figsize=args.figsize)
     all_models_axs = all_models_fig.subplots(2)
 
-    global param_labels
-    param_labels = model_class().get_parameter_labels()
-    print(params_df)
     for sim_protocol in np.unique(protocols_list):
         prot_func, times, desc = common.get_ramp_protocol_from_csv(sim_protocol)
         full_times = pd.read_csv(os.path.join(args.data_directory,
-                                         f"{args.experiment_name}-{sim_protocol}-times.csv"))['time'].values.flatten()
+                                              f"{args.experiment_name}-{sim_protocol}-times.csv"))['time'].values.flatten()
+
         voltages = np.array([prot_func(t) for t in full_times])
 
         spike_times, spike_indices = common.detect_spikes(full_times, voltages,
@@ -355,29 +319,54 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                     print(str(exc))
                     continue
 
-                inferred_Erev = common.infer_reversal_potential(sim_protocol, full_data, full_times)
+                prediction_E_rev = common.infer_reversal_potential(sim_protocol, full_data, full_times)
 
                 model = model_class(prot_func,
                                     times=full_times,
-                                    E_rev=inferred_Erev)
+                                    E_rev=prediction_E_rev if not fix_EKr else fix_EKr,
+                                    protocol_description=desc)
 
                 # Probably not worth compiling solver
-                model.protocol_description = desc
-                solver = model.make_forward_solver_current(njitted=True)
+                solver = model.make_forward_solver_of_type(args.solver_type, njitted=False)
 
                 data = full_data[indices]
 
                 for i, protocol_fitted in enumerate(params_df['protocol'].unique()):
+                    print(protocol_fitted)
                     for fitting_sweep in params_df[params_df.protocol == protocol_fitted].sweep:
                         # Get parameters
                         df = params_df[params_df.well == well]
                         df = df[(df.protocol == protocol_fitted) & (df.sweep == fitting_sweep)]
                         if df.empty:
-                            print(protocol_fitted, fitting_sweep)
                             continue
                         params = df.iloc[0][param_labels].values\
                                                          .astype(np.float64)\
                                                          .flatten()
+                        try:
+                            fitting_data = pd.read_csv(
+                                os.path.join(args.data_directory,
+                                             f"{args.experiment_name}-{protocol_fitted}-{well}-sweep{fitting_sweep}.csv"))
+                        except FileNotFoundError as e:
+                            print(str(e))
+                            continue
+
+                        fitting_current = fitting_data['current'].values.flatten()
+                        fitting_times = fitting_data['time'].values.flatten()
+
+                        fitting_E_rev = common.infer_reversal_potential(protocol_fitted, fitting_current,
+                                                                        fitting_times)
+
+                        if adjust_kinetic_parameters:
+                            if not issubclass(model_class, BeattieModel):
+                                NotImplementedError(f"Cannot adjust kinetic parameters for {model_class}")
+                            if not args.reversal:
+                                Exception('reversal potential not provided')
+                            else:
+                                    offset = prediction_E_rev - fitting_E_rev
+                                    params[0] *= np.exp(params[1] * offset)
+                                    params[2] *= np.exp(-params[3] * offset)
+                                    params[4] *= np.exp(params[5] * offset)
+                                    params[6] *= np.exp(-params[7] * offset)
 
                         subdir_name = f"{well}_{sim_protocol}_sweep{predict_sweep}_predictions"\
                             if predict_sweep is not None else f"{well}_{sim_protocol}_predictions"
@@ -406,8 +395,8 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                             trace_axs[0].legend()
                             trace_axs[1].plot(full_times, voltages)
                             trace_axs[1].set_ylabel('voltage / mV')
-                            fname = f"fitted_to_{protocol_fitted}_{fitting_sweep}.png" if protocol_fitted != sim_protocol and \
-                                fitting_sweep == predict_sweep else "fit.png"
+                            fname = f"fitted_to_{protocol_fitted}_{fitting_sweep}.png" if protocol_fitted != sim_protocol or \
+                                fitting_sweep != predict_sweep else "fit.png"
 
                             handles, labels = trace_axs[1].get_legend_handles_labels()
                             by_label = dict(zip(labels, handles))
@@ -424,7 +413,7 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                 all_models_axs[1].set_xlabel("time / ms")
                 all_models_axs[0].set_ylabel("current / nA")
                 all_models_axs[0].plot(times, data, color='grey', alpha=0.5, label='data')
-                all_models_axs[0].legend()
+                # all_models_axs[0].legend()
                 all_models_axs[0].set_title(f"{well} {sim_protocol} fits comparison")
                 all_models_axs[0].set_ylabel("Current / nA")
 

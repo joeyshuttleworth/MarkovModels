@@ -702,6 +702,24 @@ class MarkovModel:
 
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve
 
+    def make_forward_solver_of_type(self, solver_type, **kws):
+        if solver_type is None:
+            solver = self.make_forward_solver_current(**kws)
+        elif solver_type == 'default':
+            solver = self.make_forward_solver_current(**kws)
+        elif solver_type == 'hybrid':
+            solver = self.make_hybrid_solver_current(**kws)
+        elif solver_type == 'ida':
+            solver = self.make_ida_solver_current(**kws)
+        elif solver_type == 'dop853':
+            solver = self.make_forward_solver_current(solver_type='dop853', **kws)
+        else:
+            raise Exception(f"Invalid solver type: {solver_type}")
+
+        return solver
+
+
+
     def make_hybrid_solver_current(self, protocol_description=None,
                                    njitted=True,
                                    analytic_solver=None,

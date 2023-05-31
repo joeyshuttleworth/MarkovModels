@@ -57,12 +57,6 @@ class KempModel(MarkovModel):
                          voltage=voltage, Q=Q, *args, **kwargs,
                          name='KempModel')
 
-    def make_hybrid_solver_current(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def make_hybrid_solver_states(self, *args, **kwargs):
-        raise NotImplementedError
-
     def CreateSymbols(self):
         """
         Create SymEngine symbols to contain the parameters, state variables and the voltage.
