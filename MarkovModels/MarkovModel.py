@@ -715,10 +715,7 @@ class MarkovModel:
             solver = self.make_forward_solver_current(solver_type='dop853', **kws)
         else:
             raise Exception(f"Invalid solver type: {solver_type}")
-
         return solver
-
-
 
     def make_hybrid_solver_current(self, protocol_description=None,
                                    njitted=True,

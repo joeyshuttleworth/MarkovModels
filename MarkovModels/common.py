@@ -655,7 +655,6 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     if output_dir:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        if randomise_initial_guess:
             point2 = [p for i, p in enumerate(mm.get_default_parameters()) if i not
                       in fix_parameters]
             fig, axes = pints.plot.function_between_points(error,
@@ -665,14 +664,17 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                                                            evaluations=100)
 
             fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_default'))
-            fig.clf()
+            plt.close(fig)
 
-        point_2 = starting_parameter_sets[best_index % len(starting_parameter_sets)]
-        fig, axes = pints.plot.function_between_points(error,
-                                                       point_1=best_parameters,
-                                                       point_2=point_2,
-                                                       padding=0.1,
-                                                       evaluations=100)
+            if randomise_initial_guess:
+                point_2 = starting_parameter_sets[best_index % len(starting_parameter_sets)]
+                fig, axes = pints.plot.function_between_points(error,
+                                                               point_1=best_parameters,
+                                                               point_2=point_2,
+                                                               padding=0.1,
+                                                               evaluations=100)
+                fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_initial_guess'))
+                plt.close(fig)
 
     if fix_parameters:
         for i in np.unique(fix_parameters):
@@ -803,7 +805,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                         protocol_description=protocol_desc)
 
     if default_parameters is not None:
-        initial_params = default_parameters
+        initial_params = default_parameters.copy()
 
     columns = model.get_parameter_labels()
 
@@ -814,17 +816,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
         raise Exception('solver and solver type provided')
 
     if solver is None:
-        if solver_type == 'hybrid':
-            solver = model.make_hybrid_solver_current()
-        elif solver_type == 'ida':
-            solver = model.make_ida_solver_current()
-        elif solver_type == 'default' or solver_type is None:
-            solver = model.make_forward_solver_current()
-        elif solver_type == 'dop853':
-            solver = model.make_forward_solver_current(solver_type='dop853')
-        else:
-            raise Exception(f"solver type: {solver_type} is not valid")
-        solver = model.make_forward_solver_current()
+        solver = model.make_forward_solver_of_type(solver_type)
 
     if scale_conductance:
         # scale conductance to match data
@@ -837,14 +829,14 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                                              default_parameters[model.GKr_index],
                                              method='bounded', bounds=[0, 1e3])
 
-        params_scaled = default_parameters.copy()
+        params_scaled = initial_params.copy()
         params_scaled[model.GKr_index] = res.x
 
         if optim_func(params_scaled[model.GKr_index]) < optim_func(default_parameters[model.GKr_index]):
-            default_parameters = params_scaled
+            initial_params = params_scaled
 
     fitted_params, score, fitting_df = fit_model(model, data, solver=solver,
-                                                 starting_parameters=default_parameters,
+                                                 starting_parameters=initial_params,
                                                  max_iterations=max_iterations,
                                                  subset_indices=indices,
                                                  parallel=parallel,
