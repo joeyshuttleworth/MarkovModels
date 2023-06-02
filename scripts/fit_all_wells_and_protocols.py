@@ -187,7 +187,7 @@ def main():
 
     print(params_df)
     predictions_df = compute_predictions_df(params_df, output_dir,
-                                            '{prefix}predictions', args=args, model_class=model_class)
+                                            f"{prefix}predictions", args=args, model_class=model_class)
 
     # Plot predictions
     predictions_df.to_csv(os.path.join(output_dir, "{prefix}predictions_df.csv"))
