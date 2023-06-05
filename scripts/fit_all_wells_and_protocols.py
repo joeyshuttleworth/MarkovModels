@@ -190,7 +190,7 @@ def main():
                                             f"{prefix}predictions", args=args, model_class=model_class)
 
     # Plot predictions
-    predictions_df.to_csv(os.path.join(output_dir, "{prefix}predictions_df.csv"))
+    predictions_df.to_csv(os.path.join(output_dir, f"{prefix}predictions_df.csv"))
 
     # Select best parameters for each protocol
     best_params_df_rows = []
