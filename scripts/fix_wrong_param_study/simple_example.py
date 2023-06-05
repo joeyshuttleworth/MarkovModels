@@ -22,17 +22,6 @@ def create_axes(fig):
                   height_ratios=[.4, 1],
                   bottom=.3)
 
-    # caption_axes = [fig.add_subplot(gs[0, 0]),
-    #                 fig.add_subplot(gs[0, 2:4]),
-    #                 fig.add_subplot(gs[0, 4:])]
-
-    # caption_axes[0].text(0, .5, r'\textbf a')
-    # caption_axes[1].text(0, .5, r'\textbf b')
-    # caption_axes[2].text(0, .5, r'\textbf c')
-
-    # for ax in caption_axes:
-    #     ax.axis('off')
-
     # Setup plots of observation times
     observation_time_axes = [
          fig.add_subplot(gs[0, 0]),
@@ -138,6 +127,7 @@ def main():
     argument_parser.add_argument('--no_datasets', default=10, type=int)
     argument_parser.add_argument('--sigma', default=0.01, type=float)
     argument_parser.add_argument('--file_format', default='pdf')
+    argument_parser.add_argument('--sampling_frequency', default=1, type=int)
 
     global args
     args = argument_parser.parse_args()
@@ -149,10 +139,10 @@ def main():
     # Generate data sets
     N_datasets = args.no_datasets
 
-    T1 = np.linspace(0, 0.1, 11)
-    T2 = np.linspace(0, 1, 11)
-    T3 = np.linspace(.2, 1.2, 11)
-    T4 = np.linspace(0.5, 1, 11)
+    T1 = np.linspace(0, 0.1, 11 * args.sampling_frequency)
+    T2 = np.linspace(0, 1, 11 * args.sampling_frequency)
+    T3 = np.linspace(.2, 1.2, 11 * args.sampling_frequency)
+    T4 = np.linspace(0.5, 1, 11 * args.sampling_frequency)
 
     Ts = [T1, T2, T3, T4]
 
