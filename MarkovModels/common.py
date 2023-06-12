@@ -18,12 +18,8 @@ import subprocess
 import sys
 import datetime
 import logging
+import time
 import numpy.polynomial.polynomial as poly
-
-from .BeattieModel import BeattieModel
-from .KempModel import KempModel
-from .ClosedOpenModel import ClosedOpenModel
-from .WangModel import WangModel
 
 
 def get_protocol_directory():
@@ -233,7 +229,6 @@ def remove_indices(lst, indices_to_remove):
     # Ensure intervals don't overlap
     for interval1, interval2 in zip(indices_to_remove[:-1, :], indices_to_remove[1:, :]):
         if interval1[1] > interval2[0]:
-            print('overlapping')
             interval1[1] = interval2[1]
             interval2[0] = -1
             interval2[1] = -1
@@ -355,7 +350,7 @@ def get_protocol_from_csv(protocol_name: str, directory=None, holding_potential=
     def protocol_safe(t):
         return np.interp([t], times, voltages)[0] if t < times[-1] and t > times[0] else holding_potential
 
-    return protocol_safe, times[0], times[-1], times[1] - times[0]
+    return protocol_safe, times
 
 
 def get_ramp_protocol_from_csv(protocol_name: str, directory=None,
@@ -406,7 +401,7 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None,
 
     @njit
     def protocol_func(t: np.float64):
-        if t < 0 or t >= protocol[-1][1]:
+        if t <= 0 or t >= protocol[-1][1]:
             return holding_potential
 
         for i in range(len(protocol)):
@@ -426,7 +421,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
               fix_parameters=[], max_iterations=None, subset_indices=None,
               method=pints.CMAES, solver=None, log_transform=True, repeats=1,
               return_fitting_df=False, parallel=False,
-              randomise_initial_guess=True, output_dir=None):
+              randomise_initial_guess=True, output_dir=None, solver_type=None):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -485,7 +480,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         return starting_parameters, np.inf
 
     if solver is None:
-        solver = mm.make_forward_solver_current()
+        solver = mm.make_forward_solver_of_type(solver_type)
 
     if subset_indices is None:
         subset_indices = np.array(list(range(len(mm.times))))
@@ -506,17 +501,32 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             # rates function
             rates_func = mm.get_rates_func(njitted=False)
 
-            Vs = [-120, 40]
+            Vs = [-120, 60]
             rates_1 = rates_func(parameters, Vs[0])
             rates_2 = rates_func(parameters, Vs[1])
 
-            if max(rates_1.max(), rates_2.max()) > 1e7:
+            if max(rates_1.max(), rates_2.max()) > 1e4:
                 return False
 
-            if min(rates_1.min(), rates_2.min()) < 1e-9:
+            if min(rates_1.min(), rates_2.min()) < 1e-8:
                 return False
 
-            # Ensure that all parameters > 0
+            if max([p for i, p in enumerate(parameters) if i != mm.GKr_index]) > 1e5:
+                return False
+
+            if min([p for i, p in enumerate(parameters) if i != mm.GKr_index]) < 1e-7:
+                return False
+
+            # Ensure the proposed maximal conductance is reasonable. It
+            # shouldn't be too much greater than the maximum observed current,
+            # nor much smaller than this value
+            max_current = data[subset_indices].max()
+
+            if mm.GKr_index not in self.fix_parameters:
+                if parameters[mm.GKr_index] > 10*max_current or parameters[mm.GKr_index] < max_current:
+                    return False
+
+            # Finally, ensure that all parameters > 0
             return np.all(parameters > 0)
 
         def n_parameters(self):
@@ -527,7 +537,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         def _sample_once(self, min_log_p, max_log_p):
             for i in range(1000):
                 p = np.empty(starting_parameters.shape)
-                p[-1] = starting_parameters[-1]
+                p[-1] = np.random_uniform(data.max()*.01, data.max(), 1)
                 p[:-1] = 10**np.random.uniform(min_log_p, max_log_p,
                                                starting_parameters[:-1].shape)
 
@@ -542,7 +552,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             return np.NaN
 
         def sample(self, n=1):
-            min_log_p, max_log_p = [-7, -1]
+            min_log_p, max_log_p = [-7, 1]
 
             no_parameters = len(starting_parameters) if not self.fix_parameters\
                 else len(starting_parameters) - len(fix_parameters)
@@ -608,12 +618,13 @@ def fit_model(mm, data, times=None, starting_parameters=None,
 
     boundaries = Boundaries(starting_parameters, fix_parameters)
 
-    scores, parameter_sets, iterations = [], [], []
+    scores, parameter_sets, iterations, times_taken = [], [], [], []
     for i in range(repeats):
         if randomise_initial_guess:
             initial_guess = initial_guess_dist.sample(n=1).flatten()
             starting_parameter_sets.append(initial_guess)
             boundaries = Boundaries(initial_guess, fix_parameters)
+            params_not_fixed = initial_guess
         controller = pints.OptimisationController(error, params_not_fixed,
                                                   boundaries=boundaries,
                                                   method=method,
@@ -630,11 +641,16 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             found_value = np.inf
             found_parameters = starting_parameters
 
+        timer_start = time.process_time()
         found_parameters, found_value = controller.run()
+        timer_end = time.process_time()
+        time_elapsed = timer_end - timer_start
+
         this_run_iterations = controller.iterations()
         parameter_sets.append(found_parameters)
         scores.append(found_value)
         iterations.append(this_run_iterations)
+        times_taken.append(time_elapsed)
 
     best_score = min(scores)
     best_index = scores.index(best_score)
@@ -647,20 +663,26 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     if output_dir:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        if randomise_initial_guess:
-            point2 = [p for i, p in enumerate(starting_parameter_sets[best_index]) if i not
-                      in fix_parameters]
-        else:
-            point2 = [p for i, p in enumerate(mm.get_default_parameters()) if i
-                      not in fix_parameters]
-
+        point2 = [p for i, p in enumerate(mm.get_default_parameters()) if i not
+                  in fix_parameters]
         fig, axes = pints.plot.function_between_points(error,
                                                        point_1=best_parameters,
                                                        point_2=point2,
                                                        padding=0.1,
                                                        evaluations=100)
 
-        fig.savefig(os.path.join(output_dir, 'best_fitting_profile'))
+        fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_default'))
+        plt.close(fig)
+
+        if randomise_initial_guess:
+            point_2 = starting_parameter_sets[best_index % len(starting_parameter_sets)]
+            fig, axes = pints.plot.function_between_points(error,
+                                                           point_1=best_parameters,
+                                                           point_2=point_2,
+                                                           padding=0.1,
+                                                           evaluations=100)
+            fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_initial_guess'))
+            plt.close(fig)
 
     if fix_parameters:
         for i in np.unique(fix_parameters):
@@ -680,6 +702,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                                   columns=mm.get_parameter_labels()[:parameter_sets.shape[1]])
         fitting_df['RMSE'] = scores
         fitting_df['iterations'] = iterations
+        fitting_df['CPU_time'] = times_taken
 
         # Append starting parameters also
         if randomise_initial_guess:
@@ -730,9 +753,12 @@ def get_protocol(protocol_name: str):
     return v, t_start, t_end, t_step
 
 
-def get_data(well, protocol, data_directory, experiment_name='newtonrun4'):
+def get_data(well, protocol, data_directory, experiment_name='newtonrun4', sweep=None):
     # Find data
-    regex = re.compile(f"^{experiment_name}-{protocol}-{well}.csv$")
+    if sweep:
+        regex = re.compile(f"^{experiment_name}-{protocol}-{well}-sweep{sweep}.csv$")
+    else:
+        regex = re.compile(f"^{experiment_name}-{protocol}-{well}.csv$")
     fname = next(filter(regex.match, os.listdir(data_directory)))
     data = pd.read_csv(os.path.join(data_directory, fname),
                        float_precision='round_trip')['current'].values
@@ -743,9 +769,9 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                   output_dir=None, T=None, K_in=None, K_out=None,
                   default_parameters: float = None, removal_duration=5,
                   repeats=1, infer_E_rev=False, fit_initial_conductance=True,
-                  experiment_name='newtonrun4', solver=None, Erev=None,
+                  experiment_name='newtonrun4', solver=None, E_rev=None,
                   randomise_initial_guess=True, parallel=False,
-                  use_hybrid_solver=False):
+                  solver_type=None, sweep=None, scale_conductance=False):
 
     if default_parameters is None or len(default_parameters) == 0:
         default_parameters = model_class().get_default_parameters()
@@ -758,7 +784,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     # Ignore files that have been commented out
     voltage_func, times, protocol_desc = get_ramp_protocol_from_csv(protocol)
 
-    data = get_data(well, protocol, data_directory, experiment_name)
+    data = get_data(well, protocol, data_directory, experiment_name, sweep=sweep)
 
     times = pd.read_csv(os.path.join(data_directory, f"{experiment_name}-{protocol}-times.csv"),
                         float_precision='round_trip')['time'].values
@@ -775,35 +801,47 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
             if output_dir:
                 plot = True
                 output_path = os.path.join(output_dir, 'infer_reversal_potential.png')
-            inferred_Erev = infer_reversal_potential(protocol, data, times, plot=plot,
-                                                     output_path=output_path)
-            if inferred_Erev < -50 or inferred_Erev > -100:
-                Erev = inferred_Erev
+            inferred_E_rev = infer_reversal_potential(protocol, data, times, plot=plot,
+                                                      output_path=output_path)
+            if inferred_E_rev < -50 or inferred_E_rev > -100:
+                E_rev = inferred_E_rev
         except Exception:
             pass
 
     model = model_class(voltage=voltage_func, times=times,
-                        parameters=default_parameters, Erev=Erev,
+                        parameters=default_parameters, E_rev=E_rev,
                         protocol_description=protocol_desc)
 
-    if not solver:
-        if use_hybrid_solver:
-            solver = model.make_hybrid_solver_current()
-        else:
-            solver = model.make_forward_solver_current()
-
-    if default_parameters is None:
-        initial_gkr = np.quantile(np.abs(data / (voltages - model.Erev)), .99)
-    else:
-        initial_gkr = default_parameters[model.GKr_index]
-
-    initial_params = model.get_default_parameters()
-    initial_params[model.GKr_index] = initial_gkr
+    if default_parameters is not None:
+        initial_params = default_parameters.copy()
 
     columns = model.get_parameter_labels()
 
     if infer_E_rev:
         columns.append("E_rev")
+
+    if solver is not None and solver_type is not None:
+        raise Exception('solver and solver type provided')
+
+    if solver is None:
+        solver = model.make_forward_solver_of_type(solver_type)
+
+    if scale_conductance:
+        # scale conductance to match data
+        def optim_func(p):
+            p_vec = default_parameters.copy()
+            p_vec[model.GKr_index] = p
+            return np.sum((data - solver(p_vec))**2)
+
+        res = scipy.optimize.minimize_scalar(optim_func,
+                                             default_parameters[model.GKr_index],
+                                             method='bounded', bounds=[0, 1e3])
+
+        params_scaled = initial_params.copy()
+        params_scaled[model.GKr_index] = res.x
+
+        if optim_func(params_scaled[model.GKr_index]) < optim_func(default_parameters[model.GKr_index]):
+            initial_params = params_scaled
 
     fitted_params, score, fitting_df = fit_model(model, data, solver=solver,
                                                  starting_parameters=initial_params,
@@ -813,28 +851,30 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                                                  randomise_initial_guess=randomise_initial_guess,
                                                  return_fitting_df=True,
                                                  repeats=repeats,
-                                                 output_dir=output_dir)
+                                                 output_dir=output_dir,
+                                                 solver_type=solver_type)
 
+    fig = plt.figure(figsize=(14, 12))
     for i, row in fitting_df.iterrows():
         fitted_params = row[model.get_parameter_labels()].values.flatten()
-        fig = plt.figure(figsize=(14, 12))
-        ax = fig.subplots(1)
-        ax.plot(times, solver(fitted_params), label='fitted_parameters')
-        ax.plot(times, solver(), label='initial_parameters')
+        ax = fig.subplots()
+        ax.plot(times, solver(fitted_params), label='fitted parameters')
+        ax.plot(times, solver(params_scaled), label='default parameters')
         ax.plot(times, data, color='grey', label='data', alpha=.5)
 
         ax.legend()
 
         if infer_E_rev:
-            fitted_params = np.append(fitted_params, Erev)
+            fitted_params = np.append(fitted_params, E_rev)
 
         if output_dir is not None:
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
+            fname = f"{well}_{protocol}_fit_{i}" if i < repeats else f"{well}_{protocol}_initial_guess_{i}"
 
-            fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_fit_{i}"))
+            fig.savefig(os.path.join(output_dir, fname))
             ax.cla()
-            ax.plot(times, data)
+    plt.close(fig)
 
     fitting_df['score'] = fitting_df['RMSE']
     fitting_df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
@@ -857,31 +897,32 @@ def get_all_wells_in_directory(data_dir, experiment_name='newtonrun4'):
 
 
 def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
-                             output_path=None, plot=False):
+                             output_path=None, plot=None):
 
     if output_path:
         dirname = os.path.dirname(output_path)
         if not os.path.exists(dirname):
             os.makedirs(dirname)
 
-
-    if ax or output_path:
+    if (ax or output_path) and plot is not False:
         plot = True
 
-    protocol_func, _, _, _, protocol_desc = get_ramp_protocol_from_csv(protocol)
-
-    tstart = times[0]
-    tstep = times[1] - times[0]
+    protocol_func, _, protocol_desc = get_ramp_protocol_from_csv(protocol)
 
     # First, find the reversal ramp. Search backwards along the protocol until we find a >= 40mV step
     step = next(filter(lambda x: x[2] >= -74, reversed(protocol_desc)))
 
     if step[1] - step[0] > 200 or step[1] - step[0] < 50:
         raise Exception("Failed to find reversal ramp in protocol")
+    else:
+        step = step[0:2]
 
     # Next extract steps
-    istart = int((step[0] + tstart) / tstep)
-    iend = int((step[1] + tstart) / tstep)
+    istart = np.argmax(times >= step[0])
+    iend = np.argmax(times > step[1])
+
+    if istart == 0 or iend == 0 or istart == iend:
+        raise Exception("Couldn't identify reversal ramp")
 
     times = times[istart:iend]
     current = current[istart:iend]
@@ -893,12 +934,17 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
     roots = np.unique([np.real(root) for root in fitted_poly.roots()
                        if root > np.min(voltages) and root < np.max(voltages)])
 
-    # Take the last root (greatest voltage). This should be the first time that the current crosses 0 and where the ion-channel kinetics are too slow to play a role
+    # Take the last root (greatest voltage). This should be the first time that
+    # the current crosses 0 and where the ion-channel kinetics are too slow to
+    # play a role
+
     if len(roots) == 0:
         return np.nan
 
     if plot:
+        created_fig = False
         if ax is None:
+            created_fig = True
             fig = plt.figure()
             ax = fig.subplots()
 
@@ -914,6 +960,9 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
         if output_path is not None:
             fig = ax.figure
             fig.savefig(output_path)
+
+        if created_fig:
+            plt.close(fig)
 
     return roots[-1]
 
@@ -1060,6 +1109,11 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
 
 
 def get_model_class(name: str):
+    from .BeattieModel import BeattieModel
+    from .ClosedOpenModel import ClosedOpenModel
+    from .WangModel import WangModel
+    from .KempModel import KempModel
+
     if name == 'Beattie' or name == 'BeattieModel':
         model_class = BeattieModel
     elif name == 'Kemp' or name == 'KempModel':
