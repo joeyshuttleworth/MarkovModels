@@ -36,6 +36,11 @@ def create_axes(fig):
     ]]
 
 
+    for ax in (observation_time_axes[0],
+               observation_time_axes[2]):
+        ax.set_ylabel('$y$', rotation=0)
+
+
 
     # observation_time_axes[2].set_title(r'\textbf a')
 
@@ -43,7 +48,7 @@ def create_axes(fig):
                            fig.add_subplot(gs[3, 2:4])]
 
     mcmc_axs = [fig.add_subplot(gs[4, 0:2]),
-                           fig.add_subplot(gs[4, 2:4])]
+                fig.add_subplot(gs[4, 2:4])]
 
     scatter_axs = [fig.add_subplot(gs[2, 0:2]),
                    fig.add_subplot(gs[2, 2:4])
@@ -109,13 +114,6 @@ def fit_model(dataset, T, ax=None, label=''):
             result = new_result
 
     if ax:
-        if len(T) < 15:
-            ax.scatter(*observed_dataset.T, color='grey',
-                       zorder=1, marker='x')
-        else:
-            ax.plot(*observed_dataset.T, lw=0.5, color='grey',
-                    zorder=1, alpha=.75)
-
         all_T = np.linspace(0, max(*T, 1.2), 100)
         ax.plot(all_T, discrepant_forward_model(result.x, all_T), '--',
                 lw=.75, color='red', label='fitted_model')
@@ -124,8 +122,12 @@ def fit_model(dataset, T, ax=None, label=''):
         ax.set_xlim(0, 1.3)
         ax.set_ylim(0, 2.25)
 
-        # ax.set_xlabel('$t$')
-        ax.set_ylabel('$y$', rotation=0)
+        if len(T) < 15:
+            ax.scatter(*observed_dataset.T, color='grey',
+                       zorder=1, marker='x', s=.25)
+        else:
+            ax.plot(*observed_dataset.T, lw=0.5, color='grey',
+                    zorder=1, alpha=.75)
 
         # ax.legend()
         # fig.savefig(os.path.join(output_dir, f"fitting_{label}"))
