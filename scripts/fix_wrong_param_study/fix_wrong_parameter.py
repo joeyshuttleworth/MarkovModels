@@ -163,7 +163,8 @@ def main():
 
 
 def fit_func(model_class_name, dataset_index, fix_param, protocol):
-    sub_dir = os.path.join(output_dir, 'fitting', f"param_{fix_param}")
+    sub_dir = os.path.join(output_dir, 'fitting', f"param_{fix_param}",
+                           "{protocol}")
 
     if not os.path.exists(sub_dir):
         try:
