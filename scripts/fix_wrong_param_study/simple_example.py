@@ -35,10 +35,13 @@ def create_axes(fig):
         fig.add_subplot(gs[1, 3]),
     ]]
 
-
-    for ax in (observation_time_axes[0],
-               observation_time_axes[2]):
+    for ax in (observation_time_axes[0][0],
+               observation_time_axes[0][2]):
         ax.set_ylabel('$y$', rotation=0)
+
+    for ax in (observation_time_axes[0][2], observation_time_axes[0][3],
+               observation_time_axes[1][2], observation_time_axes[1][3]):
+        ax.set_xlabel(r'$t$')
 
 
 
@@ -124,10 +127,10 @@ def fit_model(dataset, T, ax=None, label=''):
 
         if len(T) < 15:
             ax.scatter(*observed_dataset.T, color='grey',
-                       zorder=1, marker='x', s=.25)
+                       marker='x', s=.75)
         else:
             ax.plot(*observed_dataset.T, lw=0.5, color='grey',
-                    zorder=1, alpha=.75)
+                    alpha=.75)
 
         # ax.legend()
         # fig.savefig(os.path.join(output_dir, f"fitting_{label}"))
@@ -208,15 +211,6 @@ def generate_data_and_fit(observation_axes, scatter_ax, mcmc_ax, prediction_ax,
     estimates.append(fit_datasets_using_times(datasets, all_T, None, r'{\textrm{all}}'))
 
     observation_axes[0].set_title(r'\textbf a', loc='left')
-    # observation_axes[0].set_xlabel(r'$t$')
-    # observation_axes[1].set_xlabel(r'$t$')
-    # observation_axes[2].set_xlabel(r'$t$')
-    # observation_axes[3].set_xlabel(r'$t$')
-
-    observation_axes[0].set_xlabel(r'$t$')
-    observation_axes[1].set_xlabel(r'$t$')
-    observation_axes[2].set_xlabel(r'$t$')
-    observation_axes[3].set_xlabel(r'$t$')
 
     observation_axes[0].set_title(r"$T_1'$" if dash else r'$T_1$')
     observation_axes[1].set_title(r"$T_2'$" if dash else r'$T_2$')
