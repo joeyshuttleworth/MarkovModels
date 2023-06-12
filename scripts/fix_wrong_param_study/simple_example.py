@@ -216,10 +216,10 @@ def generate_data_and_fit(observation_axes, scatter_ax, mcmc_ax, prediction_ax,
     observation_axes[2].set_xlabel(r'$t$')
     observation_axes[3].set_xlabel(r'$t$')
 
-    observation_axes[0].set_title(r"$T_1\'$" if dash else r'$T_1$')
-    observation_axes[1].set_title(r"$T_2\'$" if dash else r'$T_2$')
-    observation_axes[2].set_title(r"$T_3\'$" if dash else r'$T_3$')
-    observation_axes[3].set_title(r"$T_4\'$" if dash else r'$T_4$')
+    observation_axes[0].set_title(r"$T_1'$" if dash else r'$T_1$')
+    observation_axes[1].set_title(r"$T_2'$" if dash else r'$T_2$')
+    observation_axes[2].set_title(r"$T_3'$" if dash else r'$T_3$')
+    observation_axes[3].set_title(r"$T_4'$" if dash else r'$T_4$')
 
     rows = []
     if dash:
