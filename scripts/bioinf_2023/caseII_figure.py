@@ -144,7 +144,7 @@ def main():
 
 def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
 
-    voltage_func, times, protocol_desc = common.get_ramp_protocol_from_csv(prediction_protocol)
+    voltage_func, _, protocol_desc = common.get_ramp_protocol_from_csv(prediction_protocol)
 
     voltages = np.array([voltage_func(t) for t in times])
     spike_times, _ = common.detect_spikes(times, voltages, window_size=0)
@@ -240,8 +240,8 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
                    linewidth=.3, alpha=.8)
 
     for i, ax in enumerate(prediction_axes):
-        ax.set_xticks([0, 8000])
-        ax.set_xticklabels(['0s', '8s'], rotation='horizontal')
+        # ax.set_xticks([0, 8000])
+        # ax.set_xticklabels(['0s', '8s'], rotation='horizontal')
 
         ax.set_yticks([-20, 0, 10])
         yticks = ax.get_yticks()
@@ -268,6 +268,7 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
     # Plot voltage
     axes[colno].plot(times[::50], [voltage_func(t) for t in times][::50], color='black',
                      linewidth=.5)
+    axes[colno].set_xticks([])
 
     axes[colno].set_ylabel(r'$V$ (mV)')
 
@@ -275,9 +276,9 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
     axes[colno].spines.right.set_visible(False)
     axes[colno].spines.top.set_visible(False)
 
-    prediction_axes[-1].set_xlabel(r'$t$ (s)')
+    # prediction_axes[-1].set_xlabel(r'$t$ (s)')
 
-    prediction_axes[-1].sharex(axes[colno])
+    # prediction_axes[-1].sharex(axes[colno])
 
     axes[colno].set_yticks([-100, 40])
     # axes[colno].set_yticklabels(['-100mV', '+40mV'])
@@ -290,7 +291,7 @@ def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
 
     axes[colno].set_xticks([])
     axes[colno + 3].set_xticks([])
-    labels = ['0', '7.5']
+    labels = ['0', '7.5s']
     axes[colno + 6].set_xticks([0, 7500])
     axes[colno + 6].set_xticklabels(labels)
 
@@ -341,31 +342,29 @@ def plot_heatmaps(axes, prediction_dfs):
         hm.set_yticklabels(hm.get_yticklabels(), rotation=0)
 
         # Add arrow from heatmap to prediction plot
-        ax2 = prediction_axes[i]
-        xyA = [7750, 1]
-        xyB = [-.1, 0.5]
-        con = ConnectionPatch(
-            xyA=xyB, coordsA=ax.transData,
-            xyB=xyA, coordsB=ax2.transData,
-            arrowstyle="->", shrinkB=5)
+        # ax2 = prediction_axes[i]
+        # xyA = [7750, 1]
+        # xyB = [-.1, 0.5]
+        # con = ConnectionPatch(
+        #     xyA=xyB, coordsA=ax.transData,
+        #     xyB=xyA, coordsB=ax2.transData,
+        #     arrowstyle="->", shrinkB=5)
 
-        # Add yellow highlight to first row
-        autoAxis = ax.axis()
-        rec = Rectangle(
-            (autoAxis[0] - 0.05, autoAxis[3] - 0.05),
-            (autoAxis[1] - autoAxis[0] + 0.1),
-            1.1,
-            fill=False,
-            color='yellow',
-            lw=.75
-            )
+        # # Add yellow highlight to first row
+        # autoAxis = ax.axis()
+        # rec = Rectangle(
+        #     (autoAxis[0] - 0.05, autoAxis[3] - 0.05),
+        #     (autoAxis[1] - autoAxis[0] + 0.1),
+        #     1.1,
+        #     fill=False,
+        #     color='yellow',
+        #     lw=.75
+        #     )
 
-        if i == 0:
-            fig.add_artist(con)
-            rec = ax.add_patch(rec)
-            rec.set_clip_on(False)
-
-
+        # if i == 0:
+        #     fig.add_artist(con)
+        #     rec = ax.add_patch(rec)
+        #     rec.set_clip_on(False)
 
         if i != 0:
             ax.set_ylabel('')
@@ -409,18 +408,18 @@ def plot_heatmaps(axes, prediction_dfs):
     cax.set_position(box)
 
     cax.xaxis.set_label_position('top')
-    cax.set_xlabel(r'$\log_{10}$ RMSE')
+    cax.set_xlabel(r'RMSE')
 
 
 def create_axes(fig):
 
-    ncols = 3
-    nrows = 2
+    ncols = 4
+    nrows = 3
 
     global gs
 
-    gs = GridSpec(nrows, ncols, height_ratios=[0.3, 1, 1, 1, 1, 1],
-                  width_ratios=[.05, 1, 1, .8], wspace=.55,
+    gs = GridSpec(nrows, ncols, height_ratios=[0.3, 1, 1],
+                  width_ratios=[.5, 1, 1, .8], wspace=.55,
                   right=.95,
                   left=.11,
                   # hspace=.5,
@@ -445,10 +444,10 @@ def create_axes(fig):
     for ax in axes:
         ax.set_rasterization_zorder(2)
 
-    axes[3].set_title(r'\textbf{a}', loc='left', y=1.2)
-    axes[1].set_title(r'\textbf{b}', loc='left')
-    axes[5].set_title(r'\textbf{d}', loc='left')
-    axes[4].set_title(r'\textbf{c}', loc='left', y=1.2)
+    # axes[3].set_title(r'\textbf{a}', loc='left', y=1.2)
+    # axes[1].set_title(r'\textbf{b}', loc='left')
+    # axes[5].set_title(r'\textbf{d}', loc='left')
+    # axes[4].set_title(r'\textbf{c}', loc='left', y=1.2)
 
     # move entire first row up
     for i, ax in enumerate(axes[:3]):

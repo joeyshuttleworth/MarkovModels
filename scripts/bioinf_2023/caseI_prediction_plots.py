@@ -44,7 +44,7 @@ def main():
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
     parser.add_argument('--no_chains', '-N', default=0, help='mcmc chains to run', type=int)
     parser.add_argument('--chain_length', '-l', default=500, help='mcmc chains to run', type=int)
-    parser.add_argument('--figsize', '-f', nargs=2, default=[4.5, 3])
+    parser.add_argument('--figsize', '-f', nargs=2, default=[4, 3])
     parser.add_argument('--use_parameter_file')
     parser.add_argument('-i', '--ignore_protocols', nargs='+',
                         default=['longap'])
@@ -60,11 +60,11 @@ def main():
 
     global linestyles
     linestyles = [(0, ()),
-      (0, (1, 2)),
-      (0, (1, 1)),
-      (0, (5, 5)),
-      (0, (3, 5, 1, 5)),
-      (0, (3, 5, 1, 5, 1, 5))]
+                  (0, (1, 2)),
+                  (0, (1, 1)),
+                  (0, (5, 5)),
+                  (0, (3, 5, 1, 5)),
+                  (0, (3, 5, 1, 5, 1, 5))]
 
     global args
     args = parser.parse_args()
@@ -133,11 +133,6 @@ def main():
                                     f"synthetic_data_{args.prediction_protocol}_0.csv"))
 
     do_prediction_plots(axes, results_df, args.prediction_protocol, data)
-    axes[1].set_title(r'\textbf{a}', loc='left')
-    axes[2].set_title(r'\textbf{b}', loc='left')
-    axes[3].set_title(r'\textbf{c}', loc='left')
-    axes[4].set_title(r'\textbf{d}', loc='left')
-
 
     fig.savefig(os.path.join(output_dir, f"Fig4.{args.file_format}"))
 
@@ -156,7 +151,7 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
     # _, spike_indices = common.detect_spikes(times, voltages, window_size=0)
 
     colno = 1
-    prediction_axes = axes[2:]
+    prediction_axes = axes[1:]
 
     training_protocols = sorted(results_df.protocol.unique())
 
@@ -254,7 +249,7 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
 
         ax.set_xlim([0, 9000])
         ax.set_xticks([0, 8000])
-        ax.set_xticklabels(['0', '8'], rotation='horizontal')
+        ax.set_xticklabels(['', ''], rotation='horizontal')
 
         yticks = [0, -2]
         ax.set_yticks(yticks)
@@ -272,54 +267,47 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
         ax.set_ylabel(r'$I_\textrm{Kr}$ (nA)')
 
     # Plot voltage
-    axes[1].plot(times[::50], [voltage_func(t) for t in times][::50],
+    axes[0].plot(times[::50], [voltage_func(t) for t in times][::50],
                  color='black', lw=.5)
 
-    axes[1].set_xlim([0, 9000])
-
-    prediction_axes[-1].set_xlabel(r'$t$ (s)')
+    axes[0].set_xlim([0, 9000])
 
     # axes[colno].yaxis.tick_right()
-    labels = ['0', '7.5']
-    axes[colno].spines.right.set_visible(False)
-    axes[colno].spines.top.set_visible(False)
+    labels = ['0s', '8s']
+    axes[0].spines.right.set_visible(False)
+    axes[0].spines.top.set_visible(False)
 
-    axes[colno].set_xticks([])
+    axes[0].set_xticks([])
 
     for ax in prediction_axes[:-1]:
         ax.set_xticks([])
 
-    prediction_axes[-1].set_xticks([0, 7500])
-    prediction_axes[-1].set_xticklabels(labels)
+    axes[-1].set_xticks([0, 8000])
+    axes[-1].set_xticklabels(labels)
 
-    axes[colno].set_yticks([-100, 40])
-    axes[colno].set_ylabel(r'$V$ (mV)')
+    axes[0].set_yticks([-80, 40])
+    axes[0].set_ylabel(r'$V$ (mV)')
     # axes[colno].set_yticklabels(['-100mV', '+40mV'])
 
 
 def create_axes(fig):
     global gs
-    nrows = 5
+    nrows = 4
     ncols = 1
 
-    gs = GridSpec(nrows, ncols, height_ratios=[0.15, 0.3, 1, 1, 1],
+    gs = GridSpec(nrows, ncols, height_ratios=[.5, 1, 1, 1],
                   figure=fig)
 
     axes = [fig.add_subplot(cell) for cell in gs]
 
-    axes[1].set_title(r'\textbf{a}', loc='left')
-    axes[2].set_title(r'\textbf{b}', loc='left')
-    axes[3].set_title(r'\textbf{c}', loc='left')
-    axes[4].set_title(r'\textbf{d}', loc='left')
-
     # Put legend on the top left axis
-    ax = axes[0]
-    legend_kws = {'loc': 10,
-                  'frameon': False,
-                  'bbox_to_anchor': [0, 0, 1, 1],
-                  'ncol': 2,
-                  'fontsize': 8
-                  }
+    # ax = axes[0]
+    # legend_kws = {'loc': 10,
+    #               'frameon': False,
+    #               'bbox_to_anchor': [0, 0, 1, 1],
+    #               'ncol': 2,
+    #               'fontsize': 8
+    #               }
 
     handles = [mlines.Line2D(xdata=[1], ydata=[1], color=color, marker=marker,
                              linestyle=linestyles[i], markersize=5,
@@ -327,9 +315,9 @@ def create_axes(fig):
                                                                 color) in enumerate(zip(protocols, markers,
                                                                                         colours))]
 
-    handles, labels = list(handles), list(results_df['protocol'].unique())
-    ax.legend(labels=labels, handles=handles, **legend_kws)
-    ax.axis('off')
+    # handles, labels = list(handles), list(results_df['protocol'].unique())
+    # ax.legend(labels=labels, handles=handles, **legend_kws)
+    # ax.axis('off')
 
     return axes
 

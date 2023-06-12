@@ -80,6 +80,8 @@ def main():
     output_dir = common.setup_output_directory(args.output, 'plot_subtractions_overlaid')
 
     leak_parameters_df = pd.read_csv(os.path.join(args.data_dir, 'subtraction_qc.csv'))
+    if args.wells:
+        leak_parameters_df = leak_parameters_df[leak_parameters_df.well.isin(args.wells)]
 
     if 'selected' not in leak_parameters_df.columns and args.selection_file:
         with open(args.selection_file) as fin:
@@ -109,6 +111,8 @@ def main():
     global protocols
     protocols = leak_parameters_df.protocol.unique()
 
+    plot_spatial_Erev(leak_parameters_df)
+
     if args.chrono_file:
         with open(args.chrono_file) as fin:
             lines = fin.read().splitlines()
@@ -128,7 +132,6 @@ def main():
         leak_parameters_df['passed QC'] = leak_parameters_df['passed QC'] \
             & leak_parameters_df['selected']
 
-    plot_spatial_Erev(leak_parameters_df)
     plot_reversal_spread(leak_parameters_df)
     do_scatter_matrix(leak_parameters_df)
     plot_histograms(leak_parameters_df)
@@ -280,10 +283,10 @@ def do_combined_plots(leak_parameters_df):
         axs2[1].cla()
 
 
-def do_scatter_matrix(df):
-    df = df.drop([df.columns[0], 'fitted_E_rev', 'sweep', 'passed QC.Erev',
-                  'selected', 'pre-drug leak reversal', 'post-drug leak reversal'],
-                 axis='columns')
+def do_scatter_matrix(_df):
+    df = _df.drop([_df.columns[0], 'sweep', 'passed QC.Erev',
+                   'selected', 'pre-drug leak reversal', 'post-drug leak reversal'],
+                  axis='columns')
 
     print(df['passed QC'])
     grid = sns.pairplot(data=df, hue='passed QC', diag_kind='hist',
@@ -291,9 +294,12 @@ def do_scatter_matrix(df):
                         hue_order=[False, True])
     grid.savefig(os.path.join(output_dir, 'scatter_matrix'))
 
-    grid = sns.pairplot(data=df, hue=df['fitted_E_rev'] > args.reversal, diag_kind='hist',
+    df['hue'] = df['fitted_E_rev'] > args.reversal
+
+    grid = sns.pairplot(data=df, hue='hue', diag_kind='hist',
                         plot_kws={'alpha':0.4, 'edgecolor': None},
                         hue_order=[False, True])
+
     grid.savefig(os.path.join(output_dir, 'scatter_matrix'))
 
 

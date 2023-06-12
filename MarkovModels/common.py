@@ -518,6 +518,9 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             if min([p for i, p in enumerate(parameters) if i != mm.GKr_index]) < 1e-7:
                 return False
 
+            if parameters[-1] > data.max() or parameters[-1] <  data.max()*0.01:
+                return False
+
             # Ensure that all parameters > 0
             return np.all(parameters > 0)
 
@@ -529,7 +532,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         def _sample_once(self, min_log_p, max_log_p):
             for i in range(1000):
                 p = np.empty(starting_parameters.shape)
-                p[-1] = starting_parameters[-1]
+                p[-1] = np.random_uniform(data.max()*.01, data.max(), 1)
                 p[:-1] = 10**np.random.uniform(min_log_p, max_log_p,
                                                starting_parameters[:-1].shape)
 

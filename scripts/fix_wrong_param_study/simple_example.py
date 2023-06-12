@@ -11,6 +11,8 @@ import scipy
 from MarkovModels import common
 from matplotlib.gridspec import GridSpec
 
+import pints
+
 from matplotlib import rc
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 8})
 rc('text', usetex=True)
@@ -35,8 +37,8 @@ def create_axes(fig):
     prediction_plot_ax = fig.add_subplot(gs[1, 0:2])
     scatter_ax = fig.add_subplot(gs[1, 2:])
 
-    prediction_plot_ax.set_title(r'\textbf b', loc='left')
-    scatter_ax.set_title(r'\textbf c', loc='left')
+    # prediction_plot_ax.set_title(r'\textbf b', loc='left')
+    # scatter_ax.set_title(r'\textbf c', loc='left')
 
     for ax in observation_time_axes + [prediction_plot_ax, scatter_ax]:
         for side in ['top', 'right']:
@@ -96,8 +98,12 @@ def fit_model(dataset, T, ax=None, label=''):
             result = new_result
 
     if ax:
-        ax.plot(*observed_dataset.T, marker='x', ms=1.5, lw=0, color='grey',
-                zorder=10)
+        if len(T) < 15:
+            ax.plot(*observed_dataset.T, marker='x', ms=1.5, lw=0, color='grey',
+                    zorder=1)
+        else:
+            ax.plot(*observed_dataset.T, lw=0.5, color='grey', zorder=1,
+                    alpha=.75)
 
         all_T = np.linspace(0, max(*T, 1.2), 100)
         ax.plot(all_T, discrepant_forward_model(result.x, all_T), '--',
@@ -121,13 +127,18 @@ def main():
 
     argument_parser = argparse.ArgumentParser()
 
-    argument_parser.add_argument('-o', '--output', default='output')
-    argument_parser.add_argument('--figsize', default=[4.685, 3.5], type=int,
+    argument_parser.add_argument('-o', '--output')
+    argument_parser.add_argument('--figsize', default=[3.5, 2.5], type=int,
                                  nargs=2)
     argument_parser.add_argument('--no_datasets', default=10, type=int)
     argument_parser.add_argument('--sigma', default=0.01, type=float)
     argument_parser.add_argument('--file_format', default='pdf')
     argument_parser.add_argument('--sampling_frequency', default=1, type=int)
+
+    # MCMC args
+    argument_parser.add_argument('--no_chains', default=1, type=int)
+    argument_parser.add_argument('--chain_length', default=10000, type=int)
+    argument_parser.add_argument('--burn_in', default=0, type=int)
 
     global args
     args = argument_parser.parse_args()
@@ -171,7 +182,7 @@ def main():
                                           observation_axes[i],
                                           label=f"{i}") for i, T in enumerate((Ts))]
 
-    observation_axes[0].set_title(r'\textbf a', loc='left')
+    # observation_axes[0].set_title(r'\textbf a', loc='left')
     # observation_axes[0].set_xlabel(r'$t$')
     # observation_axes[1].set_xlabel(r'$t$')
     # observation_axes[2].set_xlabel(r'$t$')
@@ -202,6 +213,11 @@ def main():
     fig.savefig(os.path.join(output_dir, f"Fig1.{args.file_format}"))
 
     estimates_df.to_csv(os.path.join(output_dir, 'fitting_results.csv'))
+
+    mcmc_fig = plt.figure(figsize=args.figsize, constrained_layout=True)
+    mcmc_ax = mcmc_fig.subplots()
+    do_mcmc(datasets, Ts, args.sampling_frequency, mcmc_ax)
+    mcmc_fig.savefig(os.path.join(output_dir, f"mcmc_res.{args.file_format}"))
 
 
 def make_scatter_plots(df, ax, label=''):
@@ -253,6 +269,75 @@ def make_prediction_plots(estimates, datasets, ax):
     ax.set_ylabel(r'$y$', rotation=0)
 
     # fig.savefig(os.path.join(output_dir, 'prediction_plot'))
+
+
+def do_mcmc(datasets, observation_times, sampling_frequency, ax):
+    # Use uninformative prior
+    prior = pints.UniformLogPrior([0, 0], [1e1, 1e1])
+
+    class pints_log_likelihood(pints.LogPDF):
+        def __init__(self, observation_times, data, sigma2):
+            self.observation_times = observation_times
+            self.data = data
+            self.sigma2 = sigma2
+
+        def __call__(self, p):
+            # Likelihood function
+
+            observed_dataset = np.vstack(list({tuple(row) for row in self.data if row[0]
+                                               in self.observation_times}))
+
+            observed_dataset = observed_dataset[observed_dataset[:, 0].argsort()][:, 1]
+
+            error = discrepant_forward_model(p, self.observation_times) - observed_dataset
+            SSE = np.sum(error**2)
+
+            n = len(self.observation_times)
+
+            ll = -n * 0.5 * np.log(2 * np.pi * self.sigma2) - SSE / (2 * self.sigma2)
+            return ll
+
+        def n_parameters(self):
+            return len(true_theta)
+
+    starting_parameters = prior.sample(n=args.no_chains)
+    # starting_parameters = np.tile(true_theta, reps=[args.no_chains])
+
+    data_set = datasets[0]
+
+    mcmc_figure = plt.figure(figsize=args.figsize)
+
+    alpha = 0.5
+    palette = sns.color_palette()
+    palette = [(r, g, b, alpha) for r, g, b in palette[:len(observation_times)]]
+
+    dfs = []
+    for i, observation_times in enumerate(observation_times):
+        print('performing mcmc on dataset %d' % i)
+        print(data_set)
+        posterior = pints.LogPosterior(pints_log_likelihood(observation_times,
+                                                            data_set, args.sigma**2), prior)
+        mcmc = pints.MCMCController(posterior, args.no_chains,
+                                    starting_parameters,
+                                    method=pints.HaarioBardenetACMC)
+
+        mcmc.set_max_iterations(args.chain_length)
+        samples = mcmc.run()[:, args.burn_in:, :]
+
+        np.save(os.path.join(output_dir, f"mcmc_chains_chains_{sampling_frequency}.npy"),
+                samples)
+
+        sub_df = pd.DataFrame(samples.reshape([-1, 2]), columns=[r'$\theta_1$',
+                                                                 r'$\theta_2$'])
+        sub_df['observation times'] = r'$T_{' f"{i+1}" r'}$' if i < 4 else r'$T_{\textrm{all}}$'
+
+        dfs.append(sub_df)
+
+    df = pd.concat(dfs, ignore_index=True)
+
+    sns.kdeplot(data=df, x=r'$\theta_1$', y=r'$\theta_2$',
+                palette=palette, hue='observation times',
+                levels=[.01, 0.1, .5], ax=ax)
 
 
 if __name__ == '__main__':

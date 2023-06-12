@@ -31,9 +31,8 @@ from matplotlib import rc
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 8})
 rc('text', usetex=True)
-rc('figure', dpi=1000, facecolor=[0]*4)
 rc('axes', facecolor=[0]*4)
-rc('savefig', facecolor=[0]*4)
+rc('figure', dpi=600)
 
 
 def main():
@@ -44,7 +43,7 @@ def main():
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
     parser.add_argument('--no_chains', '-N', default=0, help='mcmc chains to run', type=int)
     parser.add_argument('--chain_length', '-l', default=500, help='mcmc chains to run', type=int)
-    parser.add_argument('--figsize', '-f', nargs=2, default=[4, 3.5])
+    parser.add_argument('--figsize', '-f', nargs=2, default=[4.25, 2.5], type=float)
     parser.add_argument('--use_parameter_file')
     parser.add_argument('-i', '--ignore_protocols', nargs='+',
                         default=['longap'])
@@ -60,11 +59,11 @@ def main():
 
     global linestyles
     linestyles = [(0, ()),
-      (0, (1, 2)),
-      (0, (1, 1)),
-      (0, (5, 5)),
-      (0, (3, 5, 1, 5)),
-      (0, (3, 5, 1, 5, 1, 5))]
+                  (0, (1, 2)),
+                  (0, (1, 1)),
+                  (0, (5, 5)),
+                  (0, (3, 5, 1, 5)),
+                  (0, (3, 5, 1, 5, 1, 5))]
 
     global args
     args = parser.parse_args()
@@ -82,7 +81,9 @@ def main():
     output_dir = common.setup_output_directory(args.output_dir, "CaseI_main")
 
     global fig
-    fig = plt.figure(figsize=args.figsize)
+    fig = plt.figure(figsize=args.figsize,
+                     constrained_layout=False)
+
     axes = create_axes(fig)
 
     results_df = pd.read_csv(os.path.join(args.results_dir, 'results_df.csv'))
@@ -143,7 +144,7 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
 
     vals = sorted(results_df[args.fixed_param].unique())
 
-    assert(len(vals) == 5)
+    #assert(len(vals) == 5)
 
     voltage_func, times, protocol_desc = common.get_ramp_protocol_from_csv(prediction_protocol)
 
@@ -172,14 +173,14 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
     print(linestyles)
 
     ymin, ymax = [0, 0]
-    for i in range(5):
+    for i in range(3):
         # plot data
         ax = prediction_axes[i]
 
         ax.plot(times, current, color='grey', alpha=.5, lw=0.3)
         # ax.plot(times, solver(), color='grey', lw=.3)
 
-        val = vals[i]
+        val = vals[::2][i]
 
         predictions = []
         for training_protocol in sorted(training_protocols):
@@ -256,7 +257,7 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
         box.x1 += 0.05
         ax.set_position(box)
 
-        ax.set_rasterization_zorder(2)
+        # ax.set_rasterization_zorder(2)
 
     # Plot voltage
     axes[colno].plot(times[::50], [voltage_func(t) for t in times][::50], color='black',
@@ -282,7 +283,7 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
 
     axes[colno].set_yticks([-100, 40])
     # axes[colno].set_yticklabels(['-100mV', '+40mV'])
-    axes[colno].set_ylabel(r'$V$ (mV)')
+    # axes[colno].set_ylabel(r'$V$ (mV)')
 
     ax = axes[colno]
     box = ax.get_position()
@@ -298,7 +299,7 @@ def plot_heatmaps(axes, prediction_df):
 
     averaged_df = prediction_df.groupby([args.fixed_param, 'fitting_protocol', 'validation_protocol']).mean().reset_index()
 
-    vals = sorted(prediction_df[args.fixed_param].unique())
+    vals = sorted(prediction_df[args.fixed_param].unique())[::2]
     print(args.fixed_param, vals)
 
     if args.vlim is None:
@@ -308,16 +309,22 @@ def plot_heatmaps(axes, prediction_df):
     # vmin = 10**-1.5
     # vmax = 10**0
 
-    assert(len(vals) == 5)
+    #assert(len(vals) == 5)
 
     # Get central column
     heatmap_axes = [axes[i] for i in range(len(axes)) if i > 2 and (i % 3) == colno]
+
+    for ax in heatmap_axes:
+        pos = ax.get_position()
+        pos.x0 += 0.025
+        ax.set_position(pos)
+
     prediction_axes = [axes[i] for i in range(len(axes)) if i > 2 and (i % 3) == colno - 1]
 
     cmap = sns.cm.mako_r
     norm = matplotlib.colors.LogNorm(vmin=vmin, vmax=vmax)
 
-    for i in range(5):
+    for i in range(3):
         ax = heatmap_axes[i]
         sub_df = averaged_df[averaged_df[args.fixed_param] == vals[i]].copy()
         sub_df = sub_df[~sub_df.fitting_protocol.isin(['V', '$d_0$'])]
@@ -325,17 +332,17 @@ def plot_heatmaps(axes, prediction_df):
         pivot_df = sub_df.pivot(columns='fitting_protocol',
                                 index='validation_protocol', values='RMSE')
 
-        hm = sns.heatmap(pivot_df, ax=ax, square=True, cbar=False, norm=norm,
+        hm = sns.heatmap(pivot_df, ax=ax, square=False, cbar=False, norm=norm,
                          cmap=cmap)
 
         # Add arrow from heatmap to prediction plot
         ax2 = prediction_axes[i]
         xyA = [7750, .2]
         xyB = [-.1, 0.5]
-        con = ConnectionPatch(
-            xyA=xyB, coordsA=ax.transData,
-            xyB=xyA, coordsB=ax2.transData,
-            arrowstyle="->", shrinkB=5)
+        # con = ConnectionPatch(
+        #     xyA=xyB, coordsA=ax.transData,
+        #     xyB=xyA, coordsB=ax2.transData,
+        #     arrowstyle="->", shrinkB=5)
 
         # Add yellow highlight to first row
         autoAxis = ax.axis()
@@ -348,11 +355,10 @@ def plot_heatmaps(axes, prediction_df):
             lw=.75
             )
 
-        if i == 0:
-            fig.add_artist(con)
-            rec = ax.add_patch(rec)
-            rec.set_clip_on(False)
-            ax.set_xlabel('training', labelpad=0)
+        # if i == 0:
+            # fig.add_artist(con)
+            # rec = ax.add_patch(rec)
+            # rec.set_clip_on(False)
 
         hm.set_yticklabels(hm.get_yticklabels(), rotation=0)
 
@@ -361,7 +367,9 @@ def plot_heatmaps(axes, prediction_df):
             ax.set_xlabel('')
             ax.set_yticks([])
             ax.set_xticks([])
+            ax.set_xlabel('training', labelpad=0)
         else:
+            ax.set_xlabel('', labelpad=0)
             ax.set_ylabel('validation')
             ax.xaxis.tick_top()
             ax.yaxis.tick_right()
@@ -392,23 +400,23 @@ def plot_heatmaps(axes, prediction_df):
     box = cax.get_position()
     box.y1 += 0.045
     box.y0 += 0.045
+
+    box.x0 += 0.04
     cax.set_position(box)
 
     cax.xaxis.set_label_position('top')
-    cax.set_xlabel(r'$\log_{10}$ RMSE')
+    cax.set_xlabel(r'RMSE', y=15)
 
 
 def create_axes(fig):
     global gs
     ncols = 4
-    nrows = 6
+    nrows = 4
 
-    gs = GridSpec(nrows, ncols, height_ratios=[0.3, 1, 1, 1, 1, 1],
-                  width_ratios=[.05, 1, 1, .8], wspace=.55,
-                  right=.95,
-                  #space=.275,
-                  left=.11,
-                  bottom=0.1,
+    gs = GridSpec(nrows, ncols, height_ratios=[0.5, 1, 1, 1],
+                  width_ratios=[.15, 1, 1.5, 1.1],
+                  wspace=.70,
+                  bottom=.125,
                   figure=fig)
 
     bottom_axes = [fig.add_subplot(gs[-1, i]) for i in range(ncols) if i % 4 != 0]
@@ -428,10 +436,10 @@ def create_axes(fig):
     axes = axes + list(bottom_axes)
     print(axes)
 
-    axes[3].set_title(r'\textbf{a}', loc='left', y=1.2)
-    axes[1].set_title(r'\textbf{b}', loc='left')
-    axes[5].set_title(r'\textbf{d}', loc='left')
-    axes[4].set_title(r'\textbf{c}', loc='left', y=1.2)
+    # axes[3].set_title(r'\textbf{a}', loc='left', y=1.2)
+    # axes[1].set_title(r'\textbf{b}', loc='left')
+    # axes[5].set_title(r'\textbf{d}', loc='left')
+    # axes[4].set_title(r'\textbf{c}', loc='left', y=1.2)
 
     # move entire first row up
     for i, ax in enumerate(axes[:3]):
@@ -449,13 +457,11 @@ def create_axes(fig):
     number_line_axes = fig.add_subplot(gs[1:, 0])
 
     number_line_axes.xaxis.set_visible(False)
-    number_line_axes.set_yticks([1, 2, 3, 4, 5])
+    number_line_axes.set_yticks([1, 3, 5])
     number_line_axes.set_ylim([1, 5])
     tick_labels = [
         r'$\frac{1}{4}$',
-        r'$\frac{1}{2}$',
         r'$1$',
-        r'$2$',
         r'$4$',
     ]
 
@@ -485,12 +491,12 @@ def scatter_plots(axes, results_df, params=['p1', 'p2'], col=0):
 
     scatter_axes = [ax for i, ax in enumerate(axes) if (i % 3) == col and i > 2]
 
-    assert(len(scatter_axes) == 5)
+    #assert(len(scatter_axes) == 5)
 
     results_df = results_df.copy()
 
-    vals = sorted(results_df[args.fixed_param].unique())
-    assert(len(vals) == len(scatter_axes))
+    vals = sorted(results_df[args.fixed_param].unique())[::2]
+    #assert(len(vals) == len(scatter_axes))
 
     val1 = true_parameters[0]
     val2 = true_parameters[1]
@@ -541,13 +547,13 @@ def scatter_plots(axes, results_df, params=['p1', 'p2'], col=0):
     ticks = scatter_axes[0].get_xticks()
     ticks = [ticks[0], ticks[-1]]
     tick_labels = [f"{v:.2f}" for v in ticks]
-    for i in range(4):
+    for i in range(3):
         scatter_axes[i].set_xticks([])
         scatter_axes[i].set_xlabel('')
 
-    scatter_axes[4].set_xticks(ticks)
-    scatter_axes[4].set_xticklabels(tick_labels)
-    scatter_axes[4].set_xlabel(r'$p_1 \times 10^3$ (s$^{-1})$')
+    scatter_axes[2].set_xticks(ticks)
+    scatter_axes[2].set_xticklabels(tick_labels)
+    scatter_axes[2].set_xlabel(r'$p_1$ (ms$^{-1})$')
 
     handles = [mlines.Line2D(xdata=[1], ydata=[1], color=color, marker=marker,
                              linestyle=linestyles[i], markersize=5,
