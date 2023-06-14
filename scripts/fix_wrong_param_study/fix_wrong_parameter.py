@@ -164,7 +164,7 @@ def main():
 
 def fit_func(model_class_name, dataset_index, fix_param, protocol):
     sub_dir = os.path.join(output_dir, 'fitting', f"param_{fix_param}",
-                           f"{protocol}")
+                           f"{protocol}", f"{dataset_index}")
 
     if not os.path.exists(sub_dir):
         try:
@@ -276,9 +276,9 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
         fit_ax.legend()
 
         if os.path.exists(sub_dir):
-            fit_fig.savefig(os.path.join(sub_dir, f"fit_{protocol}_{fix_param_val:.4e}_"
+            fit_fig.savefig(os.path.join(fitting_output_dir, f"fit_{protocol}_{fix_param_val:.4e}_"
                                          + f"{dataset_index}.png"))
-            fitting_df.to_csv(os.path.join(sub_dir, f"fit_{protocol}_{fix_param_val:.4e}_"
+            fitting_df.to_csv(os.path.join(fitting_output_dir, f"fit_{protocol}_{fix_param_val:.4e}_"
                                            + f"{dataset_index}.csv"))
 
         fit_ax.cla()

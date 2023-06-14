@@ -517,9 +517,9 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             if min([p for i, p in enumerate(parameters) if i != mm.GKr_index]) < 1e-7:
                 return False
 
-            # Ensure the proposed maximal conductance is reasonable. It
-            # shouldn't be too much greater than the maximum observed current,
-            # nor much smaller than this value
+            # Ensure the proposed maximal conductance has a reasonable value.
+            # It shouldn't be too much greater than the maximum observed
+            # current, nor much smaller than this value
             max_current = data[subset_indices].max()
 
             if mm.GKr_index not in self.fix_parameters:
