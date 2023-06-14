@@ -446,8 +446,6 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     if not times:
         times = mm.times
 
-    print('starting parameters', starting_parameters)
-
     if log_transform:
         # Assume that the conductance is the last parameter and that the parameters are arranged included
 
@@ -520,10 +518,14 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             # Ensure the proposed maximal conductance has a reasonable value.
             # It shouldn't be too much greater than the maximum observed
             # current, nor much smaller than this value
-            max_current = data[subset_indices].max()
+
+            voltages = np.array([mm.voltage(t) for t in mm.times])
+            max_conductance = np.max(data[subset_indices] \
+                                     / (voltages[subset_indices] - mm.E_rev))
 
             if mm.GKr_index not in self.fix_parameters:
-                if parameters[mm.GKr_index] > 10*max_current or parameters[mm.GKr_index] < max_current:
+                if parameters[mm.GKr_index] > 100 * max_conductance or \
+                   parameters[mm.GKr_index] < 0.01 * max_conductance:
                     return False
 
             # Finally, ensure that all parameters > 0
@@ -537,7 +539,8 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         def _sample_once(self, min_log_p, max_log_p):
             for i in range(1000):
                 p = np.empty(starting_parameters.shape)
-                p[-1] = np.random_uniform(data.max()*.01, data.max(), 1)
+                max_current = data[subset_indices].max()
+                p[-1] = np.random.uniform(max_current, max_current*10, 1)
                 p[:-1] = 10**np.random.uniform(min_log_p, max_log_p,
                                                starting_parameters[:-1].shape)
 
@@ -625,6 +628,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             starting_parameter_sets.append(initial_guess)
             boundaries = Boundaries(initial_guess, fix_parameters)
             params_not_fixed = initial_guess
+
         controller = pints.OptimisationController(error, params_not_fixed,
                                                   boundaries=boundaries,
                                                   method=method,
@@ -771,7 +775,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                   repeats=1, infer_E_rev=False, fit_initial_conductance=True,
                   experiment_name='newtonrun4', solver=None, E_rev=None,
                   randomise_initial_guess=True, parallel=False,
-                  solver_type=None, sweep=None, scale_conductance=False):
+                  solver_type=None, sweep=None):
 
     if default_parameters is None or len(default_parameters) == 0:
         default_parameters = model_class().get_default_parameters()
@@ -826,23 +830,6 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     if solver is None:
         solver = model.make_forward_solver_of_type(solver_type)
 
-    if scale_conductance:
-        # scale conductance to match data
-        def optim_func(p):
-            p_vec = default_parameters.copy()
-            p_vec[model.GKr_index] = p
-            return np.sum((data - solver(p_vec))**2)
-
-        res = scipy.optimize.minimize_scalar(optim_func,
-                                             default_parameters[model.GKr_index],
-                                             method='bounded', bounds=[0, 1e3])
-
-        params_scaled = initial_params.copy()
-        params_scaled[model.GKr_index] = res.x
-
-        if optim_func(params_scaled[model.GKr_index]) < optim_func(default_parameters[model.GKr_index]):
-            initial_params = params_scaled
-
     fitted_params, score, fitting_df = fit_model(model, data, solver=solver,
                                                  starting_parameters=initial_params,
                                                  max_iterations=max_iterations,
@@ -859,7 +846,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
         fitted_params = row[model.get_parameter_labels()].values.flatten()
         ax = fig.subplots()
         ax.plot(times, solver(fitted_params), label='fitted parameters')
-        ax.plot(times, solver(params_scaled), label='default parameters')
+        ax.plot(times, solver(default_parameters), label='default parameters')
         ax.plot(times, data, color='grey', label='data', alpha=.5)
 
         ax.legend()

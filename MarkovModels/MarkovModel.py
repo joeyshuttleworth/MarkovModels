@@ -1,17 +1,11 @@
 import numpy as np
 import sympy as sp
-import logging
-import time
 from scipy.integrate import solve_ivp
-import time
 from numbalsoda import lsoda_sig, lsoda, dop853
-from numba import njit, cfunc, literal_unroll
+from numba import njit, cfunc
 import numba as nb
-import NumbaIDA
 
 from .common import calculate_reversal_potential
-from NumbaIDA import ida_sig, ida
-
 
 class MarkovModel:
     """
@@ -265,205 +259,6 @@ class MarkovModel:
         Q_func = sp.lambdify((rates,), self.Q, modules='numpy', cse=True)
         return njit(Q_func) if njitted else Q_func
 
-    def make_ida_residual_func(self):
-        if self.Q is None:
-            Exception("Q Matrix not defined")
-
-        Q_func = self.make_Q_func(True)
-        rates_func = self.get_rates_func(True)
-
-        voltage_func = self.voltage
-
-        neq = self.Q.shape[0]
-
-        n_p = len(self.get_default_parameters())
-
-        @njit
-        def f_deriv(t, u, p):
-            V = voltage_func(t)
-            rates = rates_func(p, V).flatten()
-            Q = Q_func(rates)
-
-            du = (Q @ u).flatten()
-            return du
-
-        # @njit
-        # def f_deriv(t, u, p):
-        #     V = voltage_func(t)
-        #     k1, k2, k3, k4 = rates_func(p, V).flatten()
-
-        #     O = u[1]
-        #     I = u[2]
-        #     IC = u[3]
-        #     C = u[0]
-
-        #     du = np.empty((4,))
-
-        #     du[1] = -O * (k2 + k3) + k4 * I + k1 * C
-        #     du[2] = -I * (k2 + k4) + k1 * IC + k3 * O
-        #     du[3] = -IC * (k4 + k1) + k2 * I + k3 * C
-        #     du[0] = -C * (k3 + k1) + k4 * IC + k2 * O
-
-        #     return du
-
-        @cfunc(ida_sig)
-        def residual_func(t, u, du, res, p):
-            y_vec = nb.carray(u, neq, dtype=np.float64)
-            p_vec = nb.carray(p, n_p, dtype=np.float64)
-            res_vec = nb.carray(res, neq, dtype=np.float64)
-            dy_vec = nb.carray(du, neq, dtype=np.float64)
-
-            # Calculate derivatives
-            derivs = f_deriv(t, y_vec, p_vec)
-
-            for i in range(neq):
-                res_vec[i] = derivs[i] - dy_vec[i]
-
-            res_vec[neq] = 1 - y_vec.sum()
-
-            return None
-
-        return residual_func
-
-    def make_ida_solver_current(self, njitted=True, atol=None, rtol=None):
-        state_solver = self.make_ida_solver_states(njitted=njitted, atol=atol, rtol=rtol)
-        solver = self.make_solver_current(state_solver, njitted=njitted, rtol=rtol, atol=atol)
-        return njit(solver) if njitted else solver
-
-    def make_ida_jacobian_function(self):
-        voltage = self.voltage
-
-        n_p = len(self.get_default_parameters())
-        neq = self.Q.shape[0]
-
-        rates_func = self.get_rates_func(njitted=True)
-
-        Q_func = self.make_Q_func(njitted=True)
-
-        @cfunc(NumbaIDA.ida_jac_sig)
-        def jac_func(t, cj, y, yp, JJ, p):
-            jacobian = nb.carray(JJ, (neq, neq))
-            p_vec = nb.carray(p, (n_p,))
-            V = voltage(t)
-            jacobian[:, :] = Q_func(rates_func(p_vec, V).flatten()).T - cj * np.eye(neq)
-
-            return None
-
-        return jac_func
-
-    def make_ida_solver_states(self, njitted=True, atol=None, rtol=None):
-
-        no_states = self.Q.shape[0]
-
-        rhs_inf = self.rhs_inf
-
-        voltage = self.voltage
-        rates_func = self.get_rates_func(njitted=True)
-
-        if atol is None:
-            atol = self.solver_tolerances[0]
-        if rtol is None:
-            rtol = self.solver_tolerances[1]
-
-        times = self.times
-        res_func = self.make_ida_residual_func()
-
-        func_ptr = res_func.address
-
-        p = self.get_default_parameters()
-
-        Q_func = self.make_Q_func(njitted=True)
-
-        jac_func = self.make_ida_jacobian_function()
-
-        protocol_description = self.protocol_description
-        if protocol_description is None:
-            Exception("No protocol defined")
-
-        start_times = [val[0] for val in protocol_description]
-        intervals = tuple(zip(start_times[:-1], start_times[1:]))
-
-        jac_ptr = jac_func.address
-        eps = np.finfo(float).eps
-
-        def solver(p=p, times=times,
-                   atol=atol, rtol=rtol):
-
-            p = p.copy()
-            y0 = np.zeros((no_states,))
-            y0[:-1] = rhs_inf(p, voltage(0)).flatten()
-            y0[-1] = 1 - np.sum(y0[:-1])
-            solution = np.full((len(times), no_states), np.nan)
-            solution[0, :] = y0
-
-            v = voltage(0)
-            rates = rates_func(p, v).flatten()
-
-            for i, (tstart, tend) in enumerate(intervals):
-                if i == len(intervals) - 1:
-                    tend = times[-1] + 1
-
-                istart = np.argmax(times > tstart)
-                iend = np.argmax(times > tend)
-
-                if iend == 0:
-                    iend = len(times)
-
-                step_times = np.full(iend-istart + 2, np.nan)
-                if iend == len(times):
-                    step_times[1:-1] = times[istart:]
-                else:
-                    step_times[1:-1] = times[istart:iend]
-
-                step_times[0] = tstart
-                step_times[-1] = tend
-
-                step_sol = np.full((len(step_times), no_states), np.nan)
-
-                if step_times[1] - tstart < 2 * eps * np.abs(step_times[1]):
-                    start_int = 1
-                    step_sol[0, :] = y0
-                else:
-                    start_int = 0
-
-                if tend - step_times[-1] < 2 * eps * np.abs(tend):
-                    end_int = -1
-                else:
-                    end_int = None
-
-                v = voltage(tstart)
-                rates = rates_func(p, v).flatten()
-
-                Q = Q_func(rates)
-
-                y0 = y0 / y0.sum()
-                du0 = (Q.T @ y0).flatten()
-
-                step_sol[start_int: end_int], success = ida(func_ptr, y0, du0, y0.shape[0],
-                                                            step_times[start_int:end_int],
-                                                            data=p,
-                                                            # jac_ptr=jac_ptr,
-                                                            nmaxsteps=2000)
-                if not success:
-                    return solution
-
-                if end_int == -1:
-                    step_sol[-1, :] = step_sol[-2, :]
-
-                if iend == len(times):
-                    solution[istart:, ] = step_sol[1:-1, ]
-                    break
-
-                else:
-                    y0 = step_sol[-1, :]
-                    solution[istart:iend, ] = step_sol[1:-1, ]
-            return solution
-
-        if njitted:
-            solver = njit(solver)
-
-        return solver
-
     def get_rates_func(self, njitted=True):
         inputs = (self.p, self.v)
         rates_expr = sp.Matrix(list(self.rates_dict.values()))
@@ -476,7 +271,6 @@ class MarkovModel:
                                    protocol_description=None, njitted=True,
                                    solver_type='lsoda'):
         # Solver can be either lsoda or dop853
-        # For IDA solver use make_IDA_solver_states
 
         if atol is None:
             atol = self.solver_tolerances[0]
@@ -710,6 +504,7 @@ class MarkovModel:
         elif solver_type == 'hybrid':
             solver = self.make_hybrid_solver_current(**kws)
         elif solver_type == 'ida':
+            raise NotImplementedError('ida solver not implemented')
             solver = self.make_ida_solver_current(**kws)
         elif solver_type == 'dop853':
             solver = self.make_forward_solver_current(solver_type='dop853', **kws)

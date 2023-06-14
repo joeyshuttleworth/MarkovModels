@@ -29,8 +29,8 @@ T = 298
 K_in = 120
 K_out = 5
 
-global Erev
-Erev = common.calculate_reversal_potential(T=298, K_in=120, K_out=5)
+global E_rev
+E_rev = common.calculate_reversal_potential(T=298, K_in=120, K_out=5)
 
 pool_kws = {'maxtasksperchild': 1}
 
@@ -84,8 +84,6 @@ def main():
         true_params = pd.read_csv(args.use_parameter_file, header=None).values[0,:].astype(np.float64)
     else:
         true_params = model_class().get_default_parameters()
-
-    print(true_params)
 
     param_labels = model_class().get_parameter_labels()
 
@@ -193,12 +191,10 @@ def fit_func(model_class_name, dataset_index, fix_param, protocol):
 
     param_vals = 2**param_val_multipliers * default_fixed_param_val
 
-    print(param_vals)
-
     mm = model_class(voltage=voltage_func,
                      protocol_description=protocol_desc,
                      times=times,
-                     Erev=Erev)
+                     E_rev=E_rev)
 
     voltages = np.array([voltage_func(t) for t in times])
     _, spike_indices = common.detect_spikes(times, voltages, window_size=0)
@@ -305,7 +301,7 @@ def generate_synthetic_data_sets(protocols, n_repeats, parameters=None,
                             no_samples)
 
         model_class = common.get_model_class(args.model)
-        model = model_class(voltage=prot, times=times, Erev=Erev,
+        model = model_class(voltage=prot, times=times, E_rev=E_rev,
                             parameters=parameters, protocol_description=desc)
 
         mean = model.make_forward_solver_current()()
@@ -362,7 +358,7 @@ def compute_predictions_df(params_df, model_class, datasets, datasets_df,
 
             model = model_class(prot_func,
                                 times=full_times,
-                                Erev=Erev,
+                                E_rev=E_rev,
                                 protocol_description=desc)
 
             voltages = np.array([prot_func(t) for t in full_times])
