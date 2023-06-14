@@ -1,3 +1,6 @@
 [submodule "markov_builder"]
 	path = markov_builder
 	url = git@github.com:CardiacModelling/Markov-builder
+[submodule "quality-control"]
+	path = quality-control
+	url = git@github.com:CardiacModelling/quality-control

@@ -12,7 +12,7 @@ class KempModel(MarkovModel):
     constructed using Markov_builder
     """
 
-    def __init__(self, voltage=None, times=None, Erev: float = None,
+    def __init__(self, voltage=None, times=None,
                  parameters=None, *args, **kwargs):
         # Create symbols for symbolic functions
 
@@ -28,11 +28,6 @@ class KempModel(MarkovModel):
         if parameters is not None:
             self.default_parameters = parameters
 
-        if Erev is None:
-            self.Erev = -80
-        else:
-            self.Erev = common.calculate_reversal_potential()
-
         if times is None:
             times = np.linspace(0, 15000, 1000)
 
@@ -40,7 +35,7 @@ class KempModel(MarkovModel):
 
         A, B = mc.eliminate_state_from_transition_matrix()
 
-        Q = mc.get_transition_matrix()
+        _, Q = mc.get_transition_matrix()
 
         symbols = {}
         symbols['v'] = sp.sympify('V')
@@ -61,12 +56,6 @@ class KempModel(MarkovModel):
         super().__init__(symbols, A, B, mc.rate_expressions, times,
                          voltage=voltage, Q=Q, *args, **kwargs,
                          name='KempModel')
-
-    def make_hybrid_solver_current(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def make_hybrid_solver_states(self, *args, **kwargs):
-        raise NotImplementedError
 
     def CreateSymbols(self):
         """

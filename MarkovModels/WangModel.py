@@ -15,7 +15,7 @@ class WangModel(MarkovModel):
     constructed using Markov_builder
     """
 
-    def __init__(self, voltage=None, times=None, Erev: float = None,
+    def __init__(self, voltage=None, times=None,
                  parameters=None, *args, **kwargs):
         # Create symbols for symbolic functions
 
@@ -31,21 +31,13 @@ class WangModel(MarkovModel):
         if parameters is not None:
             self.default_parameters = parameters
 
-        if Erev is None:
-            self.Erev = -80
-        else:
-            # Use default Erev
-            common.calculate_reversal_potential()
-            self.Erev = Erev
-
         if times is None:
             times = np.linspace(0, 15000, 1000)
 
         self.state_labels = list(mc.graph)
 
         A, B = mc.eliminate_state_from_transition_matrix()
-
-        Q = mc.get_transition_matrix()
+        _, Q = mc.get_transition_matrix()
 
         symbols = {}
         symbols['v'] = sp.sympify('V')
@@ -102,10 +94,4 @@ class WangModel(MarkovModel):
         # Create voltage symbol
         v = sp.symbols('v')
         return {'p': p, 'y': y, 'v': v}
-
-    def make_hybrid_solver_current(self, *args, **kwargs):
-        raise NotImplementedError('Hybrid solvers not implemented for Wang model')
-
-    def make_hybrid_solver_states(self, *args, **kwargs):
-        raise NotImplementedError('Hybrid solvers not implemented for Wang model')
 

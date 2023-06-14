@@ -14,11 +14,11 @@ class BeattieModel(MarkovModel):
     n_params = 9
     n_states = 4
     n_state_vars = n_states - 1
-    GKr_index = 8
+    GKr_index = -1
     open_state_index = 1
     holding_potential = -80
 
-    def __init__(self, voltage=None, times=None, Erev: float = None,
+    def __init__(self, voltage=None, times=None,
                  parameters=None, *args, **kwargs):
         # Create symbols for symbolic functions
         symbols = self.CreateSymbols()
@@ -31,12 +31,6 @@ class BeattieModel(MarkovModel):
                                                 5.15E-3, 0.03158, 0.1524))
         else:
             self.default_parameters = parameters
-
-        if Erev is None:
-            self.Erev = -80
-            self.Erev = common.calculate_reversal_potential()
-        else:
-            self.Erev = Erev
 
         if times is None:
             times = np.linspace(0, 15000, 1000)
@@ -55,13 +49,12 @@ class BeattieModel(MarkovModel):
         A = sp.Matrix([['-k1 - k3 - k4', 'k2 - k4', '-k4'],
                        ['k1', '-k2 - k3', 'k4'],
                        ['-k1', 'k3 - k1', '-k2 - k4 - k1']])
-        B = sp.Matrix(['k4', 0, 'k1'])
-        # Call the constructor of the parent class, MarkovModel
+        B = sp.Matrix([['k4', 0, 'k1']]).T
 
-        Q = sp.Matrix([['-k3 - k1', 'k2', .0, 'k4'],
-                       ['k1', '-k2 - k3', 'k4', .0],
-                       [.0, 'k3', '-k2 - k4', 'k3'],
-                       ['k3', .0, 'k2', '-k4 - k1']]).T
+        Q = sp.Matrix([['-k3 - k1', 'k2', '0', 'k4'],
+                       ['k1', '-k2 - k3', 'k4', '0'],
+                       ['0', 'k3', '-k2 - k4', 'k1'],
+                       ['k3', '0', 'k2', '-k4 - k1']]).T
 
         super().__init__(symbols, A, B, rates, times, voltage=voltage, Q=Q,
                          name='BeattieModel', *args, **kwargs)
