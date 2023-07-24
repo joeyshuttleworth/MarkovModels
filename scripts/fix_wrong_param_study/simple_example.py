@@ -26,10 +26,10 @@ def create_axes(fig):
 
     # Setup plots of observation times
     observation_time_axes = [
-         fig.add_subplot(gs[0, 0]),
-         fig.add_subplot(gs[0, 1]),
-         fig.add_subplot(gs[0, 2]),
-         fig.add_subplot(gs[0, 3]),
+        fig.add_subplot(gs[0, 0]),
+        fig.add_subplot(gs[0, 1]),
+        fig.add_subplot(gs[0, 2]),
+        fig.add_subplot(gs[0, 3]),
     ]
 
     # observation_time_axes[2].set_title(r'\textbf a')
@@ -68,7 +68,7 @@ def generate_data_set(T, theta=[10, 1], sigma=0.01):
     return data
 
 
-def fit_model(dataset, T, ax=None, label=''):
+def fit_model(dataset, T, design_index, ax=None, label=''):
 
     observed_dataset = np.vstack(list({tuple(row) for row in dataset if row[0]
                                        in T}))
@@ -98,17 +98,19 @@ def fit_model(dataset, T, ax=None, label=''):
             result = new_result
 
     if ax:
-        if len(T) < 15:
-            ax.plot(*observed_dataset.T, marker='x', ms=1.5, lw=0, color='grey',
-                    zorder=1)
-        else:
-            ax.plot(*observed_dataset.T, lw=0.5, color='grey', zorder=1,
-                    alpha=.75)
-
         all_T = np.linspace(0, max(*T, 1.2), 100)
         ax.plot(all_T, discrepant_forward_model(result.x, all_T), '--',
                 lw=.75, color='red', label='fitted_model')
         ax.plot(all_T, true_dgp(true_theta, all_T), label='true DGP', lw=.75)
+
+        if len(T) < 15:
+            ax.plot(*observed_dataset.T, marker='x', ms=25, lw=0,
+                    color=palette[design_index], marker=markers[design_index],
+                    zorder=1)
+        else:
+            ax.plot(*observed_dataset.T, lw=0.5, color='grey', zorder=1,
+                    alpha=.75)
+            ax.vspan(observed_dataset[0, 0], observed_dataset[-1, 0], alpha=.25, color='grey')
 
         ax.set_xlim(0, 1.3)
         ax.set_ylim(0, 2.25)
@@ -168,18 +170,21 @@ def main():
     datasets = [generate_data_set(all_T, true_theta, sigma=sigma) for i in
                 range(N_datasets)]
 
-    def fit_datasets_using_times(datasets, T, ax, label=''):
+    def fit_datasets_using_times(datasets, T, ax, design_index,
+                                 label=''):
         thetas = []
         for i, dataset in enumerate(datasets):
             if i != 0:
                 ax = None
-            theta_1, theta_2 = fit_model(dataset, T, ax=ax, label=f"{label}_{i}")
+            theta_1, theta_2 = fit_model(dataset, T, design_index, ax=ax,
+                                         label=f"{label}_{i}")
             thetas.append([theta_1, theta_2])
         return np.vstack(thetas)
 
     print(datasets)
     estimates = [fit_datasets_using_times(datasets, T,
                                           observation_axes[i],
+                                          i,
                                           label=f"{i}") for i, T in enumerate((Ts))]
 
     # observation_axes[0].set_title(r'\textbf a', loc='left')
@@ -207,8 +212,11 @@ def main():
 
     estimates_df = pd.concat(rows, ignore_index=True)
 
-    make_scatter_plots(estimates_df, scatter_ax)
+    make_scatter_plots(estimates_df, scatter_ax, legend=True)
     make_prediction_plots(estimates_df, datasets, prediction_ax)
+
+    scatter_ax[0].set_xlabel(r'$\hat\theta_1$', y=0.075)
+    scatter_ax[0].set_xlabel(r'$\hat\theta_1$', y=0.075)
 
     fig.savefig(os.path.join(output_dir, f"Fig1.{args.file_format}"))
 
@@ -216,19 +224,19 @@ def main():
 
     mcmc_fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     mcmc_ax = mcmc_fig.subplots()
+
     do_mcmc(datasets, Ts, args.sampling_frequency, mcmc_ax)
     mcmc_fig.savefig(os.path.join(output_dir, f"mcmc_res.{args.file_format}"))
 
 
-def make_scatter_plots(df, ax, label=''):
+def make_scatter_plots(df, ax, legend=False, label=''):
 
     df['observation times'] = df['time_range']
-    g = sns.scatterplot(ax=ax, data=df, x=df.columns[0], y=df.columns[1],
+    g = sns.scatterplot(ax=ax, data=df, x=df.columns[0], y=df.columns[1], lw=0,
                         hue='observation times', style='observation times',
                         s=25)
 
     ax.legend(markerscale=0.5)
-
     g.legend_.set_title('')
 
 
@@ -308,8 +316,13 @@ def do_mcmc(datasets, observation_times, sampling_frequency, ax):
     mcmc_figure = plt.figure(figsize=args.figsize)
 
     alpha = 0.5
+
+    global palette
     palette = sns.color_palette()
     palette = [(r, g, b, alpha) for r, g, b in palette[:len(observation_times)]]
+
+    global markers
+    markers = ['1', '2', '3', '4', '+', 'x']
 
     dfs = []
     for i, observation_times in enumerate(observation_times):
@@ -324,7 +337,7 @@ def do_mcmc(datasets, observation_times, sampling_frequency, ax):
         mcmc.set_max_iterations(args.chain_length)
         samples = mcmc.run()[:, args.burn_in:, :]
 
-        np.save(os.path.join(output_dir, f"mcmc_chains_chains_{sampling_frequency}.npy"),
+        np.save(os.path.join(output_dir, f"mcmc_chains_{sampling_frequency}_{i}.npy"),
                 samples)
 
         sub_df = pd.DataFrame(samples.reshape([-1, 2]), columns=[r'$\theta_1$',
@@ -337,7 +350,8 @@ def do_mcmc(datasets, observation_times, sampling_frequency, ax):
 
     sns.kdeplot(data=df, x=r'$\theta_1$', y=r'$\theta_2$',
                 palette=palette, hue='observation times',
-                levels=[.01, 0.1, .5], ax=ax)
+                levels=[.05], ax=ax, fill=True, palette=palette,
+                lw=0, legend=False)
 
 
 if __name__ == '__main__':

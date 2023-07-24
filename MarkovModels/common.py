@@ -509,7 +509,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             if max(rates_1.max(), rates_2.max()) > 1e4:
                 return False
 
-            if min(rates_1.min(), rates_2.min()) < 1e-8:
+            if min(rates_1.max(), rates_2.max()) < 1e-5:
                 return False
 
             if max([p for i, p in enumerate(parameters) if i != mm.GKr_index]) > 1e5:
@@ -518,7 +518,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             if min([p for i, p in enumerate(parameters) if i != mm.GKr_index]) < 1e-7:
                 return False
 
-            if parameters[-1] > data.max() or parameters[-1] <  data.max()*0.01:
+            if parameters[-1] > data.max() or parameters[-1] < data.max()*0.01:
                 return False
 
             # Ensure that all parameters > 0

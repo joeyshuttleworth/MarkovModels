@@ -29,6 +29,9 @@ import matplotlib.lines as mlines
 
 from matplotlib import rc
 
+from generate_synthetic_data import generate_data
+
+
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 8})
 rc('text', usetex=True)
 rc('figure', dpi=1000)
@@ -76,6 +79,7 @@ def main():
     global true_parameters
     true_parameters = model_class().get_default_parameters()
 
+    global output_dir
     output_dir = common.setup_output_directory(args.output_dir, "CaseII_main")
 
     global fig
@@ -131,15 +135,170 @@ def main():
 
     plot_heatmaps(axes, prediction_dfs)
 
-    current = pd.read_csv(os.path.join(args.data_dir,
+    current = pd.read_csv(os.path.join(output_dir,
                                                f"synthetic-{args.prediction_protocol}-1.csv"))['current'].values.flatten().astype(np.float64)
-    times = pd.read_csv(os.path.join(args.data_dir,
+    times = pd.read_csv(os.path.join(output_dir,
                                             f"synthetic-{args.prediction_protocol}-times.csv"))['time'].values.flatten().astype(np.float64)
+
+    make_table(results_df, args.prediction_protocol)
 
     do_prediction_plots(axes, results_dfs, args.prediction_protocol, current, times)
 
     fig.set_canvas(plt.gcf().canvas)
     fig.savefig(os.path.join(output_dir, f"Fig7.{args.file_format}"))
+
+
+def make_table(df, protocol):
+
+    df_rows = []
+    parameter_labels = BeattieModel().get_parameter_labels()
+    prot_func, times, desc = common.get_ramp_protocol_from_csv('longap')
+    full_times = pd.read_csv(os.path.join(output_dir,
+                                          f'synthetic-longap-times.csv'))['time'].values.astype(np.float64)
+    model = BeattieModel(prot_func,
+                         times=full_times,
+                         E_rev=common.calculate_reversal_potential(),
+                         protocol_description=desc)
+
+    prediction_solver = model.make_forward_solver_current(njitted=False)
+
+    default_prediction = prediction_solver()
+
+    for well in df.well.unique():
+        predictions = []
+        new_rows = []
+        for protocol in df.protocol.unique():
+            # print(protocol)
+            sub_df = df[
+                (df.well == well) & \
+                (df.protocol == protocol)
+            ]
+
+            len(sub_df.index == 1)
+            row = sub_df.head(1)
+            params = row[parameter_labels].values.flatten().astype(np.float64)
+
+            # Predict longap protocol
+            prediction = prediction_solver(params)
+
+            predictions.append(prediction)
+            # Compute RMSE
+            current = pd.read_csv(os.path.join(output_dir,
+                                               f'synthetic-longap-{well}.csv'))['current'].values.astype(np.float64)
+            RMSE = np.sqrt(np.mean((prediction - current)**2))
+            RMSE_DGP = np.sqrt(np.mean((prediction - default_prediction)**2))
+
+            new_row = pd.DataFrame([[well, 'BeattieModel', protocol,
+                                     'longap', RMSE, RMSE_DGP, RMSE,
+                                     *params]],
+                                   columns=('well', 'model_class',
+                                            'fitting_protocol',
+                                            'validation_protocol', 'score',
+                                            'RMSE_DGP', 'RMSE', *parameter_labels
+                                            ))
+            new_rows.append(new_row)
+
+        predictions = np.array(predictions)
+
+        # extreme predictions for each timepoint
+        max_predict = predictions.max(axis=0)
+        min_predict = predictions.min(axis=0)
+
+        average_interval_width = np.mean(max_predict - min_predict)
+
+        points_in_interval_DGP_noise = np.mean(
+            (current <= max_predict + 2*args.noise)
+            & (current >= min_predict - 2*args.noise)
+        )
+
+        points_in_interval_DGP = np.mean(
+            (default_prediction <= max_predict)
+            & (default_prediction >= min_predict)
+        )
+
+        new_rows = pd.concat(new_rows, ignore_index=True)
+        new_rows['average_interval_width'] = average_interval_width
+        new_rows['points_in_interval_DGP'] = points_in_interval_DGP
+        new_rows['points_in_interval_DGP_noise'] = points_in_interval_DGP
+
+        df_rows.append(new_rows)
+
+    # First table. Amount of points inside interval and interval width
+    df = pd.concat(df_rows)
+    default_params = BeattieModel().get_default_parameters()
+    df[r'$\lambda$'] = df[args.fixed_param].astype(np.float64) / default_params[-1]
+
+    df.replace({'fitting_protocol': relabel_dict}, inplace=True)
+    orig_df = df.copy()
+
+    print(orig_df['fitting_protocol'].unique())
+
+    print(df.columns)
+
+    print(df[r'$\lambda$'])
+
+    df = df[['average_interval_width', 'points_in_interval_DGP', r'$\lambda$',
+             'well', 'points_in_interval_DGP_noise', 'RMSE']]
+
+    pd.options.display.float_format = '{:.1E}'.format
+
+    agg_dict = {}
+    agg_dict['average_interval_width'] = ['mean', 'std']
+    agg_dict['points_in_interval_DGP'] = ['mean', 'std']
+    df = df.groupby([r'$\lambda$'], as_index=True).agg(agg_dict)
+    print(df)
+
+    s = df.style.format("{:.1E}".format)
+    s = s.format_index("{:.2f}".format)
+
+    ltx_output = s.to_latex(sparse_columns=True, multicol_align="c" )
+    print(ltx_output)
+    output_fname = os.path.join(output_dir, 'CaseI_table.tex')
+    with open(output_fname, 'w') as fout:
+        fout.write(ltx_output)
+
+    # Second table: variability in parameter estimates
+    df = orig_df.copy()
+
+    # One row per each parameter
+    df = pd.melt(df, id_vars=['fitting_protocol', 'well', r'$\lambda$'],
+                 value_vars=parameter_labels[:-1])
+
+    variables_relabel_dict = {
+        'p1': '$p_1$',
+        'p2': '$p_2$',
+        'p3': '$p_3$',
+        'p4': '$p_4$',
+        'p5': '$p_5$',
+        'p6': '$p_6$',
+        'p7': '$p_7$',
+        'p8': '$p_8$',
+                              }
+    df.replace({'variable': variables_relabel_dict}, inplace=True)
+
+    print(df)
+
+    def mean_std_func(x):
+        x = x.astype(np.float64)
+        return f"{x.mean():.1E}" r'\(\pm\)' f"{x.std():.0E}"
+
+    agg_dict = {prot: mean_std_func for prot in orig_df.fitting_protocol.unique()}
+
+    df = df.pivot_table(index=[r'$\lambda$', 'variable'],
+                        columns='fitting_protocol', values='value',
+                        aggfunc=mean_std_func)
+
+    print(df)
+
+    s = df.style
+    ltx_output = s.to_latex(sparse_columns=True, multicol_align="c" )
+    print(ltx_output)
+
+    output_fname = os.path.join(output_dir, 'CaseII_parameter_table.tex')
+    with open(output_fname, 'w') as fout:
+        fout.write(ltx_output)
+
+    s.to_excel(os.path.join(output_dir, 'CaseII_parameter_table.xlsx'))
 
 
 def do_prediction_plots(axes, results_dfs, prediction_protocol, current, times):
@@ -580,6 +739,16 @@ def get_best_params(fitting_df, protocol_label='protocol'):
             best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
 
     return pd.concat(best_params, ignore_index=True)
+
+
+def generate_longap_data():
+    generate_data('longap', args.no_data_repeats, BeattieModel,
+                  common.calculate_reversal_potential(T=298, K_in=120, K_out=5),
+                  args.noise,
+                  output_dir,
+                  noise=args.noise, figsize=args.figsize,
+                  sampling_period=args.sampling_period, plot=True,
+                  prefix='synthetic')
 
 
 if __name__ == "__main__":

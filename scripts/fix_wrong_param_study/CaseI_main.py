@@ -265,7 +265,7 @@ def do_prediction_plots(axes, results_df, prediction_protocol, data):
     axes[colno].set_xlim([0, 9000])
 
     prediction_axes[-1].set_xlabel(r'$t$ (s)')
-    prediction_axes[-1].set_ylabel(r'$I_\textrm{Kr} (nA)$')
+    prediction_axes[-1].set_ylabel(r'$I_\textrm{Kr}$ (nA)')
 
     # axes[colno].yaxis.tick_right()
     labels = ['0', '7.5']

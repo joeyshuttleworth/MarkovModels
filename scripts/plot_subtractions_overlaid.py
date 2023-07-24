@@ -132,11 +132,11 @@ def main():
         leak_parameters_df['passed QC'] = leak_parameters_df['passed QC'] \
             & leak_parameters_df['selected']
 
+    do_combined_plots(leak_parameters_df)
     plot_reversal_spread(leak_parameters_df)
     do_scatter_matrix(leak_parameters_df)
     plot_histograms(leak_parameters_df)
     overlay_reversal_plots(leak_parameters_df)
-    do_combined_plots(leak_parameters_df)
 
 
 def compute_leak_magnitude(df, lims=[-120, 60]):
@@ -200,7 +200,7 @@ def do_combined_plots(leak_parameters_df):
     ax = fig.subplots()
 
     palette = sns.color_palette('husl', len(leak_parameters_df.well.unique()))
-    wells = [well for well in leak_parameters_df.well.unique() if well in passed_wells]
+    # wells = [well for well in leak_parameters_df.well.unique() if well in passed_wells]
 
     for protocol in leak_parameters_df.protocol.unique():
         times_fname = f"{experiment_name}-{protocol}-times.csv"
@@ -213,22 +213,23 @@ def do_combined_plots(leak_parameters_df):
 
         reference_current = None
 
-        for i, well in enumerate(leak_parameters_df.well.unique()):
-            fname = f"{experiment_name}-{protocol}-{well}.csv"
-            try:
-                data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
+        for sweep in leak_parameters_df.sweep.unique():
+            for i, well in enumerate(leak_parameters_df.well.unique()):
+                fname = f"{experiment_name}-{protocol}-{well}-sweep{sweep}.csv"
+                try:
+                    data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
 
-            except FileNotFoundError:
-                continue
+                except FileNotFoundError:
+                    continue
 
-            current = data['current'].values.flatten().astype(np.float64)
+                current = data['current'].values.flatten().astype(np.float64)
 
-            if reference_current is None:
-                reference_current = current
+                if reference_current is None:
+                    reference_current = current
 
-            scaled_current = scale_to_reference(current, reference_current)
-            col = palette[i]
-            ax.plot(times, scaled_current, color=col, alpha=.5, label=well)
+                scaled_current = scale_to_reference(current, reference_current)
+                col = palette[i]
+                ax.plot(times, scaled_current, color=col, alpha=.5, label=well)
 
         fig_fname = f"{protocol}_overlaid_subtracted_traces"
         fig.suptitle(f"{protocol}: all wells")
@@ -243,34 +244,36 @@ def do_combined_plots(leak_parameters_df):
 
     for well in leak_parameters_df[leak_parameters_df['passed QC']].well.unique():
         for i, protocol in enumerate(leak_parameters_df.protocol.unique()):
-            times_fname = f"{experiment_name}-{protocol}-times.csv"
-            times_df = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', times_fname))
-            times = times_df['time'].values.flatten().astype(np.float64)
+            for sweep in leak_parameters_df.sweep.unique():
+                times_fname = f"{experiment_name}-{protocol}-times.csv"
+                times_df = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', times_fname))
+                times = times_df['time'].values.flatten().astype(np.float64)
 
-            fname = f"{experiment_name}-{protocol}-{well}.csv"
-            try:
-                data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
-            except FileNotFoundError:
-                continue
+                fname = f"{experiment_name}-{protocol}-{well}-sweep{sweep}.csv"
+                try:
+                    data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
+                except FileNotFoundError:
+                    continue
 
-            current = data['current'].values.flatten().astype(np.float64)
+                current = data['current'].values.flatten().astype(np.float64)
 
-            indices_pre_ramp = times < 3000
-            # if reference_current is None:
-            #     reference_current = current
-            # scaled_current = scale_to_reference(current, reference_current)
+                indices_pre_ramp = times < 3000
+                # if reference_current is None:
+                #     reference_current = current
+                # scaled_current = scale_to_reference(current, reference_current)
 
-            col = palette[i]
-            axs2[0].plot(times[indices_pre_ramp], current[indices_pre_ramp], color=col, alpha=.5,
-                         label=protocol)
+                col = palette[i]
+                print(times[indices_pre_ramp])
+                axs2[0].plot(times[indices_pre_ramp], current[indices_pre_ramp], color=col, alpha=.5,
+                            label=protocol)
 
-            indices_post_ramp = times > (times[-1] - 2000)
-            post_times = times[indices_post_ramp].copy()
-            post_times = post_times - post_times[0] + 5000
-            axs2[1].plot(post_times, current[indices_post_ramp], color=col, alpha=.5,
-                         label=protocol)
+                indices_post_ramp = times > (times[-1] - 2000)
+                post_times = times[indices_post_ramp].copy()
+                post_times = post_times - post_times[0] + 5000
+                axs2[1].plot(post_times, current[indices_post_ramp], color=col, alpha=.5,
+                            label=protocol)
 
-        axs2[0].legend()
+        # axs2[0].legend()
         axs2[0].set_title('before protocol')
         axs2[0].set_xlabel(r'time / ms')
         axs2[1].set_title('after protocol')
@@ -282,6 +285,9 @@ def do_combined_plots(leak_parameters_df):
         axs2[0].cla()
         axs2[1].cla()
 
+    plt.close(fig)
+    plt.close(fig2)
+
 
 def do_scatter_matrix(_df):
     df = _df.drop([_df.columns[0], 'sweep', 'passed QC.Erev',
@@ -292,7 +298,7 @@ def do_scatter_matrix(_df):
     grid = sns.pairplot(data=df, hue='passed QC', diag_kind='hist',
                         plot_kws={'alpha':0.4, 'edgecolor': None},
                         hue_order=[False, True])
-    grid.savefig(os.path.join(output_dir, 'scatter_matrix'))
+    grid.savefig(os.path.join(output_dir, 'scatter_matrix_passed_failed'))
 
     df['hue'] = df['fitted_E_rev'] > args.reversal
 
@@ -300,7 +306,7 @@ def do_scatter_matrix(_df):
                         plot_kws={'alpha':0.4, 'edgecolor': None},
                         hue_order=[False, True])
 
-    grid.savefig(os.path.join(output_dir, 'scatter_matrix'))
+    grid.savefig(os.path.join(output_dir, 'scatter_matrix_high_low_reversal'))
 
 
 def plot_reversal_spread(df):

@@ -112,11 +112,14 @@ def main():
         best_params_df = pd.read_csv(args.use_parameter_file)
         if 'validation_protocol' in best_params_df:
             protocol_label = 'validation_protocol'
+            sweep_label = 'prediction_sweep'
         else:
             protocol_label = 'protocol'
+            sweep_label = 'sweep'
 
         best_params_df = get_best_params(best_params_df,
-                                         protocol_label=protocol_label)
+                                         protocol_label=protocol_label,
+                                         sweep_label=sweep_label)
         assert(args.dont_randomise_initial_guess)
 
     else:
@@ -232,7 +235,9 @@ def main():
 
             predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
 
-            best_params_df = get_best_params(predictions_df, protocol_label='validation_protocol')
+            best_params_df = get_best_params(predictions_df,
+                                             protocol_label='validation_protocol',
+                                             sweep_label='prediction_sweep')
             print(best_params_df)
 
             best_params_df['protocol'] = best_params_df['validation_protocol']
@@ -273,12 +278,15 @@ def main():
 
 def compute_predictions_df(params_df, output_dir, label='predictions',
                            model_class=None, fix_EKr=None,
-                           adjust_kinetic_parameters=False, args=None):
+                           adjust_kinetic_parameters=False, args=None,
+                           protocol_label='protocol',
+                           sweep_label='sweep'):
 
     assert(not (fix_EKr is not None and adjust_kinetic_parameters))
 
     param_labels = model_class().get_parameter_labels()
-    params_df = get_best_params(params_df, protocol_label='protocol')
+    params_df = get_best_params(params_df, protocol_label=protocol_label,
+                                sweep_label=sweep_label)
     predictions_dir = os.path.join(output_dir, label)
 
     if not os.path.exists(predictions_dir):
@@ -437,19 +445,21 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
     return predictions_df
 
 
-def get_best_params(fitting_df, protocol_label='protocol'):
+def get_best_params(fitting_df, protocol_label='protocol', sweep_label='sweep'):
     best_params = []
 
     # Ensure score is a float - may be read from csv file
     fitting_df['score'] = fitting_df['score'].astype(np.float64)
     fitting_df = fitting_df[np.isfinite(fitting_df['score'])].copy()
 
-    if 'sweep' not in fitting_df.columns:
+    if sweep_label not in fitting_df.columns and sweep_label != 'sweep':
+        raise Exception(f"{sweep_label} is not a column in fitting_df")
+    else:
         fitting_df['sweep'] = -1
 
     for protocol in fitting_df[protocol_label].unique():
         for well in fitting_df['well'].unique():
-            for sweep in fitting_df['sweep'].unique():
+            for sweep in fitting_df[sweep_label].unique():
                 sub_df = fitting_df[(fitting_df['well'] == well)
                                     & (fitting_df[protocol_label] == protocol)].copy()
                 sub_df = sub_df[sub_df.sweep == sweep]
