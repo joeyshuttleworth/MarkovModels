@@ -422,7 +422,8 @@ def fit_model(mm, data, times=None, starting_parameters=None,
               fix_parameters=[], max_iterations=None, subset_indices=None,
               method=pints.CMAES, solver=None, log_transform=True, repeats=1,
               return_fitting_df=False, parallel=False,
-              randomise_initial_guess=True, output_dir=None, solver_type=None):
+              randomise_initial_guess=True, output_dir=None, solver_type=None,
+              no_conductance_boundary=False):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -493,8 +494,14 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             self.fix_parameters = fix_parameters
             self.parameters = parameters
 
+            voltages = np.array([mm.voltage(t) for t in mm.times])
+            self.max_observed_conductance = np.max(data[subset_indices] \
+                                                   / (voltages[subset_indices] - mm.E_rev))
+
         def check(self, parameters):
+
             parameters = parameters.copy()
+
             if self.fix_parameters:
                 for i in np.unique(self.fix_parameters):
                     parameters = np.insert(parameters, i, starting_parameters[i])
@@ -506,10 +513,11 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             rates_1 = rates_func(parameters, Vs[0])
             rates_2 = rates_func(parameters, Vs[1])
 
-            if max(rates_1.max(), rates_2.max()) > 1e4:
+            # Boundaries taken from 'Four Ways to Fit an Ion Channel Model'
+            if min(rates_1.max(), rates_2.max()) < 1.67e-5:
                 return False
 
-            if min(rates_1.min(), rates_2.min()) < 1e-8:
+            if max(rates_1.max(), rates_2.max()) > 1e3:
                 return False
 
             if max([p for i, p in enumerate(parameters) if i != mm.GKr_index]) > 1e5:
@@ -518,7 +526,16 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             if min([p for i, p in enumerate(parameters) if i != mm.GKr_index]) < 1e-7:
                 return False
 
-            # Ensure that all parameters > 0
+            # Ensure the proposed maximal conductance has a reasonable value.
+            # It shouldn't be too much greater than the maximum observed
+            # current, nor much smaller than this value
+
+            if not no_conductance_boundary:
+                conductance = parameters[mm.GKr_index]
+                if conductance > self.max_observed_conductance*100 or conductance < self.max_observed_conductance*0.01:
+                    return False
+
+            # Finally, ensure that all parameters > 0
             return np.all(parameters > 0)
 
         def n_parameters(self):
@@ -529,7 +546,6 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         def _sample_once(self, min_log_p, max_log_p):
             for i in range(1000):
                 p = np.empty(starting_parameters.shape)
-                p[-1] = starting_parameters[-1]
                 p[:-1] = 10**np.random.uniform(min_log_p, max_log_p,
                                                starting_parameters[:-1].shape)
 
@@ -763,7 +779,8 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                   repeats=1, infer_E_rev=False, fit_initial_conductance=True,
                   experiment_name='newtonrun4', solver=None, E_rev=None,
                   randomise_initial_guess=True, parallel=False,
-                  solver_type=None, sweep=None, scale_conductance=True):
+                  solver_type=None, sweep=None, scale_conductance=True,
+                  **fitting_kws):
 
     if default_parameters is None or len(default_parameters) == 0:
         default_parameters = model_class().get_default_parameters()
@@ -844,7 +861,8 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                                                  return_fitting_df=True,
                                                  repeats=repeats,
                                                  output_dir=output_dir,
-                                                 solver_type=solver_type)
+                                                 solver_type=solver_type,
+                                                 **fitting_kws)
 
     fig = plt.figure(figsize=(14, 12))
     for i, row in fitting_df.iterrows():
