@@ -423,7 +423,8 @@ def fit_model(mm, data, times=None, starting_parameters=None,
               method=pints.CMAES, solver=None, log_transform=True, repeats=1,
               return_fitting_df=False, parallel=False,
               randomise_initial_guess=True, output_dir=None, solver_type=None,
-              no_conductance_boundary=False):
+              no_conductance_boundary=False,
+              rng=None):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -447,6 +448,9 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     """
     if not times:
         times = mm.times
+
+    if rng is None:
+        rng = np.random.default_rng()
 
     print('starting parameters', starting_parameters)
 
@@ -545,9 +549,15 @@ def fit_model(mm, data, times=None, starting_parameters=None,
 
         def _sample_once(self, min_log_p, max_log_p):
             for i in range(1000):
-                p = np.empty(starting_parameters.shape)
-                p[:-1] = 10**np.random.uniform(min_log_p, max_log_p,
-                                               starting_parameters[:-1].shape)
+                p = starting_parameters.copy()
+                if not no_conductance_boundary:
+                    p[-1] = rng.uniform(self.max_observed_conductance*0.01,
+                                        self.max_observed_conductance*100)
+
+                p[:-1] = 10**rng.uniform(min_log_p, max_log_p,
+                                         starting_parameters[:-1].shape)
+
+                print(p)
 
                 if fix_parameters:
                     p = p[[i for i in range(len(starting_parameters)) if i not in
@@ -566,8 +576,13 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                 else len(starting_parameters) - len(fix_parameters)
 
             ret_vec = np.full((n, no_parameters), np.nan)
+
+            print(ret_vec.shape)
+
             for i in range(n):
                 ret_vec[i, :] = self._sample_once(min_log_p, max_log_p)
+
+            print(f"randomly sampled guess: {ret_vec}")
 
             return ret_vec
 
@@ -630,6 +645,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     for i in range(repeats):
         if randomise_initial_guess:
             initial_guess = initial_guess_dist.sample(n=1).flatten()
+            print(f"initial guess = {initial_guess}")
             starting_parameter_sets.append(initial_guess)
             boundaries = Boundaries(initial_guess, fix_parameters)
             params_not_fixed = initial_guess
@@ -780,7 +796,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                   experiment_name='newtonrun4', solver=None, E_rev=None,
                   randomise_initial_guess=True, parallel=False,
                   solver_type=None, sweep=None, scale_conductance=True,
-                  **fitting_kws):
+                  no_conductance_boundary=False):
 
     if default_parameters is None or len(default_parameters) == 0:
         default_parameters = model_class().get_default_parameters()
@@ -862,7 +878,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                                                  repeats=repeats,
                                                  output_dir=output_dir,
                                                  solver_type=solver_type,
-                                                 **fitting_kws)
+                                                 no_conductance_boundary=no_conductance_boundary)
 
     fig = plt.figure(figsize=(14, 12))
     for i, row in fitting_df.iterrows():

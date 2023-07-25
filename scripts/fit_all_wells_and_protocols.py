@@ -31,7 +31,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
                                   output_dir=this_output_dir,
                                   default_parameters=default_parameters,
                                   removal_duration=args.removal_duration,
-                                  repeats=args.repeats,
+                                  repeats=1,
                                   infer_E_rev=infer_E_rev,
                                   experiment_name=args.experiment_name, E_rev=E_rev,
                                   randomise_initial_guess=randomise_initial_guess,
@@ -41,7 +41,6 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
     res_df['protocol'] = protocol
     res_df['sweep'] = sweep if sweep else -1
 
-    print(res_df)
     return res_df
 
 
@@ -104,8 +103,6 @@ def main():
     if args.selection_file:
         args.wells = [well for well in args.wells if well in selected_wells]
 
-    print(args.wells, protocols)
-
     if args.use_parameter_file:
         # Here we can use previous results to refit. Just use the best
         # parameters for each validation protocol as the initial guess
@@ -153,11 +150,13 @@ def main():
 
         if args.sweeps:
             sweep = groups[2]
-            tasks.append([protocol, well, model_class, starting_parameters, Erev,
-                          not args.dont_randomise_initial_guess, prefix, sweep])
+            for i in range(args.repeats):
+                tasks.append([protocol, well, model_class, starting_parameters, Erev,
+                              not args.dont_randomise_initial_guess, prefix, sweep])
         else:
-            tasks.append([protocol, well, model_class, starting_parameters, Erev, prefix,
-                          not args.dont_randomise_initial_guess])
+            for i in range(args.repeats):
+                tasks.append([protocol, well, model_class, starting_parameters,
+                              Erev, prefix, not args.dont_randomise_initial_guess])
 
         protocols_list.append(protocol)
 
@@ -172,13 +171,9 @@ def main():
     with multiprocessing.Pool(pool_size, **pool_kws) as pool:
         res = pool.starmap(fit_func, tasks)
 
-    print(res)
     fitting_df = pd.concat(res, ignore_index=True)
 
     print("=============\nfinished fitting first round\n=============")
-
-    # wells_rep = [task[1] for task in tasks]
-    # protocols_rep = [task[0] for task in tasks]
 
     fitting_df.to_csv(os.path.join(output_dir, f"{prefix}fitting.csv"))
 
@@ -190,7 +185,7 @@ def main():
                                             f"{prefix}predictions", args=args, model_class=model_class)
 
     # Plot predictions
-    predictions_df.to_csv(os.path.join(output_dir, "f{prefix}predictions_df.csv"))
+    predictions_df.to_csv(os.path.join(output_dir, f"{prefix}predictions_df.csv"))
 
     # Select best parameters for each protocol
     best_params_df_rows = []
