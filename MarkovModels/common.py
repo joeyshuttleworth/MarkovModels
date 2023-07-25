@@ -229,7 +229,6 @@ def remove_indices(lst, indices_to_remove):
     # Ensure intervals don't overlap
     for interval1, interval2 in zip(indices_to_remove[:-1, :], indices_to_remove[1:, :]):
         if interval1[1] > interval2[0]:
-            # print('overlapping')
             interval1[1] = interval2[1]
             interval2[0] = -1
             interval2[1] = -1
@@ -452,8 +451,6 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     if rng is None:
         rng = np.random.default_rng()
 
-    print('starting parameters', starting_parameters)
-
     if log_transform:
         # Assume that the conductance is the last parameter and that the parameters are arranged included
 
@@ -557,8 +554,6 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                 p[:-1] = 10**rng.uniform(min_log_p, max_log_p,
                                          starting_parameters[:-1].shape)
 
-                print(p)
-
                 if fix_parameters:
                     p = p[[i for i in range(len(starting_parameters)) if i not in
                           self.fix_parameters]]
@@ -577,12 +572,8 @@ def fit_model(mm, data, times=None, starting_parameters=None,
 
             ret_vec = np.full((n, no_parameters), np.nan)
 
-            print(ret_vec.shape)
-
             for i in range(n):
                 ret_vec[i, :] = self._sample_once(min_log_p, max_log_p)
-
-            print(f"randomly sampled guess: {ret_vec}")
 
             return ret_vec
 
@@ -645,7 +636,6 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     for i in range(repeats):
         if randomise_initial_guess:
             initial_guess = initial_guess_dist.sample(n=1).flatten()
-            print(f"initial guess = {initial_guess}")
             starting_parameter_sets.append(initial_guess)
             boundaries = Boundaries(initial_guess, fix_parameters)
             params_not_fixed = initial_guess
