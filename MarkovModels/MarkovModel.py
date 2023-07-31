@@ -28,9 +28,28 @@ class MarkovModel:
     def get_parameter_labels(self):
         return self.parameter_labels.copy()
 
-    def __init__(self, symbols, A, B, rates_dict, times, voltage=None,
+    def __init__(self, symbols, A, B, rates_dict, times=None, voltage=None,
                  tolerances=(1e-8, 1e-8), Q=None, protocol_description=None,
-                 name=None, E_rev=None):
+                 name=None, E_rev=None, default_parameters=None, parameter_labels=None,
+                 GKr_index: int = None, open_state_index: int = None,
+                 state_labels: str = None):
+
+        if state_labels:
+            self.state_labels = state_labels
+
+        if GKr_index:
+            self.GKr_index = GKr_index
+
+        if open_state_index is not None:
+            self.open_state_index = open_state_index
+
+        self.n_state_vars = A.shape[0] + 1
+
+        self.default_parameters = default_parameters
+
+        if parameter_labels:
+            self.parameter_labels = parameter_labels
+
         if E_rev is None:
             self.E_rev = calculate_reversal_potential()
         else:
@@ -39,6 +58,9 @@ class MarkovModel:
         self.Q = sp.sympify(Q)
 
         self.transformations = None
+
+        if voltage:
+            self.holding_potential = voltage(0)
 
         self.model_name = name
 
@@ -62,7 +84,7 @@ class MarkovModel:
         self.A = A
         self.B = B
 
-        self.rhs_expr = (A @ self.y + B).subs(rates_dict)
+        self.rhs_expr = (A @ sp.Matrix(self.y[:A.shape[0], :]) + B).subs(rates_dict)
 
         if voltage is not None:
             self.voltage = voltage
@@ -81,18 +103,23 @@ class MarkovModel:
         # Set the initial conditions of the model and the initial sensitivities
         # by finding the steady state of the model
 
-        # Can be found analytically
+        self.compute_steady_state_expressions()
+
+        self.auxiliary_function = self.define_auxiliary_function()
+
+    def define_auxiliary_function(self):
+        return njit(sp.lambdify((self.y, self.p, self.v), self.auxiliary_expression))
+
+    def compute_steady_state_expressions(self):
+
         self.rhs_inf_expr_rates = -self.A.LUsolve(self.B)
-
-        self.rhs_inf_expr = self.rhs_inf_expr_rates.subs(rates_dict)
-
+        self.rhs_inf_expr = self.rhs_inf_expr_rates.subs(self.rates_dict)
         self.rhs_inf = nb.njit(sp.lambdify((self.p, self.v), self.rhs_inf_expr,
                                            modules='numpy', cse=True))
-
-        self.auxillary_expression = self.p[self.GKr_index] * \
+        self.auxiliary_expression = self.p[self.GKr_index] * \
             self.y[self.open_state_index] * (self.v - self.E_rev)
 
-        self.current_inf_expr = self.auxillary_expression.subs(self.y, self.rhs_inf)
+        self.current_inf_expr = self.auxiliary_expression.subs(self.y, self.rhs_inf)
         self.current_inf = lambda p: np.array(self.current_inf_expr.subs(
             dict(zip(self.p, p))).evalf()).astype(np.float64)
 
@@ -138,7 +165,7 @@ class MarkovModel:
          for j in range(self.n_params)]
 
         # dI/do
-        self.dIdo = sp.diff(self.auxillary_expression, self.y[self.open_state_index])
+        self.dIdo = sp.diff(self.auxiliary_expression, self.y[self.open_state_index])
 
         self.func_S1 = sp.lambdify(inputs, fS1)
         # Define number of 1st order sensitivities
@@ -230,7 +257,7 @@ class MarkovModel:
         # solution = (C@K@np.exp(times*eigenvalues[:,None]) + X2[:, None]).T
         return P, K, D, X2, P.det()
 
-    def get_analytic_solution_func(self, njitted=True, tol=0):
+    def get_analytic_solution_func(self, njitted=True):
 
         rates_func = self.get_rates_func(njitted=njitted)
 
@@ -719,17 +746,16 @@ class MarkovModel:
 
     def make_hybrid_solver_current(self, protocol_description=None,
                                    njitted=True,
-                                   analytic_solver=None,
                                    strict=True):
         hybrid_solver =\
             self.make_hybrid_solver_states(protocol_description=protocol_description,
                                            njitted=njitted,
-                                           analytic_solver=analytic_solver,
                                            strict=strict)
 
-        open_index = self.open_state_index
-        E_rev = self.E_rev
-        gkr_index = self.GKr_index
+        auxiliary_function = self.auxiliary_function
+
+        if njitted:
+            auxiliary_function = njit(auxiliary_function)
 
         times = self.times
 
@@ -744,7 +770,8 @@ class MarkovModel:
                 voltages[i] = voltage_func(times[i])
 
             states = hybrid_solver(p, times=times)
-            return ((states[:, open_index] * p[gkr_index]) * (voltages - E_rev)).flatten()
+
+            return (auxiliary_function(states.T, p, voltages)).flatten()
 
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve
 

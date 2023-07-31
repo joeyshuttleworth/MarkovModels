@@ -21,6 +21,18 @@ import logging
 import time
 import numpy.polynomial.polynomial as poly
 
+from markov_builder.models.thirty_models import (
+    model_00,
+    model_01,
+    model_02,
+    model_03,
+    model_04,
+    model_05,
+    model_06,
+    model_07,
+    model_08,
+)
+
 
 def get_protocol_directory():
     return os.path.join(os.path.dirname(os.path.realpath(__file__)), "protocols")
@@ -779,7 +791,7 @@ def get_data(well, protocol, data_directory, experiment_name='newtonrun4', sweep
     return data
 
 
-def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
+def fit_well_data(model_class_name : str, well, protocol, data_directory, max_iterations,
                   output_dir=None, T=None, K_in=None, K_out=None,
                   default_parameters: float = None, removal_duration=5,
                   repeats=1, infer_E_rev=False, fit_initial_conductance=True,
@@ -789,10 +801,12 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
                   no_conductance_boundary=False):
 
     if default_parameters is None or len(default_parameters) == 0:
-        default_parameters = model_class().get_default_parameters()
+        default_parameters = make_model_of_class(model_class_name).get_default_parameters()
+
+    parameter_labels = make_model_of_class(model_class_name).get_parameter_labels()
 
     if max_iterations == 0:
-        df = pd.DataFrame(default_parameters[None, :], columns=model_class().parameter_labels)
+        df = pd.DataFrame(default_parameters[None, :], columns=parameter_labels)
         df['score'] = np.inf
         return df
 
@@ -823,9 +837,11 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
         except Exception:
             pass
 
-    model = model_class(voltage=voltage_func, times=times,
-                        parameters=default_parameters, E_rev=E_rev,
-                        protocol_description=protocol_desc)
+    model = make_model_of_class(model_class_name, voltage=voltage_func,
+                                times=times,
+                                default_parameters=default_parameters,
+                                E_rev=E_rev,
+                                protocol_description=protocol_desc)
 
     if default_parameters is not None:
         initial_params = default_parameters.copy()
@@ -839,7 +855,7 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
         raise Exception('solver and solver type provided')
 
     if solver is None:
-        solver = model.make_forward_solver_of_type(solver_type)
+        solver = model.make_forward_solver_of_type(solver_type, njitted=True)
 
     if scale_conductance:
         # scale conductance to match data
@@ -874,9 +890,12 @@ def fit_well_data(model_class, well, protocol, data_directory, max_iterations,
     for i, row in fitting_df.iterrows():
         fitted_params = row[model.get_parameter_labels()].values.flatten()
         ax = fig.subplots()
-        ax.plot(times, solver(fitted_params), label='fitted parameters')
-        ax.plot(times, solver(params_scaled), label='default parameters')
-        ax.plot(times, data, color='grey', label='data', alpha=.5)
+        try:
+            ax.plot(times, solver(fitted_params), label='fitted parameters')
+            ax.plot(times, solver(params_scaled), label='default parameters')
+            ax.plot(times, data, color='grey', label='data', alpha=.5)
+        except Exception:
+            pass
 
         ax.legend()
 
@@ -1124,20 +1143,54 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
     return samples[:, burn_in:, :]
 
 
-def get_model_class(name: str):
+def make_model_of_class(name: str, times=None, voltage=None, *args, **kwargs):
     from .BeattieModel import BeattieModel
     from .ClosedOpenModel import ClosedOpenModel
     from .WangModel import WangModel
     from .KempModel import KempModel
 
+    from .model_generation import generate_markov_model_from_graph
+
+    from markov_builder.models.thirty_models import (
+        model_00,
+        model_01,
+        model_02,
+        model_03,
+        model_04,
+        model_05,
+        model_06,
+        model_07,
+        model_08,
+        model_09,
+        model_10,
+        model_11,
+        model_12,
+        model_13,
+        model_14,
+        model_30,
+        )
+
+    thirty_models = [
+        model_00, model_01, model_02, model_03, model_04,
+        model_05, model_06, model_07, model_08, model_09, model_10,
+        model_11, model_12, model_13, model_14, model_30
+    ]
+
+    thirty_models_regex = re.compile(r'^model([0-9]*)$')
+
     if name == 'Beattie' or name == 'BeattieModel':
-        model_class = BeattieModel
+        model = BeattieModel(times, voltage, *args, **kwargs)
     elif name == 'Kemp' or name == 'KempModel':
-        model_class = KempModel
+        model = KempModel(times, voltage, *args, **kwargs)
     elif name == 'CO' or name == 'ClosedOpenModel':
-        model_class = ClosedOpenModel
+        model = ClosedOpenModel(times, voltage, *args, **kwargs)
     elif name == 'Wang' or name == 'WangModel':
-        model_class = WangModel
+        model = WangModel(times, voltage, *args, **kwargs)
+    elif thirty_models_regex.match(name):
+        model_no = int(thirty_models_regex.search(name).group(1))
+        model = generate_markov_model_from_graph(thirty_models[model_no](), times, voltage,
+                                                 *args, **kwargs)
     else:
         assert False, f"no model with name {name}"
-    return model_class
+    return model
+
