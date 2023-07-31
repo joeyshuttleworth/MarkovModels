@@ -89,6 +89,9 @@ def main():
 
     output_dir = common.setup_output_directory(args.output, f"fitting_{args.removal_duration:.2f}_removed_{args.model}")
 
+    global model_class
+    model_class = common.get_model_class(args.model)
+
     if len(args.wells) == 0:
         args.wells = common.get_all_wells_in_directory(args.data_directory, experiment_name)
 
@@ -123,8 +126,7 @@ def main():
         regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z|0-9]*)-sweep([0-9]).csv$")
     else:
         regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z|0-9]*).csv$")
-
-    param_labels = common.make_model_of_class(args.model).get_parameter_labels()
+    param_labels = model_class().get_parameter_labels()
     for f in filter(regex.match, os.listdir(args.data_directory)):
         groups = re.search(regex, f).groups()
         protocol = groups[0]
@@ -149,11 +151,11 @@ def main():
         if args.sweeps:
             sweep = groups[2]
             for i in range(args.repeats):
-                tasks.append([protocol, well, args.model, starting_parameters, Erev,
+                tasks.append([protocol, well, model_class, starting_parameters, Erev,
                               not args.dont_randomise_initial_guess, prefix, sweep])
         else:
             for i in range(args.repeats):
-                tasks.append([protocol, well, args.model, starting_parameters,
+                tasks.append([protocol, well, model_class, starting_parameters,
                               Erev, prefix, not args.dont_randomise_initial_guess])
 
         protocols_list.append(protocol)
@@ -180,7 +182,7 @@ def main():
 
     print(params_df)
     predictions_df = compute_predictions_df(params_df, output_dir,
-                                            f"{prefix}predictions", args=args, model_class=args.model)
+                                            f"{prefix}predictions", args=args, model_class=model_class)
 
     # Plot predictions
     predictions_df.to_csv(os.path.join(output_dir, f"{prefix}predictions_df.csv"))
@@ -206,7 +208,7 @@ def main():
             protocol, well, model_class, default_parameters, Erev, randomise, _ = task
         best_params_row = best_params_df[(best_params_df.well == well)
                                          & (best_params_df.validation_protocol == protocol)].head(1)
-        param_labels = common.make_model_of_class(model_class).get_parameter_labels()
+        param_labels = model_class().get_parameter_labels()
         best_params = best_params_row[param_labels].astype(np.float64).values.flatten()
         task[3] = best_params
         task[6] = ''
@@ -270,7 +272,7 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
 
     assert(not (fix_EKr is not None and adjust_kinetic_parameters))
 
-    param_labels = common.make_model_of_class(model_class).get_parameter_labels()
+    param_labels = model_class().get_parameter_labels()
     params_df = get_best_params(params_df, protocol_label='protocol')
     predictions_dir = os.path.join(output_dir, label)
 
@@ -314,11 +316,10 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
 
                 prediction_E_rev = common.infer_reversal_potential(sim_protocol, full_data, full_times)
 
-                model = common.make_model_of_class(model_class,
-                                                   voltage=prot_func,
-                                                   times=full_times,
-                                                   E_rev=prediction_E_rev if not fix_EKr else fix_EKr,
-                                                   protocol_description=desc)
+                model = model_class(prot_func,
+                                    times=full_times,
+                                    E_rev=prediction_E_rev if not fix_EKr else fix_EKr,
+                                    protocol_description=desc)
 
                 # Probably not worth compiling solver
                 solver = model.make_forward_solver_of_type(args.solver_type, njitted=False)
