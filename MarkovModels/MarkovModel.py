@@ -30,8 +30,9 @@ class MarkovModel:
 
     def __init__(self, symbols, A, B, rates_dict, times=None, voltage=None,
                  tolerances=(1e-8, 1e-8), Q=None, protocol_description=None,
-                 name=None, E_rev=None, default_parameters=None, parameter_labels=None,
-                 GKr_index: int = None, open_state_index: int = None,
+                 name=None, E_rev=None, default_parameters=None,
+                 parameter_labels=None, GKr_index: int = None,
+                 open_state_index: int = None, transformations=None,
                  state_labels: str = None):
 
         if state_labels:
@@ -45,7 +46,8 @@ class MarkovModel:
 
         self.n_state_vars = A.shape[0] + 1
 
-        self.default_parameters = default_parameters
+        if default_parameters is not None:
+            self.default_parameters = default_parameters
 
         if parameter_labels:
             self.parameter_labels = parameter_labels
@@ -57,9 +59,9 @@ class MarkovModel:
 
         self.Q = sp.sympify(Q)
 
-        self.transformations = None
+        self.transformations = transformations
 
-        if voltage:
+        if voltage is not None:
             self.holding_potential = voltage(0)
 
         self.model_name = name
@@ -108,7 +110,7 @@ class MarkovModel:
         self.auxiliary_function = self.define_auxiliary_function()
 
     def define_auxiliary_function(self):
-        return njit(sp.lambdify((self.y, self.p, self.v), self.auxiliary_expression))
+        return sp.lambdify((self.y, self.p, self.v), self.auxiliary_expression)
 
     def compute_steady_state_expressions(self):
 
@@ -499,16 +501,14 @@ class MarkovModel:
 
         return njit(rates_func) if njitted else rates_func
 
-    def make_forward_solver_states(self, atol=None, rtol=None,
+    def make_forward_solver_states(self,
                                    protocol_description=None, njitted=True,
                                    solver_type='lsoda'):
         # Solver can be either lsoda or dop853
         # For IDA solver use make_IDA_solver_states
 
-        if atol is None:
-            atol = self.solver_tolerances[0]
-        if rtol is None:
-            rtol = self.solver_tolerances[1]
+        atol = self.solver_tolerances[0]
+        rtol = self.solver_tolerances[1]
 
         crhs = self.get_cfunc_rhs()
         crhs_ptr = crhs.address
@@ -577,7 +577,7 @@ class MarkovModel:
                                                             data=p, rtol=rtol,
                                                             atol=atol,
                                                             exit_on_warning=True)
-                else:
+                elif solver_type == 'dop853':
                     step_sol[start_int: end_int], _ = dop853(crhs_ptr, y0,
                                                              step_times[start_int:end_int],
                                                              data=p, rtol=rtol,
@@ -775,23 +775,13 @@ class MarkovModel:
 
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve
 
-    def make_forward_solver_current(self, voltages=None, atol=None, rtol=None,
-                                    njitted=True, protocol_description=None,
+    def make_forward_solver_current(self, voltages=None, njitted=True,
+                                    protocol_description=None,
                                     solver_type='lsoda'):
-        if atol is None:
-            atol = self.solver_tolerances[0]
 
-        if rtol is None:
-            rtol = self.solver_tolerances[1]
-
-        solver_states = self.make_forward_solver_states(atol=atol, rtol=rtol,
-                                                        njitted=njitted,
+        solver_states = self.make_forward_solver_states(njitted=njitted,
                                                         protocol_description=protocol_description,
                                                         solver_type=solver_type)
-
-        gkr_index = self.GKr_index
-        open_index = self.open_state_index
-        E_rev = self.E_rev
 
         if voltages is None:
             voltages = self.GetVoltage()
@@ -799,9 +789,17 @@ class MarkovModel:
         times = self.times
         params = self.get_default_parameters()
 
-        def forward_solver(p=params, times=times, voltages=voltages, atol=atol, rtol=rtol):
-            states = solver_states(p, times, atol, rtol)
-            return ((states[:, open_index] * p[gkr_index]) * (voltages - E_rev)).flatten()
+        auxiliary_function = self.auxiliary_function
+
+        if njitted:
+            auxiliary_function = njit(auxiliary_function)
+
+        print(times, params)
+
+        def forward_solver(p=params, times=times, voltages=voltages):
+            states = solver_states(p, times)
+            print(states)
+            return (auxiliary_function(states.T, p, voltages)).flatten()
 
         return njit(forward_solver) if njitted else forward_solver
 

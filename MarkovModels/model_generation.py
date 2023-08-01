@@ -5,10 +5,12 @@ from markov_builder import MarkovChain
 
 import numpy as np
 import sympy as sp
+import pints
 import networkx
 
 
-def generate_markov_model_from_graph(mc: MarkovChain, times, voltage, *args, **kwargs):
+def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,
+                                     log_transform=True, *args, **kwargs):
 
     if 'default_parameters' not in kwargs:
         kwargs['default_parameters'] = np.array([val
@@ -36,7 +38,7 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage, *args, **k
         symbols['y'] = sp.Matrix([mc.get_state_symbol(s)
                                   for s in remaining_states])
 
-        return MarkovModel(symbols, A, B, mc.rate_expressions, times,
+        return MarkovModel(symbols, A, B, mc.rate_expressions, times=times,
                            voltage=voltage, Q=Q, *args, **kwargs,
                            name=mc.name,
                            parameter_labels=parameter_labels,
@@ -75,16 +77,17 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage, *args, **k
             y = [mc.get_state_symbol(lab) for lab in labels_without_state]
 
             sub_Q = sub_Q[permutation, permutation]
+            matrix = sub_Q.T
 
-            shape = sub_Q.shape
+            shape = matrix.shape
 
             M = sp.eye(shape[0])
             replacement_row = np.full(shape[0], -1)
 
             M[-1, :] = replacement_row[None, :]
 
-            A_matrix = sub_Q @ M
-            B_vec = sub_Q @ sp.Matrix([[0] * (shape[0] - 1) + [1]]).T
+            A_matrix = matrix @ M
+            B_vec = matrix @ sp.Matrix([[0] * (shape[0] - 1) + [1]]).T
 
             A_matrix = A_matrix[0:-1, 0:-1]
             B_vec = B_vec[0:-1, :]
@@ -94,21 +97,23 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage, *args, **k
             ys.append(y)
 
         state_symbols = [mc.get_state_symbol(lab) for lab in labels]
-
-        auxiliary_function = sp.lambdify((symbols['v'],
-                                          parameter_labels,
-                                          state_symbols),
-                                         mc.auxiliary_expression,
-                                         cse=True)
-
         remaining_states = [lab for lab in state_labels if lab != eliminated_state]
         A, B = mc.eliminate_state_from_transition_matrix(remaining_states)
 
         symbols['y'] = sp.Matrix([[s] for s in state_symbols])
+
+        if log_transform:
+            transformations = [[pints.LogTransformation,
+                                pints.IdentityTransformation] for rate in mc.rate_expressions]
+            # flatten
+            transformations = [t for pair in transformations for t in pair]
+            # append identity for conductance parameters
+            transformations += [pints.IdentityTransformation]
+
         return DisconnectedMarkovModel(symbols, A, B, Qs, As, Bs, ys, comps,
                                        mc.rate_expressions, times,
                                        parameter_labels,
-                                       mc.auxiliary_expression,
-                                       GKr_index=len(parameter_labels)-1,
-                                       *args, voltage=voltage, **kwargs,
+                                       mc.auxiliary_expression, *args,
+                                       transformations=transformations,
+                                       voltage=voltage, **kwargs,
                                        state_labels=state_labels)

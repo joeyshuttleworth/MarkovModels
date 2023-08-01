@@ -1,5 +1,6 @@
 import numpy as np
 import sympy as sp
+import pints
 from scipy.integrate import odeint
 
 from markov_builder.example_models import construct_four_state_chain
@@ -18,7 +19,7 @@ class BeattieModel(MarkovModel):
     open_state_index = 1
     holding_potential = -80
 
-    def __init__(self, voltage=None, times=None,
+    def __init__(self, times=None, voltage=None,
                  parameters=None, *args, **kwargs):
         # Create symbols for symbolic functions
         symbols = self.CreateSymbols()
@@ -56,8 +57,24 @@ class BeattieModel(MarkovModel):
                        ['0', 'k3', '-k2 - k4', 'k1'],
                        ['k3', '0', 'k2', '-k4 - k1']]).T
 
-        super().__init__(symbols, A, B, rates, times, voltage=voltage, Q=Q,
-                         name='BeattieModel', *args, **kwargs)
+        self.transformations = [
+            pints.LogTransformation(1),
+            pints.IdentityTransformation(1),
+
+            pints.LogTransformation(1),
+            pints.IdentityTransformation(1),
+
+            pints.LogTransformation(1),
+            pints.IdentityTransformation(1),
+
+            pints.LogTransformation(1),
+            pints.IdentityTransformation(1),
+
+            pints.LogTransformation(1)
+        ]
+
+        super().__init__(symbols, A, B, rates, times=times, voltage=voltage,
+                         Q=Q, name='BeattieModel', *args, **kwargs)
 
     def CreateSymbols(self):
         """
