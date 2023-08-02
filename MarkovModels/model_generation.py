@@ -115,5 +115,6 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,
                                        parameter_labels,
                                        mc.auxiliary_expression, *args,
                                        transformations=transformations,
+                                       name=mc.name,
                                        voltage=voltage, **kwargs,
                                        state_labels=state_labels)

@@ -35,6 +35,8 @@ class MarkovModel:
                  open_state_index: int = None, transformations=None,
                  state_labels: str = None):
 
+        self.name = name
+
         if state_labels:
             self.state_labels = state_labels
 
@@ -44,7 +46,7 @@ class MarkovModel:
         if open_state_index is not None:
             self.open_state_index = open_state_index
 
-        self.n_state_vars = A.shape[0] + 1
+        self.n_states = A.shape[0] + 1
 
         if default_parameters is not None:
             self.default_parameters = default_parameters
@@ -136,7 +138,7 @@ class MarkovModel:
                     i + 'dp%d' %
                     j) for j in range(
                     self.n_params)] for i in range(
-                self.n_state_vars)]
+                        self.no_states)]
 
         # Append 1st order sensitivities to inputs
         for i in range(self.n_params):
@@ -230,7 +232,7 @@ class MarkovModel:
         return steady_state
 
     def get_no_states(self):
-        return self.n_states
+        return self.A.shape[0] + 1
 
     def get_analytic_solution(self):
         """get_analytic_solution
@@ -794,11 +796,8 @@ class MarkovModel:
         if njitted:
             auxiliary_function = njit(auxiliary_function)
 
-        print(times, params)
-
         def forward_solver(p=params, times=times, voltages=voltages):
             states = solver_states(p, times)
-            print(states)
             return (auxiliary_function(states.T, p, voltages)).flatten()
 
         return njit(forward_solver) if njitted else forward_solver

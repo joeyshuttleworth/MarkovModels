@@ -15,7 +15,7 @@ class WangModel(MarkovModel):
     constructed using Markov_builder
     """
 
-    def __init__(self, voltage=None, times=None,
+    def __init__(self, times=None, voltage=None,
                  parameters=None, *args, **kwargs):
         # Create symbols for symbolic functions
 
@@ -52,7 +52,7 @@ class WangModel(MarkovModel):
 
         self.open_state_index = 0
 
-        super().__init__(symbols, A, B, mc.rate_expressions, times,
+        super().__init__(symbols, A, B, mc.rate_expressions, times=times,
                          voltage=voltage, Q=Q, *args, **kwargs,
                          name='WangModel')
 

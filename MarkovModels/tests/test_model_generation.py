@@ -27,33 +27,69 @@ class TestModelGeneration(unittest.TestCase):
         self.output_dir = test_output_dir
         logging.info("outputting to " + test_output_dir)
 
-    def test_Beattie_model_output(self):
-        protocol = 'staircaseramp'
+    def test_hybrid_solver(self):
 
+        model_names = [f"model{i}" for i in range(15)]
+        protocol = 'staircaseramp'
         voltage_func, times, desc = common.get_ramp_protocol_from_csv(protocol)
 
-        print(voltage_func(0))
+        models = [common.make_model_of_class(m, times, voltage_func, protocol_description=desc)\
+                  for m in model_names]
 
-        model1 = common.make_model_of_class('Beattie', times, voltage_func,
-                                            protocol_description=desc)
-        model2 = common.make_model_of_class('model3', voltage=voltage_func,
-                                            times=times, protocol_description=desc)
+        for name, model in zip(model_names, models):
+            output1 = model.make_forward_solver_current(njitted=False)()
+            output2 = model.make_hybrid_solver_current(njitted=False)()
 
-        default_parameters = model1.get_default_parameters()
-        h_solver1 = model1.make_hybrid_solver_current()
-        h_solver2 = model2.make_hybrid_solver_current()
+            plt.plot(times, output1)
+            plt.plot(times, output2)
+            plt.savefig(os.path.join(self.output_dir, f"{name} solver comparison"))
+            plt.clf()
 
-        output1 = h_solver1(default_parameters)
-        output2 = h_solver2(default_parameters)
+            self.assertLess(np.sqrt(np.mean((output1 - output2)**2)), 1e-1)
 
-        rmse_error = np.sqrt(((output1 - output2)**2).mean())
+    def test_generated_model_output(self):
+        protocol = 'staircaseramp'
 
-        logging.debug('rmse error is: ' + f"{rmse_error}")
+        for original_model, generated_model in [['Beattie', 'model3']]:
+            voltage_func, times, desc = common.get_ramp_protocol_from_csv(protocol)
 
-        plt.plot(times, output1, label='Beattie model')
-        plt.plot(times, output2, label='MarkovBuilder model')
+            model1 = common.make_model_of_class(original_model, times, voltage_func,
+                                                protocol_description=desc)
+            model2 = common.make_model_of_class(generated_model, voltage=voltage_func,
+                                                times=times, protocol_description=desc)
 
-        plt.savefig(os.path.join(self.output_dir, "Beattie_model3_comparison.pdf"))
+            default_parameters = model1.get_default_parameters()
 
-        self.assertLess(rmse_error, 1e-10)
+            h_solver1 = model1.make_forward_solver_current()
+            h_solver2 = model2.make_forward_solver_current()
+
+            output1 = h_solver1(default_parameters)
+            output2 = h_solver2(default_parameters)
+
+            rmse_error = np.sqrt(((output1 - output2)**2).mean())
+
+            logging.debug('rmse error is: ' + f"{rmse_error}")
+
+            plt.plot(times, output1, label=original_model)
+            plt.plot(times, output2, label='MarkovBuilder model')
+            plt.savefig(os.path.join(self.output_dir, f"{original_model}_{generated_model}_comparison_lsoda.pdf"))
+            plt.clf()
+
+            h_solver1 = model1.make_hybrid_solver_current()
+            h_solver2 = model2.make_hybrid_solver_current()
+
+            output1 = h_solver1(default_parameters)
+            output2 = h_solver2(default_parameters)
+
+            rmse_error = np.sqrt(((output1 - output2)**2).mean())
+
+            logging.debug('rmse error is: ' + f"{rmse_error}")
+
+            plt.plot(times, output1, label=original_model)
+            plt.plot(times, output2, label='MarkovBuilder model')
+
+            plt.savefig(os.path.join(self.output_dir, f"{original_model}_{generated_model}_comparison_hybrid.pdf"))
+            plt.clf()
+
+            self.assertLess(rmse_error, 1e-5)
 

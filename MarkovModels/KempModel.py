@@ -12,7 +12,7 @@ class KempModel(MarkovModel):
     constructed using Markov_builder
     """
 
-    def __init__(self, voltage=None, times=None,
+    def __init__(self, times=None, voltage=None,
                  parameters=None, *args, **kwargs):
         # Create symbols for symbolic functions
 
@@ -20,10 +20,10 @@ class KempModel(MarkovModel):
 
         self.default_parameters = np.array([val
                                             for key, val in mc.default_values.items()
-                                            if str(key) != 'E_Kr'])
+                                            if str(key) not in ['V', 'E_Kr']])
         self.parameter_labels = [key
                                  for key in mc.default_values
-                                 if str(key) != 'E_Kr']
+                                 if str(key) not in ['E_Kr', 'V']]
 
         if parameters is not None:
             self.default_parameters = parameters
