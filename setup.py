@@ -1,18 +1,15 @@
 #
 # MarkovModels setuptools script
 #
-import os
 
 from setuptools import find_packages, setup
-
 
 # Load text for description
 with open('README.md') as f:
     readme = f.read()
 
-# Load version number
-#with open(os.path.join('MarkovModels', 'version.txt'), 'r') as f:
- #   version = f.read()
+# Load version number with open(os.path.join('MarkovModels', 'version.txt'),
+# 'r') as f: version = f.read()
 
 version = "0"
 
@@ -58,7 +55,7 @@ setup(
         'regex>=2022.9.13',
         'myokit>=1.33.0',
         'seaborn>=0.12.0',
-        'markov_builder @ git+https://git@github.com/CardiacModelling/Markov-builder@master',
+        'markov_builder @ git+https://git@github.com/CardiacModelling/Markov-builder@thirty_models',
         'scikit-build>=0.16.7',
         'NumbaIDA @ git+https://git@github.com/joeyshuttleworth/NumbaIDA@master',
         'numbalsoda @ git+https://git@github.com/NicholasWogan/NumbaLSODA@main'
