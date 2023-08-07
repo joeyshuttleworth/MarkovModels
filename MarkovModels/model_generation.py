@@ -29,6 +29,14 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,
 
     GKr_index = len(parameter_labels) - 1
 
+    if log_transform:
+        transformations = [[pints.LogTransformation(1),
+                            pints.IdentityTransformation(1)] for rate in mc.rate_expressions]
+        # flatten
+        transformations = [t for pair in transformations for t in pair]
+        # append identity for conductance parameters
+        transformations += [pints.IdentityTransformation(1)]
+
     if mc.is_connected():
         # Graph is connected, generate MarkovModel
         open_state_index = state_labels.index('O')
@@ -39,12 +47,12 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,
                                   for s in remaining_states])
 
         return MarkovModel(symbols, A, B, mc.rate_expressions, times=times,
-                           voltage=voltage, Q=Q, *args, **kwargs,
-                           name=mc.name,
+                           voltage=voltage, Q=Q, *args, **kwargs, name=mc.name,
                            parameter_labels=parameter_labels,
                            GKr_index=GKr_index,
                            open_state_index=open_state_index,
-                           state_labels=state_labels)
+                           state_labels=state_labels,
+                           transformations=transformations)
     else:
         # Graph is disconnected: generated DisconnectedMarkovModel
         comps = list(networkx.connected_components(mc.graph.to_undirected()))
@@ -101,20 +109,11 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,
         A, B = mc.eliminate_state_from_transition_matrix(remaining_states)
 
         symbols['y'] = sp.Matrix([[s] for s in state_symbols])
-
-        if log_transform:
-            transformations = [[pints.LogTransformation,
-                                pints.IdentityTransformation] for rate in mc.rate_expressions]
-            # flatten
-            transformations = [t for pair in transformations for t in pair]
-            # append identity for conductance parameters
-            transformations += [pints.IdentityTransformation]
-
         return DisconnectedMarkovModel(symbols, A, B, Qs, As, Bs, ys, comps,
                                        mc.rate_expressions, times,
                                        parameter_labels,
                                        mc.auxiliary_expression, *args,
                                        transformations=transformations,
-                                       name=mc.name,
+                                       name=mc.name, GKr_index=len(parameter_labels) - 1,
                                        voltage=voltage, **kwargs,
                                        state_labels=state_labels)
