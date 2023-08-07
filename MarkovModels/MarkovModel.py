@@ -277,10 +277,20 @@ class MarkovModel:
 
         def analytic_solution_func(times=times, voltage=voltage, p=p, y0=y0):
             rates = rates_func(p, voltage).flatten()
-            X2 = X_inhom_func(rates)
             A = A_func(rates)
             D, P = np.linalg.eig(A)
 
+            # Compute condition number doi:10.1137/S00361445024180
+            cond_P = np.linalg.norm(P, 2) / np.linalg.norm(np.linalg.inv(P), 2)
+
+            if cond_P > 1e3:
+                print(f"WARNING: cond_P = {cond_P} > 1e3, matrix is almost defective")
+                print(f"{A}")
+                return np.full((times.shape[0], y0.shape[0]), np.nan), False
+
+            X2 = X_inhom_func(rates)
+
+            X2 = X_inhom_func(rates)
             y0 = np.expand_dims(y0, -1)
 
             K = np.diag(np.linalg.solve(P, (y0 - X2).flatten()))
