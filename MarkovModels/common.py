@@ -857,23 +857,6 @@ def fit_well_data(model_class_name : str, well, protocol, data_directory, max_it
     if solver is None:
         solver = model.make_forward_solver_of_type(solver_type, njitted=True)
 
-    if scale_conductance:
-        # scale conductance to match data
-        def optim_func(p):
-            p_vec = default_parameters.copy()
-            p_vec[model.GKr_index] = p
-            return np.sum((data - solver(p_vec))**2)
-
-        res = scipy.optimize.minimize_scalar(optim_func,
-                                             default_parameters[model.GKr_index],
-                                             method='bounded', bounds=[0, 1e3])
-
-        params_scaled = initial_params.copy()
-        params_scaled[model.GKr_index] = res.x
-
-        if optim_func(params_scaled[model.GKr_index]) < optim_func(default_parameters[model.GKr_index]):
-            initial_params = params_scaled
-
     fitted_params, score, fitting_df = fit_model(model, data, solver=solver,
                                                  starting_parameters=initial_params,
                                                  max_iterations=max_iterations,
@@ -892,7 +875,7 @@ def fit_well_data(model_class_name : str, well, protocol, data_directory, max_it
         ax = fig.subplots()
         try:
             ax.plot(times, solver(fitted_params), label='fitted parameters')
-            ax.plot(times, solver(params_scaled), label='default parameters')
+            ax.plot(times, solver(initial_params), label='default parameters')
             ax.plot(times, data, color='grey', label='data', alpha=.5)
         except Exception:
             pass
@@ -918,7 +901,7 @@ def fit_well_data(model_class_name : str, well, protocol, data_directory, max_it
 
 def get_all_wells_in_directory(data_dir, experiment_name='newtonrun4'):
 
-    regex = f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z]|0-9]*).csv$"
+    regex = f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z]|0-9]*)"
     regex = re.compile(regex)
     wells = []
     group = 1
