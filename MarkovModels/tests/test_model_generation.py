@@ -1,21 +1,13 @@
 #!/usr/bin/env python3
 
-import itertools
 import logging
 import os
 import unittest
 
 import matplotlib.pyplot as plt
-import myokit
-import myokit as mk
-import networkx as nx
 import numpy as np
-import sympy as sp
 
 from MarkovModels import common
-from MarkovModels.BeattieModel import BeattieModel
-from MarkovModels.ClosedOpenModel import ClosedOpenModel
-from MarkovModels.KempModel import KempModel
 
 
 class TestModelGeneration(unittest.TestCase):
