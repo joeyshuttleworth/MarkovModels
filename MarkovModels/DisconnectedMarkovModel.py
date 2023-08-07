@@ -75,7 +75,6 @@ class DisconnectedMarkovModel(MarkovModel):
         if A.shape[0] == 1:
             # Scalar case
             def analytic_solution_func_scalar(times, voltage, p, y0):
-                # return np.full((times.shape[0], y0.shape[0]), np.nan)
                 rates = rates_func(p, voltage).flatten()
                 y0 = y0[0]
                 a = A_func(rates)[0, 0]
@@ -90,12 +89,19 @@ class DisconnectedMarkovModel(MarkovModel):
             X_inhom_func = njit(sp.lambdify((self.rates_dict.keys(),), X_inhom), fastmath=True)
 
             def analytic_solution_func(times, voltage, p, y0):
-                # return np.full((times.shape[0], y0.shape[0]), np.nan)
                 rates = rates_func(p, voltage).flatten()
                 A = A_func(rates)
-                X2 = X_inhom_func(rates)
                 D, P = np.linalg.eig(A)
 
+                # Compute condition number doi:10.1137/S00361445024180
+                cond_P = np.linalg.norm(P, 2) / np.linalg.norm(np.linalg.inv(P), 2)
+
+                if cond_P > 1e3:
+                    print(f"WARNING: cond_P = {cond_P} > 1e3, matrix is almost defective")
+                    print(f"{A}")
+                    return np.full((times.shape[0], y0.shape[0]), np.nan)
+
+                X2 = X_inhom_func(rates)
                 y0 = np.expand_dims(y0, -1)
 
                 K = np.diag(np.linalg.solve(P, (y0 - X2).flatten()))
@@ -318,35 +324,6 @@ class DisconnectedMarkovModel(MarkovModel):
                 dy[i] = res[i]
 
         return cfunc_rhs
-
-    # def make_current_solver(self, protocol_description=None, njitted=False,
-    #                         strict=True,
-    #                         solver_type='hybrid', **kws):
-
-    #     state_solver = self.make_combined_solver(protocol_description, njitted,
-    #                                              strict, solver_type, **kws)
-
-    #     params = self.get_default_parameters()
-
-    #     voltages = np.array([self.voltage(t) for t in self.times])
-
-    #     atol, rtol = self.solver_tolerances
-
-    #     if solver_type != 'hybrid':
-    #         kws = {
-    #             'atol': atol,
-    #             'rtol': rtol
-    #         }
-    #     else:
-    #         kws = {}
-
-    #     def current_solver(p=params, times=self.times, voltages=voltages):
-
-    #         # states = np.full((times.shape, len(self.state_labels)))
-    #         states = state_solver(p, times, **kws)
-
-    #         # return self.auxiliary_function(states.T, p)
-    #         return None
 
     def make_ida_residual_func():
         raise NotImplementedError()
