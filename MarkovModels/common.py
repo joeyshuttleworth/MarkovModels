@@ -651,6 +651,10 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             starting_parameter_sets.append(initial_guess)
             boundaries = Boundaries(initial_guess, fix_parameters)
             params_not_fixed = initial_guess
+
+        if not boundaries.check(params_not_fixed):
+            raise ValueError(f"starting parameter lie outside boundary: {params_not_fixed}")
+
         controller = pints.OptimisationController(error, params_not_fixed,
                                                   boundaries=boundaries,
                                                   method=method,
