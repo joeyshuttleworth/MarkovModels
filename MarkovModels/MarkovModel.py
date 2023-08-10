@@ -281,7 +281,7 @@ class MarkovModel:
             D, P = np.linalg.eig(A)
 
             # Compute condition number doi:10.1137/S00361445024180
-            cond_P = np.linalg.norm(P, 2) / np.linalg.norm(np.linalg.inv(P), 2)
+            cond_P = np.linalg.norm(P, 2) * np.linalg.norm(np.linalg.inv(P), 2)
 
             if cond_P > 1e3:
                 print(f"WARNING: cond_P = {cond_P} > 1e3, matrix is almost defective")
