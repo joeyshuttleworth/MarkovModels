@@ -533,11 +533,13 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             if max(rates_1.max(), rates_2.max()) > 1e3:
                 return False
 
-            if max([p for i, p in enumerate(parameters) if i != mm.GKr_index]) > 1e5:
-                return False
-
-            if min([p for i, p in enumerate(parameters) if i != mm.GKr_index]) < 1e-7:
-                return False
+            for p, t in zip(parameters, mm.transformations[:-1]):
+                if isinstance(t, pints.LogTransformation):
+                    if p > 1e3 or p < 1e-7:
+                        return False
+                elif isinstance(t, pints.IdentityTransformation):
+                    if p > 0.4 or p < 1e-7:
+                        return False
 
             # Ensure the proposed maximal conductance has a reasonable value.
             # It shouldn't be too much greater than the maximum observed
@@ -556,15 +558,31 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                 len(self.fix_parameters) if self.fix_parameters is not None\
                 else mm.get_no_parameters()
 
-        def _sample_once(self, min_log_p, max_log_p):
-            for i in range(1000):
+        def _sample_once(self):
+            for i in range(10000):
                 p = starting_parameters.copy()
                 if not no_conductance_boundary:
                     p[-1] = rng.uniform(self.max_observed_conductance*0.01,
                                         self.max_observed_conductance*100)
 
-                p[:-1] = 10**rng.uniform(min_log_p, max_log_p,
-                                         starting_parameters[:-1].shape)
+                if mm.transformations:
+                    for j in range(p.shape[0]-1):
+                        if isinstance(mm.transformations[j], pints.LogTransformation):
+                            min_log_p = -7
+                            max_log_p = 3
+                            p[j] = 10**rng.uniform(min_log_p, max_log_p)
+                        elif isinstance(mm.transformations[j], pints.IdentityTransformation):
+                            min_log_p = -7
+                            max_log_p = np.log10(0.4)
+                            # Use a-space for now (log search all parameters)
+                            p[j] = rng.uniform(10**min_log_p, 10**max_log_p)
+                        else:
+                            raise NotImplementedError("Initial guess sampling for "
+                                                      f"{type(mm.transformations[j])} "
+                                                      "transformation is not yet  implemented")
+                else:
+                    p[:-1] = 10**rng.uniform(min_log_p, max_log_p,
+                                             starting_parameters[:-1].shape)
 
                 if fix_parameters:
                     p = p[[i for i in range(len(starting_parameters)) if i not in
@@ -577,15 +595,13 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             return np.NaN
 
         def sample(self, n=1):
-            min_log_p, max_log_p = [-7, 1]
-
             no_parameters = len(starting_parameters) if not self.fix_parameters\
                 else len(starting_parameters) - len(fix_parameters)
 
             ret_vec = np.full((n, no_parameters), np.nan)
 
             for i in range(n):
-                ret_vec[i, :] = self._sample_once(min_log_p, max_log_p)
+                ret_vec[i, :] = self._sample_once()
 
             return ret_vec
 
