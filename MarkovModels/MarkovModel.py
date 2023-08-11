@@ -275,29 +275,45 @@ class MarkovModel:
         p = self.get_default_parameters()
         y0 = self.rhs_inf(p, voltage).flatten()
 
-        def analytic_solution_func(times=times, voltage=voltage, p=p, y0=y0):
-            rates = rates_func(p, voltage).flatten()
-            A = A_func(rates)
-            D, P = np.linalg.eig(A)
+        if y0.shape[0] == 1:
+            # Scalar case
+            B_func = njit(sp.lambdify((self.rates_dict.keys(),), self.A), fastmath=True)
 
-            # Compute condition number doi:10.1137/S00361445024180
-            cond_P = np.linalg.norm(P, 2) * np.linalg.norm(np.linalg.inv(P), 2)
+            def analytic_solution_func_scalar(times=times, voltage=voltage, p=p, y0=y0):
+                rates = rates_func(p, voltage).flatten()
+                y0 = y0[0]
+                a = A_func(rates)[0, 0]
+                b = B_func(rates)[0, 0]
+                sol = np.expand_dims((y0 + b/a) * np.exp(a * times) - b/a, -1)
+                return sol, True
 
-            if cond_P > 1e3:
-                print(f"WARNING: cond_P = {cond_P} > 1e3, matrix is almost defective")
-                print(f"{A}")
-                return np.full((times.shape[0], y0.shape[0]), np.nan), False
+            analytic_solution_func = analytic_solution_func_scalar
 
-            X2 = X_inhom_func(rates)
+        else:
+            def analytic_solution_func_matrix(times=times, voltage=voltage, p=p, y0=y0):
+                rates = rates_func(p, voltage).flatten()
+                A = A_func(rates)
+                D, P = np.linalg.eig(A)
 
-            X2 = X_inhom_func(rates)
-            y0 = np.expand_dims(y0, -1)
+                # Compute condition number doi:10.1137/S00361445024180
+                cond_P = np.linalg.norm(P, 2) * np.linalg.norm(np.linalg.inv(P), 2)
 
-            K = np.diag(np.linalg.solve(P, (y0 - X2).flatten()))
+                if cond_P > 1e3:
+                    print(f"WARNING: cond_P = {cond_P} > 1e3, matrix is almost defective")
+                    print(f"{A}")
+                    return np.full((times.shape[0], y0.shape[0]), np.nan), False
 
-            solution = (P @ K @  np.exp(np.outer(D, times))).T + X2.T
+                X2 = X_inhom_func(rates)
 
-            return solution, True
+                X2 = X_inhom_func(rates)
+                y0 = np.expand_dims(y0, -1)
+
+                K = np.diag(np.linalg.solve(P, (y0 - X2).flatten()))
+
+                solution = (P @ K @  np.exp(np.outer(D, times))).T + X2.T
+
+                return solution, True
+            analytic_solution_func = analytic_solution_func_matrix
 
         return analytic_solution_func if not njitted else njit(analytic_solution_func)
 
