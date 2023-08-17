@@ -191,6 +191,8 @@ def do_chronological_plots(leak_parameters_df):
 
         ax.cla()
 
+    plt.close(fig)
+
 
 def do_combined_plots(leak_parameters_df):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
@@ -239,33 +241,34 @@ def do_combined_plots(leak_parameters_df):
     axs2 = fig2.subplots(1, 2, sharey=True)
 
     for well in leak_parameters_df[leak_parameters_df['passed QC']].well.unique():
-        for i, protocol in enumerate(leak_parameters_df.protocol.unique()):
-            times_fname = f"{experiment_name}-{protocol}-times.csv"
-            times_df = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', times_fname))
-            times = times_df['time'].values.flatten().astype(np.float64)
+        for sweep in leak_parameters_df.sweep:
+            for i, protocol in enumerate(leak_parameters_df.protocol.unique()):
+                times_fname = f"{experiment_name}-{protocol}-times.csv"
+                times_df = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', times_fname))
+                times = times_df['time'].values.flatten().astype(np.float64)
 
-            fname = f"{experiment_name}-{protocol}-{well}.csv"
-            try:
-                data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
-            except FileNotFoundError:
-                continue
+                fname = f"{experiment_name}-{protocol}-{well}-sweep{sweep}.csv"
+                try:
+                    data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
+                except FileNotFoundError:
+                    continue
 
-            current = data['current'].values.flatten().astype(np.float64)
+                current = data['current'].values.flatten().astype(np.float64)
 
-            indices_pre_ramp = times < 3000
-            # if reference_current is None:
-            #     reference_current = current
-            # scaled_current = scale_to_reference(current, reference_current)
+                indices_pre_ramp = times < 3000
+                # if reference_current is None:
+                #     reference_current = current
+                # scaled_current = scale_to_reference(current, reference_current)
 
-            col = palette[i]
-            axs2[0].plot(times[indices_pre_ramp], current[indices_pre_ramp], color=col, alpha=.5,
-                         label=protocol)
+                col = palette[i]
+                axs2[0].plot(times[indices_pre_ramp], current[indices_pre_ramp], color=col, alpha=.5,
+                            label=protocol)
 
-            indices_post_ramp = times > (times[-1] - 2000)
-            post_times = times[indices_post_ramp].copy()
-            post_times = post_times - post_times[0] + 5000
-            axs2[1].plot(post_times, current[indices_post_ramp], color=col, alpha=.5,
-                         label=protocol)
+                indices_post_ramp = times > (times[-1] - 2000)
+                post_times = times[indices_post_ramp].copy()
+                post_times = post_times - post_times[0] + 5000
+                axs2[1].plot(post_times, current[indices_post_ramp], color=col, alpha=.5,
+                            label=protocol)
 
         axs2[0].legend()
         axs2[0].set_title('before protocol')
@@ -279,20 +282,24 @@ def do_combined_plots(leak_parameters_df):
         axs2[0].cla()
         axs2[1].cla()
 
+    plt.close(fig)
+    plt.close(fig2)
+
 
 def do_scatter_matrix(df):
-    df = df.drop([df.columns[0], 'fitted_E_rev', 'sweep', 'passed QC.Erev',
+    df = df.drop([df.columns[0], 'sweep', 'passed QC.Erev',
                   'selected', 'pre-drug leak reversal', 'post-drug leak reversal'],
                  axis='columns')
 
     print(df['passed QC'])
     grid = sns.pairplot(data=df, hue='passed QC', diag_kind='hist',
-                        plot_kws={'alpha':0.4, 'edgecolor': None},
+                        plot_kws={'alpha': 0.4, 'edgecolor': None},
                         hue_order=[False, True])
     grid.savefig(os.path.join(output_dir, 'scatter_matrix'))
 
-    grid = sns.pairplot(data=df, hue=df['fitted_E_rev'] > args.reversal, diag_kind='hist',
-                        plot_kws={'alpha':0.4, 'edgecolor': None},
+    df['hue'] = df['fitted_E_rev'] > args.reversal
+    grid = sns.pairplot(data=df, hue='hue', diag_kind='hist',
+                        plot_kws={'alpha': 0.4, 'edgecolor': None},
                         hue_order=[False, True])
     grid.savefig(os.path.join(output_dir, 'scatter_matrix'))
 
@@ -434,6 +441,8 @@ def plot_histograms(df):
 
     fig.savefig(os.path.join(output_dir, 'R_leftover'))
 
+    plt.close(fig)
+
 
 def overlay_reversal_plots(leak_parameters_df):
     ''' Method copied from common.infer_reversal_potential'''
@@ -497,6 +506,7 @@ def overlay_reversal_plots(leak_parameters_df):
         # Clear figure
         ax.cla()
 
+    plt.close(fig)
     return
 
 

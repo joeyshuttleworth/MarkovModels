@@ -38,7 +38,7 @@ def main():
     parser = argparse.ArgumentParser(description)
 
     parser.add_argument('data_directory', type=str, help="path to the directory containing the raw data")
-    parser.add_argument('selection_file', type=str)
+    parser.add_argument('--selection_file', type=str)
     parser.add_argument('--cpus', '-c', default=1, type=int)
     parser.add_argument('--wells', '-w', nargs='+', default=None)
     parser.add_argument('--output', '-o', default=None)
@@ -83,6 +83,8 @@ def main():
             selected_wells = fin.read().splitlines()
         if not args.output_all:
             args.wells = [well for well in args.wells if well in selected_wells]
+    else:
+        selected_wells = args.wells
 
     print(args.wells, args.protocols)
 
@@ -108,6 +110,8 @@ def main():
 
     if args.selection_file:
         df['selected'] = [well in selected_wells for well in df['well']]
+    else:
+        df['selected'] = True
 
     E_Kr_spread = compute_E_Kr_spread(df)
     df['E_Kr_spread'] = [E_Kr_spread[well] if well in E_Kr_spread else np.nan for well in df.well]
@@ -127,6 +131,9 @@ def main():
                 failed = True
                 break
             elif not row['QC E_Kr_spread']:
+                failed = True
+                break
+            elif not row['passed QC.Erev']:
                 failed = True
                 break
             elif not row['passed QC7']:
@@ -266,6 +273,9 @@ def subtract_leak(well, protocol):
         fig = plt.figure(figsize=args.figsize, clear=True, constrained_layout=True)
         reversal_fig = plt.figure(figsize=args.figsize, constrained_layout=True)
         reversal_ax = reversal_fig.subplots()
+    else:
+        reversal_ax = None
+        reversal_fig = None
 
     nsweeps = 1
     sweep2_fname = f"{experiment_name}-{protocol}-{well}-before-sweep2.csv"
@@ -363,7 +373,7 @@ def subtract_leak(well, protocol):
             common.infer_reversal_potential(protocol, before_trace,
                                             observation_times, plot=True,
                                             output_path=os.path.join(reversal_plot_dir,
-                                                                    f"{well}_{protocol}_sweep{sweep}_after"))
+                                                                     f"{well}_{protocol}_sweep{sweep}_after"))
 
         else:
             g_leak_after = np.nan
@@ -407,9 +417,7 @@ def subtract_leak(well, protocol):
                                             observation_times,
                                             output_path=os.path.join(reversal_plot_dir,
                                                                      f"{protocol}_{well}_before_drug_leak_corrected"),
-                                            ax=reversal_ax, plot=not
-                                            args.no_plot)
-
+                                            ax=reversal_ax, plot=not args.no_plot)
 
         if after_trace is not None:
             after_corrected = after_trace - (g_leak_after * (protocol_voltages - E_leak_after))
@@ -417,8 +425,7 @@ def subtract_leak(well, protocol):
                                             observation_times,
                                             output_path=os.path.join(reversal_plot_dir,
                                                                      f"{protocol}_{well}_after_drug_leak_corrected"),
-                                            ax=reversal_ax, plot=not
-                                            args.no_plot)
+                                            ax=reversal_ax, plot=not args.no_plot)
 
         if before_trace is not None and after_trace is not None:
             subtracted_trace = before_corrected - after_corrected
@@ -517,10 +524,10 @@ def subtract_leak(well, protocol):
 
         if Erev > -50 or Erev < -100:
             print(f"{protocol}, {well} \tpassed QC.Erev")
-            passed_Erev = True
+            passed_Erev = False
         else:
             print(f"{protocol}, {well} \tfailed QC.Erev")
-            passed_Erev = False
+            passed_Erev = True
 
         if after_trace is not None:
             R_leftover = np.sqrt(np.sum(after_corrected**2)/(np.sum(before_corrected**2)))
