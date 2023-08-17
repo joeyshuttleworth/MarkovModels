@@ -171,8 +171,6 @@ def do_chronological_plots(leak_parameters_df):
     if not os.path.exists(sub_dir):
         os.makedirs(sub_dir)
 
-    print(leak_parameters_df.columns)
-
     vars = ['post-drug leak conductance', 'pre-drug leak conductance',
             'post-drug leak reversal', 'R_leftover', 'pre-drug leak reversal',
             'post-drug leak reversal', 'fitted_E_rev', 'pre-drug leak magnitude',
@@ -212,22 +210,23 @@ def do_combined_plots(leak_parameters_df):
 
         reference_current = None
 
-        for i, well in enumerate(leak_parameters_df.well.unique()):
-            fname = f"{experiment_name}-{protocol}-{well}.csv"
-            try:
-                data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
+        for sweep in leak_parameters_df.sweep.unique():
+            for i, well in enumerate(leak_parameters_df.well.unique()):
+                fname = f"{experiment_name}-{protocol}-{well}-sweep{sweep}.csv"
+                try:
+                    data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
 
-            except FileNotFoundError:
-                continue
+                except FileNotFoundError:
+                    continue
 
-            current = data['current'].values.flatten().astype(np.float64)
+                current = data['current'].values.flatten().astype(np.float64)
 
-            if reference_current is None:
-                reference_current = current
+                if reference_current is None:
+                    reference_current = current
 
-            scaled_current = scale_to_reference(current, reference_current)
-            col = palette[i]
-            ax.plot(times, scaled_current, color=col, alpha=.5, label=well)
+                scaled_current = scale_to_reference(current, reference_current)
+                col = palette[i]
+                ax.plot(times, scaled_current, color=col, alpha=.5, label=well)
 
         fig_fname = f"{protocol}_overlaid_subtracted_traces"
         fig.suptitle(f"{protocol}: all wells")
@@ -291,7 +290,6 @@ def do_scatter_matrix(df):
                   'selected', 'pre-drug leak reversal', 'post-drug leak reversal'],
                  axis='columns')
 
-    print(df['passed QC'])
     grid = sns.pairplot(data=df, hue='passed QC', diag_kind='hist',
                         plot_kws={'alpha': 0.4, 'edgecolor': None},
                         hue_order=[False, True])
@@ -357,9 +355,7 @@ def plot_spatial_Erev(df):
 
                 zs.append(EKr)
 
-        print(zs)
         zs = np.array(zs).reshape((18, 24))
-        print(zs)
 
         if found_value:
             return
@@ -370,6 +366,7 @@ def plot_spatial_Erev(df):
             fig.colorbar(im)
         except Exception as exc:
             print(str(exc))
+
         fig.savefig(os.path.join(output_dir, f"{protocol}_sweep{sweep}_E_Kr_map"))
 
         ax.cla()
@@ -406,7 +403,6 @@ def plot_histograms(df):
     ax.cla()
 
     averaged_fitted_EKr = df.groupby(['well'])['fitted_E_rev'].mean().copy().to_frame()
-    print(averaged_fitted_EKr)
     averaged_fitted_EKr['passed QC'] = [np.all(df[df.well == well]['passed QC']) for well in averaged_fitted_EKr.index]
 
     sns.histplot(averaged_fitted_EKr,
@@ -418,8 +414,6 @@ def plot_histograms(df):
 
     ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
     fig.savefig(os.path.join(output_dir, 'reversal_potential_histogram'))
-
-
 
     ax.cla()
     sns.histplot(df,
