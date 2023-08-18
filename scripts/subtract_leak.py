@@ -39,6 +39,7 @@ def main():
 
     parser.add_argument('data_directory', type=str, help="path to the directory containing the raw data")
     parser.add_argument('--selection_file', type=str)
+    parser.add_argument('--ignore_QC7', action='store_true')
     parser.add_argument('--cpus', '-c', default=1, type=int)
     parser.add_argument('--wells', '-w', nargs='+', default=None)
     parser.add_argument('--output', '-o', default=None)
@@ -105,14 +106,14 @@ def main():
 
     df = pd.concat(res, ignore_index=True)
 
-    df['passed QC7'] = False
+    if not args.ignore_QC7:
+        df['passed QC7'] = False
+        with multiprocessing.Pool(pool_size, **pool_kws) as pool:
+            QC7_res = pool.map(QC7, df.well.unique())
 
-    with multiprocessing.Pool(pool_size, **pool_kws) as pool:
-        QC7_res = pool.map(QC7, df.well.unique())
-
-    for i, well in enumerate(df.well.unique()):
-        passed_QC7 = QC7_res[i]
-        df.loc[df.well == well, 'passed QC7'] = passed_QC7
+            for i, well in enumerate(df.well.unique()):
+                passed_QC7 = QC7_res[i]
+                df.loc[df.well == well, 'passed QC7'] = passed_QC7
 
     if args.selection_file:
         df['selected'] = [well in selected_wells for well in df['well']]
@@ -142,9 +143,10 @@ def main():
             elif not row['passed QC.Erev']:
                 failed = True
                 break
-            elif not row['passed QC7']:
-                failed = True
-                break
+            elif not args.ignore_QC7:
+                if row['passed QC7']:
+                    failed = True
+                    break
             elif args.selection_file:
                 if well not in selected_wells:
                     failed = True
