@@ -201,6 +201,10 @@ def do_combined_plots(leak_parameters_df):
 
     print(f"passed wells are {passed_wells}")
 
+    protocol_overlaid_dir = os.path.join(output_dir, 'overlaid_by_protocol')
+    if not os.path.xists(protocol_overlaid_dir):
+        os.createdirs(protocol_overlaid_dir)
+
     for protocol in leak_parameters_df.protocol.unique():
         times_fname = f"{experiment_name}-{protocol}-times.csv"
         try:
@@ -230,9 +234,11 @@ def do_combined_plots(leak_parameters_df):
                 col = palette[i]
                 ax.plot(times, scaled_current, color=col, alpha=.5, label=well)
 
-        fig_fname = f"{protocol}_overlaid_subtracted_traces"
+        fig_fname = f"{protocol}_overlaid_subtracted_traces_scaled"
         fig.suptitle(f"{protocol}: all wells")
         ax.set_xlabel(r'time / ms')
+        ax.set_ylabel('current scaled to reference trace')
+        ax.legend()
         fig.savefig(os.path.join(output_dir, fig_fname))
         ax.cla()
 
@@ -243,7 +249,12 @@ def do_combined_plots(leak_parameters_df):
     fig2 = plt.figure(figsize=args.figsize, constrained_layout=True)
     axs2 = fig2.subplots(1, 2, sharey=True)
 
+    wells_overlaid_dir = os.path.join(output_dir, 'overlaid_by_well')
+    if not os.path.xists(wells_overlaid_dir):
+        os.createdirs(wells_overlaid_dir)
+
     print('overlaying traces by well')
+
     for well in passed_wells:
         print(well)
         for sweep in leak_parameters_df.sweep.unique():
@@ -281,9 +292,13 @@ def do_combined_plots(leak_parameters_df):
         axs2[1].set_title('after drug')
         axs2[1].set_xlabel(r'time / ms')
 
+        axs2[0].set_ylabel('current / pA')
+        axs2[1].set_ylabel('current / pA')
+
         fig2_fname = f"{well}_overlaid_subtracted_traces"
         fig2.suptitle(f"Leak ramp comparison: {well}")
-        fig2.savefig(os.path.join(output_dir, fig2_fname))
+
+        fig2.savefig(os.path.join(wells_overlaid_dir, fig2_fname))
         axs2[0].cla()
         axs2[1].cla()
 
