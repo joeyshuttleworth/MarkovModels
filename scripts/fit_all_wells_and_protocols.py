@@ -45,49 +45,6 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
     return res_df
 
 
-# def mcmc_func(protocol, well, model_class, initial_params):
-
-#     # Ignore files that have been commented out
-#     voltage_func, times, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
-
-#     data = common.get_data(well, protocol, args.data_directory, experiment_name)
-
-#     times = pd.read_csv(os.path.join(args.data_directory, f"{experiment_name}-{protocol}-times.csv"))['time'].values
-
-#     voltages = np.array([voltage_func(t) for t in times])
-
-#     model = model_class(voltage=voltage_func,
-#                         protocol_description=protocol_desc,
-#                         times=times)
-
-#     if initial_params is None:
-#         initial_params = model.get_default_parameters()
-
-#     reversal_potential = common.infer_reversal_potential(protocol, data, times)
-#     model.Erev = reversal_potential
-
-#     solver = model.make_forward_solver_current()
-
-#     if np.any(~np.isfinite(solver(initial_params))):
-#         initial_params = model.get_default_parameters()
-
-#     sigma2 = np.var(data[10:100])
-#     print("sigma2 is ", sigma2)
-
-#     spike_times, spike_indices = common.detect_spikes(times, voltages, threshold=10)
-
-#     _, _, indices = common.remove_spikes(times, voltages, spike_times,
-#                                          time_to_remove=args.removal_duration)
-
-#     return common.compute_mcmc_chains(model, solver=solver, times=times,
-#                                       indices=indices, data=data,
-#                                       chain_length=args.chain_length,
-#                                       no_chains=args.no_chains,
-#                                       starting_parameters=initial_params,
-#                                       sigma2=sigma2, burn_in=0,
-#                                       log_likelihood_func=None)
-
-
 def main():
     Erev = common.calculate_reversal_potential()
 
@@ -443,6 +400,10 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                                   param_labels)
     predictions_df['RMSE'] = predictions_df['score']
     predictions_df['sweep'] = predictions_df.fitting_sweep
+
+    plt.close(trace_fig)
+    plt.close(all_models_fig)
+
     return predictions_df
 
 

@@ -676,7 +676,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                                                            evaluations=100)
 
             fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_default'))
-            fig.clf()
+            plt.close(fig)
 
         point_2 = starting_parameter_sets[best_index % len(starting_parameter_sets)]
         fig, axes = pints.plot.function_between_points(error,
@@ -686,7 +686,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                                                        evaluations=100)
 
         fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_initial_guess'))
-        fig.clf()
+        plt.close(fig)
 
     if fix_parameters:
         for i in np.unique(fix_parameters):
@@ -957,7 +957,7 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
 
     if plot:
         created_fig = False
-        if ax is None:
+        if ax is None and output_path is not None:
             created_fig = True
             fig = plt.figure()
             ax = fig.subplots()
