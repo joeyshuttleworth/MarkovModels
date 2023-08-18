@@ -94,6 +94,11 @@ def main():
     tasks = [(well, protocol) for well in args.wells for protocol in args.protocols]
 
     pool_size = min(len(tasks), args.cpus)
+
+    scatter_plots_dir = os.path.join(output, 'scatter_plots')
+    if not os.path.exists(scatter_plots_dir):
+        os.makedirs(scatter_plots_dir)
+
     with multiprocessing.Pool(pool_size, **pool_kws) as pool:
         res = pool.starmap(subtract_leak, tasks)
 
@@ -298,11 +303,6 @@ def subtract_leak(well, protocol):
         subtract_scatter_fig = plt.figure(figsize=args.figsize)
         axs = subtract_scatter_fig.subplots(2, 2)
         [[scatter_ax_before, window_ax_before], [scatter_ax_after, window_ax_after]] = axs
-
-    scatter_plots_dir = os.path.join(output, 'scatter_plots')
-
-    if not os.path.exists(scatter_plots_dir):
-        os.makedirs(scatter_plots_dir)
 
     for sweep in range(1, nsweeps + 1):
         before_filename = f"{experiment_name}-{protocol}-{well}-before-sweep{sweep}.csv"
