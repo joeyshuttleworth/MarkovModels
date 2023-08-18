@@ -199,6 +199,8 @@ def do_combined_plots(leak_parameters_df):
     palette = sns.color_palette('husl', len(leak_parameters_df.well.unique()))
     wells = [well for well in leak_parameters_df.well.unique() if well in passed_wells]
 
+    print(f"passed wells are {passed_wells}")
+
     for protocol in leak_parameters_df.protocol.unique():
         times_fname = f"{experiment_name}-{protocol}-times.csv"
         try:
@@ -211,7 +213,7 @@ def do_combined_plots(leak_parameters_df):
         reference_current = None
 
         for sweep in leak_parameters_df.sweep.unique():
-            for i, well in enumerate(leak_parameters_df.well.unique()):
+            for i, well in enumerate(wells):
                 fname = f"{experiment_name}-{protocol}-{well}-sweep{sweep}.csv"
                 try:
                     data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
@@ -234,13 +236,17 @@ def do_combined_plots(leak_parameters_df):
         fig.savefig(os.path.join(output_dir, fig_fname))
         ax.cla()
 
+    plt.close(fig)
+
     palette = sns.color_palette('husl', len(leak_parameters_df.protocol.unique()))
 
     fig2 = plt.figure(figsize=args.figsize, constrained_layout=True)
     axs2 = fig2.subplots(1, 2, sharey=True)
 
-    for well in leak_parameters_df[leak_parameters_df['passed QC']].well.unique():
-        for sweep in leak_parameters_df.sweep:
+    print('overlaying traces by well')
+    for well in passed_wells:
+        print(well)
+        for sweep in leak_parameters_df.sweep.unique():
             for i, protocol in enumerate(leak_parameters_df.protocol.unique()):
                 times_fname = f"{experiment_name}-{protocol}-times.csv"
                 times_df = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', times_fname))
@@ -255,33 +261,32 @@ def do_combined_plots(leak_parameters_df):
                 current = data['current'].values.flatten().astype(np.float64)
 
                 indices_pre_ramp = times < 3000
-                # if reference_current is None:
-                #     reference_current = current
-                # scaled_current = scale_to_reference(current, reference_current)
 
                 col = palette[i]
+
+                label = f"{protocol}_sweep{sweep}"
+
                 axs2[0].plot(times[indices_pre_ramp], current[indices_pre_ramp], color=col, alpha=.5,
-                            label=protocol)
+                             label=label)
 
                 indices_post_ramp = times > (times[-1] - 2000)
                 post_times = times[indices_post_ramp].copy()
                 post_times = post_times - post_times[0] + 5000
                 axs2[1].plot(post_times, current[indices_post_ramp], color=col, alpha=.5,
-                            label=protocol)
+                             label=label)
 
         axs2[0].legend()
-        axs2[0].set_title('before protocol')
+        axs2[0].set_title('before drug')
         axs2[0].set_xlabel(r'time / ms')
-        axs2[1].set_title('after protocol')
+        axs2[1].set_title('after drug')
         axs2[1].set_xlabel(r'time / ms')
 
-        fig2_fname = f"{well}_overlaid_subtracted_traces_pre"
+        fig2_fname = f"{well}_overlaid_subtracted_traces"
         fig2.suptitle(f"Leak ramp comparison: {well}")
         fig2.savefig(os.path.join(output_dir, fig2_fname))
         axs2[0].cla()
         axs2[1].cla()
 
-    plt.close(fig)
     plt.close(fig2)
 
 
@@ -511,7 +516,6 @@ def scale_to_reference(trace, reference):
         return np.sum((p*trace - reference)**2)
 
     res = scipy.optimize.minimize_scalar(error2, method='brent')
-
     return trace * res.x
 
 
