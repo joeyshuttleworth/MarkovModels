@@ -378,8 +378,9 @@ def subtract_leak(well, protocol):
             E_leak_after = np.nan
 
         if not args.no_plot:
+            pass
             # scatter_ax_after.scatter(x, y, color='grey', s=2, marker='s')
-            ypred = (x - E_leak_after) * g_leak_after
+            # ypred = (x - E_leak_after) * g_leak_after
             # scatter_ax_after.plot(x, ypred, color='red')
             # window_ax_after.plot(observation_times[indices_to_plot],
                                  # after_trace[indices_to_plot], alpha=.5, color='grey')
@@ -401,8 +402,8 @@ def subtract_leak(well, protocol):
 
             # scatter_ax_after.set_xlim([-125, -75])
 
-            subtract_scatter_fig.savefig(os.path.join(scatter_plots_dir,
-                                                      f"{well}_{protocol}_sweep{sweep}_subtraction_scatter"))
+            # subtract_scatter_fig.savefig(os.path.join(scatter_plots_dir,
+            #                                           f"{well}_{protocol}_sweep{sweep}_subtraction_scatter"))
 
             # window_ax_after.cla()
             # window_ax_before.cla()

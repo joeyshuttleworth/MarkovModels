@@ -202,7 +202,7 @@ def do_combined_plots(leak_parameters_df):
     print(f"passed wells are {passed_wells}")
 
     protocol_overlaid_dir = os.path.join(output_dir, 'overlaid_by_protocol')
-    if not os.path.xists(protocol_overlaid_dir):
+    if not os.path.exists(protocol_overlaid_dir):
         os.createdirs(protocol_overlaid_dir)
 
     for protocol in leak_parameters_df.protocol.unique():
@@ -250,7 +250,7 @@ def do_combined_plots(leak_parameters_df):
     axs2 = fig2.subplots(1, 2, sharey=True)
 
     wells_overlaid_dir = os.path.join(output_dir, 'overlaid_by_well')
-    if not os.path.xists(wells_overlaid_dir):
+    if not os.path.exists(wells_overlaid_dir):
         os.createdirs(wells_overlaid_dir)
 
     print('overlaying traces by well')
