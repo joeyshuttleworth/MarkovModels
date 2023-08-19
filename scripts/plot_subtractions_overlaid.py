@@ -203,7 +203,7 @@ def do_combined_plots(leak_parameters_df):
 
     protocol_overlaid_dir = os.path.join(output_dir, 'overlaid_by_protocol')
     if not os.path.exists(protocol_overlaid_dir):
-        os.createdirs(protocol_overlaid_dir)
+        os.makedirs(protocol_overlaid_dir)
 
     for protocol in leak_parameters_df.protocol.unique():
         times_fname = f"{experiment_name}-{protocol}-times.csv"
@@ -251,7 +251,7 @@ def do_combined_plots(leak_parameters_df):
 
     wells_overlaid_dir = os.path.join(output_dir, 'overlaid_by_well')
     if not os.path.exists(wells_overlaid_dir):
-        os.createdirs(wells_overlaid_dir)
+        os.makedirs(wells_overlaid_dir)
 
     print('overlaying traces by well')
 
