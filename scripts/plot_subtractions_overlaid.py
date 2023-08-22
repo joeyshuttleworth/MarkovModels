@@ -342,7 +342,7 @@ def plot_reversal_spread(df):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
 
-    sns.histplot(data=pivot_df, x='E_Kr range', hue='passed QC', ax=ax,
+    sns.histplot(data=pivot_df, x='E_Kr range', y='well', hue='passed QC', ax=ax,
                  stat='probability')
 
     ax.set_xlabel(r'spread in inferred E_Kr / mV')
