@@ -504,14 +504,11 @@ def subtract_leak(well, protocol):
                 passed1 = False
 
         # Can we infer reversal potential from subtracted trace
-        try:
-            # output_path = os.path.join(reversal_plot_dir,
-            #                            f"{protocol}_{well}_sweep{sweep}_subtracted.png")
-            Erev = common.infer_reversal_potential(protocol, subtracted_trace,
-                                                   observation_times,
-                                                   plot=False)
-        except Exception:
-            Erev = -np.inf
+        # output_path = os.path.join(reversal_plot_dir,
+        #                            f"{protocol}_{well}_sweep{sweep}_subtracted.png")
+        Erev = common.infer_reversal_potential(protocol, subtracted_trace,
+                                               observation_times,
+                                               plot=False)
 
         if Erev > -50 or Erev < -100:
             print(f"{protocol}, {well} \tpassed QC.Erev")
