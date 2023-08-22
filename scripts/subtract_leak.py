@@ -20,10 +20,9 @@ import multiprocessing
 import gc
 
 import matplotlib
-matplotlib.use('Agg')
+# matplotlib.use('Agg')
 
-rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
-rc('text', usetex=True)
+# rc('text', usetex=True)
 
 from matplotlib.gridspec import GridSpec
 
@@ -390,8 +389,8 @@ def subtract_leak(well, protocol):
             window_ax_before.set_xlabel('time / ms')
             window_ax_after.set_xlabel('time / ms')
 
-            window_ax_before.set_ylabel(r'$I_{\textrm{Kr}}$ / pA')
-            window_ax_after.set_ylabel(r'$I_{\textrm{Kr}}$ / pA')
+            window_ax_before.set_ylabel(r'I_Kr / pA')
+            window_ax_after.set_ylabel(r'I_Kr / pA')
 
             scatter_ax_before.set_xlabel(r'$V$ / mV')
             scatter_ax_after.set_xlabel(r'$V$ / mV')

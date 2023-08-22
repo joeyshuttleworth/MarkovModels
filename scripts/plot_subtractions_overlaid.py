@@ -128,8 +128,9 @@ def main():
         leak_parameters_df['passed QC'] = leak_parameters_df['passed QC'] \
             & leak_parameters_df['selected']
 
-    plot_spatial_Erev(leak_parameters_df)
     plot_reversal_spread(leak_parameters_df)
+    if np.isfinite(args.reversal):
+        plot_spatial_Erev(leak_parameters_df)
     do_scatter_matrix(leak_parameters_df)
     plot_histograms(leak_parameters_df)
     overlay_reversal_plots(leak_parameters_df)
@@ -183,7 +184,7 @@ def do_chronological_plots(leak_parameters_df):
                         hue_order=[False, True])
         sns.lineplot(data=leak_parameters_df, x='protocol', y=var, hue='passed QC', ax=ax, style='well', legend=False)
 
-        if var == 'fitted_E_rev':
+        if var == 'fitted_E_rev' and np.isfinite(args.reversal):
             ax.axhline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
         fig.savefig(os.path.join(sub_dir, var.replace(' ', '_')))
 
@@ -216,8 +217,9 @@ def do_combined_plots(leak_parameters_df):
 
         reference_current = None
 
+        i = 0
         for sweep in leak_parameters_df.sweep.unique():
-            for i, well in enumerate(wells):
+            for well in wells:
                 fname = f"{experiment_name}-{protocol}-{well}-sweep{sweep}.csv"
                 try:
                     data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
@@ -232,6 +234,7 @@ def do_combined_plots(leak_parameters_df):
 
                 scaled_current = scale_to_reference(current, reference_current)
                 col = palette[i]
+                i += 1
                 ax.plot(times, scaled_current, color=col, alpha=.5, label=well)
 
         fig_fname = f"{protocol}_overlaid_subtracted_traces_scaled"
@@ -257,9 +260,9 @@ def do_combined_plots(leak_parameters_df):
     print('overlaying traces by well')
 
     for well in passed_wells:
-        print(well)
+        i = 0
         for sweep in leak_parameters_df.sweep.unique():
-            for i, protocol in enumerate(leak_parameters_df.protocol.unique()):
+            for protocol in leak_parameters_df.protocol.unique():
                 times_fname = f"{experiment_name}-{protocol}-times.csv"
                 times_df = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', times_fname))
                 times = times_df['time'].values.flatten().astype(np.float64)
@@ -275,6 +278,7 @@ def do_combined_plots(leak_parameters_df):
                 indices_pre_ramp = times < 3000
 
                 col = palette[i]
+                i += 1
 
                 label = f"{protocol}_sweep{sweep}"
 
@@ -314,35 +318,46 @@ def do_scatter_matrix(df):
     grid = sns.pairplot(data=df, hue='passed QC', diag_kind='hist',
                         plot_kws={'alpha': 0.4, 'edgecolor': None},
                         hue_order=[False, True])
-    grid.savefig(os.path.join(output_dir, 'scatter_matrix'))
+    grid.savefig(os.path.join(output_dir, 'scatter_matrix_by_QC'))
 
-    df['hue'] = df['fitted_E_rev'] > args.reversal
+    if args.reversal:
+        true_reversal = args.reversal
+    else:
+        true_reversal = df['fitted_E_rev'].values.mean()
+
+    df['hue'] = df['fitted_E_rev'] > true_reversal
     grid = sns.pairplot(data=df, hue='hue', diag_kind='hist',
                         plot_kws={'alpha': 0.4, 'edgecolor': None},
                         hue_order=[False, True])
-    grid.savefig(os.path.join(output_dir, 'scatter_matrix'))
+    grid.savefig(os.path.join(output_dir, 'scatter_matrix_by_reversal'))
 
 
 def plot_reversal_spread(df):
     df.fitted_E_rev = df.fitted_E_rev.values.astype(np.float64)
 
     failed_to_infer = [well for well in df.well.unique() if not
-                       np.all(np.isfinite(df[df.well==well]['fitted_E_rev'].values))]
+                       np.all(np.isfinite(df[df.well == well]['fitted_E_rev'].values))]
 
     df = df[~df.well.isin(failed_to_infer)]
+    df['passed QC'] = [well in passed_wells for well in df.well]
 
-    pivot_df = df.pivot_table(index='well', columns='protocol', values='fitted_E_rev')
+    def spread_func(x):
+        return x.max() - x.min()
 
-    pivot_df['E_Kr min'] = pivot_df.values.min(axis=1)
-    pivot_df['E_Kr max'] = pivot_df.values.max(axis=1)
-    pivot_df['E_Kr range'] = pivot_df['E_Kr max'] - pivot_df['E_Kr min']
-
-    pivot_df['passed QC'] = [np.all(df[df.well == well]['passed QC'].values) for well in pivot_df.index]
+    group_df = df[['fitted_E_rev', 'well', 'passed QC']].groupby('well').agg(
+        {
+            'well': 'first',
+            'fitted_E_rev': spread_func,
+            'passed QC': 'min'
+        })
+    group_df['E_Kr range'] = group_df['fitted_E_rev']
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
 
-    sns.histplot(data=pivot_df, x='E_Kr range', y='well', hue='passed QC', ax=ax,
+    print(group_df)
+
+    sns.histplot(data=group_df, x='E_Kr range', hue='passed QC', ax=ax,
                  stat='probability')
 
     ax.set_xlabel(r'spread in inferred E_Kr / mV')
@@ -401,14 +416,13 @@ def plot_spatial_Erev(df):
         except Exception as exc:
             print(str(exc))
 
-        fig.savefig(os.path.join(output_dir, f"{protocol}_sweep{sweep}_E_Kr_map_binary"))
-
-    plt.close(fig)
-
     for protocol in df.protocol.unique():
         for sweep in df.sweep.unique():
             func(protocol, sweep)
-    return
+
+    print('saving spatial map')
+    fig.savefig(os.path.join(output_dir, f"{protocol}_sweep{sweep}_E_Kr_map_binary"))
+    plt.close(fig)
 
 
 def plot_histograms(df):
@@ -419,7 +433,8 @@ def plot_histograms(df):
                  # stat='probability',
                  # common_norm=False
                  )
-    ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
+    if np.isfinite(args.reversal):
+        ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
     fig.savefig(os.path.join(output_dir, 'reversal_potential_histogram'))
     ax.cla()
 
@@ -433,7 +448,9 @@ def plot_histograms(df):
                  )
     fig.savefig(os.path.join(output_dir, 'averaged_reversal_potential_histogram'))
 
-    ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
+    if np.isfinite(args.reversal):
+        ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
+
     fig.savefig(os.path.join(output_dir, 'reversal_potential_histogram'))
 
     ax.cla()
@@ -464,7 +481,7 @@ def overlay_reversal_plots(leak_parameters_df):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
 
-    palette = sns.color_palette('husl', len(protocols))
+    palette = sns.color_palette('husl', len(leak_parameters_df.groupby(['protocol', 'sweep'])))
 
     sub_dir = os.path.join(output_dir, 'overlaid_reversal_plots')
 
@@ -475,7 +492,8 @@ def overlay_reversal_plots(leak_parameters_df):
         # Setup figure
         if False in leak_parameters_df[leak_parameters_df.well == well]['passed QC'].values:
             continue
-        for i, protocol in enumerate(protocols):
+        i = 0
+        for protocol in protocols:
             if protocol == np.nan:
                 continue
             for sweep in [1, 2]:
@@ -511,8 +529,10 @@ def overlay_reversal_plots(leak_parameters_df):
 
                 fitted_poly = np.poly1d(np.polyfit(voltages[istart:iend], current[istart:iend], 4))
                 ax.plot(voltages[istart:iend], fitted_poly(voltages[istart:iend]), color=col)
+                i += 1
 
-        ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
+        if np.isfinite(args.reversal):
+            ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
 
         ax.legend()
         # Save figure
