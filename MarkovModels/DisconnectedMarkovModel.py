@@ -49,7 +49,7 @@ class DisconnectedMarkovModel(MarkovModel):
         self.current_inf_expr = self.auxiliary_expression.subs(self.y, self.rhs_inf_expr)
         self.current_inf = nb.njit(sp.lambdify((self.y, self.p), self.current_inf_expr))
 
-    def get_analytic_solution_funcs(self):
+    def get_analytic_solution_funcs(self, p_cond_threshold=1e3):
         rates_func = self.get_rates_func()
 
         ret_funcs = []
@@ -67,11 +67,12 @@ class DisconnectedMarkovModel(MarkovModel):
             ret_funcs.append(self.get_analytic_solution_func(A_func, B_func, A,
                                                              B, p, times,
                                                              voltage,
-                                                             rates_func))
+                                                             rates_func,
+                                                             p_cond_threshold=p_cond_threshold))
         return ret_funcs
 
     def get_analytic_solution_func(self, A_func, B_func, A, B, p, times,
-                                   voltage, rates_func):
+                                   voltage, rates_func, p_cond_threshold=1e3):
         if A.shape[0] == 1:
             # Scalar case
             def analytic_solution_func_scalar(times, voltage, p, y0):
@@ -96,8 +97,8 @@ class DisconnectedMarkovModel(MarkovModel):
                 # Compute condition number doi:10.1137/S00361445024180
                 cond_P = np.linalg.norm(P, 2) * np.linalg.norm(np.linalg.inv(P), 2)
 
-                if cond_P > 1e3:
-                    print(f"WARNING: cond_P = {cond_P} > 1e3, matrix is almost defective")
+                if cond_P > p_cond_threshold:
+                    print(f"WARNING: cond_P = {cond_P} > {p_cond_threshold}, matrix is almost defective")
                     print(f"{A}")
                     return np.full((times.shape[0], y0.shape[0]), np.nan)
 
@@ -112,11 +113,14 @@ class DisconnectedMarkovModel(MarkovModel):
 
             return analytic_solution_func
 
-    def make_hybrid_solver_states(self, protocol_description=None, njitted=False, strict=True):
-        return self.make_solver_states(protocol_description, njitted, strict, hybrid=True)
+    def make_hybrid_solver_states(self, protocol_description=None, njitted=False, strict=True,
+                                  p_cond_threshold=1e3):
+        return self.make_solver_states(protocol_description, njitted, strict, hybrid=True,
+                                       p_cond_threshold=1e3)
 
     def make_solver_states(self, protocol_description=None, njitted=False,
-                           strict=True, hybrid=True, solver_type='lsoda'):
+                           strict=True, hybrid=True, solver_type='lsoda',
+                           p_cond_threshold=1e3):
         if protocol_description is None:
             if self.protocol_description is None:
                 raise Exception("No protocol description has been provided")
@@ -332,5 +336,3 @@ class DisconnectedMarkovModel(MarkovModel):
         y = [var for y in self.ys for var in y]
         aux_expr = self.auxiliary_expression.subs({'E_Kr': self.E_rev})
         return sp.lambdify((y, self.p, self.v), aux_expr)
-
-

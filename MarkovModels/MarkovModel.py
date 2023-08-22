@@ -261,7 +261,7 @@ class MarkovModel:
         # solution = (C@K@np.exp(times*eigenvalues[:,None]) + X2[:, None]).T
         return P, K, D, X2, P.det()
 
-    def get_analytic_solution_func(self, njitted=True):
+    def get_analytic_solution_func(self, njitted=True, p_cond_threshold=1e3):
 
         rates_func = self.get_rates_func(njitted=njitted)
 
@@ -298,8 +298,9 @@ class MarkovModel:
                 # Compute condition number doi:10.1137/S00361445024180
                 cond_P = np.linalg.norm(P, 2) * np.linalg.norm(np.linalg.inv(P), 2)
 
-                if cond_P > 1e3:
-                    print(f"WARNING: cond_P = {cond_P} > 1e3, matrix is almost defective")
+                if cond_P > p_cond_threshold:
+                    print(f"WARNING: cond_P = {cond_P} > {p_cond_threshold}," \
+                          "matrix is almost defective")
                     print(f"{A}")
                     return np.full((times.shape[0], y0.shape[0]), np.nan), False
 
@@ -647,7 +648,7 @@ class MarkovModel:
         return crhs
 
     def make_hybrid_solver_states(self, protocol_description=None, njitted=False, analytic_solver=None,
-                                  strict=True):
+                                  strict=True, p_cond_threshold=1e3):
 
         if protocol_description is None:
             if self.protocol_description is None:
@@ -661,7 +662,8 @@ class MarkovModel:
         no_states = len(self.B)
 
         if not analytic_solver:
-            analytic_solver = self.get_analytic_solution_func(njitted=njitted)
+            analytic_solver = self.get_analytic_solution_func(njitted=njitted,
+                                                              p_cond_threshold=p_cond_threshold)
 
         rhs_inf = self.rhs_inf
         voltage = self.voltage
@@ -774,7 +776,8 @@ class MarkovModel:
 
     def make_hybrid_solver_current(self, protocol_description=None,
                                    njitted=True,
-                                   strict=True):
+                                   strict=True,
+                                   p_cond_threshold=1e3):
         hybrid_solver =\
             self.make_hybrid_solver_states(protocol_description=protocol_description,
                                            njitted=njitted,
@@ -805,7 +808,7 @@ class MarkovModel:
 
     def make_forward_solver_current(self, voltages=None, njitted=True,
                                     protocol_description=None,
-                                    solver_type='lsoda'):
+                                    solver_type='lsoda', atol=None, rtol=None):
 
         solver_states = self.make_forward_solver_states(njitted=njitted,
                                                         protocol_description=protocol_description,
@@ -822,7 +825,8 @@ class MarkovModel:
         if njitted:
             auxiliary_function = njit(auxiliary_function)
 
-        def forward_solver(p=params, times=times, voltages=voltages):
+        def forward_solver(p=params, times=times, voltages=voltages, atol=atol,
+                           rtol=rtol):
             states = solver_states(p, times)
             return (auxiliary_function(states.T, p, voltages)).flatten()
 
