@@ -277,7 +277,7 @@ class MarkovModel:
 
         if y0.shape[0] == 1:
             # Scalar case
-            B_func = njit(sp.lambdify((self.rates_dict.keys(),), self.A), fastmath=True)
+            B_func = njit(sp.lambdify((self.rates_dict.keys(),), self.B), fastmath=True)
 
             def analytic_solution_func_scalar(times=times, voltage=voltage, p=p, y0=y0):
                 rates = rates_func(p, voltage).flatten()
