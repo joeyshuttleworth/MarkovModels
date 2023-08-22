@@ -716,10 +716,6 @@ class MarkovModel:
                     step_sol[:, :], analytic_success = analytic_solver(step_times - tstart,
                                                                        vstart, p, y0)
 
-                    if strict and not analytic_success:
-                        solution[:, :] = np.nan
-                        return solution
-
                 if not analytic_success:
                     step_times[0] = tstart
                     step_times[-1] = tend
