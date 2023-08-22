@@ -502,108 +502,6 @@ def fit_model(mm, data, times=None, starting_parameters=None,
 
     fix_parameters = np.unique(fix_parameters)
 
-    class Boundaries(pints.Boundaries):
-        def __init__(self, parameters, fix_parameters=None):
-            self.fix_parameters = fix_parameters
-            self.parameters = parameters
-
-            voltages = np.array([mm.voltage(t) for t in mm.times])
-            self.max_observed_conductance = np.max(data[subset_indices] \
-                                                   / (voltages[subset_indices] - mm.E_rev))
-
-        def check(self, parameters):
-
-            parameters = parameters.copy()
-
-            if self.fix_parameters:
-                for i in np.unique(self.fix_parameters):
-                    parameters = np.insert(parameters, i, starting_parameters[i])
-
-            # rates function
-            rates_func = mm.get_rates_func(njitted=False)
-
-            Vs = [-120, 60]
-            rates_1 = rates_func(parameters, Vs[0])
-            rates_2 = rates_func(parameters, Vs[1])
-
-            # Boundaries taken from 'Four Ways to Fit an Ion Channel Model'
-            if min(rates_1.max(), rates_2.max()) < 1.67e-5:
-                return False
-
-            if max(rates_1.max(), rates_2.max()) > 1e3:
-                return False
-
-            for p, t in zip(parameters, mm.transformations[:-1]):
-                if isinstance(t, pints.LogTransformation):
-                    if p > 1e3 or p < 1e-7:
-                        return False
-                elif isinstance(t, pints.IdentityTransformation):
-                    if p > 0.4 or p < 1e-7:
-                        return False
-
-            # Ensure the proposed maximal conductance has a reasonable value.
-            # It shouldn't be too much greater than the maximum observed
-            # current, nor much smaller than this value
-
-            if not no_conductance_boundary:
-                conductance = parameters[mm.GKr_index]
-                if conductance > self.max_observed_conductance*100 or conductance < self.max_observed_conductance*0.01:
-                    return False
-
-            # Finally, ensure that all parameters > 0
-            return np.all(parameters > 0)
-
-        def n_parameters(self):
-            return mm.get_no_parameters() - \
-                len(self.fix_parameters) if self.fix_parameters is not None\
-                else mm.get_no_parameters()
-
-        def _sample_once(self):
-            for i in range(10000):
-                p = starting_parameters.copy()
-                if not no_conductance_boundary:
-                    p[-1] = rng.uniform(self.max_observed_conductance*0.01,
-                                        self.max_observed_conductance*100)
-
-                if mm.transformations:
-                    for j in range(p.shape[0]-1):
-                        if isinstance(mm.transformations[j], pints.LogTransformation):
-                            min_log_p = -7
-                            max_log_p = 3
-                            p[j] = 10**rng.uniform(min_log_p, max_log_p)
-                        elif isinstance(mm.transformations[j], pints.IdentityTransformation):
-                            min_log_p = -7
-                            max_log_p = np.log10(0.4)
-                            # Use a-space for now (log search all parameters)
-                            p[j] = rng.uniform(10**min_log_p, 10**max_log_p)
-                        else:
-                            raise NotImplementedError("Initial guess sampling for "
-                                                      f"{type(mm.transformations[j])} "
-                                                      "transformation is not yet  implemented")
-                else:
-                    p[:-1] = 10**rng.uniform(min_log_p, max_log_p,
-                                             starting_parameters[:-1].shape)
-
-                if fix_parameters:
-                    p = p[[i for i in range(len(starting_parameters)) if i not in
-                          self.fix_parameters]]
-
-                # Check this lies in boundaries
-                if self.check(p):
-                    return p
-            logging.warning("Couldn't sample from boundaries")
-            return np.NaN
-
-        def sample(self, n=1):
-            no_parameters = len(starting_parameters) if not self.fix_parameters\
-                else len(starting_parameters) - len(fix_parameters)
-
-            ret_vec = np.full((n, no_parameters), np.nan)
-
-            for i in range(n):
-                ret_vec[i, :] = self._sample_once()
-
-            return ret_vec
 
     class PintsWrapper(pints.ForwardModelS1):
         def __init__(self, mm, parameters, fix_parameters=None):
@@ -655,7 +553,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         params_not_fixed = starting_parameters
 
     if randomise_initial_guess:
-        initial_guess_dist = Boundaries(starting_parameters, fix_parameters)
+        initial_guess_dist = fitting_boundaries(starting_parameters, fix_parameters)
         starting_parameter_sets = []
 
     boundaries = Boundaries(starting_parameters, fix_parameters)
@@ -1195,5 +1093,73 @@ def make_model_of_class(name: str, times=None, voltage=None, *args, **kwargs):
                                                  *args, **kwargs)
     else:
         assert False, f"no model with name {name}"
-    return model
+    return model_class
 
+
+class fitting_boundaries(pints.Boundaries):
+    def __init__(self, full_parameters, mm, fix_parameters=None):
+        self.fix_parameters = fix_parameters
+        self.full_parameters = full_parameters
+        self.mm = mm
+
+    def check(self, parameters):
+        parameters = parameters.copy()
+        if self.fix_parameters:
+            for i in np.unique(self.fix_parameters):
+                parameters = np.insert(parameters, i, self.full_parameters[i])
+
+        # rates function
+        rates_func = self.mm.get_rates_func(njitted=False)
+
+        Vs = [-120, 60]
+        rates_1 = rates_func(parameters, Vs[0])
+        rates_2 = rates_func(parameters, Vs[1])
+
+        if max(rates_1.max(), rates_2.max()) > 1e4:
+            return False
+
+        if min(rates_1.min(), rates_2.min()) < 1e-8:
+            return False
+
+        if max([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) > 1e5:
+            return False
+
+        if min([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) < 1e-7:
+            return False
+
+        # Ensure that all parameters > 0
+        return np.all(parameters > 0)
+
+    def n_parameters(self):
+        return self.mm.get_no_parameters() - \
+            len(self.fix_parameters) if self.fix_parameters is not None\
+            else self.mm.get_no_parameters()
+
+    def _sample_once(self, min_log_p, max_log_p):
+        for i in range(1000):
+            p = np.empty(self.full_parameters.shape)
+            p[-1] = self.full_parameters[-1]
+            p[:-1] = 10**np.random.uniform(min_log_p, max_log_p,
+                                           self.full_parameters[:-1].shape)
+
+            if self.fix_parameters:
+                p = p[[i for i in range(len(self.full_parameters)) if i not in
+                       self.fix_parameters]]
+
+            # Check this lies in boundaries
+            if self.check(p):
+                return p
+        logging.warning("Couldn't sample from boundaries")
+        return np.NaN
+
+    def sample(self, n=1):
+        min_log_p, max_log_p = [-7, 1]
+
+        no_parameters = len(self.full_parameters) if not self.fix_parameters\
+            else len(self.full_parameters) - len(self.fix_parameters)
+
+        ret_vec = np.full((n, no_parameters), np.nan)
+        for i in range(n):
+            ret_vec[i, :] = self._sample_once(min_log_p, max_log_p)
+
+        return ret_vec
