@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sympy as sp
 import pandas as pd
+import seaborn as sns
+
 from numba import njit
 
 from MarkovModels import common
@@ -67,15 +69,13 @@ class TestModelGeneration(unittest.TestCase):
             conds = [P_cond_func(p, v) for v in voltages]
             error = np.max((hres - res)**2)
 
-            rows.append(conds.max(), error)
+            rows.append([max(conds), error])
 
             if max(conds) > max_cond:
                 max_error = error
                 max_error_index = i
                 max_P_cond = max(conds)
 
-        results_df = pd.DataFrame(rows, columns=['max_P_cond', 'max_error'])
-        results_df.to_csv(os.path.join(self.output_dir, 'cond_P_error_table'))
 
         # Plot max error
         plt.plot(times,
@@ -85,6 +85,7 @@ class TestModelGeneration(unittest.TestCase):
 
         plt.savefig(os.path.join(self.output_dir, "model_16_max_solver_error"))
         plt.title(f"max_P_cond {max_P_cond}, max_error={max_error}")
+        plt.yscale('log')
         plt.clf()
 
         plt.plot(times, solver(sampled_parameter_sets[max_error_index], atol=atol, rtol=rtol),
@@ -95,6 +96,14 @@ class TestModelGeneration(unittest.TestCase):
         plt.title(f"max_P_cond {max_P_cond}, max_error={max_error}")
         plt.savefig(os.path.join(self.output_dir, "model_16_solver_comparison"))
         plt.clf()
+
+        results_df = pd.DataFrame(rows, columns=['max_P_cond', 'max_error'])
+        results_df.to_csv(os.path.join(self.output_dir, 'cond_P_error_table'))
+
+        splot = sns.scatterplot(df=results_df)
+        fig = splot.get_figure()
+        fig.savefig(os.path.join(self.output_dir, "model_16_comparison_summary"))
+        plt.close(fig)
 
     def test_hybrid_solver(self):
 
@@ -114,7 +123,10 @@ class TestModelGeneration(unittest.TestCase):
             plt.savefig(os.path.join(self.output_dir, f"{name} solver comparison"))
             plt.clf()
 
-            self.assertLess(np.sqrt(np.mean((output1 - output2)**2)), 1e-1)
+            print(name)
+            print(np.all(np.isfinite(output1)), np.all(np.isfinite(output2)))
+
+            self.assertLess(np.sqrt(np.mean((output1 - output2)**2)), 1e-5)
 
     def test_generated_model_output(self):
         protocol = 'staircaseramp'
