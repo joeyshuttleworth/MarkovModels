@@ -98,7 +98,8 @@ class DisconnectedMarkovModel(MarkovModel):
                 cond_P = np.linalg.norm(P, 2) * np.linalg.norm(np.linalg.inv(P), 2)
 
                 if cond_P > p_cond_threshold:
-                    print(f"WARNING: cond_P = {cond_P} > {p_cond_threshold}, matrix is almost defective")
+                    print("WARNING: cond_P = ", cond_P, " > ", p_cond_threshold)
+                    print("matrix is almost defective", cond_P, p_cond_threshold)
                     print(f"{A}")
                     return np.full((times.shape[0], y0.shape[0]), np.nan)
 
