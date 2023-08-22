@@ -204,7 +204,7 @@ def do_combined_plots(leak_parameters_df):
     if not os.path.exists(protocol_overlaid_dir):
         os.makedirs(protocol_overlaid_dir)
 
-    palette = sns.color_palette('husl', leak_parameters_df.groupby(['well', 'sweep']).count())
+    palette = sns.color_palette('husl', len(leak_parameters_df.groupby(['well', 'sweep'])))
     for protocol in leak_parameters_df.protocol.unique():
         times_fname = f"{experiment_name}-{protocol}-times.csv"
         try:
@@ -245,7 +245,7 @@ def do_combined_plots(leak_parameters_df):
     plt.close(fig)
 
     palette = sns.color_palette('husl',
-                                leak_parameters_df.groupby(['protocol', 'sweep']).count())
+                                len(leak_parameters_df.groupby(['protocol', 'sweep'])))
 
     fig2 = plt.figure(figsize=args.figsize, constrained_layout=True)
     axs2 = fig2.subplots(1, 2, sharey=True)
