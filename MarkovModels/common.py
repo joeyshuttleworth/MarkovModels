@@ -1069,7 +1069,7 @@ def make_model_of_class(name: str, times=None, voltage=None, *args, **kwargs):
         model_13,
         model_14,
         model_30,
-        )
+    )
 
     thirty_models = [
         model_00, model_01, model_02, model_03, model_04,
@@ -1093,7 +1093,7 @@ def make_model_of_class(name: str, times=None, voltage=None, *args, **kwargs):
                                                  *args, **kwargs)
     else:
         assert False, f"no model with name {name}"
-    return model_class
+    return model
 
 
 class fitting_boundaries(pints.Boundaries):
