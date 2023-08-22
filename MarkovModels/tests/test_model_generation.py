@@ -76,7 +76,6 @@ class TestModelGeneration(unittest.TestCase):
                 max_error_index = i
                 max_P_cond = max(conds)
 
-
         # Plot max error
         plt.plot(times,
                  hsolver(sampled_parameter_sets[max_error_index], atol=atol, rtol=rtol) -\
@@ -115,8 +114,8 @@ class TestModelGeneration(unittest.TestCase):
                   for m in model_names]
 
         for name, model in zip(model_names, models):
-            output1 = model.make_forward_solver_current(njitted=False)()
-            output2 = model.make_hybrid_solver_current(njitted=False)()
+            output1 = model.make_forward_solver_current(njitted=False, atol=1e-12, rtol=1e-12)()
+            output2 = model.make_hybrid_solver_current(njitted=False, atol=1e-12, rtol=1e-12)()
 
             plt.plot(times, output1)
             plt.plot(times, output2)

@@ -92,6 +92,15 @@ class DisconnectedMarkovModel(MarkovModel):
             def analytic_solution_func(times, voltage, p, y0):
                 rates = rates_func(p, voltage).flatten()
                 A = A_func(rates)
+
+                cond_A = np.linalg.norm(A, 2) * np.linalg.norm(np.linalg.inv(A), 2)
+
+                if cond_A > p_cond_threshold:
+                    print("WARNING: cond_A = ", cond_A, " > ", p_cond_threshold)
+                    print("matrix is poorly conditioned", cond_A, p_cond_threshold)
+                    print(f"{A}")
+                    return np.full((times.shape[0], y0.shape[0]), np.nan)
+
                 D, P = np.linalg.eig(A)
 
                 # Compute condition number doi:10.1137/S00361445024180
