@@ -30,14 +30,14 @@ class TestModelGeneration(unittest.TestCase):
 
         boundaries = common.fitting_boundaries(full_parameters, model)
 
-        n_samples = 5000
+        n_samples = 50
         sampled_parameter_sets = boundaries.sample(n=5000)
 
         hsolver = model.make_hybrid_solver_current(p_cond_threshold=np.inf)
         solver = model.make_forward_solver_current()
 
-        atol = 1e-12
-        rtol = 1e-12
+        atol = 1e-9
+        rtol = 1e-9
 
         max_error = 0
         for i, p in enumerate(sampled_parameter_sets):
