@@ -333,26 +333,25 @@ def subtract_leak(well, protocol):
                                             output_path=os.path.join(reversal_plot_dir,
                                                                      f"{well}_{protocol}_sweep{sweep}_before"))
 
+            if not args.no_plot:
+                scatter_ax_before.scatter(x, y, marker='s', color='grey', s=2)
+                ypred = (x - E_leak_before) * g_leak_before
+                scatter_ax_before.plot(x, ypred, color='red')
+
+                indices_to_plot = [i for i, t in enumerate(observation_times) if t
+                                   <= args.ramp_end * 2]
+
+                window_ax_before.plot(observation_times[indices_to_plot],
+                                      before_trace[indices_to_plot], alpha=.5, color='grey')
+
+                window_ax_before.plot(observation_times[indices_to_plot],
+                                      (protocol_voltages[indices_to_plot] - E_leak_before) * g_leak_before)
+
+                window_ax_before.axvspan(args.ramp_start, args.ramp_end,
+                                         color='grey', alpha=.5)
         else:
             g_leak_before = np.nan
             E_leak_before = np.nan
-
-        if not args.no_plot:
-            scatter_ax_before.scatter(x, y, marker='s', color='grey', s=2)
-            ypred = (x - E_leak_before) * g_leak_before
-            scatter_ax_before.plot(x, ypred, color='red')
-
-            indices_to_plot = [i for i, t in enumerate(observation_times) if t
-                               <= args.ramp_end * 2]
-
-            window_ax_before.plot(observation_times[indices_to_plot],
-                                  before_trace[indices_to_plot], alpha=.5, color='grey')
-
-            window_ax_before.plot(observation_times[indices_to_plot],
-                                  (protocol_voltages[indices_to_plot] - E_leak_before) * g_leak_before)
-
-            window_ax_before.axvspan(args.ramp_start, args.ramp_end,
-                                     color='grey', alpha=.5)
 
         if after_trace is not None:
             g_leak_after, E_leak_after, _, _, _, x, y = fit_leak_lr(
@@ -368,24 +367,24 @@ def subtract_leak(well, protocol):
                                             observation_times, plot=True,
                                             output_path=os.path.join(reversal_plot_dir,
                                                                      f"{well}_{protocol}_sweep{sweep}_after"))
+            if not args.no_plot:
+                scatter_ax_after.scatter(x, y, color='grey', s=2, marker='s')
+                ypred = (x - E_leak_after) * g_leak_after
+                scatter_ax_after.plot(x, ypred, color='red')
+                window_ax_after.plot(observation_times[indices_to_plot],
+                                     after_trace[indices_to_plot], alpha=.5, color='grey')
+
+                window_ax_after.plot(observation_times[indices_to_plot],
+                                     (protocol_voltages[indices_to_plot] - E_leak_after) * g_leak_after)
+
+                window_ax_after.axvspan(args.ramp_start, args.ramp_end,
+                                        color='grey', alpha=.25)
 
         else:
             g_leak_after = np.nan
             E_leak_after = np.nan
 
         if not args.no_plot:
-            scatter_ax_after.scatter(x, y, color='grey', s=2, marker='s')
-            ypred = (x - E_leak_after) * g_leak_after
-            scatter_ax_after.plot(x, ypred, color='red')
-            window_ax_after.plot(observation_times[indices_to_plot],
-                                 after_trace[indices_to_plot], alpha=.5, color='grey')
-
-            window_ax_after.plot(observation_times[indices_to_plot],
-                                 (protocol_voltages[indices_to_plot] - E_leak_after) * g_leak_after)
-
-            window_ax_after.axvspan(args.ramp_start, args.ramp_end,
-                                    color='grey', alpha=.25)
-
             window_ax_before.set_xlabel('time / ms')
             window_ax_after.set_xlabel('time / ms')
 
