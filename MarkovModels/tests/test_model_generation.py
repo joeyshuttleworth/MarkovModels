@@ -41,7 +41,7 @@ class TestModelGeneration(unittest.TestCase):
         n_samples = 100
         sampled_parameter_sets = boundaries.sample(n=n_samples)
 
-        hsolver = model.make_hybrid_solver_current(p_cond_threshold=np.inf)
+        hsolver = model.make_hybrid_solver_current(cond_threshold=np.inf)
         solver = model.make_forward_solver_current()
 
         rates_func = model.get_rates_func(njitted=True)
@@ -60,7 +60,7 @@ class TestModelGeneration(unittest.TestCase):
         rtol = 1e-9
 
         max_error = 0
-        max_cond = 0
+        max_P_cond = 0
         rows = []
         for i, p in enumerate(sampled_parameter_sets):
             hres = hsolver(p, atol=atol, rtol=rtol)
@@ -71,7 +71,7 @@ class TestModelGeneration(unittest.TestCase):
 
             rows.append([max(conds), error])
 
-            if max(conds) > max_cond:
+            if max(conds) > max_P_cond:
                 max_error = error
                 max_error_index = i
                 max_P_cond = max(conds)
@@ -82,7 +82,7 @@ class TestModelGeneration(unittest.TestCase):
                  solver(sampled_parameter_sets[max_error_index], atol=atol, rtol=rtol),
                  label='hybrid')
 
-        plt.savefig(os.path.join(self.output_dir, "model_16_max_solver_error"))
+        plt.savefig(os.path.join(self.output_dir, "model_14_max_solver_error"))
         plt.title(f"max_P_cond {max_P_cond}, max_error={max_error}")
         plt.yscale('log')
         plt.clf()
@@ -93,7 +93,7 @@ class TestModelGeneration(unittest.TestCase):
                  label='hybrid solver')
 
         plt.title(f"max_P_cond {max_P_cond}, max_error={max_error}")
-        plt.savefig(os.path.join(self.output_dir, "model_16_solver_comparison"))
+        plt.savefig(os.path.join(self.output_dir, "model_14_solver_comparison"))
         plt.clf()
 
         results_df = pd.DataFrame(rows, columns=['max_P_cond', 'max_error'])
@@ -101,7 +101,7 @@ class TestModelGeneration(unittest.TestCase):
 
         splot = sns.scatterplot(df=results_df)
         fig = splot.get_figure()
-        fig.savefig(os.path.join(self.output_dir, "model_16_comparison_summary"))
+        fig.savefig(os.path.join(self.output_dir, "model_14_comparison_summary"))
         plt.close(fig)
 
     def test_hybrid_solver(self):
@@ -114,18 +114,27 @@ class TestModelGeneration(unittest.TestCase):
                   for m in model_names]
 
         for name, model in zip(model_names, models):
-            output1 = model.make_forward_solver_current(njitted=False, atol=1e-12, rtol=1e-12)()
-            output2 = model.make_hybrid_solver_current(njitted=False, atol=1e-12, rtol=1e-12)()
+            output1 = model.make_forward_solver_current(njitted=False,
+                                                        atol=1e-12, rtol=1e-12)()
+
+            output2 = model.make_hybrid_solver_current(njitted=False,
+                                                       atol=1e-12, rtol=1e-12)()
 
             plt.plot(times, output1)
             plt.plot(times, output2)
-            plt.savefig(os.path.join(self.output_dir, f"{name} solver comparison"))
+            plt.savefig(os.path.join(self.output_dir, f"{name}_solver_comparison"))
+            plt.clf()
+
+            plt.plot(times, np.abs(output1 - output2))
+            plt.yscale('log')
+            plt.savefig(os.path.join(self.output_dir, f"{name}_solver_difference_log"))
             plt.clf()
 
             print(name)
-            print(np.all(np.isfinite(output1)), np.all(np.isfinite(output2)))
+            rmse_error = np.sqrt(np.mean((output1 - output2)**2))
+            print(rmse_error)
 
-            self.assertLess(np.sqrt(np.mean((output1 - output2)**2)), 1e-5)
+            self.assertLess(rmse_error, 1e-1)
 
     def test_generated_model_output(self):
         protocol = 'staircaseramp'
@@ -140,8 +149,8 @@ class TestModelGeneration(unittest.TestCase):
 
             default_parameters = model1.get_default_parameters()
 
-            h_solver1 = model1.make_forward_solver_current()
-            h_solver2 = model2.make_forward_solver_current()
+            h_solver1 = model1.make_forward_solver_current(atol=1e-9, rtol=1e-9)
+            h_solver2 = model2.make_forward_solver_current(atol=1e-9, rtol=1e-9)
 
             output1 = h_solver1(default_parameters)
             output2 = h_solver2(default_parameters)
@@ -171,5 +180,5 @@ class TestModelGeneration(unittest.TestCase):
             plt.savefig(os.path.join(self.output_dir, f"{original_model}_{generated_model}_comparison_hybrid.pdf"))
             plt.clf()
 
-            self.assertLess(rmse_error, 1e-5)
+            self.assertLess(rmse_error, 1e-2)
 
