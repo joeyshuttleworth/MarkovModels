@@ -1000,9 +1000,6 @@ class MarkovModel:
             times = self.times
         return self.make_forward_solver_current(njitted=False)(p, times)
 
-    def GetStateVariables(self, p=None):
-        return self.make_forward_solver_states()()
-
     def GetVoltage(self, times=None):
         """
         Returns the voltage at every timepoint
