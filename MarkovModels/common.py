@@ -788,9 +788,9 @@ def fit_well_data(model_class_name : str, well, protocol, data_directory, max_it
                                                  no_conductance_boundary=no_conductance_boundary)
 
     fig = plt.figure(figsize=(14, 12))
+    ax = fig.subplots()
     for i, row in fitting_df.iterrows():
         fitted_params = row[model.get_parameter_labels()].values.flatten()
-        ax = fig.subplots()
         try:
             ax.plot(times, solver(fitted_params), label='fitted parameters')
             ax.plot(times, solver(initial_params), label='default parameters')
