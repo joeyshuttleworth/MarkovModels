@@ -7,7 +7,7 @@ COPY requirements.txt /opt/app/requirements.txt
 COPY . MarkovModels
 WORKDIR /MarkovModels
 
-RUN useradd --uid ${UID} toto_user
+RUN useradd --uid ${UID} --create-home toto_user
 
 RUN apt-get update && apt-get install git graphviz graphviz-dev gcc bash build-essential cmake gfortran -y
 RUN apt-get install texlive-latex-extra texlive-fonts-recommended dvipng cm-super -y
@@ -21,6 +21,6 @@ RUN mkdir output
 RUN chown -R toto_user .
 USER toto_user
 
-ENTRYPOINT ["/bin/bash", "-c", "-l"]
+ENTRYPOINT ["conda", "run", "-n", "markovmodels", "/bin/bash", "-c", "-l"]
 CMD ["bash"]
     
