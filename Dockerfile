@@ -9,18 +9,16 @@ WORKDIR /MarkovModels
 
 RUN useradd --uid ${UID} --create-home toto_user
 
-RUN apt-get update && apt-get install git graphviz graphviz-dev gcc bash build-essential cmake gfortran -y
-RUN apt-get install texlive-latex-extra texlive-fonts-recommended dvipng cm-super -y
+RUN apt-get update && apt-get install git graphviz graphviz-dev gcc bash build-essential cmake gfortran -y \
+    && apt-get install texlive-latex-extra texlive-fonts-recommended dvipng cm-super -y \
+    && chown -R toto_user . \
+    && conda env create --prefix /envs/markovmodels -f environment.yml \
+    && conda run -p /envs/markovmodels /bin/bash -c pip install . \
+    && chown -R toto_user /envs \
+    && mkdir /MarkovModels/output \
+    && echo "conda activate -p /envs/markovmodels" > /home/toto_user/.bashrc
 
-RUN conda env create -f environment.yml
-SHELL [ "conda", "run", "-n", "markovmodels", "/bin/bash", "-c"]
+USER toto_usero
 
-RUN pip install .
-
-RUN mkdir output
-RUN chown -R toto_user .
-USER toto_user
-
-ENTRYPOINT ["conda", "run", "-n", "markovmodels", "/bin/bash", "-c", "-l"]
+ENTRYPOINT ["/bin/bash", "-c", "-l"]
 CMD ["bash"]
-    

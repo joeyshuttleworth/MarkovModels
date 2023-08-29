@@ -1,0 +1,17 @@
+Bootstrap: docker
+From: continuumio/miniconda3
+
+%files
+./MarkovModels /MarkovModels/
+setup.py setup.py
+
+%post
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc
+    . /opt/conda/etc/profile.d/conda.sh
+    conda create --name myenv python=3.8 numpy
+    conda run -n myenv pip install /MarkovModels
+
+%runscript
+    . /opt/conda/etc/profile.d/conda.sh
+    conda activate myenv
+    exec "$@"
