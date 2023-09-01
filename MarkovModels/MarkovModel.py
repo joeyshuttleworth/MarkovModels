@@ -265,10 +265,12 @@ class MarkovModel:
 
         rates_func = self.get_rates_func(njitted=njitted)
 
-        X_inhom = self.A.LUsolve(-self.B)
-        X_inhom_func = njit(sp.lambdify((self.rates_dict.keys(),), X_inhom), fastmath=True)
+        A_func = sp.lambdify((self.rates_dict.keys(),), self.A)
+        B_func = sp.lambdify((self.rates_dict.keys(),), self.B)
 
-        A_func = njit(sp.lambdify((self.rates_dict.keys(),), self.A), fastmath=True)
+        if njitted:
+            A_func = njit(A_func)
+            B_func = njit(B_func)
 
         times = self.times
         voltage = self.voltage(0)
@@ -280,7 +282,6 @@ class MarkovModel:
 
         if y0.shape[0] == 1:
             # Scalar case
-            B_func = njit(sp.lambdify((self.rates_dict.keys(),), self.B), fastmath=True)
 
             def analytic_solution_func_scalar(times=times, voltage=voltage, p=p, y0=y0):
                 rates = rates_func(p, voltage).flatten()
@@ -300,7 +301,12 @@ class MarkovModel:
             def analytic_solution_func_matrix(times=times, voltage=voltage, p=p, y0=y0):
                 rates = rates_func(p, voltage).flatten()
                 A = A_func(rates)
-                cond_A = np.linalg.norm(A, 2) * np.linalg.norm(np.linalg.inv(A), 2)
+                try:
+                    cond_A = np.linalg.norm(A, 2) * np.linalg.norm(np.linalg.inv(A), 2)
+                except Exception:
+                    return np.full((times.shape[0], y0.shape[0]), np.nan), False
+
+                B = B_func(rates)
 
                 if cond_A > cond_threshold:
                     print("WARNING: cond_A = ", cond_A, " > ", cond_threshold)
@@ -310,16 +316,18 @@ class MarkovModel:
                 D, P = np.linalg.eig(A)
 
                 # Compute condition number doi:10.1137/S00361445024180
-                cond_P = np.linalg.norm(P, 2) * np.linalg.norm(np.linalg.inv(P), 2)
+                try:
+                    cond_P = np.linalg.norm(P, 2) * np.linalg.norm(np.linalg.inv(P), 2)
+                except Exception:
+                    return np.full((times.shape[0], y0.shape[0]), np.nan), False
 
                 if cond_P > cond_threshold:
                     print("WARNING: cond_P = ", cond_P, " > ", cond_threshold)
                     print("matrix is almost defective", cond_P, cond_threshold)
                     return np.full((times.shape[0], y0.shape[0]), np.nan), False
 
-                X2 = X_inhom_func(rates)
+                X2 = -np.linalg.solve(A, B)
 
-                X2 = X_inhom_func(rates)
                 y0 = np.expand_dims(y0, -1)
 
                 K = np.diag(np.linalg.solve(P, (y0 - X2).flatten()))
@@ -580,7 +588,7 @@ class MarkovModel:
         intervals = tuple(zip(start_times[:-1], start_times[1:]))
 
         def hybrid_forward_solve(p=p, times=times, atol=atol, rtol=rtol,
-                                 strict=strict):
+                                 strict=strict, hybrid=hybrid):
             y0 = rhs_inf(p, voltage(.0)).flatten()
 
             solution = np.full((len(times), no_states), np.nan)
@@ -603,8 +611,8 @@ class MarkovModel:
                 vend = protocol_description[i][3]
 
                 step_times = np.full(iend-istart + 2, np.nan)
-
                 step_times = np.full(iend-istart + 2, np.nan)
+
                 if iend == len(times):
                     step_times[1:-1] = times[istart:]
                 else:
@@ -630,19 +638,24 @@ class MarkovModel:
                     else:
                         start_int = 0
 
+                    t_offset = tstart
+                    data = np.append(p, t_offset)
                     if tend - step_times[-1] < 2 * eps * np.abs(tend):
                         end_int = -1
                         step_sol[start_int: end_int], _ = lsoda(crhs_ptr, y0,
-                                                                step_times[start_int:end_int],
-                                                                data=p, rtol=rtol,
+                                                                step_times[start_int:end_int] - step_times[0],
+                                                                data=data, rtol=rtol,
                                                                 atol=atol,
                                                                 exit_on_warning=True)
                     else:
                         end_int = 0
                         step_sol[start_int:], _ = lsoda(crhs_ptr, y0,
-                                                        step_times[start_int:],
-                                                        data=p, rtol=rtol,
+                                                        step_times[start_int:] - step_times[0],
+                                                        data=data, rtol=rtol,
                                                         atol=atol, exit_on_warning=True)
+
+                if not np.all(np.isfinite(step_sol[start_int:end_int])):
+                    return np.full(solution.shape, np.nan)
 
                 if end_int == -1:
                     step_sol[-1, :] = step_sol[-2, :]
@@ -674,7 +687,6 @@ class MarkovModel:
             raise Exception(f"Invalid solver type: {solver_type}")
         return solver
 
-
     def get_cfunc_rhs(self):
         rhs = nb.njit(self.func_rhs)
         voltage = self.voltage
@@ -683,26 +695,31 @@ class MarkovModel:
         np = len(self.get_default_parameters())
 
         @cfunc(lsoda_sig)
-        def crhs(t, y, dy, p):
+        def crhs(t, y, dy, data):
             y = nb.carray(y, ny)
             dy = nb.carray(dy, ny)
-            p = nb.carray(p, np)
+            data = nb.carray(data, np + 1)
+
+            p = data[:-1]
+            t_offset = data[-1]
+
             res = rhs(y,
                       p,
-                      voltage(t)).flatten()
-            for i in range(ny):
-                dy[i] = res[i]
+                      voltage(t, offset=t_offset)).flatten()
+
+            dy[:] = res
 
         return crhs
 
     def make_hybrid_solver_current(self, protocol_description=None,
                                    njitted=True, strict=True,
-                                   cond_threshold=None, atol=None, rtol=None):
+                                   cond_threshold=None, atol=None, rtol=None,
+                                   hybrid=True):
         hybrid_solver =\
             self.make_hybrid_solver_states(protocol_description=protocol_description,
                                            njitted=njitted, strict=strict,
                                            cond_threshold=cond_threshold,
-                                           atol=atol, rtol=rtol)
+                                           atol=atol, rtol=rtol, hybrid=hybrid)
 
         auxiliary_function = self.auxiliary_function
 
@@ -716,12 +733,13 @@ class MarkovModel:
 
         params = self.get_default_parameters()
 
-        def hybrid_forward_solve(p=params, times=times, atol=atol, rtol=rtol):
+        def hybrid_forward_solve(p=params, times=times, atol=atol, rtol=rtol,
+                                 hybrid=hybrid):
             voltages = np.empty(len(times))
             for i in range(len(times)):
                 voltages[i] = voltage_func(times[i])
 
-            states = hybrid_solver(p, times=times)
+            states = hybrid_solver(p, times=times, hybrid=hybrid, atol=atol, rtol=rtol)
 
             return (auxiliary_function(states.T, p, voltages)).flatten()
 
@@ -736,34 +754,16 @@ class MarkovModel:
                                                        atol=atol, rtol=rtol,
                                                        hybrid=False)
 
-        if voltages is None:
-            voltages = self.GetVoltage()
+        return self.make_solver_current(solver_states, voltages=voltages,
+                                        atol=atol, rtol=rtol, njitted=njitted)
 
-        times = self.times
-        params = self.get_default_parameters()
-
-        auxiliary_function = self.auxiliary_function
-
-        if njitted:
-            auxiliary_function = njit(auxiliary_function)
-
-        def forward_solver(p=params, times=times, voltages=voltages, atol=atol,
-                           rtol=rtol):
-            states = solver_states(p, times)
-            return (auxiliary_function(states.T, p, voltages)).flatten()
-
-        return njit(forward_solver) if njitted else forward_solver
-
-    def make_solver_current(self, solver_states, voltages=None, atol=None, rtol=None, njitted=False):
+    def make_solver_current(self, solver_states, voltages=None, atol=None,
+                            rtol=None, njitted=False):
         if atol is None:
             atol = self.solver_tolerances[0]
 
         if rtol is None:
             rtol = self.solver_tolerances[1]
-
-        gkr_index = self.GKr_index
-        open_index = self.open_state_index
-        E_rev = self.E_rev
 
         if voltages is None:
             voltages = self.GetVoltage()
@@ -772,9 +772,11 @@ class MarkovModel:
 
         default_parameters = self.get_default_parameters()
 
+        auxiliary_function = self.auxiliary_function
+
         def forward_solver(p=default_parameters, times=times, voltages=voltages, atol=atol, rtol=rtol):
             states = solver_states(p, times, atol, rtol)
-            return ((states[:, open_index] * p[gkr_index]) * (voltages - E_rev)).flatten()
+            return (auxiliary_function(states.T, p, voltages)).flatten()
 
         return forward_solver
 

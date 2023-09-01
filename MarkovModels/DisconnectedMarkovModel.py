@@ -94,8 +94,6 @@ class DisconnectedMarkovModel(MarkovModel):
             return analytic_solution_func_scalar
 
         else:
-            X_inhom = A.LUsolve(-B)
-            X_inhom_func = njit(sp.lambdify((self.rates_dict.keys(),), X_inhom), fastmath=True)
 
             def analytic_solution_func(times, voltage, p, y0):
                 rates = rates_func(p, voltage).flatten()
@@ -118,7 +116,7 @@ class DisconnectedMarkovModel(MarkovModel):
                     print("matrix is almost defective", cond_P, cond_threshold)
                     return np.full((times.shape[0], y0.shape[0]), np.nan)
 
-                X2 = X_inhom_func(rates)
+                X2 = -np.linalg.solve(A, B)
                 y0 = np.expand_dims(y0, -1)
 
                 K = np.diag(np.linalg.solve(P, (y0 - X2).flatten()))
@@ -133,7 +131,7 @@ class DisconnectedMarkovModel(MarkovModel):
                                   njitted=False, strict=True,
                                   cond_threshold=None, atol=None, rtol=None,
                                   hybrid=True):
-        return self.make_solver_states(protocol_description, njitted, strict, hybrid=True,
+        return self.make_solver_states(protocol_description, njitted, strict, hybrid=hybrid,
                                        cond_threshold=None)
 
     def make_solver_states(self, protocol_description=None, njitted=False,
@@ -166,7 +164,7 @@ class DisconnectedMarkovModel(MarkovModel):
 
         def hybrid_forward_solve_component(rhs_inf, analytic_solver, crhs_ptr, p=p,
                                            times=times, atol=atol, rtol=rtol,
-                                           strict=strict):
+                                           strict=strict, hybrid=hybrid):
             y0 = rhs_inf(p, voltage(.0)).flatten()
             no_states = y0.shape[0]
 
@@ -212,10 +210,6 @@ class DisconnectedMarkovModel(MarkovModel):
                     except Exception:
                         analytic_success = False
 
-                    # if strict and not analytic_success:
-                    #     solution[:, :] = np.nan
-                    #     return solution
-
                 if not analytic_success:
                     step_times[0] = tstart
                     step_times[-1] = tend
@@ -226,18 +220,20 @@ class DisconnectedMarkovModel(MarkovModel):
                     else:
                         start_int = 0
 
+                    t_offset = tstart
+                    data = np.append(p, t_offset)
                     if tend - step_times[-1] < 2 * eps * np.abs(tend):
                         end_int = -1
                         step_sol[start_int: end_int], _ = lsoda(crhs_ptr, y0,
-                                                                step_times[start_int:end_int],
-                                                                data=p, rtol=rtol,
+                                                                step_times[start_int:end_int] - step_times[0],
+                                                                data=data, rtol=rtol,
                                                                 atol=atol,
                                                                 exit_on_warning=True)
                     else:
                         end_int = 0
                         step_sol[start_int:], _ = lsoda(crhs_ptr, y0,
-                                                        step_times[start_int:],
-                                                        data=p, rtol=rtol,
+                                                        step_times[start_int:] - step_times[0],
+                                                        data=data, rtol=rtol,
                                                         atol=atol, exit_on_warning=True)
 
                 if end_int == -1:
@@ -278,7 +274,8 @@ class DisconnectedMarkovModel(MarkovModel):
         if njitted:
             hybrid_forward_solve_component = njit(hybrid_forward_solve_component)
 
-        def hybrid_forward_solver(p=p, times=times, atol=atol, rtol=rtol, strict=strict):
+        def hybrid_forward_solver(p=p, times=times, atol=atol, rtol=rtol,
+                                  strict=strict, hybrid=hybrid):
             solution = np.full((times.shape[0], no_states - no_components), np.nan)
             state_counter = 0
             component_solution = \
@@ -287,7 +284,8 @@ class DisconnectedMarkovModel(MarkovModel):
                                                rhs_cfunc1, p=p,
                                                times=times,
                                                atol=atol, rtol=rtol,
-                                               strict=strict)
+                                               strict=strict,
+                                               hybrid=hybrid)
 
             solution[:, :component_solution.shape[1]] = component_solution
             state_counter += component_solution.shape[1]
@@ -298,7 +296,8 @@ class DisconnectedMarkovModel(MarkovModel):
                                                rhs_cfunc2, p=p,
                                                times=times,
                                                atol=atol, rtol=rtol,
-                                               strict=strict)
+                                               strict=strict,
+                                               hybrid=hybrid)
 
             solution[:, state_counter:] = component_solution
 
@@ -306,22 +305,6 @@ class DisconnectedMarkovModel(MarkovModel):
 
         return njit(hybrid_forward_solver) if njitted else hybrid_forward_solver
 
-    def make_combined_solver(self, protocol_description=None, njitted=False,
-                             strict=True, solver_type='hybrid'):
-        solvers = self.make_forward_solvers_of_type(protocol_description=protocol_description,
-                                                    njitted=njitted,
-                                                    strict=strict,
-                                                    solver_type=solver_type)
-
-        def solver(p, times, atol, rtol, strict):
-            sols = []
-            for solver in solvers:
-                sols.append(solver(p, times, atol, rtol, strict))
-
-            sol = np.hstack(sols)
-            return sol
-
-        return solver
 
     def make_cfunc_rhs(self, A, B, comp):
         auxiliary_states = [str(s) for s in self.auxiliary_expression.free_symbols\
@@ -337,13 +320,16 @@ class DisconnectedMarkovModel(MarkovModel):
         voltage = self.voltage
 
         @cfunc(lsoda_sig)
-        def cfunc_rhs(t, y, dy, p):
+        def cfunc_rhs(t, y, dy, data):
             y = nb.carray(y, ny)
             dy = nb.carray(dy, ny)
-            p = nb.carray(p, n_p)
-            res = rhs_func(y, p, voltage(t)).flatten()
-            for i in range(ny):
-                dy[i] = res[i]
+            data = nb.carray(data, n_p + 1)
+
+            p = data[:-1]
+            t_offset = data[-1]
+
+            res = rhs_func(y, p, voltage(t, offset=t_offset)).flatten()
+            dy[:] = res
 
         return cfunc_rhs
 

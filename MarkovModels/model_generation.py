@@ -40,9 +40,10 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,
     if mc.is_connected():
         # Graph is connected, generate MarkovModel
         open_state_index = state_labels.index('O')
-        remaining_states = [s for s in state_labels if s != 'O']
+        label_order = (['O'] + [s for s in state_labels if s != 'O'])
+        remaining_states = label_order[:-1]
         A, B = mc.eliminate_state_from_transition_matrix(remaining_states)
-        state_labels, Q = mc.get_transition_matrix()
+        state_labels, Q = mc.get_transition_matrix(label_order=label_order)
         symbols['y'] = sp.Matrix([mc.get_state_symbol(s)
                                   for s in remaining_states])
 

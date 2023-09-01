@@ -412,12 +412,13 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None,
     protocol = tuple(lst)
 
     @njit
-    def protocol_func(t: np.float64):
+    def protocol_func(t: np.float64, offset=0.0):
+        t = t + offset
         if t <= 0 or t >= protocol[-1][1]:
             return holding_potential
 
         for i in range(len(protocol)):
-            if t <= protocol[i][1]:
+            if t < protocol[i][1]:
                 # ramp_start = protocol[i][0]
                 if protocol[i][3] - protocol[i][2] != 0:
                     return protocol[i][2] + (t - protocol[i][0]) * (protocol[i][3] - protocol[i][2]) / (protocol[i][1] - protocol[i][0])
@@ -1162,4 +1163,39 @@ class fitting_boundaries(pints.Boundaries):
         for i in range(n):
             ret_vec[i, :] = self._sample_once(min_log_p, max_log_p)
 
-        return ret_vec
+            return ret_vec
+
+
+def make_myokit_model(model_name: str):
+
+    from markov_builder.models.thirty_models import (
+        model_00,
+        model_01,
+        model_02,
+        model_03,
+        model_04,
+        model_05,
+        model_06,
+        model_07,
+        model_08,
+        model_09,
+        model_10,
+        model_11,
+        model_12,
+        model_13,
+        model_14,
+        model_30,
+    )
+
+    thirty_models_regex = re.compile(r'^model([0-9]*)$')
+
+    thirty_models = [
+        model_00, model_01, model_02, model_03, model_04,
+        model_05, model_06, model_07, model_08, model_09, model_10,
+        model_11, model_12, model_13, model_14, model_30
+    ]
+    if thirty_models_regex.match(model_name):
+        model_no = int(thirty_models_regex.search(model_name).group(1))
+        mk_model = thirty_models[model_no]().generate_myokit_model()
+
+    return mk_model
