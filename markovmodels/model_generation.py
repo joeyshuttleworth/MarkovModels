@@ -21,6 +21,12 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,
                         for key, val in mc.default_values.items()
                         if str(key) not in ['E_Kr', 'E_rev', 'V'] and val is not None]
 
+    if len(parameter_labels) != len(kwargs['default_parameters']):
+        raise Exception("Parameter labels length is not equal to parameter vector length"
+                        f"({len(parameter_labels)} vs {len(kwargs['default_parameters'])})")
+
+    print(parameter_labels)
+
     state_labels = list(mc.graph)
 
     symbols = {}

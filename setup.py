@@ -1,5 +1,5 @@
 #
-# MarkovModels setuptools script
+# markovmodels setuptools script
 #
 
 from setuptools import find_packages, setup
@@ -8,7 +8,7 @@ from setuptools import find_packages, setup
 with open('README.md') as f:
     readme = f.read()
 
-# Load version number with open(os.path.join('MarkovModels', 'version.txt'),
+# Load version number with open(os.path.join('markovmodels', 'version.txt'),
 # 'r') as f: version = f.read()
 
 version = "0"
@@ -16,7 +16,7 @@ version = "0"
 # Go!
 setup(
     # Module name (lowercase)
-    name='MarkovModels',
+    name='markovmodels',
 
     version=version,
     description='markov models for cardiac modelling',
@@ -26,7 +26,7 @@ setup(
     author_email='joseph.shuttleworth@nottingham.ac.uk',
     maintainer='Joseph Shuttleworth',
     maintainer_email='joseph.shuttleworth@nottingham.ac.uk',
-    url='https://github.com/joeyshuttleworth/MarkovModels',
+    url='https://github.com/joeyshuttleworth/markovmodels',
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: BSD License",
@@ -35,7 +35,7 @@ setup(
 
     # Packages to include
     packages=find_packages(
-        include=('MarkovModels', 'MarkovModels.*')),
+        include=('markovmodels', 'markovmodels.*')),
 
     # Include non-python files (via MANIFEST.in)
     include_package_data=True,
@@ -57,8 +57,7 @@ setup(
         'seaborn>=0.12.0',
         'markov_builder @ git+https://git@github.com/CardiacModelling/Markov-builder@thirty_models',
         'scikit-build>=0.16.7',
-        'NumbaIDA @ git+https://git@github.com/joeyshuttleworth/NumbaIDA@master',
-        'numbalsoda @ git+https://git@github.com/NicholasWogan/NumbaLSODA@main'
+        'numbalsoda'
     ],
     extras_require={
         'test': [
