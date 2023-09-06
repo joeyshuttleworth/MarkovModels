@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
-from MarkovModels import common
+from markovmodels import common
 import logging
 import os
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from MarkovModels.MarkovModel import MarkovModel
-from MarkovModels.BeattieModel import BeattieModel
+from markovmodels.MarkovModel import MarkovModel
+from markovmodels.BeattieModel import BeattieModel
 from quality_control.leak_fit import fit_leak_lr
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines

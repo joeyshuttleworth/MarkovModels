@@ -92,7 +92,7 @@ def main():
     print("Running myokit simulations")
     cProfile.run(simulate_samples(samples, mk_solver))
 
-    print("Running MarkovModels simulations")
+    print("Running markovmodels simulations")
     cProfile.run(simulate_samples(samples, solver))
 
 def get_myokit_solver(mk_protocol):

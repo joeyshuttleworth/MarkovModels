@@ -12,7 +12,7 @@ It is recommended to install libraries and run scripts in a virtual environment 
 - Install gcc and build essential: `sudo apt-get install gcc build-essential`
 - Install cmake: `sudo apt-get install cmake`
 - Install scikit-build: `pip install scikit-build`
-- Install the MarkovModels package by running `pip install -e .`.
+- Install the markovmodels package by running `pip install -e .`.
 
 ## Scripts
 Figure 1 was produced using `scripts/fix_wrong_param_study/simple_example.py`.
@@ -38,7 +38,7 @@ To run a script execute it using Python. For example,
 ```python3  scripts/fix_wrong_param_study/fix_wrong_parameter.py --protocols sis staircase```
 
 ## Protocols
-A list of voltage-clamp protocols are provided in  `/MarkovModels/protocols`. These are `.csv` files which describe time-series data. The filenames which correspond to the protocols used in the data are shown in the table below.
+A list of voltage-clamp protocols are provided in  `/markovmodels/protocols`. These are `.csv` files which describe time-series data. The filenames which correspond to the protocols used in the data are shown in the table below.
 
 | protocol      | filename        |
 | -----------   | -----------     |

@@ -8,10 +8,10 @@ import scipy
 import seaborn as sns
 import pints
 import argparse
-from MarkovModels import common
-from MarkovModels.BeattieModel import BeattieModel
-from MarkovModels.ClosedOpenModel import ClosedOpenModel
-from MarkovModels.KempModel import KempModel
+from markovmodels import common
+from markovmodels.BeattieModel import BeattieModel
+from markovmodels.ClosedOpenModel import ClosedOpenModel
+from markovmodels.KempModel import KempModel
 
 from threadpoolctl import threadpool_limits
 

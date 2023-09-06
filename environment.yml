@@ -1,6 +1,6 @@
 name: markovmodels
 dependencies:
-  - python
+  - python >= 3.8
   - bokeh=2.4.2
   - numpy
   - matplotlib
@@ -11,3 +11,4 @@ dependencies:
   - scikit-build
   - bash
   - regex
+  - cmake

@@ -1,7 +1,7 @@
-from MarkovModels import common
-from MarkovModels.BeattieModel import BeattieModel
-from MarkovModels.WangModel import WangModel
-from MarkovModels.KempModel import KempModel
+from markovmodels import common
+from markovmodels.BeattieModel import BeattieModel
+from markovmodels.WangModel import WangModel
+from markovmodels.KempModel import KempModel
 
 import matplotlib.pyplot as plt
 import argparse

@@ -1,9 +1,9 @@
 #! /usr/bin/env python3
 
-from MarkovModels import common
-from MarkovModels.BeattieModel import BeattieModel
-from MarkovModels.KempModel import KempModel
-from MarkovModels.ClosedOpenModel import ClosedOpenModel
+from markovmodels import common
+from markovmodels.BeattieModel import BeattieModel
+from markovmodels.KempModel import KempModel
+from markovmodels.ClosedOpenModel import ClosedOpenModel
 
 import argparse
 import numpy as np

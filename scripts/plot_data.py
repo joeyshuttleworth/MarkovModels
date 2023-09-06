@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from MarkovModels import common
+from markovmodels import common
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np

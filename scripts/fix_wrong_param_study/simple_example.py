@@ -8,7 +8,7 @@ import pandas as pd
 import os
 import scipy
 
-from MarkovModels import common
+from markovmodels import common
 from matplotlib.gridspec import GridSpec
 
 from matplotlib import rc

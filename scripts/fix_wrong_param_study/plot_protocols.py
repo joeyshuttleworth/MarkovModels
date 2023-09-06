@@ -1,5 +1,5 @@
-from MarkovModels import common
-from MarkovModels.BeattieModel import BeattieModel
+from markovmodels import common
+from markovmodels.BeattieModel import BeattieModel
 
 import matplotlib.pyplot as plt
 import argparse

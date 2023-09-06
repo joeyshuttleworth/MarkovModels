@@ -14,7 +14,7 @@ import myokit
 
 from numba import njit
 
-from MarkovModels import common
+from markovmodels import common
 
 
 class TestModelGeneration(unittest.TestCase):

@@ -7,10 +7,8 @@ import time
 from numbalsoda import lsoda_sig, lsoda, dop853
 from numba import njit, cfunc, literal_unroll
 import numba as nb
-import NumbaIDA
 
 from .common import calculate_reversal_potential
-from NumbaIDA import ida_sig, ida
 
 
 class MarkovModel:

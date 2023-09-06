@@ -503,7 +503,6 @@ def fit_model(mm, data, times=None, starting_parameters=None,
 
     fix_parameters = np.unique(fix_parameters)
 
-
     class PintsWrapper(pints.ForwardModelS1):
         def __init__(self, mm, parameters, fix_parameters=None):
             self.mm = mm
@@ -554,17 +553,19 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         params_not_fixed = starting_parameters
 
     if randomise_initial_guess:
-        initial_guess_dist = fitting_boundaries(starting_parameters, fix_parameters)
+        initial_guess_dist = fitting_boundaries(starting_parameters, mm,
+                                                fix_parameters)
         starting_parameter_sets = []
 
-    boundaries = Boundaries(starting_parameters, fix_parameters)
+        boundaries = fitting_boundaries(starting_parameters, mm,
+                                        fix_parameters)
 
     scores, parameter_sets, iterations, times_taken = [], [], [], []
     for i in range(repeats):
         if randomise_initial_guess:
             initial_guess = initial_guess_dist.sample(n=1).flatten()
             starting_parameter_sets.append(initial_guess)
-            boundaries = Boundaries(initial_guess, fix_parameters)
+            boundaries = fitting_boundaries(initial_guess, mm, fix_parameters)
             params_not_fixed = initial_guess
 
         if not boundaries.check(params_not_fixed):

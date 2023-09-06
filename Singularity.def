@@ -2,16 +2,24 @@ Bootstrap: docker
 From: continuumio/miniconda3
 
 %files
-./MarkovModels /MarkovModels/
+./markovmodels/* /markovmodels/
+./markovmodels/protocols/* /markovmodels/protocols
 setup.py setup.py
+README.md README.md
+MANIFEST.in MANIFEST.in
+scripts scripts
+environment.yml environment.yml
 
 %post
     echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc
     . /opt/conda/etc/profile.d/conda.sh
-    conda create --name myenv python=3.8 numpy
-    conda run -n myenv pip install /MarkovModels
+    conda env create -f environment.yml
+    conda activate markovmodels \
+    && apt-get update \
+    && apt-get install -y gcc g++ gfortran libgraphviz-dev \
+    && pip install -e .
 
 %runscript
     . /opt/conda/etc/profile.d/conda.sh
-    conda activate myenv
-    exec "$@"
+    conda activate markovmodels
+    conda run -n markovmodels "$@"

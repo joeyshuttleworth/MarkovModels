@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-from MarkovModels import common
-from MarkovModels.BeattieModel import BeattieModel
+from markovmodels import common
+from markovmodels.BeattieModel import BeattieModel
 import os
 import numpy as np
 import pandas as pd
