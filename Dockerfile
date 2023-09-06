@@ -22,4 +22,4 @@ RUN apt-get update && apt-get upgrade -y \
 USER toto_user
 
 ENTRYPOINT ["conda", "run", "--no-capture-output", "-p", "/envs/markovmodels"]
-CMD ["python --version"]
+CMD ["python", "--version"]
