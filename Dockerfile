@@ -21,8 +21,5 @@ RUN apt-get update && apt-get upgrade -y \
 
 USER toto_user
 
-RUN conda init bash \
-    && echo "conda activate /envs/markovmodels" >> /home/toto_user/.bashrc 
-
-ENTRYPOINT ["/bin/bash", "-c", "-l"]
-CMD ["bash"]
+ENTRYPOINT ["conda", "run", "--no-capture-output", "-p", "/envs/markovmodels"]
+CMD ["python --version"]
