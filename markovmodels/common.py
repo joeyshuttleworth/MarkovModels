@@ -21,18 +21,6 @@ import logging
 import time
 import numpy.polynomial.polynomial as poly
 
-from markov_builder.models.thirty_models import (
-    model_00,
-    model_01,
-    model_02,
-    model_03,
-    model_04,
-    model_05,
-    model_06,
-    model_07,
-    model_08,
-)
-
 
 def get_protocol_directory():
     return os.path.join(os.path.dirname(os.path.realpath(__file__)), "protocols")
@@ -552,20 +540,19 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         unfixed_indices = list(range(len(starting_parameters)))
         params_not_fixed = starting_parameters
 
+    boundaries = fitting_boundaries(starting_parameters, mm,
+                                    fix_parameters)
+
     if randomise_initial_guess:
         initial_guess_dist = fitting_boundaries(starting_parameters, mm,
                                                 fix_parameters)
         starting_parameter_sets = []
-
-        boundaries = fitting_boundaries(starting_parameters, mm,
-                                        fix_parameters)
 
     scores, parameter_sets, iterations, times_taken = [], [], [], []
     for i in range(repeats):
         if randomise_initial_guess:
             initial_guess = initial_guess_dist.sample(n=1).flatten()
             starting_parameter_sets.append(initial_guess)
-            boundaries = fitting_boundaries(initial_guess, mm, fix_parameters)
             params_not_fixed = initial_guess
 
         if not boundaries.check(params_not_fixed):
@@ -776,6 +763,9 @@ def fit_well_data(model_class_name : str, well, protocol, data_directory, max_it
 
     if solver is None:
         solver = model.make_forward_solver_of_type(solver_type, njitted=True)
+
+    if not np.all(np.isfinite(solver())):
+        raise Exception('Default parameters gave non-finite output')
 
     fitted_params, score, fitting_df = fit_model(model, data, solver=solver,
                                                  starting_parameters=initial_params,
@@ -1117,10 +1107,12 @@ class fitting_boundaries(pints.Boundaries):
         rates_1 = rates_func(parameters, Vs[0])
         rates_2 = rates_func(parameters, Vs[1])
 
-        if max(rates_1.max(), rates_2.max()) > 1e4:
+        max_transition_rates = np.max(np.vstack([rates_1, rates_2]), axis=0)
+
+        if not np.all(max_transition_rates < 1e3):
             return False
 
-        if min(rates_1.min(), rates_2.min()) < 1e-8:
+        if not np.all(max_transition_rates > 1.67e-5):
             return False
 
         if max([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) > 1e5:
@@ -1164,7 +1156,7 @@ class fitting_boundaries(pints.Boundaries):
         for i in range(n):
             ret_vec[i, :] = self._sample_once(min_log_p, max_log_p)
 
-            return ret_vec
+        return ret_vec
 
 
 def make_myokit_model(model_name: str):
