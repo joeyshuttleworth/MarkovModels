@@ -297,7 +297,6 @@ class MarkovModel:
         else:
             A_func = sp.lambdify((self.rates_dict.keys(),), self.A)
             B_func = sp.lambdify((self.rates_dict.keys(),), self.B)
-            # Q_func = sp.lambdify((self.rates_dict.keys(),), self.Q)
 
             if njitted:
                 A_func = njit(A_func)

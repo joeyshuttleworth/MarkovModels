@@ -136,8 +136,9 @@ class DisconnectedMarkovModel(MarkovModel):
                                   njitted=False, strict=True,
                                   cond_threshold=None, atol=None, rtol=None,
                                   hybrid=True):
-        return self.make_solver_states(protocol_description, njitted, strict, hybrid=hybrid,
-                                       cond_threshold=None)
+        return self.make_solver_states(protocol_description, njitted, strict,
+                                       hybrid=hybrid, cond_threshold=None,
+                                       atol=atol, rtol=rtol)
 
     def make_solver_states(self, protocol_description=None, njitted=False,
                            strict=True, hybrid=True, solver_type='lsoda',
@@ -309,7 +310,6 @@ class DisconnectedMarkovModel(MarkovModel):
             return solution
 
         return njit(hybrid_forward_solver) if njitted else hybrid_forward_solver
-
 
     def make_cfunc_rhs(self, A, B, comp):
         auxiliary_states = [str(s) for s in self.auxiliary_expression.free_symbols\
