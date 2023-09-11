@@ -84,7 +84,7 @@ class DisconnectedMarkovModel(MarkovModel):
                 y0 = y0[0]
                 a = A_func(rates)[0, 0]
 
-                if a < cond_threshold:
+                if a < 1 / cond_threshold:
                     return np.full((times.shape[0], 1), np.nan)
 
                 b = B_func(rates)[0, 0]
@@ -94,30 +94,35 @@ class DisconnectedMarkovModel(MarkovModel):
             return analytic_solution_func_scalar
 
         else:
-
             def analytic_solution_func(times, voltage, p, y0):
                 rates = rates_func(p, voltage).flatten()
-                A = A_func(rates)
+                _A = A_func(rates)
+                _B = B_func(rates)
 
-                cond_A = np.linalg.norm(A, 2) * np.linalg.norm(np.linalg.inv(A), 2)
+                try:
+                    cond_A = np.linalg.norm(_A, 2) * np.linalg.norm(np.linalg.inv(_A), 2)
+                except Exception:
+                    return np.full((times.shape[0], y0.shape[0]), np.nan)
 
                 if cond_A > cond_threshold:
                     print("WARNING: cond_A = ", cond_A, " > ", cond_threshold)
                     print("matrix is poorly conditioned", cond_A, cond_threshold)
                     return np.full((times.shape[0], y0.shape[0]), np.nan)
 
-                D, P = np.linalg.eig(A)
+                D, P = np.linalg.eig(_A)
 
                 # Compute condition number doi:10.1137/S00361445024180
-                cond_P = np.linalg.norm(P, 2) * np.linalg.norm(np.linalg.inv(P), 2)
+                try:
+                    cond_P = np.linalg.norm(P, 2) * np.linalg.norm(np.linalg.inv(P), 2)
+                except Exception:
+                    return np.full((times.shape[0], y0.shape[0]), np.nan)
 
                 if cond_P > cond_threshold:
                     print("WARNING: cond_P = ", cond_P, " > ", cond_threshold)
                     print("matrix is almost defective", cond_P, cond_threshold)
                     return np.full((times.shape[0], y0.shape[0]), np.nan)
 
-                X2 = -np.linalg.solve(A, B)
-                y0 = np.expand_dims(y0, -1)
+                X2 = -np.linalg.solve(_A, _B)
 
                 K = np.diag(np.linalg.solve(P, (y0 - X2).flatten()))
 
