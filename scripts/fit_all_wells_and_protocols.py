@@ -426,6 +426,10 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                                   param_labels)
     predictions_df['RMSE'] = predictions_df['score']
     predictions_df['sweep'] = predictions_df.fitting_sweep
+
+    plt.close(trace_fig)
+    plt.close(all_models_fig)
+
     return predictions_df
 
 

@@ -17,12 +17,12 @@ import itertools
 import uuid
 from matplotlib import rc
 import multiprocessing
+import gc
 
 import matplotlib
-matplotlib.use('agg')
+# matplotlib.use('Agg')
 
-rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
-rc('text', usetex=True)
+# rc('text', usetex=True)
 
 from matplotlib.gridspec import GridSpec
 
@@ -38,7 +38,8 @@ def main():
     parser = argparse.ArgumentParser(description)
 
     parser.add_argument('data_directory', type=str, help="path to the directory containing the raw data")
-    parser.add_argument('selection_file', type=str)
+    parser.add_argument('--selection_file', type=str)
+    parser.add_argument('--ignore_QC7', action='store_true')
     parser.add_argument('--cpus', '-c', default=1, type=int)
     parser.add_argument('--wells', '-w', nargs='+', default=None)
     parser.add_argument('--output', '-o', default=None)
@@ -83,6 +84,8 @@ def main():
             selected_wells = fin.read().splitlines()
         if not args.output_all:
             args.wells = [well for well in args.wells if well in selected_wells]
+    else:
+        selected_wells = args.wells
 
     print(args.wells, args.protocols)
 
@@ -92,22 +95,30 @@ def main():
     tasks = [(well, protocol) for well in args.wells for protocol in args.protocols]
 
     pool_size = min(len(tasks), args.cpus)
+
+    global scatter_plots_dir
+    scatter_plots_dir = os.path.join(output, 'scatter_plots')
+    if not os.path.exists(scatter_plots_dir):
+        os.makedirs(scatter_plots_dir)
+
     with multiprocessing.Pool(pool_size, **pool_kws) as pool:
         res = pool.starmap(subtract_leak, tasks)
 
     df = pd.concat(res, ignore_index=True)
 
-    df['passed QC7'] = False
+    if not args.ignore_QC7:
+        df['passed QC7'] = False
+        with multiprocessing.Pool(pool_size, **pool_kws) as pool:
+            QC7_res = pool.map(QC7, df.well.unique())
 
-    with multiprocessing.Pool(pool_size, **pool_kws) as pool:
-        QC7_res = pool.map(QC7, df.well.unique())
-
-    for i, well in enumerate(df.well.unique()):
-        passed_QC7 = QC7_res[i]
-        df.loc[df.well == well, 'passed QC7'] = passed_QC7
+            for i, well in enumerate(df.well.unique()):
+                passed_QC7 = QC7_res[i]
+                df.loc[df.well == well, 'passed QC7'] = passed_QC7
 
     if args.selection_file:
         df['selected'] = [well in selected_wells for well in df['well']]
+    else:
+        df['selected'] = True
 
     E_Kr_spread = compute_E_Kr_spread(df)
     df['E_Kr_spread'] = [E_Kr_spread[well] if well in E_Kr_spread else np.nan for well in df.well]
@@ -129,9 +140,13 @@ def main():
             elif not row['QC E_Kr_spread']:
                 failed = True
                 break
-            elif not row['passed QC7']:
+            elif not row['passed QC.Erev']:
                 failed = True
                 break
+            elif not args.ignore_QC7:
+                if row['passed QC7']:
+                    failed = True
+                    break
             elif args.selection_file:
                 if well not in selected_wells:
                     failed = True
@@ -264,8 +279,9 @@ def overlay_first_last_staircases(well):
 def subtract_leak(well, protocol):
     if not args.no_plot:
         fig = plt.figure(figsize=args.figsize, clear=True, constrained_layout=True)
-        reversal_fig = plt.figure(figsize=args.figsize, constrained_layout=True)
-        reversal_ax = reversal_fig.subplots()
+        subtract_scatter_fig = plt.figure(figsize=args.figsize)
+        axs = subtract_scatter_fig.subplots(2, 2)
+        [[scatter_ax_before, window_ax_before], [scatter_ax_after, window_ax_after]] = axs
 
     nsweeps = 1
     sweep2_fname = f"{experiment_name}-{protocol}-{well}-before-sweep2.csv"
@@ -283,16 +299,6 @@ def subtract_leak(well, protocol):
     dt = observation_times[1] - observation_times[0]
 
     df = []
-
-    if not args.no_plot:
-        subtract_scatter_fig = plt.figure(figsize=args.figsize)
-        axs = subtract_scatter_fig.subplots(2, 2)
-        [[scatter_ax_before, window_ax_before], [scatter_ax_after, window_ax_after]] = axs
-
-    scatter_plots_dir = os.path.join(output, 'scatter_plots')
-
-    if not os.path.exists(scatter_plots_dir):
-        os.makedirs(scatter_plots_dir)
 
     for sweep in range(1, nsweeps + 1):
         before_filename = f"{experiment_name}-{protocol}-{well}-before-sweep{sweep}.csv"
@@ -321,34 +327,31 @@ def subtract_leak(well, protocol):
             )
             n = len(x)
             msres = (((x - E_leak_before) * g_leak_before - y)**2 / (n - 2)).sum()
-            # sd = np.sqrt(msres * (1 / n + (40 - x.mean())**2 / ((x**2).sum())))
-            # before_sd = sd
 
             common.infer_reversal_potential(protocol, before_trace,
                                             observation_times, plot=True,
                                             output_path=os.path.join(reversal_plot_dir,
                                                                      f"{well}_{protocol}_sweep{sweep}_before"))
 
+            if not args.no_plot:
+                scatter_ax_before.scatter(x, y, marker='s', color='grey', s=2)
+                ypred = (x - E_leak_before) * g_leak_before
+                scatter_ax_before.plot(x, ypred, color='red')
+
+                indices_to_plot = [i for i, t in enumerate(observation_times) if t
+                                   <= args.ramp_end * 2]
+
+                window_ax_before.plot(observation_times[indices_to_plot],
+                                      before_trace[indices_to_plot], alpha=.5, color='grey')
+
+                window_ax_before.plot(observation_times[indices_to_plot],
+                                      (protocol_voltages[indices_to_plot] - E_leak_before) * g_leak_before)
+
+                window_ax_before.axvspan(args.ramp_start, args.ramp_end,
+                                         color='grey', alpha=.5)
         else:
             g_leak_before = np.nan
             E_leak_before = np.nan
-
-        if not args.no_plot:
-            scatter_ax_before.scatter(x, y, marker='s', color='grey', s=2)
-            ypred = (x - E_leak_before) * g_leak_before
-            scatter_ax_before.plot(x, ypred, color='red')
-
-            indices_to_plot = [i for i, t in enumerate(observation_times) if t
-                               <= args.ramp_end * 2]
-
-            window_ax_before.plot(observation_times[indices_to_plot],
-                                  before_trace[indices_to_plot], alpha=.5, color='grey')
-
-            window_ax_before.plot(observation_times[indices_to_plot],
-                                  (protocol_voltages[indices_to_plot] - E_leak_before) * g_leak_before)
-
-            window_ax_before.axvspan(args.ramp_start, args.ramp_end,
-                                     color='grey', alpha=.5)
 
         if after_trace is not None:
             g_leak_after, E_leak_after, _, _, _, x, y = fit_leak_lr(
@@ -363,30 +366,30 @@ def subtract_leak(well, protocol):
             common.infer_reversal_potential(protocol, before_trace,
                                             observation_times, plot=True,
                                             output_path=os.path.join(reversal_plot_dir,
-                                                                    f"{well}_{protocol}_sweep{sweep}_after"))
+                                                                     f"{well}_{protocol}_sweep{sweep}_after"))
+            if not args.no_plot:
+                scatter_ax_after.scatter(x, y, color='grey', s=2, marker='s')
+                ypred = (x - E_leak_after) * g_leak_after
+                scatter_ax_after.plot(x, ypred, color='red')
+                window_ax_after.plot(observation_times[indices_to_plot],
+                                     after_trace[indices_to_plot], alpha=.5, color='grey')
+
+                window_ax_after.plot(observation_times[indices_to_plot],
+                                     (protocol_voltages[indices_to_plot] - E_leak_after) * g_leak_after)
+
+                window_ax_after.axvspan(args.ramp_start, args.ramp_end,
+                                        color='grey', alpha=.25)
 
         else:
             g_leak_after = np.nan
             E_leak_after = np.nan
 
         if not args.no_plot:
-            scatter_ax_after.scatter(x, y, color='grey', s=2, marker='s')
-            ypred = (x - E_leak_after) * g_leak_after
-            scatter_ax_after.plot(x, ypred, color='red')
-            window_ax_after.plot(observation_times[indices_to_plot],
-                                 after_trace[indices_to_plot], alpha=.5, color='grey')
-
-            window_ax_after.plot(observation_times[indices_to_plot],
-                                  (protocol_voltages[indices_to_plot] - E_leak_after) * g_leak_after)
-
-            window_ax_after.axvspan(args.ramp_start, args.ramp_end,
-                                    color='grey', alpha=.25)
-
             window_ax_before.set_xlabel('time / ms')
             window_ax_after.set_xlabel('time / ms')
 
-            window_ax_before.set_ylabel(r'$I_{\textrm{Kr}}$ / pA')
-            window_ax_after.set_ylabel(r'$I_{\textrm{Kr}}$ / pA')
+            window_ax_before.set_ylabel(r'I_Kr / pA')
+            window_ax_after.set_ylabel(r'I_Kr / pA')
 
             scatter_ax_before.set_xlabel(r'$V$ / mV')
             scatter_ax_after.set_xlabel(r'$V$ / mV')
@@ -407,9 +410,7 @@ def subtract_leak(well, protocol):
                                             observation_times,
                                             output_path=os.path.join(reversal_plot_dir,
                                                                      f"{protocol}_{well}_before_drug_leak_corrected"),
-                                            ax=reversal_ax, plot=not
-                                            args.no_plot)
-
+                                            plot=not args.no_plot)
 
         if after_trace is not None:
             after_corrected = after_trace - (g_leak_after * (protocol_voltages - E_leak_after))
@@ -417,16 +418,12 @@ def subtract_leak(well, protocol):
                                             observation_times,
                                             output_path=os.path.join(reversal_plot_dir,
                                                                      f"{protocol}_{well}_after_drug_leak_corrected"),
-                                            ax=reversal_ax, plot=not
-                                            args.no_plot)
+                                            plot=not args.no_plot)
 
         if before_trace is not None and after_trace is not None:
             subtracted_trace = before_corrected - after_corrected
         else:
             subtracted_trace = np.array([np.nan])
-
-        if args.no_plot:
-            reversal_ax = None
 
         if np.all(np.isfinite(subtracted_trace)):
             fitted_E_rev = common.infer_reversal_potential(protocol,
@@ -434,15 +431,10 @@ def subtract_leak(well, protocol):
                                                            observation_times,
                                                            output_path=os.path.join(reversal_plot_dir,
                                                                                     f"{protocol}_{well}_subtracted"),
-                                                           ax=reversal_ax,
                                                            plot=not args.no_plot)
 
         else:
             fitted_E_rev = np.nan
-
-        if not args.no_plot:
-            reversal_ax.cla()
-            plt.close(reversal_fig)
 
         passed1 = False
 
@@ -506,21 +498,16 @@ def subtract_leak(well, protocol):
                 passed1 = False
 
         # Can we infer reversal potential from subtracted trace
-        try:
-            output_path = os.path.join(reversal_plot_dir,
-                                       f"{protocol}_{well}_sweep{sweep}_subtracted.png")
-            Erev = common.infer_reversal_potential(protocol, subtracted_trace,
-                                                   observation_times,
-                                                   plot=False)
-        except Exception:
-            Erev = -np.inf
+        Erev = common.infer_reversal_potential(protocol, subtracted_trace,
+                                               observation_times,
+                                               plot=False)
 
         if Erev > -50 or Erev < -100:
             print(f"{protocol}, {well} \tpassed QC.Erev")
-            passed_Erev = True
+            passed_Erev = False
         else:
             print(f"{protocol}, {well} \tfailed QC.Erev")
-            passed_Erev = False
+            passed_Erev = True
 
         if after_trace is not None:
             R_leftover = np.sqrt(np.sum(after_corrected**2)/(np.sum(before_corrected**2)))
@@ -553,6 +540,9 @@ def subtract_leak(well, protocol):
                                    ' leak conductance', 'post-drug leak'
                                    ' conductance', 'pre-drug leak reversal',
                                    'post-drug leak reversal'))
+
+    plt.close('all')
+    gc.collect()
 
     return df
 

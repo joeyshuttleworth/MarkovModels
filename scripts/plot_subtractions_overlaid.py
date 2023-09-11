@@ -128,8 +128,9 @@ def main():
         leak_parameters_df['passed QC'] = leak_parameters_df['passed QC'] \
             & leak_parameters_df['selected']
 
-    plot_spatial_Erev(leak_parameters_df)
     plot_reversal_spread(leak_parameters_df)
+    if np.isfinite(args.reversal):
+        plot_spatial_Erev(leak_parameters_df)
     do_scatter_matrix(leak_parameters_df)
     plot_histograms(leak_parameters_df)
     overlay_reversal_plots(leak_parameters_df)
@@ -171,8 +172,6 @@ def do_chronological_plots(leak_parameters_df):
     if not os.path.exists(sub_dir):
         os.makedirs(sub_dir)
 
-    print(leak_parameters_df.columns)
-
     vars = ['post-drug leak conductance', 'pre-drug leak conductance',
             'post-drug leak reversal', 'R_leftover', 'pre-drug leak reversal',
             'post-drug leak reversal', 'fitted_E_rev', 'pre-drug leak magnitude',
@@ -185,20 +184,28 @@ def do_chronological_plots(leak_parameters_df):
                         hue_order=[False, True])
         sns.lineplot(data=leak_parameters_df, x='protocol', y=var, hue='passed QC', ax=ax, style='well', legend=False)
 
-        if var == 'fitted_E_rev':
+        if var == 'fitted_E_rev' and np.isfinite(args.reversal):
             ax.axhline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
         fig.savefig(os.path.join(sub_dir, var.replace(' ', '_')))
 
         ax.cla()
+
+    plt.close(fig)
 
 
 def do_combined_plots(leak_parameters_df):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
 
-    palette = sns.color_palette('husl', len(leak_parameters_df.well.unique()))
     wells = [well for well in leak_parameters_df.well.unique() if well in passed_wells]
 
+    print(f"passed wells are {passed_wells}")
+
+    protocol_overlaid_dir = os.path.join(output_dir, 'overlaid_by_protocol')
+    if not os.path.exists(protocol_overlaid_dir):
+        os.makedirs(protocol_overlaid_dir)
+
+    palette = sns.color_palette('husl', len(leak_parameters_df.groupby(['well', 'sweep'])))
     for protocol in leak_parameters_df.protocol.unique():
         times_fname = f"{experiment_name}-{protocol}-times.csv"
         try:
@@ -210,113 +217,147 @@ def do_combined_plots(leak_parameters_df):
 
         reference_current = None
 
-        for i, well in enumerate(leak_parameters_df.well.unique()):
-            fname = f"{experiment_name}-{protocol}-{well}.csv"
-            try:
-                data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
+        i = 0
+        for sweep in leak_parameters_df.sweep.unique():
+            for well in wells:
+                fname = f"{experiment_name}-{protocol}-{well}-sweep{sweep}.csv"
+                try:
+                    data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
 
-            except FileNotFoundError:
-                continue
+                except FileNotFoundError:
+                    continue
 
-            current = data['current'].values.flatten().astype(np.float64)
+                current = data['current'].values.flatten().astype(np.float64)
 
-            if reference_current is None:
-                reference_current = current
+                if reference_current is None:
+                    reference_current = current
 
-            scaled_current = scale_to_reference(current, reference_current)
-            col = palette[i]
-            ax.plot(times, scaled_current, color=col, alpha=.5, label=well)
+                scaled_current = scale_to_reference(current, reference_current)
+                col = palette[i]
+                i += 1
+                ax.plot(times, scaled_current, color=col, alpha=.5, label=well)
 
-        fig_fname = f"{protocol}_overlaid_subtracted_traces"
+        fig_fname = f"{protocol}_overlaid_subtracted_traces_scaled"
         fig.suptitle(f"{protocol}: all wells")
         ax.set_xlabel(r'time / ms')
-        fig.savefig(os.path.join(output_dir, fig_fname))
+        ax.set_ylabel('current scaled to reference trace')
+        ax.legend()
+        fig.savefig(os.path.join(protocol_overlaid_dir, fig_fname))
         ax.cla()
 
-    palette = sns.color_palette('husl', len(leak_parameters_df.protocol.unique()))
+    plt.close(fig)
+
+    palette = sns.color_palette('husl',
+                                len(leak_parameters_df.groupby(['protocol', 'sweep'])))
 
     fig2 = plt.figure(figsize=args.figsize, constrained_layout=True)
     axs2 = fig2.subplots(1, 2, sharey=True)
 
-    for well in leak_parameters_df[leak_parameters_df['passed QC']].well.unique():
-        for i, protocol in enumerate(leak_parameters_df.protocol.unique()):
-            times_fname = f"{experiment_name}-{protocol}-times.csv"
-            times_df = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', times_fname))
-            times = times_df['time'].values.flatten().astype(np.float64)
+    wells_overlaid_dir = os.path.join(output_dir, 'overlaid_by_well')
+    if not os.path.exists(wells_overlaid_dir):
+        os.makedirs(wells_overlaid_dir)
 
-            fname = f"{experiment_name}-{protocol}-{well}.csv"
-            try:
-                data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
-            except FileNotFoundError:
-                continue
+    print('overlaying traces by well')
 
-            current = data['current'].values.flatten().astype(np.float64)
+    for well in passed_wells:
+        i = 0
+        for sweep in leak_parameters_df.sweep.unique():
+            for protocol in leak_parameters_df.protocol.unique():
+                times_fname = f"{experiment_name}-{protocol}-times.csv"
+                times_df = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', times_fname))
+                times = times_df['time'].values.flatten().astype(np.float64)
 
-            indices_pre_ramp = times < 3000
-            # if reference_current is None:
-            #     reference_current = current
-            # scaled_current = scale_to_reference(current, reference_current)
+                fname = f"{experiment_name}-{protocol}-{well}-sweep{sweep}.csv"
+                try:
+                    data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))
+                except FileNotFoundError:
+                    continue
 
-            col = palette[i]
-            axs2[0].plot(times[indices_pre_ramp], current[indices_pre_ramp], color=col, alpha=.5,
-                         label=protocol)
+                current = data['current'].values.flatten().astype(np.float64)
 
-            indices_post_ramp = times > (times[-1] - 2000)
-            post_times = times[indices_post_ramp].copy()
-            post_times = post_times - post_times[0] + 5000
-            axs2[1].plot(post_times, current[indices_post_ramp], color=col, alpha=.5,
-                         label=protocol)
+                indices_pre_ramp = times < 3000
+
+                col = palette[i]
+                i += 1
+
+                label = f"{protocol}_sweep{sweep}"
+
+                axs2[0].plot(times[indices_pre_ramp], current[indices_pre_ramp], color=col, alpha=.5,
+                             label=label)
+
+                indices_post_ramp = times > (times[-1] - 2000)
+                post_times = times[indices_post_ramp].copy()
+                post_times = post_times - post_times[0] + 5000
+                axs2[1].plot(post_times, current[indices_post_ramp], color=col, alpha=.5,
+                             label=label)
 
         axs2[0].legend()
-        axs2[0].set_title('before protocol')
+        axs2[0].set_title('before drug')
         axs2[0].set_xlabel(r'time / ms')
-        axs2[1].set_title('after protocol')
+        axs2[1].set_title('after drug')
         axs2[1].set_xlabel(r'time / ms')
 
-        fig2_fname = f"{well}_overlaid_subtracted_traces_pre"
+        axs2[0].set_ylabel('current / pA')
+        axs2[1].set_ylabel('current / pA')
+
+        fig2_fname = f"{well}_overlaid_subtracted_traces"
         fig2.suptitle(f"Leak ramp comparison: {well}")
-        fig2.savefig(os.path.join(output_dir, fig2_fname))
+
+        fig2.savefig(os.path.join(wells_overlaid_dir, fig2_fname))
         axs2[0].cla()
         axs2[1].cla()
 
+    plt.close(fig2)
+
 
 def do_scatter_matrix(df):
-    df = df.drop([df.columns[0], 'fitted_E_rev', 'sweep', 'passed QC.Erev',
+    df = df.drop([df.columns[0], 'sweep', 'passed QC.Erev',
                   'selected', 'pre-drug leak reversal', 'post-drug leak reversal'],
                  axis='columns')
 
-    print(df['passed QC'])
     grid = sns.pairplot(data=df, hue='passed QC', diag_kind='hist',
-                        plot_kws={'alpha':0.4, 'edgecolor': None},
+                        plot_kws={'alpha': 0.4, 'edgecolor': None},
                         hue_order=[False, True])
-    grid.savefig(os.path.join(output_dir, 'scatter_matrix'))
+    grid.savefig(os.path.join(output_dir, 'scatter_matrix_by_QC'))
 
-    grid = sns.pairplot(data=df, hue=df['fitted_E_rev'] > args.reversal, diag_kind='hist',
-                        plot_kws={'alpha':0.4, 'edgecolor': None},
+    if args.reversal:
+        true_reversal = args.reversal
+    else:
+        true_reversal = df['fitted_E_rev'].values.mean()
+
+    df['hue'] = df['fitted_E_rev'] > true_reversal
+    grid = sns.pairplot(data=df, hue='hue', diag_kind='hist',
+                        plot_kws={'alpha': 0.4, 'edgecolor': None},
                         hue_order=[False, True])
-    grid.savefig(os.path.join(output_dir, 'scatter_matrix'))
+    grid.savefig(os.path.join(output_dir, 'scatter_matrix_by_reversal'))
 
 
 def plot_reversal_spread(df):
     df.fitted_E_rev = df.fitted_E_rev.values.astype(np.float64)
 
     failed_to_infer = [well for well in df.well.unique() if not
-                       np.all(np.isfinite(df[df.well==well]['fitted_E_rev'].values))]
+                       np.all(np.isfinite(df[df.well == well]['fitted_E_rev'].values))]
 
     df = df[~df.well.isin(failed_to_infer)]
+    df['passed QC'] = [well in passed_wells for well in df.well]
 
-    pivot_df = df.pivot_table(index='well', columns='protocol', values='fitted_E_rev')
+    def spread_func(x):
+        return x.max() - x.min()
 
-    pivot_df['E_Kr min'] = pivot_df.values.min(axis=1)
-    pivot_df['E_Kr max'] = pivot_df.values.max(axis=1)
-    pivot_df['E_Kr range'] = pivot_df['E_Kr max'] - pivot_df['E_Kr min']
-
-    pivot_df['passed QC'] = [np.all(df[df.well == well]['passed QC'].values) for well in pivot_df.index]
+    group_df = df[['fitted_E_rev', 'well', 'passed QC']].groupby('well').agg(
+        {
+            'well': 'first',
+            'fitted_E_rev': spread_func,
+            'passed QC': 'min'
+        })
+    group_df['E_Kr range'] = group_df['fitted_E_rev']
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
 
-    sns.histplot(data=pivot_df, x='E_Kr range', hue='passed QC', ax=ax,
+    print(group_df)
+
+    sns.histplot(data=group_df, x='E_Kr range', hue='passed QC', ax=ax,
                  stat='probability')
 
     ax.set_xlabel(r'spread in inferred E_Kr / mV')
@@ -350,9 +391,7 @@ def plot_spatial_Erev(df):
 
                 zs.append(EKr)
 
-        print(zs)
         zs = np.array(zs).reshape((18, 24))
-        print(zs)
 
         if found_value:
             return
@@ -363,6 +402,7 @@ def plot_spatial_Erev(df):
             fig.colorbar(im)
         except Exception as exc:
             print(str(exc))
+
         fig.savefig(os.path.join(output_dir, f"{protocol}_sweep{sweep}_E_Kr_map"))
 
         ax.cla()
@@ -376,14 +416,13 @@ def plot_spatial_Erev(df):
         except Exception as exc:
             print(str(exc))
 
-        fig.savefig(os.path.join(output_dir, f"{protocol}_sweep{sweep}_E_Kr_map_binary"))
-
-    plt.close(fig)
-
     for protocol in df.protocol.unique():
         for sweep in df.sweep.unique():
             func(protocol, sweep)
-    return
+
+    print('saving spatial map')
+    fig.savefig(os.path.join(output_dir, f"{protocol}_sweep{sweep}_E_Kr_map_binary"))
+    plt.close(fig)
 
 
 def plot_histograms(df):
@@ -394,12 +433,12 @@ def plot_histograms(df):
                  # stat='probability',
                  # common_norm=False
                  )
-    ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
+    if np.isfinite(args.reversal):
+        ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
     fig.savefig(os.path.join(output_dir, 'reversal_potential_histogram'))
     ax.cla()
 
     averaged_fitted_EKr = df.groupby(['well'])['fitted_E_rev'].mean().copy().to_frame()
-    print(averaged_fitted_EKr)
     averaged_fitted_EKr['passed QC'] = [np.all(df[df.well == well]['passed QC']) for well in averaged_fitted_EKr.index]
 
     sns.histplot(averaged_fitted_EKr,
@@ -409,10 +448,10 @@ def plot_histograms(df):
                  )
     fig.savefig(os.path.join(output_dir, 'averaged_reversal_potential_histogram'))
 
-    ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
+    if np.isfinite(args.reversal):
+        ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
+
     fig.savefig(os.path.join(output_dir, 'reversal_potential_histogram'))
-
-
 
     ax.cla()
     sns.histplot(df,
@@ -434,13 +473,15 @@ def plot_histograms(df):
 
     fig.savefig(os.path.join(output_dir, 'R_leftover'))
 
+    plt.close(fig)
+
 
 def overlay_reversal_plots(leak_parameters_df):
     ''' Method copied from common.infer_reversal_potential'''
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
 
-    palette = sns.color_palette('husl', len(protocols))
+    palette = sns.color_palette('husl', len(leak_parameters_df.groupby(['protocol', 'sweep'])))
 
     sub_dir = os.path.join(output_dir, 'overlaid_reversal_plots')
 
@@ -451,7 +492,8 @@ def overlay_reversal_plots(leak_parameters_df):
         # Setup figure
         if False in leak_parameters_df[leak_parameters_df.well == well]['passed QC'].values:
             continue
-        for i, protocol in enumerate(protocols):
+        i = 0
+        for protocol in protocols:
             if protocol == np.nan:
                 continue
             for sweep in [1, 2]:
@@ -487,8 +529,10 @@ def overlay_reversal_plots(leak_parameters_df):
 
                 fitted_poly = np.poly1d(np.polyfit(voltages[istart:iend], current[istart:iend], 4))
                 ax.plot(voltages[istart:iend], fitted_poly(voltages[istart:iend]), color=col)
+                i += 1
 
-        ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
+        if np.isfinite(args.reversal):
+            ax.axvline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
 
         ax.legend()
         # Save figure
@@ -497,6 +541,7 @@ def overlay_reversal_plots(leak_parameters_df):
         # Clear figure
         ax.cla()
 
+    plt.close(fig)
     return
 
 
@@ -507,7 +552,6 @@ def scale_to_reference(trace, reference):
         return np.sum((p*trace - reference)**2)
 
     res = scipy.optimize.minimize_scalar(error2, method='brent')
-
     return trace * res.x
 
 
