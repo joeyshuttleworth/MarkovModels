@@ -56,7 +56,7 @@ class TestModelGeneration(unittest.TestCase):
             rates = rates_func(p, v).flatten()
             A = A_func(rates)
             if not np.all(np.isfinite(A)):
-                return -np.inf
+                return 0
 
             _, P = np.linalg.eig(A)
             return np.linalg.norm(P, 2) * np.linalg.norm(np.linalg.inv(P), 2)
@@ -65,12 +65,9 @@ class TestModelGeneration(unittest.TestCase):
             rates = rates_func(p, v).flatten()
             A = A_func(rates)
             if not np.all(np.isfinite(A)):
-                return -np.inf
+                return 0
             return np.linalg.norm(A, 2) * np.linalg.norm(np.linalg.inv(A), 2)
 
-        max_error = 0
-        max_A_cond = 0
-        max_P_cond = 0
         rows = []
         for i, p in enumerate(sampled_parameter_sets):
             hres = hsolver(p)
@@ -82,16 +79,11 @@ class TestModelGeneration(unittest.TestCase):
 
             rows.append([max(A_conds), max(P_conds), error])
 
-            if max(A_conds) > max_A_cond:
-                max_error = error
-                max_A_cond_i = i
-                max_A_cond = max(A_conds)
+        results_df = pd.DataFrame(rows, columns=['max_A_cond', 'max_P_cond', 'max_error'])
+        results_df.to_csv(os.path.join(self.output_dir, 'cond_P_error_table'))
 
-            if max(P_conds) > max_P_cond:
-                max_A_cond_error = error
-                max_P_cond_i = i
-                max_P_cond = max(P_conds)
-
+        max_A_cond_i = np.argmax(results_df['max_A_cond'].values)
+        max_P_cond_i = np.argmax(results_df['max_A_cond'].values)
         # Plot max error
         plt.plot(times,
                  np.abs(hsolver(sampled_parameter_sets[max_A_cond_i]) -\
@@ -100,7 +92,9 @@ class TestModelGeneration(unittest.TestCase):
         plt.savefig(os.path.join(self.output_dir, "model_14_max_solver_error"))
         plt.clf()
 
-        plt.title(f"max_A_cond {max_A_cond}, max_error={max_error}")
+        max_A_cond = results_df.loc[max_A_cond_i]['max_A_cond']
+        max_A_error = results_df.error.loc[max_A_cond_i]['error']
+        plt.title(f"max_A_cond {max_A_cond}, max_error={max_A_error}")
         plt.yscale('log')
         plt.plot(times, solver(sampled_parameter_sets[max_A_cond_i]),
                  label='forward solver')
@@ -109,7 +103,9 @@ class TestModelGeneration(unittest.TestCase):
         plt.savefig(os.path.join(self.output_dir, "model_14_solver_comparison_max_A_cond"))
         plt.clf()
 
-        plt.title(f"max_P_cond {max_P_cond}, max_error={max_error}")
+        max_P_cond = results_df.loc[max_P_cond_i]['max_P_cond']
+        max_P_error = results_df.error.loc[max_P_cond_i]['error']
+        plt.title(f"max_P_cond {max_P_cond}, max_error={max_P_error}")
         plt.yscale('log')
         plt.plot(times, solver(sampled_parameter_sets[max_P_cond_i]),
                  label='forward solver')
@@ -117,9 +113,6 @@ class TestModelGeneration(unittest.TestCase):
                  label='hybrid solver')
         plt.savefig(os.path.join(self.output_dir, "model_14_solver_comparison_max_P_cond"))
         plt.clf()
-
-        results_df = pd.DataFrame(rows, columns=['max_A_cond', 'max_P_cond', 'max_error'])
-        results_df.to_csv(os.path.join(self.output_dir, 'cond_P_error_table'))
 
         splot = sns.scatterplot(data=results_df, x='max_A_cond', y='max_error')
         fig = splot.get_figure()
@@ -273,10 +266,11 @@ class TestModelGeneration(unittest.TestCase):
         protocol = 'staircaseramp1'
         voltage_func, times, desc = common.get_ramp_protocol_from_csv(protocol)
 
-        model = common.make_model_of_class('model11', times, voltage_func, protocol_description=desc)
-        tol_range = 10**np.linspace(-3, -8, 12)
-        solver = model.make_hybrid_solver_current(cond_threshold=1e2, njitted=False)
-        reference_sol = solver(atol=1e-8, rtol=1e-8, hybrid=True)
+        model_name = 'model11'
+        model = common.make_model_of_class(model_name, times, voltage_func, protocol_description=desc)
+        tol_range = 10**np.linspace(-3, -11, 9)
+        solver = model.make_hybrid_solver_current(njitted=False)
+        reference_sol = solver(atol=1e-12, rtol=1e-12, hybrid=False)
 
         rmses = []
         for tol in tol_range:
@@ -303,7 +297,7 @@ class TestModelGeneration(unittest.TestCase):
         plt.yscale('log')
         plt.xscale('log')
 
-        plt.savefig(os.path.join(self.output_dir, "tolerance_vs_error"))
+        plt.savefig(os.path.join(self.output_dir, f"{protocol}_{model_name}_tolerance_vs_error"))
         plt.clf()
 
 
