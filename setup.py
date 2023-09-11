@@ -11,7 +11,7 @@ with open('README.md') as f:
 # Load version number with open(os.path.join('markovmodels', 'version.txt'),
 # 'r') as f: version = f.read()
 
-version = "0"
+version = "0.1.0"
 
 # Go!
 setup(
@@ -41,7 +41,7 @@ setup(
     include_package_data=True,
 
     # Required Python version
-    python_requires='>=3.6',
+    python_requires='>=3.8',
 
     # List of dependencies
     install_requires=[
