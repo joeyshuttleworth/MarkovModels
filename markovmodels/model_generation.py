@@ -35,7 +35,9 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,
 
     if log_transform:
         transformations = [[pints.LogTransformation(1),
-                            pints.IdentityTransformation(1)] for rate in mc.rate_expressions]
+                            pints.IdentityTransformation(1)] \
+                           for i, rate in enumerate(mc.rate_expressions)\
+                           if 2*i < len(parameter_labels) - 1]
         # flatten
         transformations = [t for pair in transformations for t in pair]
         # append identity for conductance parameters
