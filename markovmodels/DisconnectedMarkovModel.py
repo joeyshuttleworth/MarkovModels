@@ -269,46 +269,67 @@ class DisconnectedMarkovModel(MarkovModel):
         analytic_solvers = tuple([njit(func) for func in self.get_analytic_solution_funcs()])
 
         # Cannot loop over analytic solvers for some reason. All of the 30
-        # models examples have 2 components, though
+        # models examples have 1 or 2 components, though
         analytic_solver1 = analytic_solvers[0]
-        analytic_solver2 = analytic_solvers[1]
         steady_state_func1 = steady_state_funcs[0]
-        steady_state_func2 = steady_state_funcs[1]
         rhs_cfunc1 = rhs_cfunc_ptrs[0]
-        rhs_cfunc2 = rhs_cfunc_ptrs[1]
+
+        if len(self.connected_components) == 2:
+            analytic_solver2 = analytic_solvers[1]
+            steady_state_func2 = steady_state_funcs[1]
+            rhs_cfunc2 = rhs_cfunc_ptrs[1]
+
+            def hybrid_forward_solver(p=p, times=times, atol=atol, rtol=rtol,
+                                      strict=strict, hybrid=hybrid):
+                solution = np.full((times.shape[0], no_states - no_components), np.nan)
+                state_counter = 0
+                component_solution = \
+                    hybrid_forward_solve_component(steady_state_func1,
+                                                    analytic_solver1,
+                                                    rhs_cfunc1, p=p,
+                                                    times=times,
+                                                    atol=atol, rtol=rtol,
+                                                    strict=strict,
+                                                    hybrid=hybrid)
+
+                solution[:, :component_solution.shape[1]] = component_solution
+                state_counter += component_solution.shape[1]
+
+                component_solution = \
+                    hybrid_forward_solve_component(steady_state_func2,
+                                                   analytic_solver2,
+                                                   rhs_cfunc2, p=p,
+                                                   times=times,
+                                                   atol=atol, rtol=rtol,
+                                                   strict=strict,
+                                                   hybrid=hybrid)
+
+                solution[:, state_counter:] = component_solution
+
+                return solution
+
+        elif len(self.connected_components) == 1:
+            def hybrid_forward_solver(p=p, times=times, atol=atol, rtol=rtol,
+                                      strict=strict, hybrid=hybrid):
+                solution = np.full((times.shape[0], no_states - no_components), np.nan)
+                state_counter = 0
+                component_solution = \
+                    hybrid_forward_solve_component(steady_state_func1,
+                                                   analytic_solver1,
+                                                   rhs_cfunc1, p=p,
+                                                   times=times,
+                                                   atol=atol, rtol=rtol,
+                                                   strict=strict,
+                                                   hybrid=hybrid)
+
+                solution[:, :] = component_solution
+                return solution
+
+        else:
+            raise NotImplementedError('Only models with a maximum of 2 connected components are implemented')
 
         if njitted:
             hybrid_forward_solve_component = njit(hybrid_forward_solve_component)
-
-        def hybrid_forward_solver(p=p, times=times, atol=atol, rtol=rtol,
-                                  strict=strict, hybrid=hybrid):
-            solution = np.full((times.shape[0], no_states - no_components), np.nan)
-            state_counter = 0
-            component_solution = \
-                hybrid_forward_solve_component(steady_state_func1,
-                                               analytic_solver1,
-                                               rhs_cfunc1, p=p,
-                                               times=times,
-                                               atol=atol, rtol=rtol,
-                                               strict=strict,
-                                               hybrid=hybrid)
-
-            solution[:, :component_solution.shape[1]] = component_solution
-            state_counter += component_solution.shape[1]
-
-            component_solution = \
-                hybrid_forward_solve_component(steady_state_func2,
-                                               analytic_solver2,
-                                               rhs_cfunc2, p=p,
-                                               times=times,
-                                               atol=atol, rtol=rtol,
-                                               strict=strict,
-                                               hybrid=hybrid)
-
-            solution[:, state_counter:] = component_solution
-
-            return solution
-
         return njit(hybrid_forward_solver) if njitted else hybrid_forward_solver
 
     def make_cfunc_rhs(self, A, B, comp):
