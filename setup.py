@@ -57,7 +57,7 @@ setup(
         'seaborn>=0.12.0',
         'markov_builder @ git+https://git@github.com/CardiacModelling/Markov-builder@thirty_models',
         'scikit-build>=0.16.7',
-        'numbalsoda'
+        'numbalsoda @ git+https://git@github.com/NicholasWogan/numbalsoda@main'
     ],
     extras_require={
         'test': [
