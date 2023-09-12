@@ -74,6 +74,7 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,
         As = []
         Bs = []
         ys = []
+
         for comp in comps:
             state_indices = [labels.index(state) for state in comp]
 
