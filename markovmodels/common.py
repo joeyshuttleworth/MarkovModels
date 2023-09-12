@@ -10,6 +10,7 @@ import pandas as pd
 import math
 import os
 import pints
+import numba
 import pints.plot
 import regex as re
 import uuid
@@ -484,7 +485,11 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         return starting_parameters, np.inf
 
     if solver is None:
-        solver = mm.make_forward_solver_of_type(solver_type)
+        try:
+            solver = mm.make_forward_solver_of_type(solver_type)
+        except numba.core.errors.TypingError as exc:
+            logging.warning(f"unable to make nopython forward solver {str(exc)}")
+            solver = mm.make_forward_solver_of_type(solver_type, njitted=False)
 
     if subset_indices is None:
         subset_indices = np.array(list(range(len(mm.times))))
@@ -762,7 +767,12 @@ def fit_well_data(model_class_name : str, well, protocol, data_directory, max_it
         raise Exception('solver and solver type provided')
 
     if solver is None:
-        solver = model.make_forward_solver_of_type(solver_type, njitted=True)
+        try:
+            solver = model.make_forward_solver_of_type(solver_type)
+            solver()
+        except numba.core.errors.TypingError as exc:
+            logging.warning(f"unable to make nopython forward solver {str(exc)}")
+            solver = model.make_forward_solver_of_type(solver_type, njitted=False)
 
     if not np.all(np.isfinite(solver())):
         raise Exception('Default parameters gave non-finite output')
@@ -1070,7 +1080,7 @@ def make_model_of_class(name: str, times=None, voltage=None, *args, **kwargs):
         model_11, model_12, model_13, model_14, model_30
     ]
 
-    thirty_models_regex = re.compile(r'^model([0-9]*)$')
+    thirty_models_regex = re.compile(r'^model([0-9]+)$')
 
     if name == 'Beattie' or name == 'BeattieModel':
         model = BeattieModel(times, voltage, *args, **kwargs)
