@@ -22,5 +22,4 @@ environment.yml environment.yml
 %runscript
     . /opt/conda/etc/profile.d/conda.sh
     conda activate markovmodels
-    pip install -e .
-    conda run -n markovmodels "$@"
+    conda run -n markovmodels --no-capture-output "$@"
