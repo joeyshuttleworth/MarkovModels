@@ -113,7 +113,6 @@ class TestModelGeneration(unittest.TestCase):
         max_P_cond = results_df.loc[max_P_cond_i]['max_P_cond']
         max_P_error = results_df.loc[max_P_cond_i]['max_error']
         plt.title(f"max_P_cond {max_P_cond}, max_error={max_P_error}")
-        plt.yscale('log')
         plt.plot(times, solver(sampled_parameter_sets[max_P_cond_i]),
                  label='forward solver')
         plt.plot(times, hsolver(sampled_parameter_sets[max_P_cond_i]),
@@ -121,12 +120,23 @@ class TestModelGeneration(unittest.TestCase):
         plt.savefig(os.path.join(self.output_dir, "model_14_solver_comparison_max_P_cond"))
         plt.clf()
 
+        max_max_error_i = results_df.max_error.idxmax()
+        plt.title(f"max_max_error {results_df.max_error.max()}")
+        plt.plot(times, solver(sampled_parameter_sets[max_max_error_i]),
+                 label='forward solver')
+        plt.plot(times, hsolver(sampled_parameter_sets[max_max_error_i]),
+                 label='hybrid solver')
+        plt.savefig(os.path.join(self.output_dir, "model_14_solver_comparison_max_max_error"))
+        plt.clf()
+
         splot = sns.scatterplot(data=results_df, x='max_A_cond', y='max_error')
+        splot.set(xscale="log", yscale="log")
         fig = splot.get_figure()
         fig.savefig(os.path.join(self.output_dir, "model_14_comparison_summary_A_cond"))
         plt.close(fig)
 
         splot = sns.scatterplot(data=results_df, x='max_P_cond', y='max_error')
+        splot.set(xscale="log", yscale="log")
         fig = splot.get_figure()
         fig.savefig(os.path.join(self.output_dir, "model_14_comparison_summary_P_cond"))
         plt.close(fig)
