@@ -62,7 +62,7 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,
                            transformations=transformations)
     else:
         # Graph is disconnected: generated DisconnectedMarkovModel
-        comps = list(networkx.connected_components(mc.graph.to_undirected()))
+        comps = [list(comp) for comp in networkx.connected_components(mc.graph.to_undirected())]
 
         auxiliary_states = [str(s) for s in mc.auxiliary_expression.free_symbols\
                             if len(str(s)) > 6]
@@ -76,6 +76,7 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,
         ys = []
 
         for comp in comps:
+            print(comp)
             state_indices = [labels.index(state) for state in comp]
 
             sub_Q = Q[state_indices, state_indices]
