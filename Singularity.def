@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: continuumio/miniconda3
+From: mambaorg/micromamba
 
 %files
 ./markovmodels/* /markovmodels/
@@ -11,15 +11,12 @@ scripts scripts
 environment.yml environment.yml
 
 %post
-    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc
-    . /opt/conda/etc/profile.d/conda.sh
-    conda env create -f environment.yml
-    conda activate markovmodels \
-    && apt-get update \
-    && apt-get install -y gcc g++ gfortran libgraphviz-dev \
-    && pip install -e .
+    apt update -y
+    apt install git graphviz-dev gcc bash build-essential cmake gfortran -y
+    micromamba env create -f environment.yml
+    micromamba run -n markovmodels \
+	    apt-get update \
+    	    && apt-get install -y gcc g++ gfortran libgraphviz-dev \
 
 %runscript
-    . /opt/conda/etc/profile.d/conda.sh
-    conda activate markovmodels
-    conda run -n markovmodels --no-capture-output "$@"
+    micromamba run -n markovmodels "$@"
