@@ -31,7 +31,7 @@ class TestModelGeneration(unittest.TestCase):
         protocol = 'staircaseramp1'
         voltage_func, times, desc = common.get_ramp_protocol_from_csv(protocol)
 
-        channel_model = common.make_model_of_class('model9', times,
+        channel_model = common.make_model_of_class('model3', times,
                                                    voltage_func,
                                                    protocol_description=desc)
 
@@ -49,7 +49,6 @@ class TestModelGeneration(unittest.TestCase):
         plt.savefig(os.path.join(self.output_dir, 'artefact_comparison'))
         plt.clf()
 
-        print('states are')
         print(artefact_model.get_state_labels())
         plt.plot(times, artefact_model.make_hybrid_solver_states(hybrid=False, njitted=False)(),
                  label=artefact_model.get_state_labels())
@@ -57,6 +56,42 @@ class TestModelGeneration(unittest.TestCase):
         plt.legend()
         plt.savefig(os.path.join(self.output_dir, 'artefact_states'))
         plt.clf()
+
+    def test_generated_model_output(self):
+        protocol = 'staircaseramp'
+
+        for original_model, generated_model in [['Beattie', 'model3']]:
+            voltage_func, times, desc = common.get_ramp_protocol_from_csv(protocol)
+            tolerances = 1e-10, 1e-10
+
+            c_model1 = common.make_model_of_class(original_model, times, voltage=voltage_func,
+                                                protocol_description=desc, tolerances=tolerances)
+            c_model2 = common.make_model_of_class(generated_model, voltage=voltage_func,
+                                                  times=times, protocol_description=desc,
+                                                  tolerances=tolerances)
+
+            model1 = ArtefactModel(c_model1)
+            model2 = ArtefactModel(c_model2)
+
+            default_parameters = model1.get_default_parameters()
+
+            h_solver1 = model1.make_forward_solver_current(njitted=False)
+            h_solver2 = model2.make_forward_solver_current(njitted=False)
+
+            output1 = h_solver1(default_parameters)
+            output2 = h_solver2(default_parameters)
+
+            rmse_error = np.sqrt(((output1 - output2)**2).mean())
+
+            logging.debug('rmse error is: ' + f"{rmse_error}")
+
+            plt.plot(times, output1, label=original_model)
+            plt.plot(times, output2, label='MarkovBuilder model')
+
+            plt.legend()
+            plt.savefig(os.path.join(self.output_dir, f"{original_model}_{generated_model}_comparison_lsoda.pdf"))
+            plt.clf()
+            self.assertLess(rmse_error, 1e-2)
 
 
 if __name__ == "__main__":
