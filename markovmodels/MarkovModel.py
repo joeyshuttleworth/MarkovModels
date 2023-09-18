@@ -456,7 +456,6 @@ class MarkovModel:
                     data = np.append(p, t_offset)
                     if tend - step_times[-1] < 2 * eps * np.abs(tend):
                         end_int = -1
-                        print(data, y0)
                         step_sol[start_int: end_int], _ = lsoda(crhs_ptr, y0,
                                                                 step_times[start_int:end_int] - step_times[0],
                                                                 data=data, rtol=rtol,
@@ -484,8 +483,6 @@ class MarkovModel:
                     solution[istart:iend, ] = step_sol[1:-1, ]
 
             return solution
-
-        print(hybrid_forward_solve)
 
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve
 
@@ -570,8 +567,6 @@ class MarkovModel:
                                                        protocol_description=protocol_description,
                                                        atol=atol, rtol=rtol,
                                                        hybrid=False)
-        print(solver_states)
-
         return self.make_solver_current(solver_states, voltages=voltages,
                                         atol=atol, rtol=rtol, njitted=njitted)
 

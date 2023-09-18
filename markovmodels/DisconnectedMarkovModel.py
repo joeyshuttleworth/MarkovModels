@@ -367,7 +367,8 @@ class DisconnectedMarkovModel(MarkovModel):
 
     def get_rhs_func(self, njitted=True):
         y = [var for y in self.ys for var in y]
-        rhs_exprs = [-A.LUsolve(B) for A, B in zip(self.As, self.Bs)]
+        rhs_exprs = [A @ sp.Matrix(y) + B for A, B, y in zip(self.As, self.Bs, self.ys)]
+        print(rhs_exprs)
         rhs_expr = sp.Matrix.vstack(*rhs_exprs).subs(self.rates_dict)
         rhs_func = sp.lambdify((y, self.p, self.v), rhs_expr, cse=True)
 
