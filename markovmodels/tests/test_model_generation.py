@@ -89,6 +89,10 @@ class TestModelGeneration(unittest.TestCase):
         results_df = pd.DataFrame(rows, columns=['max_A_cond', 'max_P_cond', 'max_error'])
         results_df.to_csv(os.path.join(self.output_dir, 'cond_P_error_table'))
 
+        results_df = results_df[np.all(np.isfinite(results_df.values), axis=1)]
+
+        print(f"removed {n_samples - len(results_df.loc)} rows")
+
         max_A_cond_i = np.argmax(results_df['max_A_cond'].values)
         max_P_cond_i = np.argmax(results_df['max_A_cond'].values)
         # Plot max error

@@ -12,3 +12,6 @@ dependencies:
   - bash
   - regex
   - cmake
+  - pip:
+      - .
+  - conda-forge::sundials
