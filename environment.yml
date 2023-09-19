@@ -1,6 +1,7 @@
 name: markovmodels
 dependencies:
   - python >= 3.8
+  - conda-forge::sundials
   - bokeh=2.4.2
   - numpy
   - matplotlib

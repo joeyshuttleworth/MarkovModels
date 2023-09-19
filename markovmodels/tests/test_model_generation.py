@@ -291,7 +291,7 @@ class TestModelGeneration(unittest.TestCase):
         model = common.make_model_of_class(model_name, times, voltage_func, protocol_description=desc)
         tol_range = 10**np.linspace(-3, -8, 6)
         solver = model.make_hybrid_solver_current(njitted=False, hybrid=False)
-        reference_sol = solver(atol=1e-8, rtol=1e-8, hybrid=False)
+        reference_sol = solver(atol=1e-9, rtol=1e-9, hybrid=False)
 
         rmses = []
         for tol in tol_range:

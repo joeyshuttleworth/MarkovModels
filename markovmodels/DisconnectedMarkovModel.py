@@ -34,7 +34,7 @@ class DisconnectedMarkovModel(MarkovModel):
 
         self.rhs_inf_expr_rates = []
         self.rhs_inf_expr = []
-        self.rhs_inf = []
+        self.rhs_infs = []
         self.current_inf_expr = []
         self.current_inf = []
 
@@ -44,10 +44,16 @@ class DisconnectedMarkovModel(MarkovModel):
 
             rhs_inf_expr = rhs_inf_expr_rates.subs(self.rates_dict)
             self.rhs_inf_expr.append(rhs_inf_expr)
-            self.rhs_inf.append(sp.lambdify((self.p, self.v), rhs_inf_expr))
+            self.rhs_infs.append(njit(sp.lambdify((self.p, self.v), rhs_inf_expr)))
 
         self.current_inf_expr = self.auxiliary_expression.subs(self.y, self.rhs_inf_expr)
         self.current_inf = nb.njit(sp.lambdify((self.y, self.p), self.current_inf_expr))
+
+        # Generate function for entire RHS (all components)
+        rhs_inf_expr_rates = sp.Matrix.vstack(*[expr for expr in self.rhs_inf_expr])
+        rhs_inf_expr = rhs_inf_expr_rates.subs(self.rates_dict)
+
+        self.rhs_inf = njit(sp.lambdify((self.p, self.v), rhs_inf_expr))
 
     def get_analytic_solution_funcs(self, cond_threshold=None):
         rates_func = self.get_rates_func()
@@ -265,7 +271,7 @@ class DisconnectedMarkovModel(MarkovModel):
         no_states = self.n_states
         no_components = len(self.connected_components)
 
-        steady_state_funcs = tuple([njit(f) if njitted else f for f in self.rhs_inf])
+        steady_state_funcs = tuple([njit(f) if njitted else f for f in self.rhs_infs])
         analytic_solvers = tuple([njit(func) for func in self.get_analytic_solution_funcs()])
 
         # Cannot loop over analytic solvers for some reason. All of the 30
@@ -359,6 +365,15 @@ class DisconnectedMarkovModel(MarkovModel):
 
         return cfunc_rhs
 
+    def get_rhs_func(self, njitted=True):
+        y = [var for y in self.ys for var in y]
+        rhs_exprs = [A @ sp.Matrix(y) + B for A, B, y in zip(self.As, self.Bs, self.ys)]
+        print(rhs_exprs)
+        rhs_expr = sp.Matrix.vstack(*rhs_exprs).subs(self.rates_dict)
+        rhs_func = sp.lambdify((y, self.p, self.v), rhs_expr, cse=True)
+
+        return njit(rhs_func) if njitted else rhs_func
+
     def make_ida_residual_func():
         raise NotImplementedError()
 
@@ -366,3 +381,9 @@ class DisconnectedMarkovModel(MarkovModel):
         y = [var for y in self.ys for var in y]
         aux_expr = self.auxiliary_expression.subs({'E_Kr': self.E_rev})
         return sp.lambdify((y, self.p, self.v), aux_expr)
+
+    def get_no_states(self):
+        return sum([len(y) for y in self.ys])
+
+    def get_state_labels(self):
+        return [lab for c in self.connected_components for lab in c[:-1]]

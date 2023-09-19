@@ -12,11 +12,19 @@ environment.yml environment.yml
 
 %post
     apt update -y
+<<<<<<< HEAD
     apt install git -y
     apt update && apt-get install git graphviz graphviz-dev gcc bash build-essential cmake gfortran -y
     apt install texlive-latex-extra texlive-fonts-recommended dvipng cm-super -y
 
     micromamba env create -f environment.yml 
+=======
+    apt install git graphviz-dev gcc bash build-essential cmake gfortran -y
+    micromamba env create -f environment.yml
+    micromamba run -n markovmodels \
+	    apt-get update \
+    	    && apt-get install -y gcc g++ gfortran libgraphviz-dev \
+>>>>>>> 56971420ed47caba2cd6d91a8a02ba51f16080ed
 
 %runscript
     micromamba run -n markovmodels "$@"
