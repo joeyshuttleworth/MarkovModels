@@ -1,29 +1,30 @@
 #!/usr/bin/env python3
 
-from markovmodels import common
+import argparse
+import itertools
 import logging
+import multiprocessing
 import os
+import string
+import uuid
+
+import matplotlib
+import matplotlib.lines as mlines
+import matplotlib.pyplot as plt
+import numba
 import numpy as np
 import pandas as pd
-import seaborn as sns
-from markovmodels.MarkovModel import MarkovModel
-from markovmodels.BeattieModel import BeattieModel
-from quality_control.leak_fit import fit_leak_lr
-import matplotlib.pyplot as plt
-import matplotlib.lines as mlines
-import argparse
 import regex as re
-import itertools
 import scipy
-import numba
-import uuid
+import seaborn as sns
 from matplotlib import rc
-import multiprocessing
-
-import string
-import matplotlib
-
 from numba import njit
+
+from markovmodels import common
+from markovmodels.BeattieModel import BeattieModel
+from markovmodels.MarkovModel import MarkovModel
+from quality_control.leak_fit import fit_leak_lr
+
 
 # rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 

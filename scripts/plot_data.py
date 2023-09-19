@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 
-from markovmodels import common
 import argparse
+import os
+
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 import pandas as pd
 import seaborn as sns
-import matplotlib
 from matplotlib import gridspec
+
+from markovmodels import common
 
 
 def main():

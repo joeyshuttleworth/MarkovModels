@@ -1,19 +1,20 @@
-from .MarkovModel import MarkovModel
 import numba as nb
-from numba import njit, cfunc
 import numpy as np
+from numba import cfunc, njit
 from numbalsoda import lsoda_sig
+
+from markovmodels.MarkovModel import MarkovModel
 
 
 # TODO Description
 class ArtefactModel(MarkovModel):
-    def __init__(self, channel_model, E_leak=0, g_leak=0, C_m=5e-3, R_s=5,
+    def __init__(self, channel_model, E_leak=0, g_leak=0, C_m=5e-3, R_s=5e-3,
                  g_leak_leftover=0, E_leak_leftover=0):
 
         # Membrane capacitance (nF)
         self.C_m = C_m
 
-        # Series resistance (MOhm)
+        # Series resistance (GOhm)
         self.R_s = R_s
 
         self.g_leak_leftover = g_leak_leftover

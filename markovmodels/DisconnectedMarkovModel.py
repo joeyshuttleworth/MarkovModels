@@ -1,12 +1,10 @@
-from .MarkovModel import MarkovModel
-
+import numba as nb
 import numpy as np
 import sympy as sp
-import numba as nb
-
-from numba import njit, cfunc
-
+from numba import cfunc, njit
 from numbalsoda import lsoda, lsoda_sig
+
+from markovmodels.MarkovModel import MarkovModel
 
 
 class DisconnectedMarkovModel(MarkovModel):

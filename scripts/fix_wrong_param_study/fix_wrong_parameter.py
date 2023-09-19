@@ -4,24 +4,25 @@
 # wrong value and fit the model. Make this parameter pertubation larger and larger
 # and see what thisdoes to parameter spread, predictions, etc...
 
-import multiprocessing
-import regex as re
 import logging
+import multiprocessing
+import os
+
+import matplotlib
 import matplotlib.pyplot as plt
-import seaborn as sns
+import numpy as np
+import pandas as pd
 import pints
+import regex as re
+import seaborn as sns
+from threadpoolctl import threadpool_limits
+
 from markovmodels import common
 from markovmodels.BeattieModel import BeattieModel
 from markovmodels.ClosedOpenModel import ClosedOpenModel
 from markovmodels.KempModel import KempModel
 
-from threadpoolctl import threadpool_limits
 
-import os
-import pandas as pd
-import numpy as np
-
-import matplotlib
 matplotlib.use('Agg')
 
 

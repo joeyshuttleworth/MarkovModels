@@ -6,20 +6,15 @@ import unittest
 
 import matplotlib.pyplot as plt
 import numpy as np
-import sympy as sp
-import pandas as pd
-import seaborn as sns
-import myokit
-from numba import njit
 
-from markovmodels import common
+import markovmodels
 from markovmodels.ArtefactModel import ArtefactModel
 
 
 class TestModelGeneration(unittest.TestCase):
 
     def setUp(self):
-        test_output_dir = common.setup_output_directory('test_output', 'test_artefact_model')
+        test_output_dir = markovmodels.setup_output_directory('test_output', 'test_artefact_model')
         if not os.path.exists(test_output_dir):
             os.makedirs(test_output_dir)
         self.output_dir = test_output_dir
@@ -29,9 +24,9 @@ class TestModelGeneration(unittest.TestCase):
 
     def test_artefact_model(self):
         protocol = 'staircaseramp1'
-        voltage_func, times, desc = common.get_ramp_protocol_from_csv(protocol)
+        voltage_func, times, desc = markovmodels.get_ramp_protocol_from_csv(protocol)
 
-        channel_model = common.make_model_of_class('model3', times,
+        channel_model = markovmodels.make_model_of_class('model3', times,
                                                    voltage_func,
                                                    protocol_description=desc)
 
@@ -61,12 +56,12 @@ class TestModelGeneration(unittest.TestCase):
         protocol = 'staircaseramp'
 
         for original_model, generated_model in [['Beattie', 'model3']]:
-            voltage_func, times, desc = common.get_ramp_protocol_from_csv(protocol)
+            voltage_func, times, desc = markovmodels.get_ramp_protocol_from_csv(protocol)
             tolerances = 1e-10, 1e-10
 
-            c_model1 = common.make_model_of_class(original_model, times, voltage=voltage_func,
+            c_model1 = markovmodels.make_model_of_class(original_model, times, voltage=voltage_func,
                                                 protocol_description=desc, tolerances=tolerances)
-            c_model2 = common.make_model_of_class(generated_model, voltage=voltage_func,
+            c_model2 = markovmodels.make_model_of_class(generated_model, voltage=voltage_func,
                                                   times=times, protocol_description=desc,
                                                   tolerances=tolerances)
 

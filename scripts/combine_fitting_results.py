@@ -1,24 +1,26 @@
 
-import multiprocessing
-import regex as re
+import argparse
 import logging
+import multiprocessing
+from glob import glob
+
+import matplotlib
 import matplotlib.pyplot as plt
+import regex as re
 import seaborn as sns
+
 from markovmodels import common
 from markovmodels.BeattieModel import BeattieModel
 from markovmodels.ClosedOpenModel import ClosedOpenModel
 from markovmodels.KempModel import KempModel
-import argparse
-import regex as re
-from glob import glob
 
-import matplotlib
+
 matplotlib.use('agg')
 
 import os
-import pandas as pd
-import numpy as np
 
+import numpy as np
+import pandas as pd
 from fit_all_wells_and_protocols import compute_predictions_df
 
 

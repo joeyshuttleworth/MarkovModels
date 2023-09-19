@@ -1,10 +1,8 @@
 import numpy as np
 import sympy as sp
-from markov_builder.example_models import construct_kemp_model
-from scipy.integrate import odeint
 
-from . import common
-from . MarkovModel import MarkovModel
+from markov_builder.example_models import construct_kemp_model
+from markovmodels.MarkovModel import MarkovModel
 
 
 class KempModel(MarkovModel):

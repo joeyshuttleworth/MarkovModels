@@ -1,12 +1,96 @@
-from .MarkovModel import MarkovModel
-from .DisconnectedMarkovModel import DisconnectedMarkovModel
+import networkx
+import numpy as np
+import pints
+import regex as re
+import sympy as sp
 
 from markov_builder import MarkovChain
+from markovmodels.DisconnectedMarkovModel import DisconnectedMarkovModel
+from markovmodels.MarkovModel import MarkovModel
 
-import numpy as np
-import sympy as sp
-import pints
-import networkx
+
+def make_myokit_model(model_name: str):
+
+    from markov_builder.models.thirty_models import (
+        model_00,
+        model_01,
+        model_02,
+        model_03,
+        model_04,
+        model_05,
+        model_06,
+        model_07,
+        model_08,
+        model_09,
+        model_10,
+        model_11,
+        model_12,
+        model_13,
+        model_14,
+        model_30,
+    )
+
+    thirty_models_regex = re.compile(r'^model([0-9]*)$')
+
+    thirty_models = [
+        model_00, model_01, model_02, model_03, model_04,
+        model_05, model_06, model_07, model_08, model_09, model_10,
+        model_11, model_12, model_13, model_14, model_30
+    ]
+    if thirty_models_regex.match(model_name):
+        model_no = int(thirty_models_regex.search(model_name).group(1))
+        mk_model = thirty_models[model_no]().generate_myokit_model()
+
+    return mk_model
+
+
+def make_model_of_class(name: str, times=None, voltage=None, *args, **kwargs):
+    from markov_builder.models.thirty_models import (
+        model_00,
+        model_01,
+        model_02,
+        model_03,
+        model_04,
+        model_05,
+        model_06,
+        model_07,
+        model_08,
+        model_09,
+        model_10,
+        model_11,
+        model_12,
+        model_13,
+        model_14,
+        model_30,
+    )
+
+    thirty_models = [
+        model_00, model_01, model_02, model_03, model_04,
+        model_05, model_06, model_07, model_08, model_09, model_10,
+        model_11, model_12, model_13, model_14, model_30
+    ]
+
+    thirty_models_regex = re.compile(r'^model([0-9]+)$')
+
+    if name == 'Beattie' or name == 'BeattieModel':
+        from markovmodels.BeattieModel import BeattieModel
+        model = BeattieModel(times, voltage, *args, **kwargs)
+    elif name == 'Kemp' or name == 'KempModel':
+        from markovmodels.KempModel import KempModel
+        model = KempModel(times, voltage, *args, **kwargs)
+    elif name == 'CO' or name == 'ClosedOpenModel':
+        from markovmodels.ClosedOpenModel import ClosedOpenModel
+        model = ClosedOpenModel(times, voltage, *args, **kwargs)
+    elif name == 'Wang' or name == 'WangModel':
+        from markovmodels.WangModel import WangModel
+        model = WangModel(times, voltage, *args, **kwargs)
+    elif thirty_models_regex.match(name):
+        model_no = int(thirty_models_regex.search(name).group(1))
+        model = generate_markov_model_from_graph(thirty_models[model_no](), times, voltage,
+                                                 *args, **kwargs)
+    else:
+        assert False, f"no model with name {name}"
+    return model
 
 
 def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,

@@ -1,31 +1,30 @@
 #!/usr/bin/env python3
 
-import multiprocessing
-import regex as re
+import argparse
 import logging
+import math
+import multiprocessing
+import os
+import re
+import string
+
+import matplotlib
+import matplotlib.lines as mlines
 import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
 import numpy as np
+import pandas as pd
+import regex as re
+import scipy
+import seaborn as sns
+from matplotlib import rc
+from matplotlib.gridspec import GridSpec
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
+
 from markovmodels import common
 from markovmodels.BeattieModel import BeattieModel
 from markovmodels.ClosedOpenModel import ClosedOpenModel
 from markovmodels.KempModel import KempModel
-import argparse
-import seaborn as sns
-import os
-import string
-import re
-import scipy
-import math
 
-import matplotlib
-from mpl_toolkits.axes_grid1.inset_locator import mark_inset, inset_axes
-from matplotlib.gridspec import GridSpec
-
-import matplotlib.lines as mlines
-
-from matplotlib import rc
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 8})
 rc('text', usetex=True)

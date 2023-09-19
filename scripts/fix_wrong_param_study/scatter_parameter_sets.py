@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
 
-import multiprocessing
-import regex as re
+import argparse
+import itertools
 import logging
+import multiprocessing
+import os
+import re
+import string
+
 import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
 import numpy as np
+import pandas as pd
+import regex as re
+import seaborn as sns
+from matplotlib import rc
+
 from markovmodels import common
 from markovmodels.BeattieModel import BeattieModel
 from markovmodels.ClosedOpenModel import ClosedOpenModel
 from markovmodels.KempModel import KempModel
-import argparse
-import seaborn as sns
-import os
-import string
-import re
-import itertools
 
-from matplotlib import rc
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 rc('text', usetex=True)

@@ -1,14 +1,11 @@
+import numba as nb
 import numpy as np
 import sympy as sp
-import logging
-import time
 from scipy.integrate import solve_ivp
-import time
-from numbalsoda import lsoda_sig, lsoda, dop853
-from numba import njit, cfunc, literal_unroll
-import numba as nb
+from numba import cfunc, njit
+from numbalsoda import lsoda, lsoda_sig
 
-from .common import calculate_reversal_potential
+from markovmodels.utilities import calculate_reversal_potential
 
 
 class MarkovModel:

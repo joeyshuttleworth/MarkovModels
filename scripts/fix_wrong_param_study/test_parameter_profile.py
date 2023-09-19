@@ -1,26 +1,27 @@
 #!/usr/bin/env python3
 
-import multiprocessing
-import regex as re
+import argparse
 import logging
+import multiprocessing
+import os
+
+import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import pints
+import regex as re
 import scipy
 import seaborn as sns
-import pints
-import argparse
+from numba import njit
+from threadpoolctl import threadpool_limits
+
 from markovmodels import common
 from markovmodels.BeattieModel import BeattieModel
 from markovmodels.ClosedOpenModel import ClosedOpenModel
 from markovmodels.KempModel import KempModel
 
-from threadpoolctl import threadpool_limits
 
-import os
-import pandas as pd
-import numpy as np
-from numba import njit
-
-import matplotlib
 # matplotlib.use('Agg')
 
 

@@ -1,11 +1,10 @@
 import numpy as np
-import sympy as sp
 import pints
-from scipy.integrate import odeint
+import sympy as sp
 
 from markov_builder.example_models import construct_four_state_chain
-from . MarkovModel import MarkovModel
-from . import common
+from markovmodels.MarkovModel import MarkovModel
+
 
 class BeattieModel(MarkovModel):
     """

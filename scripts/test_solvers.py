@@ -1,19 +1,18 @@
-from markovmodels import common
-from markovmodels.BeattieModel import BeattieModel
-from markovmodels.WangModel import WangModel
-from markovmodels.KempModel import KempModel
+import argparse
+import os
 
 import matplotlib.pyplot as plt
-import argparse
-
 import numpy as np
 import pandas as pd
-import os
-from matplotlib.gridspec import GridSpec
-
 from matplotlib import rc
-
+from matplotlib.gridspec import GridSpec
 from numba import njit
+
+from markovmodels import common
+from markovmodels.BeattieModel import BeattieModel
+from markovmodels.KempModel import KempModel
+from markovmodels.WangModel import WangModel
+
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 24})
 rc('text', usetex=True)

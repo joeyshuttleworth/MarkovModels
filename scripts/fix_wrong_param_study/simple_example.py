@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 
-import numpy as np
 import argparse
-import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
 import os
-import scipy
 
-from markovmodels import common
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import scipy
+import seaborn as sns
+from matplotlib import rc
 from matplotlib.gridspec import GridSpec
 
-from matplotlib import rc
+from markovmodels import common
+
+
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 8})
 rc('text', usetex=True)
 rc('figure', dpi=500)

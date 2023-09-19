@@ -1,15 +1,15 @@
+import argparse
+import os
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from matplotlib import rc
+from matplotlib.gridspec import GridSpec
+
 from markovmodels import common
 from markovmodels.BeattieModel import BeattieModel
 
-import matplotlib.pyplot as plt
-import argparse
-
-import numpy as np
-import pandas as pd
-import os
-from matplotlib.gridspec import GridSpec
-
-from matplotlib import rc
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 8})
 rc('text', usetex=True)

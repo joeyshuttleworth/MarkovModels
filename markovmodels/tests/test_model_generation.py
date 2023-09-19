@@ -5,22 +5,20 @@ import os
 import unittest
 
 import matplotlib.pyplot as plt
+import myokit
 import numpy as np
-import sympy as sp
 import pandas as pd
 import seaborn as sns
-
-import myokit
-
+import sympy as sp
 from numba import njit
 
-from markovmodels import common
+import markovmodels
 
 
 class TestModelGeneration(unittest.TestCase):
 
     def setUp(self):
-        test_output_dir = common.setup_output_directory('test_output', 'test_model_generation')
+        test_output_dir = markovmodels.setup_output_directory('test_output', 'test_model_generation')
         if not os.path.exists(test_output_dir):
             os.makedirs(test_output_dir)
         self.output_dir = test_output_dir
@@ -31,17 +29,17 @@ class TestModelGeneration(unittest.TestCase):
     def test_model16_solver_error(self):
 
         protocol = 'staircaseramp1'
-        voltage_func, times, desc = common.get_ramp_protocol_from_csv(protocol)
+        voltage_func, times, desc = markovmodels.get_ramp_protocol_from_csv(protocol)
         voltages = [vstart for vstart, vend, _, _ in desc if vstart != vend]
 
         tolerances = 1e-10, 1e-10
 
-        model = common.make_model_of_class('model14', times, voltage_func, protocol_description=desc,
+        model = markovmodels.make_model_of_class('model14', times, voltage_func, protocol_description=desc,
                                            tolerances=tolerances)
 
         full_parameters = model.get_default_parameters()
 
-        boundaries = common.fitting_boundaries(full_parameters, model)
+        boundaries = markovmodels.fitting_boundaries(full_parameters, model)
 
         n_samples = 1000
         sampled_parameter_sets = boundaries.sample(n=n_samples)
@@ -148,9 +146,9 @@ class TestModelGeneration(unittest.TestCase):
     def test_hybrid_solver(self):
 
         protocol = 'staircaseramp'
-        voltage_func, times, desc = common.get_ramp_protocol_from_csv(protocol)
+        voltage_func, times, desc = markovmodels.get_ramp_protocol_from_csv(protocol)
 
-        models = [common.make_model_of_class(m, times, voltage_func,
+        models = [markovmodels.make_model_of_class(m, times, voltage_func,
                                              protocol_description=desc) \
                   for m in self.model_names]
 
@@ -177,7 +175,7 @@ class TestModelGeneration(unittest.TestCase):
 
     def test_lsoda_solution(self):
         protocol = 'staircaseramp'
-        voltage_func, times, desc = common.get_ramp_protocol_from_csv(protocol)
+        voltage_func, times, desc = markovmodels.get_ramp_protocol_from_csv(protocol)
 
         tolerances = 1e-9, 1e-9
 
@@ -189,10 +187,10 @@ class TestModelGeneration(unittest.TestCase):
             os.makedirs(this_test_output_dir)
 
         for model in self.model_names:
-            mk_model = common.make_myokit_model(model)
-            mk_model.set_value('markov_chain.E_Kr', common.calculate_reversal_potential())
+            mk_model = markovmodels.make_myokit_model(model)
+            mk_model.set_value('markov_chain.E_Kr', markovmodels.calculate_reversal_potential())
 
-            mm_model = common.make_model_of_class(model, times,
+            mm_model = markovmodels.make_model_of_class(model, times,
                                                   voltage_func,
                                                   protocol_description=desc,
                                                   tolerances=tolerances)
@@ -238,13 +236,13 @@ class TestModelGeneration(unittest.TestCase):
         protocol = 'staircaseramp'
 
         for original_model, generated_model in [['Beattie', 'model3']]:
-            voltage_func, times, desc = common.get_ramp_protocol_from_csv(protocol)
+            voltage_func, times, desc = markovmodels.get_ramp_protocol_from_csv(protocol)
 
             tolerances = 1e-10, 1e-10
 
-            model1 = common.make_model_of_class(original_model, times, voltage=voltage_func,
+            model1 = markovmodels.make_model_of_class(original_model, times, voltage=voltage_func,
                                                 protocol_description=desc, tolerances=tolerances)
-            model2 = common.make_model_of_class(generated_model, voltage=voltage_func,
+            model2 = markovmodels.make_model_of_class(generated_model, voltage=voltage_func,
                                                 times=times, protocol_description=desc,
                                                 tolerances=tolerances)
 
@@ -285,10 +283,10 @@ class TestModelGeneration(unittest.TestCase):
 
     def test_tolerances(self):
         protocol = 'staircaseramp1'
-        voltage_func, times, desc = common.get_ramp_protocol_from_csv(protocol)
+        voltage_func, times, desc = markovmodels.get_ramp_protocol_from_csv(protocol)
 
         model_name = 'model11'
-        model = common.make_model_of_class(model_name, times, voltage_func, protocol_description=desc)
+        model = markovmodels.make_model_of_class(model_name, times, voltage_func, protocol_description=desc)
         tol_range = 10**np.linspace(-3, -8, 6)
         solver = model.make_hybrid_solver_current(njitted=False, hybrid=False)
         reference_sol = solver(atol=1e-9, rtol=1e-9, hybrid=False)

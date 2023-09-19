@@ -1,13 +1,9 @@
 import numpy as np
-import sympy as sp
 import pints
-
-from . import common
+import sympy as sp
 
 from markov_builder.example_models import construct_wang_chain
-from scipy.integrate import odeint
-
-from . MarkovModel import MarkovModel
+from markovmodels.MarkovModel import MarkovModel
 
 
 class WangModel(MarkovModel):

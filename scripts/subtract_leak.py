@@ -1,30 +1,33 @@
 #!/usr/bin/env python3
 
-from markovmodels import common
-import logging
-import os
-import numpy as np
-import pandas as pd
-import seaborn as sns
-from markovmodels.MarkovModel import MarkovModel
-from markovmodels.BeattieModel import BeattieModel
-from quality_control.leak_fit import fit_leak_lr
-import matplotlib.pyplot as plt
-import matplotlib.lines as mlines
 import argparse
-import regex as re
-import itertools
-import uuid
-from matplotlib import rc
-import multiprocessing
 import gc
+import itertools
+import logging
+import multiprocessing
+import os
+import uuid
 
 import matplotlib
+import matplotlib.lines as mlines
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import regex as re
+import seaborn as sns
+from matplotlib import rc
+from matplotlib.gridspec import GridSpec
+
+from markovmodels import common
+from markovmodels.BeattieModel import BeattieModel
+from markovmodels.MarkovModel import MarkovModel
+from quality_control.leak_fit import fit_leak_lr
+
+
 # matplotlib.use('Agg')
 
 # rc('text', usetex=True)
 
-from matplotlib.gridspec import GridSpec
 
 Erev = common.calculate_reversal_potential(T=298.15, K_in=120, K_out=5)
 

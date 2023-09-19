@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 
-from BeattieModel import BeattieModel
 import argparse
-import os
-import common
-import numpy as np
-import logging
-import matplotlib.pyplot as plt
-import regex as re
-import pandas as pd
-import common
-import myokit as mk
 import cProfile
+import logging
+import os
+
+import common
+import matplotlib.pyplot as plt
+import myokit as mk
+import numpy as np
+import pandas as pd
+import regex as re
 from BeattieModel import BeattieModel
+
 
 def main():
     mean_params = np.array([2.07E-3, 7.17E-2, 3.44E-5, 6.18E-2, 4.18E-1, 2.58E-2,

@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 
-from markovmodels import common
-from markovmodels.BeattieModel import BeattieModel
+import argparse
 import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
-import argparse
-import matplotlib.pyplot as plt
 import regex as re
+import seaborn as sns
+
+from markovmodels import common
+from markovmodels.BeattieModel import BeattieModel
 
 
 def main():

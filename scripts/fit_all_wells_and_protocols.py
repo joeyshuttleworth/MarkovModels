@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
 
-import multiprocessing
-import regex as re
 import logging
-import matplotlib.pyplot as plt
-import seaborn as sns
-from markovmodels import common
-from markovmodels.BeattieModel import BeattieModel
-from markovmodels.ClosedOpenModel import ClosedOpenModel
-from markovmodels.KempModel import KempModel
+import multiprocessing
+import os
 
 import matplotlib
-matplotlib.use('agg')
-
-import os
+import matplotlib.pyplot as plt
+import regex as re
+import seaborn as sns
 import pandas as pd
 import numpy as np
+import markovmodels
 
+from argparse import ArgumentParser
+from markovmodels.model_generation import make_model_of_class
+
+matplotlib.use('agg')
 pool_kws = {'maxtasksperchild': 1}
 
 
@@ -26,16 +25,19 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
 
     infer_E_rev = not args.dont_infer_Erev
 
-    res_df = common.fit_well_data(model_class, well, protocol,
-                                  args.data_directory, args.max_iterations,
-                                  output_dir=this_output_dir,
-                                  default_parameters=default_parameters,
-                                  removal_duration=args.removal_duration,
-                                  repeats=args.repeats,
-                                  infer_E_rev=infer_E_rev,
-                                  experiment_name=args.experiment_name, E_rev=E_rev,
-                                  randomise_initial_guess=randomise_initial_guess,
-                                  solver_type=args.solver_type, sweep=sweep)
+    res_df = markovmodels.fitting.fit_well_data(model_class, well, protocol,
+                                                args.data_directory,
+                                                args.max_iterations,
+                                                output_dir=this_output_dir,
+                                                default_parameters=default_parameters,
+                                                removal_duration=args.removal_duration,
+                                                repeats=args.repeats,
+                                                infer_E_rev=infer_E_rev,
+                                                experiment_name=args.experiment_name,
+                                                E_rev=E_rev,
+                                                randomise_initial_guess=randomise_initial_guess,
+                                                solver_type=args.solver_type,
+                                                sweep=sweep)
 
     res_df['well'] = well
     res_df['protocol'] = protocol
@@ -45,12 +47,10 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
 
 
 def main():
-    Erev = common.calculate_reversal_potential()
+    Erev = markovmodels.utilities.calculate_reversal_potential()
 
-    parser = common.get_parser(
-        data_reqd=True, description="Fit a given well to the data from each\
-        of the protocols. Output the resulting parameters to a file for later use")
-
+    parser = ArgumentParser()
+    parser.add_argument('data_directory')
     parser.add_argument('--max_iterations', '-i', type=int, default=100000)
     parser.add_argument('--repeats', type=int, default=16)
     parser.add_argument('--dont_randomise_initial_guess', action='store_true')
@@ -71,6 +71,7 @@ def main():
     parser.add_argument('--ignore_protocols', nargs='+', default=[])
     parser.add_argument('--ignore_wells', nargs='+', default=[])
     parser.add_argument('--sweeps', nargs='+', default=None)
+    parser.add_argument('-o', '--output')
 
     global args
     args = parser.parse_args()
@@ -87,13 +88,16 @@ def main():
     else:
         selected_wells = None
 
-    output_dir = common.setup_output_directory(args.output, f"fitting_{args.removal_duration:.2f}_removed_{args.model}")
+    output_dir = markovmodels.utilities.setup_output_directory(
+        args.output,
+        f"fitting_{args.removal_duration:.2f}_removed_{args.model}"
+    )
 
     if len(args.wells) == 0:
-        args.wells = common.get_all_wells_in_directory(args.data_directory, experiment_name)
+        args.wells = markovmodels.get_all_wells_in_directory(args.data_directory, experiment_name)
 
     if len(args.protocols) == 0:
-        protocols = common.get_protocol_list()
+        protocols = markovmodels.voltage_protocols.get_protocol_list()
     else:
         protocols = args.protocols
 
@@ -124,7 +128,7 @@ def main():
     else:
         regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z|0-9]*).csv$")
 
-    param_labels = common.make_model_of_class(args.model).get_parameter_labels()
+    param_labels = make_model_of_class(args.model).get_parameter_labels()
     for f in filter(regex.match, os.listdir(args.data_directory)):
         groups = re.search(regex, f).groups()
         protocol = groups[0]
@@ -204,7 +208,7 @@ def main():
             protocol, well, model_class, default_parameters, Erev, randomise, _ = task
         best_params_row = best_params_df[(best_params_df.well == well)
                                          & (best_params_df.validation_protocol == protocol)].head(1)
-        param_labels = common.make_model_of_class(model_class).get_parameter_labels()
+        param_labels = make_model_of_class(model_class).get_parameter_labels()
         best_params = best_params_row[param_labels].astype(np.float64).values.flatten()
         task[3] = best_params
         task[6] = ''
@@ -229,38 +233,6 @@ def main():
             best_params_df['protocol'] = best_params_df['validation_protocol']
             best_params_df.to_csv(os.path.join(output_dir, 'best_fitting.csv'))
 
-    # if args.no_chains > 0:
-    #     # Setup MCMC
-    #     for task in tasks:
-    #         protocol, well, model_class, default_parameters, Erev, _ = task
-    #         param_labels = model_class().get_parameter_labels()
-
-    #         row = best_params_df[(best_params_df.well == well)
-    #                              & (best_params_df.validation_protocol ==
-    #                                 protocol)][param_labels].copy().head(1).astype(np.float64)
-
-    #         task[3] = row.values.flatten()
-    #         task[5] = False
-
-    #         # do_mcmc(tasks, pool)
-
-
-# def do_mcmc(tasks, pool):
-#     if args.chain_length > 0 and args.no_chains > 0:
-#         mcmc_dir = os.path.join(output_dir, 'mcmc_samples')
-
-#         if not os.path.exists(mcmc_dir):
-#             os.makedirs(mcmc_dir)
-
-#         # Do MCMC
-#         mcmc_res = pool.starmap(mcmc_func, tasks)
-#         for samples, task in zip(mcmc_res, tasks):
-#             protocol, well, model_class, _, _ = task
-#             model_name = model_class().get_model_name()
-
-#             np.save(os.path.join(mcmc_dir,
-#                                  f"mcmc_{model_name}_{well}_{protocol}.npy"), samples)
-
 
 def compute_predictions_df(params_df, output_dir, label='predictions',
                            model_class=None, fix_EKr=None,
@@ -268,7 +240,7 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
 
     assert(not (fix_EKr is not None and adjust_kinetic_parameters))
 
-    param_labels = common.make_model_of_class(model_class).get_parameter_labels()
+    param_labels = make_model_of_class(model_class).get_parameter_labels()
     params_df = get_best_params(params_df, protocol_label='protocol')
     predictions_dir = os.path.join(output_dir, label)
 
@@ -285,16 +257,17 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
     all_models_axs = all_models_fig.subplots(2)
 
     for sim_protocol in np.unique(protocols_list):
-        prot_func, times, desc = common.get_ramp_protocol_from_csv(sim_protocol)
-        full_times = pd.read_csv(os.path.join(args.data_directory,
-                                              f"{args.experiment_name}-{sim_protocol}-times.csv"))['time'].values.flatten()
+        prot_func, times, desc = markovmodels.get_ramp_protocol_from_csv(sim_protocol)
+        full_times = pd.read_csv(
+            os.path.join(args.data_directory,
+                         f"{args.experiment_name}-{sim_protocol}-times.csv"))['time'].values.flatten()
 
         voltages = np.array([prot_func(t) for t in full_times])
 
-        spike_times, spike_indices = common.detect_spikes(full_times, voltages,
-                                                          threshold=10)
-        _, _, indices = common.remove_spikes(full_times, voltages, spike_times,
-                                             time_to_remove=args.removal_duration)
+        spike_times, spike_indices = markovmodels.detect_spikes(full_times, voltages,
+                                                                threshold=10)
+        _, _, indices = markovmodels.remove_spikes(full_times, voltages, spike_times,
+                                                   time_to_remove=args.removal_duration)
         times = full_times[indices]
 
         colours = sns.color_palette('husl', len(params_df['protocol'].unique()))
@@ -302,17 +275,17 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
         for well in params_df['well'].unique():
             for predict_sweep in params_df[params_df.protocol == sim_protocol].sweep.unique():
                 try:
-                    full_data = common.get_data(well, sim_protocol,
-                                                args.data_directory,
-                                                experiment_name=args.experiment_name,
-                                                sweep=predict_sweep)
+                    full_data = markovmodels.get_data(well, sim_protocol,
+                                                      args.data_directory,
+                                                      experiment_name=args.experiment_name,
+                                                      sweep=predict_sweep)
                 except (FileNotFoundError, StopIteration) as exc:
                     print(str(exc))
                     continue
 
-                prediction_E_rev = common.infer_reversal_potential(sim_protocol, full_data, full_times)
+                prediction_E_rev = markovmodels.infer_reversal_potential(sim_protocol, full_data, full_times)
 
-                model = common.make_model_of_class(model_class,
+                model = make_model_of_class(model_class,
                                                    voltage=prot_func,
                                                    times=full_times,
                                                    E_rev=prediction_E_rev if not fix_EKr else fix_EKr,
@@ -345,7 +318,7 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                         fitting_current = fitting_data['current'].values.flatten()
                         fitting_times = fitting_data['time'].values.flatten()
 
-                        fitting_E_rev = common.infer_reversal_potential(protocol_fitted, fitting_current,
+                        fitting_E_rev = markovmodels.infer_reversal_potential(protocol_fitted, fitting_current,
                                                                         fitting_times)
 
                         if adjust_kinetic_parameters:

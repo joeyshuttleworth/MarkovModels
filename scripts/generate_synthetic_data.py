@@ -1,16 +1,17 @@
 #! /usr/bin/env python3
 
-from markovmodels import common
-from markovmodels.BeattieModel import BeattieModel
-from markovmodels.KempModel import KempModel
-from markovmodels.ClosedOpenModel import ClosedOpenModel
-
 import argparse
+import multiprocessing
+import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import os
-import matplotlib.pyplot as plt
-import multiprocessing
+
+from markovmodels import common
+from markovmodels.BeattieModel import BeattieModel
+from markovmodels.ClosedOpenModel import ClosedOpenModel
+from markovmodels.KempModel import KempModel
 
 
 def main():
