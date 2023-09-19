@@ -59,7 +59,7 @@ class TestModelGeneration(unittest.TestCase):
         protocol = 'staircaseramp'
 
         for original_model, generated_model in [['Beattie', 'model3']]:
-            voltage_func, times, desc = markovmodels.get_ramp_protocol_from_csv(protocol)
+            voltage_func, times, desc = get_ramp_protocol_from_csv(protocol)
             tolerances = 1e-10, 1e-10
 
             c_model1 = markovmodels.make_model_of_class(original_model, times,

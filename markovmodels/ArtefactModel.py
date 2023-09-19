@@ -59,7 +59,6 @@ class ArtefactModel(MarkovModel):
             _, _, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
 
             channel_params = p[:-no_artefact_parameters]
-            print(p)
 
             def I_inf(V_m):
                 x_inf = channel_rhs_inf(channel_params, V_m).flatten()
