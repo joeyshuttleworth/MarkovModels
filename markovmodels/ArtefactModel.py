@@ -2,6 +2,10 @@ import numba as nb
 import numpy as np
 from numba import cfunc, njit
 from numbalsoda import lsoda_sig
+import scipy
+import numba
+
+no_artefact_parameters = 7
 
 from markovmodels.MarkovModel import MarkovModel
 
@@ -16,6 +20,8 @@ class ArtefactModel(MarkovModel):
 
         # Series resistance (GOhm)
         self.R_s = R_s
+
+        self.no_artefact_parameters = no_artefact_parameters
 
         self.g_leak_leftover = g_leak_leftover
         self.E_leak_leftover = E_leak_leftover
@@ -46,34 +52,50 @@ class ArtefactModel(MarkovModel):
 
         channel_rhs_inf = self.channel_model.rhs_inf
 
-        @njit
         def rhs_inf(p, voltage):
-            # TODO find actual steady state
-            channel_inf = channel_rhs_inf(p[:-3], voltage).flatten()
-            rhs_inf = np.expand_dims(np.append(channel_inf, -80), -1)
-            return rhs_inf
+            # Find a steady state of the system actual steady state
+            # g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
+            # channel_model_auxiliary_function = njit(channel_model.auxiliary_function)
+
+            # @njit
+            # def I_inf(V_m):
+            #     x_inf = channel_rhs_inf(p[:-no_artefact_parameters], V_m).flatten()
+            #     I_inf = channel_model_auxiliary_function((x_inf, p[:-no_artefact_parameters], V_m)) \
+            #         + g_leak_leftover * (V_m - E_leak_leftover)
+            #     return I_inf
+
+            # # Function to find root of
+            # def f_func(V_m):
+            #     return voltage + V_off - V_m - I_inf(V_m) * R_s
+
+            # V_m = scipy.optimize.root_scalar(f_func, x0=-80).root
+            V_m = -80
+            rhs_inf = np.append(channel_rhs_inf(p[:-no_artefact_parameters], V_m).flatten(), V_m)
+            return np.expand_dims(rhs_inf, -1)
 
         self.rhs_inf = rhs_inf
 
     def get_default_parameters(self):
         channel_parameters = self.channel_model.get_default_parameters()
-        default_artefact_parameters = np.array([0.0]*3)
+        # g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
+        default_artefact_parameters = np.array([self.g_leak, self.E_leak,
+                                                0, 0, 0, self.C_m, self.R_s])
 
         return np.concatenate((channel_parameters,
                                default_artefact_parameters))
 
     def get_parameter_labels(self):
         return self.channel_model.get_parameter_labels() + ['g_leak_leftover', 'E_leak_leftover',
-                                                            'V_off']
+                                                            'V_off', 'C_m', 'R_s']
 
     def define_auxiliary_function(self):
         channel_auxiliary_function = njit(self.channel_model.define_auxiliary_function())
 
         @njit
         def auxiliary_func(x, p, _):
-            g_leak_leftover, E_leak_leftover, V_off = p[-3:]
+            _, _, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
             V_m = x[-1, :]
-            I_Kr = channel_auxiliary_function(x[:-1], p[:-3], V_m)
+            I_Kr = channel_auxiliary_function(x[:-1], p[:-no_artefact_parameters], V_m)
 
             I_post = I_Kr - g_leak_leftover * (V_m - E_leak_leftover)
 
@@ -92,15 +114,18 @@ class ArtefactModel(MarkovModel):
         if hybrid:
             raise NotImplementedError()
         else:
-            return super().make_hybrid_solver_states(
+            solver = super().make_hybrid_solver_states(
                 protocol_description,
-                njitted,
-                analytic_solver,
-                strict,
-                cond_threshold,
-                atol, rtol,
+                njitted=False,
+                analytic_solver=analytic_solver,
+                strict=strict,
+                cond_threshold=cond_threshold,
+                atol=atol, rtol=rtol,
                 hybrid=False
             )
+            if njitted:
+                solver = numba.jit(solver)
+            return solver
 
     def get_cfunc_rhs(self):
         channel_rhs = self.channel_model.get_rhs_func(njitted=True)
@@ -111,15 +136,11 @@ class ArtefactModel(MarkovModel):
 
         # Eliminate one state and add equation for V_m
         ny = self.channel_model.get_no_states() + 1
-        print(f"ny is {ny}")
 
         # Add artefact parameters and t_offset
         n_p = len(self.get_default_parameters())
 
         prot_func = self.channel_model.voltage
-
-        R_s = self.R_s
-        C_m = self.C_m
 
         E_leak = self.E_leak
         g_leak = self.g_leak
@@ -136,17 +157,17 @@ class ArtefactModel(MarkovModel):
             p = data[:-1]
 
             #  get artefact parameters
-            g_leak_leftover, E_leak_leftover, V_off = p[-3:]
+            g_leak, E_leak, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
 
             V_m = y[-1]
             V_cmd = prot_func(t, offset=t_offset)
 
             I_leak = (V_cmd - E_leak) * g_leak
-            # I_Kr = y[open_index] * (V_m - E_Kr) * p[gkr_index]
+            I_leak_leftover = (V_m - E_leak_leftover) * g_leak_leftover
 
-            I_Kr = channel_auxiliary_function(y[:-1], p[:-3], V_m)
+            I_Kr = channel_auxiliary_function(y[:-1], p[:-no_artefact_parameters], V_m)
 
-            I_out = I_Kr + I_leak
+            I_out = I_Kr + I_leak + I_leak_leftover
 
             # No series resistance compensation
             V_p = V_cmd
@@ -155,7 +176,7 @@ class ArtefactModel(MarkovModel):
             dy[-1] = (V_p + V_off - V_m)/(C_m * R_s) - I_out / C_m
 
             # compute derivative for channel model
-            dy[0:-1] = channel_rhs(y[0:-1], p[:-3], V_m).flatten()
+            dy[0:-1] = channel_rhs(y[0:-1], p[:-no_artefact_parameters], V_m).flatten()
             return
 
         return crhs_func

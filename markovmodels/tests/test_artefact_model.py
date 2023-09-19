@@ -9,12 +9,13 @@ import numpy as np
 
 import markovmodels
 from markovmodels.ArtefactModel import ArtefactModel
+from markovmodels.utilities import setup_output_directory
 
 
 class TestModelGeneration(unittest.TestCase):
 
     def setUp(self):
-        test_output_dir = markovmodels.setup_output_directory('test_output', 'test_artefact_model')
+        test_output_dir = setup_output_directory('test_output', 'test_artefact_model')
         if not os.path.exists(test_output_dir):
             os.makedirs(test_output_dir)
         self.output_dir = test_output_dir
@@ -27,8 +28,8 @@ class TestModelGeneration(unittest.TestCase):
         voltage_func, times, desc = markovmodels.get_ramp_protocol_from_csv(protocol)
 
         channel_model = markovmodels.make_model_of_class('model3', times,
-                                                   voltage_func,
-                                                   protocol_description=desc)
+                                                         voltage_func,
+                                                         protocol_description=desc)
 
         artefact_model = ArtefactModel(channel_model)
 
@@ -44,8 +45,8 @@ class TestModelGeneration(unittest.TestCase):
         plt.savefig(os.path.join(self.output_dir, 'artefact_comparison'))
         plt.clf()
 
-        print(artefact_model.get_state_labels())
-        plt.plot(times, artefact_model.make_hybrid_solver_states(hybrid=False, njitted=False)(),
+        plt.plot(times, artefact_model.make_hybrid_solver_states(hybrid=False,
+                                                                 njitted=False)(),
                  label=artefact_model.get_state_labels())
 
         plt.legend()
@@ -59,11 +60,15 @@ class TestModelGeneration(unittest.TestCase):
             voltage_func, times, desc = markovmodels.get_ramp_protocol_from_csv(protocol)
             tolerances = 1e-10, 1e-10
 
-            c_model1 = markovmodels.make_model_of_class(original_model, times, voltage=voltage_func,
-                                                protocol_description=desc, tolerances=tolerances)
-            c_model2 = markovmodels.make_model_of_class(generated_model, voltage=voltage_func,
-                                                  times=times, protocol_description=desc,
-                                                  tolerances=tolerances)
+            c_model1 = markovmodels.make_model_of_class(original_model, times,
+                                                        voltage=voltage_func,
+                                                        protocol_description=desc,
+                                                        tolerances=tolerances)
+            c_model2 = markovmodels.make_model_of_class(generated_model,
+                                                        voltage=voltage_func,
+                                                        times=times,
+                                                        protocol_description=desc,
+                                                        tolerances=tolerances)
 
             model1 = ArtefactModel(c_model1)
             model2 = ArtefactModel(c_model2)
@@ -87,6 +92,9 @@ class TestModelGeneration(unittest.TestCase):
             plt.savefig(os.path.join(self.output_dir, f"{original_model}_{generated_model}_comparison_lsoda.pdf"))
             plt.clf()
             self.assertLess(rmse_error, 1e-2)
+
+    def test_steady_state_unique(self):
+        pass
 
 
 if __name__ == "__main__":
