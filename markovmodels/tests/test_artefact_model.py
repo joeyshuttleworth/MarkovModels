@@ -65,7 +65,7 @@ class TestModelGeneration(unittest.TestCase):
             tolerances = 1e-10, 1e-10
 
             c_model1 = common.make_model_of_class(original_model, times, voltage=voltage_func,
-                                                protocol_description=desc, tolerances=tolerances)
+                                                  protocol_description=desc, tolerances=tolerances)
             c_model2 = common.make_model_of_class(generated_model, voltage=voltage_func,
                                                   times=times, protocol_description=desc,
                                                   tolerances=tolerances)
@@ -92,6 +92,9 @@ class TestModelGeneration(unittest.TestCase):
             plt.savefig(os.path.join(self.output_dir, f"{original_model}_{generated_model}_comparison_lsoda.pdf"))
             plt.clf()
             self.assertLess(rmse_error, 1e-2)
+
+    def test_steady_state_unique(self):
+        pass
 
 
 if __name__ == "__main__":
