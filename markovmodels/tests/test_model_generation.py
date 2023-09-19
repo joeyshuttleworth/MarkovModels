@@ -93,7 +93,7 @@ class TestModelGeneration(unittest.TestCase):
 
         results_df = results_df[np.all(np.isfinite(results_df.values), axis=1)]
 
-        print(f"removed {n_samples - len(results_df.loc)} rows")
+        print(f"removed {n_samples - len(results_df.index.values)} rows")
 
         max_A_cond_i = np.argmax(results_df['max_A_cond'].values)
         max_P_cond_i = np.argmax(results_df['max_A_cond'].values)

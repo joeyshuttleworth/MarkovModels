@@ -10,6 +10,8 @@ import numpy as np
 import markovmodels
 from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.utilities import setup_output_directory
+from markovmodels.model_generation import make_model_of_class
+from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
 
 
 class TestModelGeneration(unittest.TestCase):
@@ -25,11 +27,11 @@ class TestModelGeneration(unittest.TestCase):
 
     def test_artefact_model(self):
         protocol = 'staircaseramp1'
-        voltage_func, times, desc = markovmodels.get_ramp_protocol_from_csv(protocol)
+        voltage_func, times, desc = get_ramp_protocol_from_csv(protocol)
 
-        channel_model = markovmodels.make_model_of_class('model3', times,
-                                                         voltage_func,
-                                                         protocol_description=desc)
+        channel_model = make_model_of_class('model3', times,
+                                            voltage_func,
+                                            protocol_description=desc)
 
         artefact_model = ArtefactModel(channel_model)
 
