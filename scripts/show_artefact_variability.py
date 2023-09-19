@@ -1,7 +1,10 @@
 import argparse
 import os
 import matplotlib.pyplot as plt
-from markovmodels import common
+
+from markovmodels.utilities import setup_output_directory
+from markovmodels.model_generation import make_model_of_class
+from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
 from markovmodels.ArtefactModel import ArtefactModel
 
 
@@ -15,13 +18,13 @@ def main():
     args = parser.parse_args()
 
     global output_dir
-    output_dir = common.setup_output_directory(args.output, 'show_artefact_variability')
+    output_dir = setup_output_directory(args.output, 'show_artefact_variability')
 
     model_class = 'BeattieModel'
     protocol = 'staircaseramp1'
-    voltage_func, times, desc = common.get_ramp_protocol_from_csv(protocol)
-    c_model = common.make_model_of_class(model_class, times, voltage=voltage_func,
-                                         protocol_description=desc)
+    voltage_func, times, desc = get_ramp_protocol_from_csv(protocol)
+    c_model = make_model_of_class(model_class, times, voltage=voltage_func,
+                                  protocol_description=desc)
 
     artefact_model = ArtefactModel(c_model)
 

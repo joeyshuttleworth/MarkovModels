@@ -54,22 +54,22 @@ class ArtefactModel(MarkovModel):
 
         def rhs_inf(p, voltage):
             # Find a steady state of the system actual steady state
-            # g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
-            # channel_model_auxiliary_function = njit(channel_model.auxiliary_function)
+            g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
+            channel_model_auxiliary_function = njit(channel_model.auxiliary_function)
 
-            # @njit
-            # def I_inf(V_m):
-            #     x_inf = channel_rhs_inf(p[:-no_artefact_parameters], V_m).flatten()
-            #     I_inf = channel_model_auxiliary_function((x_inf, p[:-no_artefact_parameters], V_m)) \
-            #         + g_leak_leftover * (V_m - E_leak_leftover)
-            #     return I_inf
+            @njit
+            def I_inf(V_m):
+                x_inf = channel_rhs_inf(p[:-no_artefact_parameters], V_m).flatten()
+                I_inf = channel_model_auxiliary_function((x_inf, p[:-no_artefact_parameters], V_m)) \
+                    + g_leak_leftover * (V_m - E_leak_leftover)
+                return I_inf
 
-            # # Function to find root of
-            # def f_func(V_m):
-            #     return voltage + V_off - V_m - I_inf(V_m) * R_s
+            # Function to find root of
+            def f_func(V_m):
+                return voltage + V_off - V_m - I_inf(V_m) * R_s
 
-            # V_m = scipy.optimize.root_scalar(f_func, x0=-80).root
-            V_m = -80
+            V_m = scipy.optimize.root_scalar(f_func, x0=-80).root
+            # V_m = -80
             rhs_inf = np.append(channel_rhs_inf(p[:-no_artefact_parameters], V_m).flatten(), V_m)
             return np.expand_dims(rhs_inf, -1)
 

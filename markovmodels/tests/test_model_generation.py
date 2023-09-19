@@ -13,7 +13,7 @@ import sympy as sp
 from numba import njit
 
 import markovmodels
-from markovmodels.utilities import setup_output_directory
+from markovmodels.utilities import setup_output_directory, calculate_reversal_potential
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
 from markovmodels.model_generation import make_model_of_class, make_myokit_model
 
@@ -37,10 +37,9 @@ class TestModelGeneration(unittest.TestCase):
 
         tolerances = 1e-10, 1e-10
 
-        model = make_model_of_class('model14', times,
-                                                 voltage_func,
-                                                 protocol_description=desc,
-                                                 tolerances=tolerances)
+        model = make_model_of_class('model14', times, voltage_func,
+                                    protocol_description=desc,
+                                    tolerances=tolerances)
 
         full_parameters = model.get_default_parameters()
 
@@ -193,12 +192,12 @@ class TestModelGeneration(unittest.TestCase):
 
         for model in self.model_names:
             mk_model = make_myokit_model(model)
-            mk_model.set_value('markov_chain.E_Kr', markovmodels.calculate_reversal_potential())
+            mk_model.set_value('markov_chain.E_Kr', calculate_reversal_potential())
 
             mm_model = make_model_of_class(model, times,
-                                                  voltage_func,
-                                                  protocol_description=desc,
-                                                  tolerances=tolerances)
+                                           voltage_func,
+                                           protocol_description=desc,
+                                           tolerances=tolerances)
 
             mk_simulation = myokit.Simulation(mk_model, mk_protocol)
             mk_simulation.set_tolerance(1e-12, 1e-12)
