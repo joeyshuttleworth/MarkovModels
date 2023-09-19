@@ -52,15 +52,18 @@ class ArtefactModel(MarkovModel):
 
         channel_rhs_inf = self.channel_model.rhs_inf
 
+        channel_model_auxiliary_function = njit(channel_model.auxiliary_function)
+
         def rhs_inf(p, voltage):
             # Find a steady state of the system actual steady state
-            g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
-            channel_model_auxiliary_function = njit(channel_model.auxiliary_function)
+            _, _, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
 
-            @njit
+            channel_params = p[:-no_artefact_parameters]
+            print(p)
+
             def I_inf(V_m):
-                x_inf = channel_rhs_inf(p[:-no_artefact_parameters], V_m).flatten()
-                I_inf = channel_model_auxiliary_function((x_inf, p[:-no_artefact_parameters], V_m)) \
+                x_inf = channel_rhs_inf(channel_params, V_m).flatten()
+                I_inf = channel_model_auxiliary_function(x_inf, channel_params, V_m) \
                     + g_leak_leftover * (V_m - E_leak_leftover)
                 return I_inf
 
@@ -68,9 +71,8 @@ class ArtefactModel(MarkovModel):
             def f_func(V_m):
                 return voltage + V_off - V_m - I_inf(V_m) * R_s
 
-            V_m = scipy.optimize.root_scalar(f_func, x0=-80).root
-            # V_m = -80
-            rhs_inf = np.append(channel_rhs_inf(p[:-no_artefact_parameters], V_m).flatten(), V_m)
+            V_m = scipy.optimize.root_scalar(f_func, x0=-80, method='secant').root
+            rhs_inf = np.append(channel_rhs_inf(channel_params, V_m).flatten(), V_m)
             return np.expand_dims(rhs_inf, -1)
 
         self.rhs_inf = rhs_inf
@@ -78,11 +80,11 @@ class ArtefactModel(MarkovModel):
     def get_default_parameters(self):
         channel_parameters = self.channel_model.get_default_parameters()
         # g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
-        default_artefact_parameters = np.array([self.g_leak, self.E_leak,
-                                                0, 0, 0, self.C_m, self.R_s])
+        default_artefact_parameters = np.array([self.g_leak, self.E_leak, .0,
+                                                .0, .0, self.C_m, self.R_s]).astype(np.float64)
 
         return np.concatenate((channel_parameters,
-                               default_artefact_parameters))
+                               default_artefact_parameters)).astype(np.float64).flatten()
 
     def get_parameter_labels(self):
         return self.channel_model.get_parameter_labels() + ['g_leak_leftover', 'E_leak_leftover',
