@@ -36,45 +36,44 @@ class ArtefactModel(MarkovModel):
         self.v = channel_model.v
 
         self.voltage = channel_model.voltage
-
         self.rates_dict = channel_model.rates_dict
 
         self.times = channel_model.times
         self.protocol_description = channel_model.protocol_description
 
         self.solver_tolerances = channel_model.solver_tolerances
-
         self.E_rev = channel_model.E_rev
-
         self.channel_model.compute_steady_state_expressions()
-
         self.auxiliary_function = self.define_auxiliary_function()
 
-        channel_rhs_inf = self.channel_model.rhs_inf
+        self.rhs_inf = self.define_steady_state_function()
 
-        channel_model_auxiliary_function = njit(channel_model.auxiliary_function)
-
+    def define_steady_state_function(self):
         def rhs_inf(p, voltage):
             # Find a steady state of the system actual steady state
-            _, _, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
 
             channel_params = p[:-no_artefact_parameters]
 
+            g_leak, E_leak, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
+            channel_rhs_inf = self.channel_model.rhs_inf
+            channel_model_auxiliary_function = njit(self.channel_model.define_auxiliary_function())
+
             def I_inf(V_m):
+                g_leak, E_leak, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
                 x_inf = channel_rhs_inf(channel_params, V_m).flatten()
                 I_inf = channel_model_auxiliary_function(x_inf, channel_params, V_m) \
-                    + g_leak_leftover * (V_m - E_leak_leftover)
+                    + g_leak_leftover * (V_m - E_leak_leftover) \
+                    + g_leak*(V_m - E_leak)
                 return I_inf
 
             # Function to find root of
             def f_func(V_m):
-                return voltage + V_off - V_m - I_inf(V_m) * R_s
+                return voltage + V_off - V_m - I_inf(V_m) * R_s * 1e3
 
             V_m = scipy.optimize.root_scalar(f_func, x0=-80, method='secant').root
             rhs_inf = np.append(channel_rhs_inf(channel_params, V_m).flatten(), V_m)
             return np.expand_dims(rhs_inf, -1)
-
-        self.rhs_inf = rhs_inf
+        return rhs_inf
 
     def get_default_parameters(self):
         channel_parameters = self.channel_model.get_default_parameters()
@@ -92,7 +91,6 @@ class ArtefactModel(MarkovModel):
     def define_auxiliary_function(self):
         channel_auxiliary_function = njit(self.channel_model.define_auxiliary_function())
 
-        @njit
         def auxiliary_func(x, p, _):
             _, _, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
             V_m = x[-1, :]
@@ -124,9 +122,31 @@ class ArtefactModel(MarkovModel):
                 atol=atol, rtol=rtol,
                 hybrid=False
             )
-            if njitted:
-                solver = numba.jit(solver)
-            return solver
+
+        if njitted:
+            solver = numba.jit(solver, nopython=False)
+        return solver
+
+    def make_hybrid_solver_current(self, protocol_description=None,
+                                   njitted=False, analytic_solver=None,
+                                   strict=True, cond_threshold=None, atol=None,
+                                   rtol=None, hybrid=True):
+        if hybrid:
+            raise NotImplementedError()
+        else:
+            solver = super().make_hybrid_solver_current(
+                protocol_description,
+                njitted=False,
+                analytic_solver=analytic_solver,
+                strict=strict,
+                cond_threshold=cond_threshold,
+                atol=atol, rtol=rtol,
+                hybrid=False
+            )
+
+        if njitted:
+            solver = numba.jit(solver, nopython=False)
+        return solver
 
     def get_cfunc_rhs(self):
         channel_rhs = self.channel_model.get_rhs_func(njitted=True)
@@ -174,7 +194,7 @@ class ArtefactModel(MarkovModel):
             V_p = V_cmd
 
             # V_m derivative
-            dy[-1] = (V_p + V_off - V_m)/(C_m * R_s) - I_out / C_m
+            dy[-1] = (V_p + V_off - V_m)/(C_m * R_s) - I_out * 1e3 / C_m
 
             # compute derivative for channel model
             dy[0:-1] = channel_rhs(y[0:-1], p[:-no_artefact_parameters], V_m).flatten()
