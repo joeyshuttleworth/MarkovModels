@@ -20,7 +20,7 @@ class TestModelGeneration(unittest.TestCase):
         test_output_dir = setup_output_directory('test_output', 'test_artefact_model')
         if not os.path.exists(test_output_dir):
             os.makedirs(test_output_dir)
-        self.output_dir = test_output_dir
+            self.output_dir = test_output_dir
 
         self.model_names = [f"model{i}" for i in range(15)]
         logging.info("outputting to " + test_output_dir)
@@ -62,15 +62,15 @@ class TestModelGeneration(unittest.TestCase):
             voltage_func, times, desc = get_ramp_protocol_from_csv(protocol)
             tolerances = 1e-10, 1e-10
 
-            c_model1 = markovmodels.make_model_of_class(original_model, times,
-                                                        voltage=voltage_func,
-                                                        protocol_description=desc,
-                                                        tolerances=tolerances)
-            c_model2 = markovmodels.make_model_of_class(generated_model,
-                                                        voltage=voltage_func,
-                                                        times=times,
-                                                        protocol_description=desc,
-                                                        tolerances=tolerances)
+            c_model1 = make_model_of_class(original_model, times,
+                                           voltage=voltage_func,
+                                           protocol_description=desc,
+                                           tolerances=tolerances)
+            c_model2 = make_model_of_class(generated_model,
+                                           voltage=voltage_func,
+                                           times=times,
+                                           protocol_description=desc,
+                                           tolerances=tolerances)
 
             model1 = ArtefactModel(c_model1)
             model2 = ArtefactModel(c_model2)
