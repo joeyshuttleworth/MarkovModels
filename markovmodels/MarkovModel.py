@@ -110,7 +110,7 @@ class MarkovModel:
 
         self.compute_steady_state_expressions()
 
-        self.auxiliary_function = self.define_auxiliary_function()
+        self.auxiliary_function = njit(self.define_auxiliary_function())
 
     def define_auxiliary_function(self):
         return sp.lambdify((self.y, self.p, self.v), self.auxiliary_expression)
@@ -533,9 +533,6 @@ class MarkovModel:
                                            atol=atol, rtol=rtol, hybrid=hybrid)
 
         auxiliary_function = self.auxiliary_function
-
-        if njitted:
-            auxiliary_function = njit(auxiliary_function)
 
         times = self.times
 

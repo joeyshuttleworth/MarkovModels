@@ -160,7 +160,6 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,
         ys = []
 
         for comp in comps:
-            print(comp)
             state_indices = [labels.index(state) for state in comp]
 
             sub_Q = Q[state_indices, state_indices]
