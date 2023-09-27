@@ -1,29 +1,14 @@
 import argparse
-import logging
-import multiprocessing
 from glob import glob
-
-import matplotlib
-import matplotlib.pyplot as plt
-import regex as re
-import seaborn as sns
-
-from markovmodels import common
-from markovmodels.BeattieModel import BeattieModel
-from markovmodels.ClosedOpenModel import ClosedOpenModel
-from markovmodels.KempModel import KempModel
-
-
-matplotlib.use('agg')
 
 import os
 import pandas as pd
 import numpy as np
 import itertools
+import regex as re
+import markovmodels
 
-import numpy as np
-import pandas as pd
-from fit_all_wells_and_protocols import compute_predictions_df
+# from fit_all_wells_and_protocols import compute_predictions_df
 
 
 def main():
@@ -36,7 +21,7 @@ def main():
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
 
     args = parser.parse_args()
-    model_class = common.get_model_class(args.model_class)
+    model_class = markovmodels.get_model_class(args.model_class)
 
     glob_string = args.combine_dir + f"/*/{args.filename}"
 
@@ -62,7 +47,7 @@ def main():
     df = pd.concat(dfs, ignore_index=True)
     print(df)
 
-    output_dir = common.setup_output_directory(args.output, 'combine_fitting_results')
+    output_dir = markovmodels.setup_output_directory(args.output, 'combine_fitting_results')
 
     df.to_csv(os.path.join(output_dir, 'combined_fitting_results.csv'))
 
@@ -107,7 +92,6 @@ def check(model_class, parameters):
 
     # Ensure that all parameters > 0
     return np.all(parameters > 0)
-
 
 
 if __name__ == '__main__':

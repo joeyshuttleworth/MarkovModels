@@ -77,6 +77,23 @@ class TestModelGeneration(unittest.TestCase):
             except np.linalg.LinAlgError:
                 return 0
 
+        # First plot A_cond and P_cond with default parameter values
+        v_range = np.linspace(-120, 40, 25)
+        p = model.get_default_parameters()
+        plt.plot(v_range, [A_cond_func(p, v) for v in v_range])
+        plt.xlabel('voltage (mV)')
+        plt.ylabel('A_cond')
+        plt.yscale('log')
+        plt.savefig(os.path.join('A_cond.png'))
+        plt.clf()
+
+        plt.plot(v_range, [P_cond_func(p, v) for v in v_range])
+        plt.xlabel('voltage (mV)')
+        plt.ylabel('P_cond')
+        plt.yscale('log')
+        plt.savefig(os.path.join(self.output_dir,'P_cond.png'))
+        plt.clf()
+
         rows = []
         for i, p in enumerate(sampled_parameter_sets):
             hres = hsolver(p)
@@ -86,10 +103,11 @@ class TestModelGeneration(unittest.TestCase):
             A_conds = [A_cond_func(p, v) for v in voltages]
             error = np.max((hres - res)**2)
 
-            rows.append([max(A_conds), max(P_conds), error])
+            rows.append([max(A_conds), max(P_conds), error, *p])
 
-        results_df = pd.DataFrame(rows, columns=['max_A_cond', 'max_P_cond', 'max_error'])
-        results_df.to_csv(os.path.join(self.output_dir, 'cond_P_error_table'))
+        param_labels = model.get_parameter_labels()
+        results_df = pd.DataFrame(rows, columns=['max_A_cond', 'max_P_cond', 'max_error', *param_labels])
+        results_df.to_csv(os.path.join(self.output_dir, 'condition_number_error_table.csv'))
 
         results_df = results_df[np.all(np.isfinite(results_df.values), axis=1)]
 
@@ -133,6 +151,7 @@ class TestModelGeneration(unittest.TestCase):
         plt.plot(times, hsolver(sampled_parameter_sets[max_max_error_i]),
                  label='hybrid solver')
         plt.savefig(os.path.join(self.output_dir, "model_14_solver_comparison_max_max_error"))
+        plt.legend()
         plt.clf()
 
         splot = sns.scatterplot(data=results_df, x='max_A_cond', y='max_error')
