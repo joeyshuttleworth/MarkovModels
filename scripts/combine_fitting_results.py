@@ -1,4 +1,3 @@
-
 import argparse
 import logging
 import multiprocessing
@@ -18,6 +17,9 @@ from markovmodels.KempModel import KempModel
 matplotlib.use('agg')
 
 import os
+import pandas as pd
+import numpy as np
+import itertools
 
 import numpy as np
 import pandas as pd
@@ -27,19 +29,22 @@ from fit_all_wells_and_protocols import compute_predictions_df
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('combine_dir')
-    parser.add_argument('data_directory')
+    parser.add_argument('data_directories')
+    parser.add_argument('--filename', default='fitting.csv')
     parser.add_argument('--output', '-o')
     parser.add_argument('--figsize', '-f', nargs=2, type=int)
-    parser.add_argument('--model_class', default='Beattie', type=str)
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
-    parser.add_argument('--removal_duration', type=float, default=5)
 
     args = parser.parse_args()
     model_class = common.get_model_class(args.model_class)
 
-    glob_string = args.combine_dir + r'/*/*fitted_params*csv'
-    print(glob_string)
-    res = glob(glob_string)
+    glob_string = args.combine_dir + f"/*/{args.filename}"
+
+    res = [glob(os.path.join(directory, glob_string)) for directory\
+           in args.data_directories]
+
+    # Flatten res
+    res = itertools.chain(res)
     print(res)
 
     rgex = re.compile(r'([A-Z|0-9][0-9][0-9])_([a-z|A-Z|0-9]*)_fitted_params.csv$')
@@ -71,9 +76,9 @@ def main():
 
     df = df[~np.array(remove)]
 
-    predictions_df = compute_predictions_df(df, output_dir, args=args,
-                                            model_class=model_class)
-    predictions_df.to_csv(os.path.join(output_dir, 'combined_predictions_df.csv'))
+    # predictions_df = compute_predictions_df(df, output_dir, args=args,
+    #                                         model_class=model_class)
+    # predictions_df.to_csv(os.path.join(output_dir, 'combined_predictions_df.csv'))
 
 
 def check(model_class, parameters):
