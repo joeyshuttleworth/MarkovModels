@@ -62,24 +62,24 @@ def use_qc_estimates(qc_df, leak_df, passed_wells):
     fig = plt.figure(figsize=args.figsize)
     axs = fig.subplots(2)
 
+    reference_sol = c_model.SimulateForwardModel()
     axs[0].plot(times*1e-3, c_model.SimulateForwardModel())
     ylims_1 = axs[0].get_ylim()
 
     axs[1].plot(times*1e-3, [voltage_func(t) for t in times])
+    ylim_2 = axs[1].get_ylim()
 
+    qc_df = qc_df[qc_df.well.isin(passed_wells) & qc_df.protocol.isin(['staircaseramp1', 'staircaseramp2'])].reset_index()
+
+    qc_df.Rseries = qc_df.Rseries*1e-9
+    qc_df.Cm = qc_df.Cm*1e9
+
+    discrepancies = []
     for index, row in qc_df.iterrows():
-        if row['protocol'] not in ['staircaseramp1', 'staircaseramp2']:
-            continue
 
         well, protocol, sweep, R_s, C_m = row[['well', 'protocol', 'sweep',
-                                               'Rseal', 'Cm']]
-        if well not in passed_wells:
-            continue
-
+                                               'Rseries', 'Cm']]
         # Convert from base units
-        R_s = R_s * 1e-12
-        C_m = C_m * 1e9
-
         try:
             g_leak, E_leak = leak_df.loc[well,
                                          protocol,
@@ -91,17 +91,25 @@ def use_qc_estimates(qc_df, leak_df, passed_wells):
         p = artefact_model.get_default_parameters()
         p[-7:] = .0, .0, .0, .0, .0, C_m, R_s
 
-        print(p)
         sol = a_solver(p)
+        sol_i = a_solver_i(p)
+        discrepancy = np.sqrt(np.mean((sol_i - reference_sol)**2))
 
-        print(sol)
+        discrepancies.append(discrepancy)
 
-        axs[0].plot(times*1e-3, a_solver_i(p),
-                    color='grey', alpha=.5)
+        axs[0].plot(times*1e-3, sol_i,
+                    color='grey', alpha=.25)
         axs[1].plot(times*1e-3, sol[:, -1],
-                    color='grey', alpha=.5)
+                    color='grey', alpha=.25)
 
+    # Well with biggest error
+    qc_df['discrepancy'] = discrepancies
+    worst_trace = qc_df.iloc[qc_df.discrepancy.idxmax()]
+    print(f"worst trace is {worst_trace}")
+
+    axs[1].set_ylim(ylim_2)
     axs[0].set_ylim(ylims_1)
+
     fig.savefig(os.path.join(output_dir,
                              'artefact_variability_from_qc_estimates'))
     fig.clf()
