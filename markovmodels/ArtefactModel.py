@@ -70,7 +70,8 @@ class ArtefactModel(MarkovModel):
             def f_func(V_m):
                 return voltage + V_off - V_m - I_inf(V_m) * R_s * 1e3
 
-            V_m = scipy.optimize.root_scalar(f_func, x0=-80, method='secant').root
+            # V_m = scipy.optimize.root_scalar(f_func, x0=-80, method='secant').root
+            V_m = -80
             rhs_inf = np.append(channel_rhs_inf(channel_params, V_m).flatten(), V_m)
             return np.expand_dims(rhs_inf, -1)
         return rhs_inf
@@ -92,11 +93,13 @@ class ArtefactModel(MarkovModel):
         channel_auxiliary_function = njit(self.channel_model.define_auxiliary_function())
 
         def auxiliary_func(x, p, _):
-            _, _, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
+            g_leak, E_leak, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
             V_m = x[-1, :]
             I_Kr = channel_auxiliary_function(x[:-1], p[:-no_artefact_parameters], V_m)
 
-            I_post = I_Kr - g_leak_leftover * (V_m - E_leak_leftover)
+            I_leak = g_leak * (V_m - E_leak)
+            I_leak_leftover = g_leak_leftover * (V_m - E_leak_leftover)
+            I_post = I_Kr + I_leak + I_leak_leftover
 
             return I_post
 
@@ -163,9 +166,6 @@ class ArtefactModel(MarkovModel):
 
         prot_func = self.channel_model.voltage
 
-        E_leak = self.E_leak
-        g_leak = self.g_leak
-
         channel_auxiliary_function = njit(self.channel_model.define_auxiliary_function())
 
         @cfunc(lsoda_sig)
@@ -183,7 +183,7 @@ class ArtefactModel(MarkovModel):
             V_m = y[-1]
             V_cmd = prot_func(t, offset=t_offset)
 
-            I_leak = (V_cmd - E_leak) * g_leak
+            I_leak = (V_m - E_leak) * g_leak
             I_leak_leftover = (V_m - E_leak_leftover) * g_leak_leftover
 
             I_Kr = channel_auxiliary_function(y[:-1], p[:-no_artefact_parameters], V_m)

@@ -40,13 +40,13 @@ def main():
     parser.add_argument('--wells', '-w', nargs='+', default=None)
     parser.add_argument('--output', '-o', default=None)
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
-    parser.add_argument('--percentage_to_remove', default=0, type=float)
     parser.add_argument('--experiment_name', default='newtonrun4')
     parser.add_argument('--ramp_start', type=float, default=300)
     parser.add_argument('--ramp_end', type=float, default=900)
     parser.add_argument('--figsize', type=int, nargs=2, default=[8, 12])
     parser.add_argument('--output_all', action='store_true')
     parser.add_argument('--no_plot', action='store_true')
+    parser.add_argument('--Erev', type=float)
 
     global args
     args = parser.parse_args()
@@ -66,9 +66,7 @@ def main():
     if not os.path.exists(leak_subtraction_plots_dir):
         os.makedirs(leak_subtraction_plots_dir)
 
-    global reversal_plot_dir
     reversal_plot_dir = os.path.join(output, 'reversal_plots')
-
     if not os.path.exists(reversal_plot_dir):
         os.makedirs(reversal_plot_dir)
 
@@ -101,6 +99,8 @@ def main():
         res = pool.starmap(subtract_leak, tasks)
 
     df = pd.concat(res, ignore_index=True)
+    qc_vals_df = pd.read(os.path.join(args.data_directory, f"{experiment_name}_qc_estimates.csv"))
+    qc_vals_df.to_csv(os.path.join(output, 'qc_vals.csv'))
 
     if not args.ignore_QC7:
         df['passed QC7'] = False
@@ -239,6 +239,8 @@ def overlay_first_last_staircases(well):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax1, ax2 = fig.subplots(2, 1, height_ratios=[3, 1])
 
+    print("times {times}")
+
     try:
         before_trace = pd.read_csv(os.path.join(subtracted_traces_dir, first_filename))['current'].values.flatten()
     except FileNotFoundError as exc:
@@ -272,7 +274,16 @@ def overlay_first_last_staircases(well):
     plt.close(fig)
 
 
-def subtract_leak(well, protocol, args):
+def subtract_leak(well, protocol, args, output_dir=None):
+
+    leak_subtraction_plots_dir = os.path.join(output_dir, 'subtraction_plots')
+
+    if not os.path.exists(leak_subtraction_plots_dir):
+        os.makedirs(leak_subtraction_plots_dir)
+
+    if output_dir is None:
+        output_dir = output
+
     if not args.no_plot:
         fig = plt.figure(figsize=args.figsize, clear=True, constrained_layout=True)
         subtract_scatter_fig = plt.figure(figsize=args.figsize)
@@ -280,7 +291,7 @@ def subtract_leak(well, protocol, args):
         [[scatter_ax_before, window_ax_before], [scatter_ax_after, window_ax_after]] = axs
 
     nsweeps = 1
-    sweep2_fname = f"{experiment_name}-{protocol}-{well}-before-sweep2.csv"
+    sweep2_fname = f"{args.experiment_name}-{protocol}-{well}-before-sweep2.csv"
     if os.path.exists(os.path.join(args.data_directory, sweep2_fname)):
         nsweeps = 2
 
@@ -290,44 +301,59 @@ def subtract_leak(well, protocol, args):
 
     protocol_func, _, _ = get_ramp_protocol_from_csv(protocol)
     observation_times = pd.read_csv(os.path.join(
-        args.data_directory, f"{experiment_name}-{protocol}-times.csv")).values.flatten() * 1e3
+        args.data_directory, f"{args.experiment_name}-{protocol}-times.csv")).to_numpy()[:, -1].flatten()
     protocol_voltages = np.array([protocol_func(t) for t in observation_times])
     dt = observation_times[1] - observation_times[0]
 
-    df = []
+    print(f"dt={dt}")
 
+    reversal_plot_dir = os.path.join(output_dir, 'reversal_plots')
+
+    full_subtracted_trace_dir = os.path.join(output_dir, subtracted_trace_dirname)
+    if not os.path.exists(full_subtracted_trace_dir):
+        os.makedirs(full_subtracted_trace_dir)
+
+    scatter_plots_dir = os.path.join(output_dir, 'scatter_plots')
+    if not os.path.exists(scatter_plots_dir):
+        os.makedirs(scatter_plots_dir)
+
+    df = []
     for sweep in range(1, nsweeps + 1):
-        before_filename = f"{experiment_name}-{protocol}-{well}-before-sweep{sweep}.csv"
-        after_filename = f"{experiment_name}-{protocol}-{well}-after-sweep{sweep}.csv"
+        before_filename = f"{args.experiment_name}-{protocol}-{well}-before-sweep{sweep}.csv"
+        after_filename = f"{args.experiment_name}-{protocol}-{well}-after-sweep{sweep}.csv"
 
         tracename = 'subtracted'
 
         try:
-            before_trace = pd.read_csv(os.path.join(args.data_directory, before_filename)).values.flatten()
+            before_trace_df = pd.read_csv(os.path.join(args.data_directory, before_filename))
+            before_trace = before_trace_df[before_trace_df.columns[-1]].to_numpy().flatten().astype(np.float64)
         except FileNotFoundError as exc:
             before_trace = None
             print(str(exc))
 
         try:
-            after_trace = pd.read_csv(os.path.join(args.data_directory, after_filename)).values.flatten()
+            after_trace_df = pd.read_csv(os.path.join(args.data_directory, after_filename))
+            after_trace = after_trace_df[after_trace_df.columns[-1]].to_numpy().flatten().astype(np.float64)
         except FileNotFoundError as exc:
             after_trace = None
             print(str(exc))
 
-        if before_trace is not None:
+        if before_trace is not None and np.all(np.isfinite(before_trace)):
             g_leak_before, E_leak_before, _, _, _, x, y = fit_leak_lr(
                 protocol_voltages, before_trace, dt=dt,
-                percentage_to_remove=args.percentage_to_remove,
                 ramp_start=args.ramp_start,
                 ramp_end=args.ramp_end
             )
+
             n = len(x)
-            msres = (((x - E_leak_before) * g_leak_before - y)**2 / (n - 2)).sum()
+            # msres = (((x - E_leak_before) * g_leak_before - y)**2 / (n - 2)).sum()
 
             infer_reversal_potential(protocol, before_trace,
                                      observation_times, plot=True,
                                      output_path=os.path.join(reversal_plot_dir,
-                                                              f"{well}_{protocol}_sweep{sweep}_before"))
+                                                              f"{well}_{protocol}_sweep{sweep}_before"),
+                                     known_Erev=args.Erev
+                                     )
 
             if not args.no_plot:
                 scatter_ax_before.scatter(x, y, marker='s', color='grey', s=2)
@@ -349,15 +375,14 @@ def subtract_leak(well, protocol, args):
             g_leak_before = np.nan
             E_leak_before = np.nan
 
-        if after_trace is not None:
+        if after_trace is not None and np.all(np.isfinite(after_trace)):
             g_leak_after, E_leak_after, _, _, _, x, y = fit_leak_lr(
                 protocol_voltages, after_trace, dt=dt,
-                percentage_to_remove=args.percentage_to_remove,
                 ramp_start=args.ramp_start,
                 ramp_end=args.ramp_end
             )
             n = len(x)
-            msres = (((x - E_leak_before) * g_leak_before - y)**2 / (n - 2)).sum()
+            # msres = (((x - E_leak_before) * g_leak_before - y)**2 / (n - 2)).sum()
 
             infer_reversal_potential(protocol, before_trace,
                                      observation_times, plot=True,
@@ -425,6 +450,7 @@ def subtract_leak(well, protocol, args):
             fitted_E_rev = infer_reversal_potential(protocol,
                                                     subtracted_trace,
                                                     observation_times,
+                                                    known_Erev=args.Erev,
                                                     output_path=os.path.join(reversal_plot_dir,
                                                                              f"{protocol}_{well}_subtracted"),
                                                     plot=not args.no_plot)
@@ -438,11 +464,11 @@ def subtract_leak(well, protocol, args):
             subtracted_trace_df = pd.DataFrame(np.column_stack(
                 (observation_times, subtracted_trace)), columns=('time', 'current'))
 
-            fname = f"{experiment_name}-{protocol}-{well}-sweep{sweep}.csv"
-            subtracted_trace_df.to_csv(os.path.join(output, subtracted_trace_dirname, fname))
+            fname = f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv"
+            subtracted_trace_df.to_csv(os.path.join(full_subtracted_trace_dir, fname))
 
             subtracted_trace_df['time'].to_csv(os.path.join(
-                output, subtracted_trace_dirname, f"{experiment_name}-{protocol}-times.csv"))
+                full_subtracted_trace_dir, f"{args.experiment_name}-{protocol}-times.csv"))
 
             # Check that the current isn't negative on the first step after the leak ramp
             first_step = [(i, v) for i, v in enumerate(protocol_voltages) if v > 30]
