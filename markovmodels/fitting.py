@@ -13,6 +13,8 @@ import pints
 import pints.plot
 from numba import njit
 
+import markovmodels
+
 from markovmodels.model_generation import make_model_of_class
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
 from markovmodels.utilities import get_data
@@ -559,7 +561,7 @@ class fitting_boundaries(pints.Boundaries):
 
 
 def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
-                             output_path=None, plot=None):
+                             output_path=None, plot=None, known_Erev=None, voltages=None):
 
     if output_path:
         dirname = os.path.dirname(output_path)
@@ -586,10 +588,14 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
     if istart == 0 or iend == 0 or istart == iend:
         raise Exception("Couldn't identify reversal ramp")
 
+    full_times = times
+
+    if voltages is None:
+        voltages = np.array([protocol_func(t) for t in times])
     times = times[istart:iend]
     current = current[istart:iend]
 
-    voltages = np.array([protocol_func(t) for t in times])
+    voltages = voltages[istart:iend]
 
     fitted_poly = poly.Polynomial.fit(voltages, current, 4)
 
@@ -611,13 +617,30 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
             fig = plt.figure()
             ax = fig.subplots()
 
-        ax.plot(*fitted_poly.linspace())
         ax.set_xlabel('voltage mV')
         ax.set_ylabel('current nA')
         # Now plot current vs voltage
-        ax.plot(voltages, current, 'x', markersize=2, color='grey')
+        ax.plot(voltages, current, 'x', markersize=2, color='grey', alpha=.5)
+        if known_Erev:
+            prot_func, _, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv('staircaseramp1')
+
+            c_model = make_model_of_class('model3',
+                                          voltage=prot_func, times=full_times, E_rev=known_Erev,
+                                          protocol_description=desc,
+                                          tolerances=[1e-8, 1e-8])
+            IKr = c_model.SimulateForwardModel()[istart:iend]
+            scaling_factor = np.max(np.abs(current)) / np.max(np.abs(IKr))
+            scaled_IKr = IKr * scaling_factor
+
+            ideal_voltages = [prot_func(t) for t in times]
+
+            ax.plot(ideal_voltages, scaled_IKr, '--', color='red', label='ideal IKr with Nernst potential')
+
         ax.axvline(roots[-1], linestyle='--', color='grey', label="$E_{Kr}$")
+        if known_Erev:
+            ax.axvline(known_Erev, linestyle='--', color='yellow', label="known $E_{Kr}$")
         ax.axhline(0, linestyle='--', color='grey')
+        ax.plot(*fitted_poly.linspace())
         ax.legend()
 
         if output_path is not None:

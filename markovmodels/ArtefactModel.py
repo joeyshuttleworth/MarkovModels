@@ -68,7 +68,7 @@ class ArtefactModel(MarkovModel):
 
             # Function to find root of
             def f_func(V_m):
-                return voltage + V_off - V_m - I_inf(V_m) * R_s * 1e3
+                return voltage + V_off - V_m - I_inf(V_m) * R_s
 
             # V_m = scipy.optimize.root_scalar(f_func, x0=-80, method='secant').root
             V_m = -80
@@ -194,7 +194,7 @@ class ArtefactModel(MarkovModel):
             V_p = V_cmd
 
             # V_m derivative
-            dy[-1] = (V_p + V_off - V_m)/(C_m * R_s) - I_out * 1e3 / C_m
+            dy[-1] = (V_p + V_off - V_m)/(C_m * R_s) - I_out / C_m
 
             # compute derivative for channel model
             dy[0:-1] = channel_rhs(y[0:-1], p[:-no_artefact_parameters], V_m).flatten()

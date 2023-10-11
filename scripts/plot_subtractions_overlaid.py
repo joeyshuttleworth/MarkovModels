@@ -20,15 +20,13 @@ import seaborn as sns
 from matplotlib import rc
 from numba import njit
 
-from markovmodels import common
-from markovmodels.BeattieModel import BeattieModel
-from markovmodels.MarkovModel import MarkovModel
+import markovmodels
 from quality_control.leak_fit import fit_leak_lr
 
 
 # rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 
-Erev = common.calculate_reversal_potential(T=298.15, K_in=130, K_out=4)
+Erev = markovmodels.utilities.calculate_reversal_potential(T=298.15, K_in=130, K_out=4)
 
 pool_kws = {'maxtasksperchild': 1}
 
@@ -60,7 +58,8 @@ def main():
     description = ""
     parser = argparse.ArgumentParser(description)
 
-    parser.add_argument('data_dir', type=str, help="path to the directory containing the raw data")
+    parser.add_argument('data_dir', type=str, help="path to the directory containing the subtract_leak results")
+    parser.add_argument('qc_estimates_file')
     parser.add_argument('--chrono_file', type=str, help="path to file listing the protocols in order")
     parser.add_argument('--cpus', '-c', default=1, type=int)
     parser.add_argument('--wells', '-w', nargs='+', default=None)
@@ -78,9 +77,10 @@ def main():
     experiment_name = args.experiment_name
 
     global output_dir
-    output_dir = common.setup_output_directory(args.output, 'plot_subtractions_overlaid')
+    output_dir = markovmodels.utilities.setup_output_directory(args.output, 'plot_subtractions_overlaid')
 
     leak_parameters_df = pd.read_csv(os.path.join(args.data_dir, 'subtraction_qc.csv'))
+    qc_vals_df = pd.read_csv(os.path.join(args.qc_estimates_file))
 
     if 'selected' not in leak_parameters_df.columns and args.selection_file:
         with open(args.selection_file) as fin:
@@ -132,8 +132,8 @@ def main():
     plot_reversal_spread(leak_parameters_df)
     if np.isfinite(args.reversal):
         plot_spatial_Erev(leak_parameters_df)
-    do_scatter_matrix(leak_parameters_df)
-    plot_histograms(leak_parameters_df)
+    do_scatter_matrices(leak_parameters_df, qc_vals_df)
+    plot_histograms(leak_parameters_df, qc_vals_df)
     overlay_reversal_plots(leak_parameters_df)
     do_combined_plots(leak_parameters_df)
 
@@ -311,12 +311,12 @@ def do_combined_plots(leak_parameters_df):
     plt.close(fig2)
 
 
-def do_scatter_matrix(df):
-    df = df.drop([df.columns[0], 'sweep', 'passed QC.Erev',
-                  'selected', 'pre-drug leak reversal', 'post-drug leak reversal'],
-                 axis='columns')
+def do_scatter_matrices(df, qc_df):
+    grid_df = df.drop([df.columns[0], 'sweep', 'passed QC.Erev',
+                       'selected', 'pre-drug leak reversal', 'post-drug leak reversal'],
+                      axis='columns')
 
-    grid = sns.pairplot(data=df, hue='passed QC', diag_kind='hist',
+    grid = sns.pairplot(data=grid_df, hue='passed QC', diag_kind='hist',
                         plot_kws={'alpha': 0.4, 'edgecolor': None},
                         hue_order=[False, True])
     grid.savefig(os.path.join(output_dir, 'scatter_matrix_by_QC'))
@@ -331,6 +331,21 @@ def do_scatter_matrix(df):
                         plot_kws={'alpha': 0.4, 'edgecolor': None},
                         hue_order=[False, True])
     grid.savefig(os.path.join(output_dir, 'scatter_matrix_by_reversal'))
+
+    # Now do artefact parameters only
+    qc_df = qc_df[qc_df.drug == 'before']
+    qc_df = qc_df.set_index(['protocol', 'well', 'sweep'])
+    qc_df = qc_df[['Rseries', 'Cm', 'Rseal']]
+    qc_df['R_leftover'] = df['R_leftover']
+    qc_df['passed QC'] = qc_df.index.get_level_values('well').isin(passed_wells)
+
+    print(qc_df)
+    qc_df = qc_df.reset_index().drop(['well', 'protocol', 'sweep'], axis='columns')
+
+    grid = sns.pairplot(data=qc_df, diag_kind='hist', plot_kws={'alpha': .4,
+                                                                'edgecolor': None},
+                        hue='passed QC', hue_order=[False, True])
+    grid.savefig(os.path.join(output_dir, 'scatter_matrix_QC_params_by_QC'))
 
 
 def plot_reversal_spread(df):
@@ -426,7 +441,7 @@ def plot_spatial_Erev(df):
     plt.close(fig)
 
 
-def plot_histograms(df):
+def plot_histograms(df, qc_df):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
     sns.histplot(df,
@@ -473,6 +488,35 @@ def plot_histograms(df):
                  stat='probability', common_norm=False)
 
     fig.savefig(os.path.join(output_dir, 'R_leftover'))
+
+    sns.histplot(df,
+                 x='pre-drug leak conductance', hue='passed QC', ax=ax,
+                 stat='probability', common_norm=False)
+    fig.savefig(os.path.join(output_dir, 'g_leak_before'))
+    ax.cla()
+
+    sns.histplot(df,
+                 x='post-drug leak conductance', hue='passed QC', ax=ax,
+                 stat='probability', common_norm=False)
+    fig.savefig(os.path.join(output_dir, 'g_leak_after'))
+    ax.cla()
+
+    qc_df['passed QC'] = qc_df.well.isin(passed_wells)
+
+    sns.histplot(qc_df[qc_df.drug == 'before'],
+                 x='Rseries', hue='passed QC', ax=ax,
+                 stat='probability', common_norm=False)
+    fig.savefig(os.path.join(output_dir, 'Rseries_before'))
+
+    sns.histplot(qc_df[qc_df.drug == 'before'],
+                 x='Rseal', hue='passed QC', ax=ax,
+                 stat='probability', common_norm=False)
+    fig.savefig(os.path.join(output_dir, 'Rseal_before'))
+
+    sns.histplot(qc_df[qc_df.drug == 'before'],
+                 x='Cm', hue='passed QC', ax=ax,
+                 stat='probability', common_norm=False)
+    fig.savefig(os.path.join(output_dir, 'Cm_before'))
 
     plt.close(fig)
 

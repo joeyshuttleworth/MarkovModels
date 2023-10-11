@@ -269,7 +269,7 @@ class DisconnectedMarkovModel(MarkovModel):
         no_states = self.n_states
         no_components = len(self.connected_components)
 
-        steady_state_funcs = tuple([njit(f) if njitted else f for f in self.rhs_infs])
+        steady_state_funcs = tuple(self.rhs_infs)
         analytic_solvers = tuple([njit(func) for func in self.get_analytic_solution_funcs()])
 
         # Cannot loop over analytic solvers for some reason. All of the 30

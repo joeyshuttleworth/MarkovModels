@@ -585,6 +585,8 @@ class MarkovModel:
             states = solver_states(p, times, atol, rtol)
             return (auxiliary_function(states.T, p, voltages)).flatten()
 
+        if njitted:
+            forward_solver = njit(forward_solver)
         return forward_solver
 
     def solve_rhs(self, p=None, times=None):

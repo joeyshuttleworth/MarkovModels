@@ -492,13 +492,13 @@ def subtract_leak(well, protocol, args, output_dir=None):
                 before_axs[ax_col].plot(observation_times, g_leak_before * (protocol_voltages - E_leak_before), label=f"leak current E={E_leak_before:.2f}mV, g={g_leak_before:.2f}")
                 before_axs[ax_col].set_title(f"Before drug raw trace sweep{sweep}")
                 before_axs[ax_col].legend(loc=1)
-                before_axs[ax_col].set_ylabel('current / nA')
+                before_axs[ax_col].set_ylabel('current / pA')
 
                 after_axs[ax_col].plot(observation_times, after_trace)
                 after_axs[ax_col].plot(observation_times, g_leak_after * (protocol_voltages - E_leak_after), label=f"leak current E={E_leak_after:.2f}mV, g={g_leak_after:.2f}")
                 after_axs[ax_col].set_title(f"After drug raw trace sweep{sweep}")
                 after_axs[ax_col].legend(loc=1)
-                after_axs[ax_col].set_ylabel('current / nA')
+                after_axs[ax_col].set_ylabel('current / pA')
 
                 corrected_axs[ax_col].plot(observation_times, before_corrected, label='pre-drug')
                 corrected_axs[ax_col].plot(observation_times, after_corrected, label='post-drug')

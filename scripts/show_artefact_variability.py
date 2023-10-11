@@ -51,8 +51,9 @@ def use_qc_estimates(qc_df, leak_df, passed_wells):
     c_model = make_model_of_class(model_class, times, voltage=voltage_func,
                                   protocol_description=desc,
                                   tolerances=(1e-7, 1e-7))
-
     artefact_model = ArtefactModel(c_model)
+    p = artefact_model.get_default_parameters()
+    p[-8] *= 1e3
     a_solver = artefact_model.make_hybrid_solver_states(hybrid=False, njitted=False)
     a_solver_i = artefact_model.make_forward_solver_current(njitted=False)
 
@@ -127,6 +128,7 @@ def use_literature_range():
 
     _p = artefact_model.get_default_parameters()
     p = _p.copy()
+    p[-8] *= 1e3
 
     fig = plt.figure(figsize=args.figsize)
     axs = fig.subplots(2, 2)
@@ -166,7 +168,7 @@ def use_literature_range():
 
     a_solver = artefact_model.make_hybrid_solver_states(hybrid=False)
 
-    axs[0, 1].plot(times*1e-3, a_solver()[:, -1])
+    axs[0, 1].plot(times*1e-3, a_solver(p)[:, -1])
     axs[0, 1].set_title(f"C_m={p[-2]}nF, R_s={p[-1]}GOhm")
 
     p = _p.copy()
