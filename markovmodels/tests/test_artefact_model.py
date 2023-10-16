@@ -12,15 +12,16 @@ from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.utilities import setup_output_directory
 from markovmodels.model_generation import make_model_of_class
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
+from markovmodels.SensitivitiesMarkovModel import SensitivitiesMarkovModel
 
 
-class TestModelGeneration(unittest.TestCase):
+class TestArtefactModel(unittest.TestCase):
 
     def setUp(self):
         test_output_dir = setup_output_directory('test_output', 'test_artefact_model')
         if not os.path.exists(test_output_dir):
             os.makedirs(test_output_dir)
-            self.output_dir = test_output_dir
+        self.output_dir = test_output_dir
 
         self.model_names = [f"model{i}" for i in range(15)]
         logging.info("outputting to " + test_output_dir)
@@ -38,6 +39,7 @@ class TestModelGeneration(unittest.TestCase):
         current = artefact_model.SimulateForwardModel()
 
         plt.plot(times, current, label='artefact model')
+
         plt.plot(times, channel_model.SimulateForwardModel(), label='no_artefacts')
         plt.ylabel(r'$I_{post}$ (nA)')
         plt.xlabel(r'$t$ (ms)')
@@ -76,6 +78,7 @@ class TestModelGeneration(unittest.TestCase):
             model2 = ArtefactModel(c_model2)
 
             default_parameters = model1.get_default_parameters()
+            default_parameters[-1] = default_parameters[-1] * 1e3
 
             h_solver1 = model1.make_forward_solver_current(njitted=False)
             h_solver2 = model2.make_forward_solver_current(njitted=False)

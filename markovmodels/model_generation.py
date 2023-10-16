@@ -196,11 +196,18 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,
             Bs.append(B_vec)
             ys.append(y)
 
-        state_symbols = [mc.get_state_symbol(lab) for lab in labels]
+        # state_symbols = [mc.get_state_symbol(lab) for lab in labels]
         remaining_states = [lab for lab in state_labels if lab != eliminated_state]
-        A, B = mc.eliminate_state_from_transition_matrix(remaining_states)
 
-        symbols['y'] = sp.Matrix([[s] for s in state_symbols])
+        A = sp.Matrix.zeros(sum([len(y) for y in ys]))[:, :]
+        c = 0
+        for sub_A in As:
+            A[c:c + sub_A.shape[0], c:c + sub_A.shape[1]] = sub_A[:, :]
+            c += sub_A.shape[0]
+
+        B = sp.Matrix.vstack(*Bs)
+
+        symbols['y'] = sp.Matrix([var for y in ys for var in y])
         return DisconnectedMarkovModel(symbols, A, B, Qs, As, Bs, ys, comps,
                                        mc.rate_expressions, times,
                                        parameter_labels,

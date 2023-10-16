@@ -13,20 +13,20 @@ class DisconnectedMarkovModel(MarkovModel):
                  rates_dict, times, parameter_labels,
                  auxiliary_expression, *args, **kwargs):
 
-        self.auxiliary_expression = auxiliary_expression
-
-        self.connected_components = connected_components
-
-        self.n_states = sum([Q.shape[0] for Q in Qs])
-
-        self.parameter_labels = parameter_labels
-
         self.As = As
         self.Bs = Bs
         self.Qs = Qs
         self.ys = ys
 
+        self.auxiliary_expression = auxiliary_expression
+
+        self.connected_components = connected_components
+        self.n_states = sum([Q.shape[0] for Q in Qs])
+        self.parameter_labels = parameter_labels
+        self.y = [var for y in ys for var in y]
         super().__init__(symbols, A, B, rates_dict, times, *args, **kwargs)
+        self.n_state_vars = sum([len(y) for y in self.ys])
+        self.auxiliary_function = self.define_auxiliary_function()
 
     def compute_steady_state_expressions(self):
 
@@ -177,7 +177,6 @@ class DisconnectedMarkovModel(MarkovModel):
                                            strict=strict, hybrid=hybrid):
             y0 = rhs_inf(p, voltage(.0)).flatten()
             no_states = y0.shape[0]
-
             solution = np.full((len(times), no_states), np.nan)
             solution[0, :] = y0
 
@@ -266,7 +265,6 @@ class DisconnectedMarkovModel(MarkovModel):
 
         rhs_cfunc_ptrs = tuple(rhs_cfunc_ptrs)
 
-        no_states = self.n_states
         no_components = len(self.connected_components)
 
         steady_state_funcs = tuple(self.rhs_infs)
@@ -277,7 +275,7 @@ class DisconnectedMarkovModel(MarkovModel):
         analytic_solver1 = analytic_solvers[0]
         steady_state_func1 = steady_state_funcs[0]
         rhs_cfunc1 = rhs_cfunc_ptrs[0]
-
+        n_state_vars = self.n_state_vars
         if len(self.connected_components) == 2:
             analytic_solver2 = analytic_solvers[1]
             steady_state_func2 = steady_state_funcs[1]
@@ -285,16 +283,16 @@ class DisconnectedMarkovModel(MarkovModel):
 
             def hybrid_forward_solver(p=p, times=times, atol=atol, rtol=rtol,
                                       strict=strict, hybrid=hybrid):
-                solution = np.full((times.shape[0], no_states - no_components), np.nan)
+                solution = np.full((times.shape[0], n_state_vars), np.nan)
                 state_counter = 0
                 component_solution = \
                     hybrid_forward_solve_component(steady_state_func1,
-                                                    analytic_solver1,
-                                                    rhs_cfunc1, p=p,
-                                                    times=times,
-                                                    atol=atol, rtol=rtol,
-                                                    strict=strict,
-                                                    hybrid=hybrid)
+                                                   analytic_solver1,
+                                                   rhs_cfunc1, p=p,
+                                                   times=times,
+                                                   atol=atol, rtol=rtol,
+                                                   strict=strict,
+                                                   hybrid=hybrid)
 
                 solution[:, :component_solution.shape[1]] = component_solution
                 state_counter += component_solution.shape[1]
@@ -315,8 +313,7 @@ class DisconnectedMarkovModel(MarkovModel):
         elif len(self.connected_components) == 1:
             def hybrid_forward_solver(p=p, times=times, atol=atol, rtol=rtol,
                                       strict=strict, hybrid=hybrid):
-                solution = np.full((times.shape[0], no_states - no_components), np.nan)
-                state_counter = 0
+                solution = np.full((times.shape[0], n_state_vars), np.nan)
                 component_solution = \
                     hybrid_forward_solve_component(steady_state_func1,
                                                    analytic_solver1,
@@ -379,7 +376,7 @@ class DisconnectedMarkovModel(MarkovModel):
         aux_expr = self.auxiliary_expression.subs({'E_Kr': self.E_rev})
         return sp.lambdify((y, self.p, self.v), aux_expr)
 
-    def get_no_states(self):
+    def get_no_state_vars(self):
         return sum([len(y) for y in self.ys])
 
     def get_state_labels(self):

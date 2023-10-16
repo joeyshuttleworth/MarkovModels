@@ -4,22 +4,28 @@ from numba import cfunc, njit
 from numbalsoda import lsoda_sig
 import scipy
 import numba
+import sympy as sp
 
 no_artefact_parameters = 7
 
 from markovmodels.MarkovModel import MarkovModel
+import markovmodels
 
 
 # TODO Description
 class ArtefactModel(MarkovModel):
-    def __init__(self, channel_model, E_leak=0, g_leak=0, C_m=5e-3, R_s=5e-3,
-                 g_leak_leftover=0, E_leak_leftover=0):
+    def __init__(self, channel_model, E_leak=0, g_leak=0, C_m=5e-3, R_series=5e-3,
+                 g_leak_leftover=0, E_leak_leftover=0, ignore_states=[]):
 
         # Membrane capacitance (nF)
         self.C_m = C_m
 
         # Series resistance (GOhm)
-        self.R_s = R_s
+        self.R_s = R_series
+
+        self.E_rev = channel_model.E_rev
+        if self.E_rev is None:
+            self.E_rev = markovmodels.utilties.calculate_reversal_potential()
 
         self.no_artefact_parameters = no_artefact_parameters
 
@@ -31,9 +37,10 @@ class ArtefactModel(MarkovModel):
 
         self.channel_model = channel_model
 
-        self.p = channel_model.p
-        self.y = channel_model.y
+        self.p = sp.Matrix.vstack(channel_model.p, sp.Matrix([('p_a_%i' % i) for i in range(7)]))
+        self.y = sp.Matrix.vstack(channel_model.y, sp.Matrix([sp.sympify('Vm')]))
         self.v = channel_model.v
+        self.n_state_vars = channel_model.n_state_vars + 1
 
         self.voltage = channel_model.voltage
         self.rates_dict = channel_model.rates_dict
@@ -47,6 +54,31 @@ class ArtefactModel(MarkovModel):
         self.auxiliary_function = self.define_auxiliary_function()
 
         self.rhs_inf = self.define_steady_state_function()
+        p = self.p
+        y = self.y
+
+        I_out_expr = channel_model.auxiliary_expression +\
+            sp.sympify('g_leak * (V_m - E_leak) + g_leak_leftover * (V_m - E_leak_leftover)')
+
+        I_out_expr = I_out_expr.subs({'V': 'Vm'})
+
+        artefact_rhs_expr = sp.sympify('(V_off - V_m)/(C_m * R_s) * 1e-3 - I_out * 1e-3 / C_m')
+        subs_dict = {'V_m': y[-1],
+                     'R_s': p[-1],
+                     'C_m': p[-2],
+                     'V_off': p[-3],
+                     'E_leak_leftover': p[-4],
+                     'g_leak_leftover': p[-5],
+                     'E_leak': p[-6],
+                     'g_leak': p[-7],
+                     'I_out': I_out_expr,
+                     'E_Kr': self.E_rev}
+
+        artefact_rhs_expr = artefact_rhs_expr.subs(subs_dict).subs(subs_dict)
+
+        self.auxiliary_expression = I_out_expr.subs(subs_dict).subs(subs_dict)
+
+        self.rhs_expr = sp.Matrix.vstack(channel_model.rhs_expr, sp.Matrix([artefact_rhs_expr]))
 
     def define_steady_state_function(self):
         def rhs_inf(p, voltage):
@@ -105,8 +137,8 @@ class ArtefactModel(MarkovModel):
 
         return auxiliary_func
 
-    def get_no_states(self):
-        ny = self.channel_model.get_no_states() + 1
+    def get_no_state_vars(self):
+        ny = self.channel_model.get_no_state_vars() + 1
         return ny
 
     def make_hybrid_solver_states(self, protocol_description=None,
@@ -159,7 +191,7 @@ class ArtefactModel(MarkovModel):
         #
 
         # Eliminate one state and add equation for V_m
-        ny = self.channel_model.get_no_states() + 1
+        ny = self.channel_model.get_no_state_vars() + 1
 
         # Add artefact parameters and t_offset
         n_p = len(self.get_default_parameters())
@@ -194,7 +226,7 @@ class ArtefactModel(MarkovModel):
             V_p = V_cmd
 
             # V_m derivative
-            dy[-1] = (V_p + V_off - V_m)/(C_m * R_s) - I_out / C_m
+            dy[-1] = (V_p + V_off - V_m)/(C_m * R_s) * 1e-3 - I_out * 1e-3 / C_m
 
             # compute derivative for channel model
             dy[0:-1] = channel_rhs(y[0:-1], p[:-no_artefact_parameters], V_m).flatten()

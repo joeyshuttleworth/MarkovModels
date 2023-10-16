@@ -293,6 +293,7 @@ def plot_overlaid_traces(df):
 
         reference_IKr = c_model.SimulateForwardModel()
         reference_IKr = reference_IKr/reference_IKr.std()
+        fig.clf()
         axs = fig.subplots(3)
         axs[0].plot(times, reference_IKr, "--", color='grey')
 
