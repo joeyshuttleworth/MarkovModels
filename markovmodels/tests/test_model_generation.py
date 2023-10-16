@@ -172,7 +172,7 @@ class TestModelGeneration(unittest.TestCase):
         voltage_func, times, desc = get_ramp_protocol_from_csv(protocol)
 
         models = [make_model_of_class(m, times, voltage_func,
-                                             protocol_description=desc) \
+                                      protocol_description=desc) \
                   for m in self.model_names]
 
         for name, model in zip(self.model_names, models):

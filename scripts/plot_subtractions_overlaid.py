@@ -19,12 +19,19 @@ import scipy
 import seaborn as sns
 from matplotlib import rc
 from numba import njit
+import multiprocessing
+from matplotlib.colors import ListedColormap
 
 import markovmodels
 from quality_control.leak_fit import fit_leak_lr
 
 
 # rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+matplotlib.use('Agg')
+
+
+orangey_red_rgb = (252/256.0, 141/256.0, 98/256.0)
+bluey_green_rgb = (102/256.0, 194/256.0, 165/256.0)
 
 Erev = markovmodels.utilities.calculate_reversal_potential(T=298.15, K_in=130, K_out=4)
 
@@ -118,9 +125,12 @@ def main():
         leak_parameters_df['protocol'] = pd.Categorical(leak_parameters_df['protocol'],
                                                         categories=protocol_order,
                                                         ordered=True)
-        leak_parameters_df.sort_values('protocol', inplace=True)
-        do_chronological_plots(leak_parameters_df)
+        leak_parameters_df.sort_values(['protocol', 'sweep'], inplace=True)
+    else:
+        logging.warning('no chronological information provided. Sorting alphabetically')
+        leak_parameters_df.sort_values(['protocol', 'sweep'])
 
+    do_chronological_plots(leak_parameters_df)
     if 'passed QC' not in leak_parameters_df.columns and\
        'passed QC6a' in leak_parameters_df.columns:
         leak_parameters_df['passed QC'] = leak_parameters_df['passed QC6a']
@@ -129,6 +139,9 @@ def main():
         leak_parameters_df['passed QC'] = leak_parameters_df['passed QC'] \
             & leak_parameters_df['selected']
 
+    plot_leak_conductance_change_sweep_to_sweep(leak_parameters_df)
+    plot_reversal_change_sweep_to_sweep(leak_parameters_df)
+    plot_spatial_passed(leak_parameters_df)
     plot_reversal_spread(leak_parameters_df)
     if np.isfinite(args.reversal):
         plot_spatial_Erev(leak_parameters_df)
@@ -164,7 +177,7 @@ def compute_leak_magnitude(df, lims=[-120, 60]):
     return df
 
 
-def do_chronological_plots(leak_parameters_df):
+def do_chronological_plots(df):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
 
@@ -178,12 +191,13 @@ def do_chronological_plots(leak_parameters_df):
             'post-drug leak reversal', 'fitted_E_rev', 'pre-drug leak magnitude',
             'post-drug leak magnitude']
 
-    df = leak_parameters_df[leak_parameters_df['selected']]
+    # df = df[leak_parameters_df['selected']]
 
     for var in vars:
-        sns.scatterplot(data=df, x='protocol', y=var, hue='passed QC', ax=ax,
+        df['x'] = df.protocol + '_' + df.sweep.astype(str)
+        sns.scatterplot(data=df, x='x', y=var, hue='passed QC', ax=ax,
                         hue_order=[False, True])
-        sns.lineplot(data=leak_parameters_df, x='protocol', y=var, hue='passed QC', ax=ax, style='well', legend=False)
+        sns.lineplot(data=df, x='x', y=var, hue='passed QC', ax=ax, style='well', legend=False)
 
         if var == 'fitted_E_rev' and np.isfinite(args.reversal):
             ax.axhline(args.reversal, linestyle='--', color='grey', label='Calculated Nernst potential')
@@ -334,6 +348,10 @@ def do_scatter_matrices(df, qc_df):
 
     # Now do artefact parameters only
     qc_df = qc_df[qc_df.drug == 'before']
+
+    if args.selection_file:
+        qc_df = qc_df[qc_df.well.isin(passed_wells)]
+
     qc_df = qc_df.set_index(['protocol', 'well', 'sweep'])
     qc_df = qc_df[['Rseries', 'Cm', 'Rseal']]
     qc_df['R_leftover'] = df['R_leftover']
@@ -341,7 +359,6 @@ def do_scatter_matrices(df, qc_df):
 
     print(qc_df)
     qc_df = qc_df.reset_index().drop(['well', 'protocol', 'sweep'], axis='columns')
-
     grid = sns.pairplot(data=qc_df, diag_kind='hist', plot_kws={'alpha': .4,
                                                                 'edgecolor': None},
                         hue='passed QC', hue_order=[False, True])
@@ -382,6 +399,72 @@ def plot_reversal_spread(df):
     df.to_csv(os.path.join(output_dir, 'spread_of_fitted_E_Kr.csv'))
 
 
+def plot_reversal_change_sweep_to_sweep(df):
+    fig = plt.figure(figsize=args.figsize, constrained_layout=True)
+    ax = fig.subplots()
+
+    for protocol in df.protocol.unique():
+        sub_df = df[df.protocol == protocol]
+
+        if len(list(sub_df.sweep.unique())) != 2:
+            continue
+
+        sub_df = sub_df[['well', 'fitted_E_rev', 'sweep']]
+        sweep1_vals = sub_df[sub_df.sweep == 1].copy().set_index('well')
+        sweep2_vals = sub_df[sub_df.sweep == 2].copy().set_index('well')
+        print(sweep1_vals)
+
+        rows = []
+        for well in sub_df.well.unique():
+            delta_rev = sweep2_vals.loc[well]['fitted_E_rev'] - sweep1_vals.loc[well]['fitted_E_rev']
+            passed_QC = well in passed_wells
+            rows.append([well, delta_rev, passed_QC])
+
+        var_name_ltx = r'$\Delta E_{\mathrm{rev}}$'
+        delta_df = pd.DataFrame(rows, columns=['well', var_name_ltx, 'passed QC'])
+
+        print(delta_df)
+
+        sns.histplot(data=delta_df, x=var_name_ltx, hue='passed QC', ax=ax,
+                     stat='count')
+        fig.savefig(os.path.join(output_dir, f"E_rev_sweep_to_sweep_{protocol}"))
+        fig.clf()
+
+
+def plot_leak_conductance_change_sweep_to_sweep(df):
+    fig = plt.figure(figsize=args.figsize, constrained_layout=True)
+    ax = fig.subplots()
+
+    # Remove non-passed wells
+    df = df[df.well.isin(passed_wells)]
+
+    for protocol in df.protocol.unique():
+        sub_df = df[df.protocol == protocol]
+
+        if len(list(sub_df.sweep.unique())) != 2:
+            continue
+
+        sub_df = sub_df[['well', 'pre-drug leak conductance', 'sweep']]
+        sweep1_vals = sub_df[sub_df.sweep == 1].copy().set_index('well')
+        sweep2_vals = sub_df[sub_df.sweep == 2].copy().set_index('well')
+        print(sweep1_vals)
+
+        rows = []
+        for well in sub_df.well.unique():
+            delta_rev = sweep2_vals.loc[well]['pre-drug leak conductance'] - sweep1_vals.loc[well]['pre-drug leak conductance']
+            passed_QC = well in passed_wells
+            rows.append([well, delta_rev, passed_QC])
+
+        var_name_ltx = r'$\Delta g_{\mathrm{leak}}$'
+        delta_df = pd.DataFrame(rows, columns=['well', var_name_ltx, 'passed QC'])
+
+        print(delta_df)
+
+        sns.histplot(data=delta_df, x=var_name_ltx, ax=ax,
+                     stat='count')
+        fig.savefig(os.path.join(output_dir, f"g_leak_sweep_to_sweep_{protocol}"))
+
+
 def plot_spatial_Erev(df):
     fig = plt.figure(figsize=args.figsize)
     ax = fig.subplots()
@@ -389,7 +472,7 @@ def plot_spatial_Erev(df):
     def func(protocol, sweep):
         zs = []
         found_value = False
-        for row in range(18):
+        for row in range(16):
             for column in range(24):
                 well = f"{string.ascii_uppercase[row]}{column+1:02d}"
                 sub_df = df[(df.protocol == protocol) & (df.sweep == sweep)
@@ -407,37 +490,74 @@ def plot_spatial_Erev(df):
 
                 zs.append(EKr)
 
-        zs = np.array(zs).reshape((18, 24))
+        zs = np.array(zs).reshape((16, 24))
 
         if found_value:
             return
 
-        im = ax.pcolormesh(zs, cmap=matplotlib.cm.gray, edgecolors='white',
+        cmap = ListedColormap([orangey_red_rgb, bluey_green_rgb])
+        im = ax.pcolormesh(zs, cmap=cmap, edgecolors='white',
                            linewidths=1, antialiased=True)
+
+        ax.plot([], [], color=orangey_red_rgb, ls=None, marker='s', label='high E_rev')
+        ax.plot([], [], color=bluey_green_rgb, ls=None, marker='s', label='low E_rev')
+        ax.legend()
+
+        ax.set_xticks([i + .5 for i in range(24)])
+        ax.set_yticks([i + .5 for i in range(16)])
+
+        # Label rows and columns
+        ax.set_xticklabels([i + 1 for i in range(24)])
+        ax.set_yticklabels(string.ascii_uppercase[:16])
+
+        # Put 'A' row at the top
+        ax.invert_yaxis()
+
         try:
             fig.colorbar(im)
         except Exception as exc:
             print(str(exc))
 
         fig.savefig(os.path.join(output_dir, f"{protocol}_sweep{sweep}_E_Kr_map"))
-
         ax.cla()
 
-        zs = np.array(zs) > args.reversal
-        im = ax.pcolormesh(zs, cmap='binary', edgecolors='white',
-                           linewidths=1, antialiased=True)
+    protocol = 'staircaseramp1'
+    sweep = 1
 
-        try:
-            fig.colorbar(im)
-        except Exception as exc:
-            print(str(exc))
+    func(protocol, sweep)
 
-    for protocol in df.protocol.unique():
-        for sweep in df.sweep.unique():
-            func(protocol, sweep)
+    plt.close(fig)
 
-    print('saving spatial map')
-    fig.savefig(os.path.join(output_dir, f"{protocol}_sweep{sweep}_E_Kr_map_binary"))
+
+def plot_spatial_passed(df):
+    fig = plt.figure(figsize=(6, 6))
+    ax = fig.subplots()
+
+    zs = []
+    for row in range(16):
+        for column in range(24):
+            well = f"{string.ascii_uppercase[row]}{column+1:02d}"
+            passed = well in passed_wells
+            zs.append(passed)
+
+    zs = np.array(zs).reshape((16, 24))
+
+    cmap = ListedColormap([orangey_red_rgb, bluey_green_rgb])
+    _ = ax.pcolormesh(zs, cmap=cmap, edgecolors='white',
+                      linewidths=1, antialiased=True,
+                      )
+
+    ax.plot([], [], color=orangey_red_rgb, ls=None, marker='s', label='passed QC')
+    ax.plot([], [], color=bluey_green_rgb, ls=None, marker='s', label='failed QC')
+    ax.legend()
+
+    ax.set_xticks([i + .5 for i in range(24)])
+    ax.set_yticks([i + .5 for i in range(16)])
+
+    ax.set_xticklabels([i + 1 for i in range(24)])
+    ax.set_yticklabels(string.ascii_uppercase[:16])
+
+    fig.savefig(os.path.join(output_dir, "QC_map"))
     plt.close(fig)
 
 
@@ -502,6 +622,7 @@ def plot_histograms(df, qc_df):
     ax.cla()
 
     qc_df['passed QC'] = qc_df.well.isin(passed_wells)
+    qc_df = qc_df[qc_df.drug == 'before']
 
     sns.histplot(qc_df[qc_df.drug == 'before'],
                  x='Rseries', hue='passed QC', ax=ax,
