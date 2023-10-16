@@ -35,6 +35,8 @@ class ODEModel:
                  parameter_labels=None,  transformations=None,
                  state_labels: str = None):
 
+        self.initial_condition = None
+
         self.name = name
 
         if state_labels:
@@ -78,8 +80,6 @@ class ODEModel:
             self.voltage = voltage
 
         inputs = list(self.y) + list(self.p) + [self.v]
-        self.func_rhs = sp.lambdify((self.y, self.p, self.v), self.rhs_expr, cse=True)
-
         # Create Jacobian of the RHS function
         jrhs = sp.Matrix(self.rhs_expr).jacobian(self.y)
         self.jfunc_rhs = sp.lambdify(inputs, jrhs)
@@ -88,6 +88,9 @@ class ODEModel:
 
         self.compute_steady_state_expressions()
         self.auxiliary_function = njit(self.define_auxiliary_function())
+
+    def func_rhs(self):
+        raise NotImplementedError()
 
     def define_auxiliary_function(self):
         return sp.lambdify((self.y, self.p, self.v), self.auxiliary_expression)

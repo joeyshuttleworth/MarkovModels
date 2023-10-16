@@ -78,6 +78,8 @@ class MarkovModel(ODEModel):
         self.p = symbols['p']
         self.v = symbols['v']
 
+        self.initial_condition = np.full(len(self.y), .0)
+
         self.rates_dict = rates_dict
 
         # (atol, rtol)

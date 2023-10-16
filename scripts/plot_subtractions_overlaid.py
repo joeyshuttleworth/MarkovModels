@@ -220,6 +220,8 @@ def do_combined_plots(leak_parameters_df):
     if not os.path.exists(protocol_overlaid_dir):
         os.makedirs(protocol_overlaid_dir)
 
+    leak_parameters_df = leak_parameters_df[leak_parameters_df.well.isin(passed_wells)]
+
     palette = sns.color_palette('husl', len(leak_parameters_df.groupby(['well', 'sweep'])))
     for protocol in leak_parameters_df.protocol.unique():
         times_fname = f"{experiment_name}-{protocol}-times.csv"
@@ -329,6 +331,10 @@ def do_scatter_matrices(df, qc_df):
     grid_df = df.drop([df.columns[0], 'sweep', 'passed QC.Erev',
                        'selected', 'pre-drug leak reversal', 'post-drug leak reversal'],
                       axis='columns')
+
+    if args.selection_file:
+        df = df[df.well.isin(passed_wells)]
+        qc_df = qc_df[qc_df.well.isin(passed_wells)]
 
     grid = sns.pairplot(data=grid_df, hue='passed QC', diag_kind='hist',
                         plot_kws={'alpha': 0.4, 'edgecolor': None},
@@ -486,14 +492,17 @@ def plot_spatial_Erev(df):
                 else:
                     EKr = sub_df['fitted_E_rev'].values.astype(np.float64)[0]
 
-                found_value = True
-
                 zs.append(EKr)
 
-        zs = np.array(zs).reshape((16, 24))
-
-        if found_value:
-            return
+            zs = np.array(zs).reshape((16, 24))
+            if len(sub_df.index) > 1:
+                Exception("Multiple rows values for same (protocol, sweep, well)"
+                          "\n ({protocol}, {sweep}, {well})")
+            elif len(sub_df.index) == 0:
+                EKr = np.nan
+            else:
+                EKr = sub_df['fitted_E_rev'].values.astype(np.float64)[0]
+            zs.append(EKr)
 
         cmap = ListedColormap([orangey_red_rgb, bluey_green_rgb])
         im = ax.pcolormesh(zs, cmap=cmap, edgecolors='white',
@@ -532,7 +541,6 @@ def plot_spatial_Erev(df):
 def plot_spatial_passed(df):
     fig = plt.figure(figsize=(6, 6))
     ax = fig.subplots()
-
     zs = []
     for row in range(16):
         for column in range(24):
@@ -651,6 +659,9 @@ def overlay_reversal_plots(leak_parameters_df):
 
     sub_dir = os.path.join(output_dir, 'overlaid_reversal_plots')
 
+    if args.selection_file:
+        leak_parameters_df[leak_parameters_df.well.isin(passed_wells)]
+
     if not os.path.exists(sub_dir):
         os.makedirs(sub_dir)
 
@@ -663,7 +674,7 @@ def overlay_reversal_plots(leak_parameters_df):
             if protocol == np.nan:
                 continue
             for sweep in [1, 2]:
-                protocol_func, _, protocol_desc = common.get_ramp_protocol_from_csv(protocol)
+                protocol_func, _, protocol_desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
                 fname = f"{experiment_name}-{protocol}-{well}-sweep{sweep}.csv"
                 try:
                     data = pd.read_csv(os.path.join(args.data_dir, 'subtracted_traces', fname))

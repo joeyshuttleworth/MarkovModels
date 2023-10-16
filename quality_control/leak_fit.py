@@ -152,7 +152,7 @@ def fit(model, values, times, N=3):
     # Show results
     bestn = min(3, N)
     print('Best %d log_likelihoods:' % bestn)
-    for i in xrange(bestn):
+    for i in range(bestn):
         print(scores[i])
     print('Mean & std of log_likelihood:')
     print(np.mean(scores))
@@ -164,7 +164,7 @@ def fit(model, values, times, N=3):
     return params[0], scores[0]
 
 
-def fit_leak_lr(staircase_protocol, current, percentage_to_remove=0, V_full=[-120, -80],
+def fit_leak_lr(staircase_protocol, current, V_full=[-120, -80],
                 ramp_start=300, ramp_end=700, dt=1e-1):
 
     # Fitting leak during the first ramp in staircaseramp prt
@@ -176,9 +176,10 @@ def fit_leak_lr(staircase_protocol, current, percentage_to_remove=0, V_full=[-12
     # ramp_start: starting time of the ramp that matches the input protocol
     # ramp_end: ending time of the ramp that matches the input protocol
     # dt: duration of each time step to work out the index in the input protocol
-    ramp_start += (ramp_end-ramp_start)*(0.01*percentage_to_remove)
     # ramp_end  -= (ramp_end-ramp_start)*(0.005*percentage_to_remove)
     rampi, rampf = int(ramp_start / dt), int(ramp_end / dt)
+
+    print(rampi, rampf)
 
     n_samples = rampf - rampi
     # idxi = int(np.abs(np.float(V_win[0] - V_full[0]))\
@@ -192,6 +193,8 @@ def fit_leak_lr(staircase_protocol, current, percentage_to_remove=0, V_full=[-12
     # Assumed V_win, V_full where given correctly!!
     x = staircase_protocol[rampi:rampf]
     y = current[rampi:rampf]
+
+    print(x, y)
 
     slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
 

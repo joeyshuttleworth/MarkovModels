@@ -322,6 +322,9 @@ def subtract_leak(well, protocol, args, output_dir=None):
         before_filename = f"{args.experiment_name}-{protocol}-{well}-before-sweep{sweep}.csv"
         after_filename = f"{args.experiment_name}-{protocol}-{well}-after-sweep{sweep}.csv"
 
+        indices_to_plot = [i for i, t in enumerate(observation_times) if t
+                           <= args.ramp_end * 2]
+
         tracename = 'subtracted'
 
         try:
@@ -359,9 +362,6 @@ def subtract_leak(well, protocol, args, output_dir=None):
                 scatter_ax_before.scatter(x, y, marker='s', color='grey', s=2)
                 ypred = (x - E_leak_before) * g_leak_before
                 scatter_ax_before.plot(x, ypred, color='red')
-
-                indices_to_plot = [i for i, t in enumerate(observation_times) if t
-                                   <= args.ramp_end * 2]
 
                 window_ax_before.plot(observation_times[indices_to_plot],
                                       before_trace[indices_to_plot], alpha=.5, color='grey')

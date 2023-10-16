@@ -16,6 +16,7 @@ import markovmodels
 from markovmodels.utilities import setup_output_directory, calculate_reversal_potential
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
 from markovmodels.model_generation import make_model_of_class, make_myokit_model
+from markovmodels.SensitivitiesMarkovModel import SensitivitiesMarkovModel
 
 
 class TestModelGeneration(unittest.TestCase):
@@ -165,6 +166,27 @@ class TestModelGeneration(unittest.TestCase):
         fig = splot.get_figure()
         fig.savefig(os.path.join(self.output_dir, "model_14_comparison_summary_P_cond"))
         plt.close(fig)
+
+    def test_solver_sensitivities(self):
+        protocol = 'staircaseramp1'
+        voltage_func, times, desc = get_ramp_protocol_from_csv(protocol)
+
+        channel_model = make_model_of_class('model3', times,
+                                            voltage_func,
+                                            protocol_description=desc)
+
+        sensitivities_model = SensitivitiesMarkovModel(channel_model)
+
+        res = sensitivities_model.make_hybrid_solver_states(hybrid=False, njitted=False)()
+
+        voltages = np.array([voltage_func(t) for t in times])
+        p = sensitivities_model.get_default_parameters()
+        I_out_sens = sensitivities_model.auxiliary_function(res.T, p, voltages)[:, 0, :].T
+
+        print(I_out_sens)
+
+        plt.plot(times, I_out_sens)
+        plt.savefig(os.path.join(self.output_dir, 'model3_sensitivities'))
 
     def test_hybrid_solver(self):
 

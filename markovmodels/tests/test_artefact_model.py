@@ -12,7 +12,6 @@ from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.utilities import setup_output_directory
 from markovmodels.model_generation import make_model_of_class
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
-from markovmodels.SensitivitiesMarkovModel import SensitivitiesMarkovModel
 
 
 class TestArtefactModel(unittest.TestCase):
@@ -56,6 +55,27 @@ class TestArtefactModel(unittest.TestCase):
         plt.legend()
         plt.savefig(os.path.join(self.output_dir, 'artefact_states'))
         plt.clf()
+
+    def test_solver_sensitivities(self):
+        self.assertTrue(False)
+        protocol = 'staircaseramp1'
+        voltage_func, times, desc = get_ramp_protocol_from_csv(protocol)
+
+        channel_model = make_model_of_class('model3', times,
+                                            voltage_func,
+                                            protocol_description=desc)
+
+        artefact_model = ArtefactModel(channel_model)
+        sensitivities_model = SensitivitiesMarkovModel(artefact_model)
+
+        res = sensitivities_model.make_hybrid_solver_states(hybrid=False, njitted=False)()
+
+        voltages = np.array([voltage_func(t) for t in times])
+        p = sensitivities_model.get_default_parameters()
+        I_out_sens = sensitivities_model.auxiliary_function(res.T, p, voltages)[:, 0, :].T
+
+        plt.plot(times, I_out_sens)#label=artefact_model.get_parameter_labels())
+        plt.savefig(os.path.join(self.output_dir, 'I_out_sensitivities'))
 
     def test_generated_model_output(self):
         protocol = 'staircaseramp'
