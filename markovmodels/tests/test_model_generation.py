@@ -183,9 +183,7 @@ class TestModelGeneration(unittest.TestCase):
         p = sensitivities_model.get_default_parameters()
         I_out_sens = sensitivities_model.auxiliary_function(res.T, p, voltages)[:, 0, :].T
 
-        print(I_out_sens)
-
-        plt.plot(times, I_out_sens)
+        plt.plot(times, I_out_sens, label=channel_model.get_parameter_labels())
         plt.savefig(os.path.join(self.output_dir, 'model3_sensitivities'))
 
     def test_hybrid_solver(self):
