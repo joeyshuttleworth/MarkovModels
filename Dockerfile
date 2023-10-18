@@ -1,5 +1,7 @@
 FROM mambaorg/micromamba
 
+USER root
+
 ARG UID=1001
 
 COPY requirements.txt /opt/app/requirements.txt
