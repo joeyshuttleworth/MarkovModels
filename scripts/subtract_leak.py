@@ -16,11 +16,9 @@ from markovmodels.utilities import setup_output_directory, calculate_reversal_po
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
 from markovmodels.fitting import infer_reversal_potential
 
-
 # Agg was causing some memory leak issues
 # matplotlib.use('Agg')
 # rc('text', usetex=True)
-
 
 Erev = calculate_reversal_potential(T=298.15, K_in=120, K_out=5)
 
