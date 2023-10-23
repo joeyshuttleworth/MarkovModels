@@ -84,7 +84,7 @@ def main():
     if not os.path.exists(os.path.join(output, subtracted_trace_dirname)):
         os.makedirs(os.path.join(output, subtracted_trace_dirname))
 
-    tasks = [(well, protocol, args) for well in args.wells for protocol in args.protocols]
+    tasks = [(well, protocol, args, output) for well in args.wells for protocol in args.protocols]
 
     pool_size = min(len(tasks), args.cpus)
 
@@ -274,13 +274,12 @@ def overlay_first_last_staircases(well):
 
 def subtract_leak(well, protocol, args, output_dir=None):
 
+    if output_dir is None:
+        output_dir = output
     leak_subtraction_plots_dir = os.path.join(output_dir, 'subtraction_plots')
 
     if not os.path.exists(leak_subtraction_plots_dir):
         os.makedirs(leak_subtraction_plots_dir)
-
-    if output_dir is None:
-        output_dir = output
 
     if not args.no_plot:
         fig = plt.figure(figsize=args.figsize, clear=True, constrained_layout=True)
