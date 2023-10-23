@@ -97,7 +97,7 @@ def main():
         res = pool.starmap(subtract_leak, tasks)
 
     df = pd.concat(res, ignore_index=True)
-    qc_vals_df = pd.read(os.path.join(args.data_directory, f"{experiment_name}_qc_estimates.csv"))
+    qc_vals_df = pd.read_csv(os.path.join(args.data_directory, f"{experiment_name}_qc_estimates.csv"))
     qc_vals_df.to_csv(os.path.join(output, 'qc_vals.csv'))
 
     if not args.ignore_QC7:
@@ -237,8 +237,6 @@ def overlay_first_last_staircases(well):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax1, ax2 = fig.subplots(2, 1, height_ratios=[3, 1])
 
-    print("times {times}")
-
     try:
         before_trace = pd.read_csv(os.path.join(subtracted_traces_dir, first_filename))['current'].values.flatten()
     except FileNotFoundError as exc:
@@ -298,7 +296,7 @@ def subtract_leak(well, protocol, args, output_dir=None):
 
     protocol_func, _, _ = get_ramp_protocol_from_csv(protocol)
     observation_times = pd.read_csv(os.path.join(
-        args.data_directory, f"{args.experiment_name}-{protocol}-times.csv")).to_numpy()[:, -1].flatten()
+        args.data_directory, f"{args.experiment_name}-{protocol}-times.csv")).to_numpy()[:, -1].flatten()*1e3
     protocol_voltages = np.array([protocol_func(t) for t in observation_times])
     dt = observation_times[1] - observation_times[0]
 
