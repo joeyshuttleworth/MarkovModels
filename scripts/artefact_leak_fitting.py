@@ -128,6 +128,49 @@ def main():
     plot_overlaid_traces(df)
     do_scatterplots(df, leak_df)
 
+    compare_synth_real_postprocessed_data(df, leak_df)
+
+
+def compare_synth_real_postprocessed_data(df, leak_df):
+    fig = plt.figure(figsize=args.figsize)
+    ax = fig.subplots()
+
+    plot_dir = os.path.join(output_dir, "compare_real_synth_traces")
+    if not os.path.exists(plot_dir):
+        os.makedirs(plot_dir)
+
+    for well in df.well.unique():
+        for protocol in df.protocol.unique():
+
+            times_df = pd.read_csv(os.path.join(output_dir, 'subtracted_traces',
+                                            f"{args.experiment_name}-{protocol}-times.csv"))
+            times = times_df['time'].to_numpy().flatten()
+            for sweep in df.protocol.sweep():
+                # Get parameters
+                sub_df = df[(df.well == well) & (df.protocol == protocol) &
+                            (df.sweep == sweep)].copy()
+                sub_leak_df = leak_df[(leak_df.well == well) & (leak_df.protocol == protocol) &
+                                      (df.sweep == sweep)].copy()
+                gleak, Eleak = sub_leak_df[['pre-drug leak conductance', 'pre-drug leak reversal']]
+                gkr, noise, Cm, Rseries = sub_df[['gkr', 'noise', 'Cm', 'Rseries']]
+
+                # Get synth trace
+                synth_sub_trace = pd.read_csv(os.path.join(output_dir, "subtracted_traces",
+                                            f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv"))['current'].to_numpy()
+                real_sub_trace = pd.read_csv(os.path.join(args.traces_directory,
+                                            f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv"))['current'].to_numpy()
+
+                # Plot both traces normalised
+                ax.plot(times, synth_sub_trace/synth_sub_trace.std(), alpha=.5, label='synth data')
+                ax.plot(times, real_sub_trace/real_sub_trace.std(), alpha=.5, label='real data')
+
+                ax.set_yaxis('normalised post-processed current')
+                ax.set_xaxis('times (ms)')
+                fig.savefig(os.path.join(plot_dir, f"{protocol}-{well}-sweep{sweep}-postprocessed"))
+                ax.cla()
+
+    plt.close(fig)
+
 
 def do_scatterplots(df, qc_df):
     fig = plt.figure(figsize=args.figsize)

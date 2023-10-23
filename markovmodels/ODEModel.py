@@ -321,7 +321,6 @@ class ODEModel:
                 voltages[i] = voltage_func(times[i])
 
             states = hybrid_solver(p, times=times, hybrid=hybrid, atol=atol, rtol=rtol)
-            print('states', states)
             return (auxiliary_function(states.T, p, voltages)).flatten()
 
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve
@@ -354,9 +353,11 @@ class ODEModel:
 
         auxiliary_function = self.auxiliary_function
 
+        if njitted:
+            auxiliary_function = njit(auxiliary_function)
+
         def forward_solver(p=default_parameters, times=times, voltages=voltages, atol=atol, rtol=rtol):
             states = solver_states(p, times, atol, rtol)
-            print('states', states)
             return (auxiliary_function(states.T, p, voltages)).flatten()
 
         if njitted:
