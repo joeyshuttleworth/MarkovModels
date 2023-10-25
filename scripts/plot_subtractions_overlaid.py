@@ -196,7 +196,7 @@ def do_chronological_plots(df):
     # df = df[leak_parameters_df['selected']]
 
     for var in vars:
-        df['x'] = df.protocol + '_' + df.sweep.astype(str)
+        df['x'] = df.protocol.astype(str) + '_' + df.sweep.astype(str)
         sns.scatterplot(data=df, x='x', y=var, hue='passed QC', ax=ax,
                         hue_order=[False, True])
         sns.lineplot(data=df, x='x', y=var, hue='passed QC', ax=ax, style='well', legend=False)
