@@ -200,14 +200,12 @@ def main():
 
             row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol)
                                  & (subtraction_df.sweep == sweep)].iloc[0]
-            E_obs, gleak, Eleak = row[['fitted_E_rev', 'pre-drug leak conductance', 'pre-drug leak reversal']]
-            E_obs = float(E_obs)
+            gleak, Eleak = row[['pre-drug leak conductance', 'pre-drug leak reversal']]
             gleak = float(gleak)
             Eleak = float(Eleak)
 
-            V_off = E_obs - args.reversal
             default_parameters = markovmodels.model_generation.make_model_of_class(args.model).get_default_parameters()
-            starting_parameters = np.append(default_parameters, [gleak, Eleak, 0, 0, V_off, Cm, Rseries])
+            starting_parameters = np.append(default_parameters, [gleak, Eleak, 0, 0, 0, Cm, Rseries])
         tasks.append([protocol, well, args.model, starting_parameters, args.reversal,
                       not args.dont_randomise_initial_guess, prefix, sweep])
 

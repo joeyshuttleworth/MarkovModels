@@ -640,12 +640,14 @@ def infer_reversal_potential_with_artefact(protocol, times, data,
     a_solver = model.make_hybrid_solver_current(njitted=False, hybrid=False)
 
     # Rough estimate of conductance
+    # Maybe make it so this only looks at the reversal ramp, or leak step
     def find_conductance_func(g):
         p = forward_sim_params.copy()
+        p[-8] = g
         return np.sum((a_solver(p)[indices] - data[indices])**2)
 
     res = scipy.optimize.minimize_scalar(find_conductance_func,
-                                         bounds=(0, data[indices].max()*100))
+                                         bounds=(data[indices].max()*1e-4, data[indices].max()*1e1))
     found_conductance = res.x
 
     # set conductance parameter
