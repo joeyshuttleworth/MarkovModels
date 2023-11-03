@@ -11,6 +11,7 @@ import numpy.polynomial.polynomial as poly
 import pandas as pd
 import pints
 import pints.plot
+import scipy
 from numba import njit
 
 import markovmodels
@@ -19,6 +20,7 @@ from markovmodels.model_generation import make_model_of_class
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
 from markovmodels.utilities import get_data
 from markovmodels.voltage_protocols import remove_spikes
+from markovmodels.ArtefactModel import ArtefactModel
 
 
 def fit_model(mm, data, times=None, starting_parameters=None,
@@ -26,7 +28,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
               method=pints.CMAES, solver=None, log_transform=True, repeats=1,
               return_fitting_df=False, parallel=False,
               randomise_initial_guess=True, output_dir=None, solver_type=None,
-              no_conductance_boundary=False,
+              no_conductance_boundary=False, use_artefact_model=False,
               rng=None):
     """
     Fit a MarkovModel to some dataset using pints.
@@ -59,10 +61,11 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         # Assume that the conductance is the last parameter and that the parameters are arranged included
 
         if mm.transformations:
-            transformations = [t for i, t in enumerate(mm.transformations) if i not in fix_parameters]
-            transformation = pints.ComposedTransformation(*mm.transformations)
+            transformations = [t for i, t in enumerate(mm.transformations)
+                               if (i % len(starting_parameters)) not in fix_parameters]
+            transformation = pints.ComposedTransformation(*transformations)
 
-        else:
+        elif not use_artefact_model:
             # Use a-space transformation (Four Ways to Fit...)
             no_rates = int((mm.get_no_parameters() - 1)/2)
             log_transformations = [pints.LogTransformation(1) for i in range(no_rates)]
@@ -76,6 +79,9 @@ def fit_model(mm, data, times=None, starting_parameters=None,
 
             transformations = [t for i, t in enumerate(transformations) if i not in fix_parameters]
             transformation = pints.ComposedTransformation(*transformations)
+
+        else:
+            raise Exception("Couldn't log transform parameters")
 
     else:
         transformation = None
@@ -139,7 +145,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
 
     error = pints.SumOfSquaresError(problem)
 
-    if fix_parameters is not None:
+    if len(fix_parameters) != 0:
         unfixed_indices = [i for i in range(
             len(starting_parameters)) if i not in fix_parameters]
         params_not_fixed = starting_parameters[unfixed_indices]
@@ -148,11 +154,11 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         params_not_fixed = starting_parameters
 
     boundaries = fitting_boundaries(starting_parameters, mm,
-                                    fix_parameters)
+                                    fix_parameters, is_artefact_model=use_artefact_model)
 
     if randomise_initial_guess:
         initial_guess_dist = fitting_boundaries(starting_parameters, mm,
-                                                fix_parameters)
+                                                fix_parameters, is_artefact_model=use_artefact_model)
         starting_parameter_sets = []
 
     scores, parameter_sets, iterations, times_taken = [], [], [], []
@@ -224,13 +230,13 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_initial_guess'))
             plt.close(fig)
 
-    if fix_parameters:
+    if len(fix_parameters) > 0:
         for i in np.unique(fix_parameters):
             best_parameters = np.insert(best_parameters,
                                         i,
                                         starting_parameters[i])
     if return_fitting_df:
-        if fix_parameters:
+        if len(fix_parameters) > 0:
             new_rows = parameter_sets
             for i in np.unique(fix_parameters):
                 for j, row in enumerate(parameter_sets):
@@ -267,7 +273,9 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                   fit_initial_conductance=True, experiment_name='newtonrun4',
                   solver=None, E_rev=None, randomise_initial_guess=True,
                   parallel=False, solver_type=None, sweep=None,
-                  scale_conductance=True, no_conductance_boundary=False):
+                  scale_conductance=True, no_conductance_boundary=False,
+                  use_artefact_model=False, artefact_default_kinetic_parameters=None,
+                  fix_parameters=[], data_label=None):
 
     if default_parameters is None or len(default_parameters) == 0:
         default_parameters = make_model_of_class(model_class_name).get_default_parameters()
@@ -282,15 +290,14 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
     # Ignore files that have been commented out
     voltage_func, times, protocol_desc = get_ramp_protocol_from_csv(protocol)
 
-    data = get_data(well, protocol, data_directory, experiment_name, sweep=sweep)
+    data = get_data(well, protocol, data_directory, experiment_name,
+                    label=data_label, sweep=sweep)
 
     times = pd.read_csv(os.path.join(data_directory, f"{experiment_name}-{protocol}-times.csv"),
                         float_precision='round_trip')['time'].values
 
     voltages = np.array([voltage_func(t) for t in times])
-
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
-
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   removal_duration)
 
@@ -299,21 +306,60 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
             if output_dir:
                 plot = True
                 output_path = os.path.join(output_dir, 'infer_reversal_potential.png')
-            inferred_E_rev = infer_reversal_potential(protocol, data, times, plot=plot,
-                                                      output_path=output_path)
+
+            if use_artefact_model:
+                # Use the artefact to forward simulate the voltages (using literature kinetics)
+                model = make_model_of_class(model_class_name, voltage=voltage_func,
+                                            times=times,
+                                            E_rev=E_rev,
+                                            protocol_description=protocol_desc)
+
+                model = ArtefactModel(model)
+
+                params_for_Erev = default_parameters.copy()
+                no_kinetic_params = len(parameter_labels) - 1
+                params_for_Erev[:no_kinetic_params] = artefact_default_kinetic_parameters[:no_kinetic_params]
+
+                E_obs = infer_reversal_potential_with_artefact(protocol, times, data,
+                                                               'model3',
+                                                               params_for_Erev,
+                                                               E_rev,
+                                                               removal_duration=removal_duration,
+                                                               plot=True,
+                                                               output_path=output_dir,
+                                                               forward_sim_output_dir=output_dir,
+                                                               )
+
+            else:
+                voltages = None
+                E_obs = infer_reversal_potential(protocol, data, times, plot=plot,
+                                                 output_path=output_path, voltages=voltages)
+            if use_artefact_model:
+                inferred_E_rev = E_rev
+                V_off = E_obs - E_rev
+                default_parameters[-3] = V_off
+            else:
+                inferred_E_rev = E_obs
+
             if inferred_E_rev < -50 or inferred_E_rev > -100:
                 E_rev = inferred_E_rev
-        except Exception:
+
+        except None as exc:
+            print(str(exc))
             pass
 
     model = make_model_of_class(model_class_name, voltage=voltage_func,
                                 times=times,
-                                default_parameters=default_parameters,
                                 E_rev=E_rev,
                                 protocol_description=protocol_desc)
 
+    if use_artefact_model:
+        model = ArtefactModel(model)
+
     if default_parameters is not None:
         initial_params = default_parameters.copy()
+    else:
+        model.default_parameters = default_parameters.copy()
 
     columns = model.get_parameter_labels()
 
@@ -344,7 +390,9 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                                  repeats=repeats,
                                                  output_dir=output_dir,
                                                  solver_type=solver_type,
-                                                 no_conductance_boundary=no_conductance_boundary)
+                                                 use_artefact_model=use_artefact_model,
+                                                 no_conductance_boundary=no_conductance_boundary,
+                                                 fix_parameters=fix_parameters)
 
     fig = plt.figure(figsize=(14, 12))
     ax = fig.subplots()
@@ -490,14 +538,22 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
 
 
 class fitting_boundaries(pints.Boundaries):
-    def __init__(self, full_parameters, mm, fix_parameters=None):
-        self.fix_parameters = fix_parameters
-        self.full_parameters = full_parameters
-        self.mm = mm
+    def __init__(self, full_parameters, model, fix_parameters=[], is_artefact_model=False):
+        self.is_artefact_model = is_artefact_model
+
+        if is_artefact_model:
+            self.mm = model.channel_model
+            self.fix_parameters = [i for i in fix_parameters if ((i % len(full_parameters)) < self.mm.get_no_parameters())]
+            self.full_parameters = full_parameters[:self.mm.get_no_parameters()].copy()
+
+        else:
+            self.fix_parameters = fix_parameters
+            self.full_parameters = full_parameters
+            self.mm = model
 
     def check(self, parameters):
         parameters = parameters.copy()
-        if self.fix_parameters:
+        if len(self.fix_parameters) != 0:
             for i in np.unique(self.fix_parameters):
                 parameters = np.insert(parameters, i, self.full_parameters[i])
 
@@ -527,7 +583,7 @@ class fitting_boundaries(pints.Boundaries):
 
     def n_parameters(self):
         return self.mm.get_no_parameters() - \
-            len(self.fix_parameters) if self.fix_parameters is not None\
+            len(self.fix_parameters) if len(self.fix_parameters) != 0 \
             else self.mm.get_no_parameters()
 
     def _sample_once(self, min_log_p, max_log_p):
@@ -537,10 +593,9 @@ class fitting_boundaries(pints.Boundaries):
             p[:-1] = 10**np.random.uniform(min_log_p, max_log_p,
                                            self.full_parameters[:-1].shape)
 
-            if self.fix_parameters:
+            if len(self.fix_parameters) != 0:
                 p = p[[i for i in range(len(self.full_parameters)) if i not in
                        self.fix_parameters]]
-
             # Check this lies in boundaries
             if self.check(p):
                 return p
@@ -550,14 +605,74 @@ class fitting_boundaries(pints.Boundaries):
     def sample(self, n=1):
         min_log_p, max_log_p = [-7, 1]
 
-        no_parameters = len(self.full_parameters) if not self.fix_parameters\
-            else len(self.full_parameters) - len(self.fix_parameters)
-
-        ret_vec = np.full((n, no_parameters), np.nan)
+        ret_vec = np.full((n, len(self.full_parameters)), np.nan)
         for i in range(n):
             ret_vec[i, :] = self._sample_once(min_log_p, max_log_p)
 
+        params_not_fixed = [i for i in range(len(self.mm.get_default_parameters()))\
+                            if i not in self.fix_parameters]
+
+        ret_vec = ret_vec[:, params_not_fixed]
         return ret_vec
+
+
+def infer_reversal_potential_with_artefact(protocol, times, data,
+                                           model_class_name,
+                                           default_parameters, E_rev,
+                                           forward_sim_output_dir,
+                                           removal_duration=0, **kwargs):
+    voltage_func, _, protocol_desc = get_ramp_protocol_from_csv(protocol)
+    voltages = np.array([voltage_func(t) for t in times])
+    spike_times, _ = detect_spikes(times, voltages, window_size=0)
+    _, _, indices = remove_spikes(times, voltages, spike_times,
+                                  removal_duration)
+
+    model = make_model_of_class(model_class_name, voltage=voltage_func,
+                                times=times,
+                                E_rev=E_rev,
+                                protocol_description=protocol_desc)
+
+    model = ArtefactModel(model)
+    forward_sim_params = default_parameters.copy()
+
+    # Set V_off to 0
+    forward_sim_params[-3] = 0
+    a_solver = model.make_hybrid_solver_current(njitted=False, hybrid=False)
+
+    # Rough estimate of conductance
+    def find_conductance_func(g):
+        p = forward_sim_params.copy()
+        return np.sum((a_solver(p)[indices] - data[indices])**2)
+
+    res = scipy.optimize.minimize_scalar(find_conductance_func,
+                                         bounds=(0, data[indices].max()*100))
+    found_conductance = res.x
+
+    # set conductance parameter
+    forward_sim_params[-8] = found_conductance
+
+    fig = plt.figure()
+    axs = fig.subplots(2)
+
+    normalised_current = a_solver(forward_sim_params)   # plot current
+    axs[0].plot(times, data, color='grey', alpha=.5)
+    axs[0].plot(times, normalised_current)
+
+    a_state_solver = model.make_hybrid_solver_states(hybrid=False, njitted=False)
+    # plot Vm
+    axs[1].plot(times, a_state_solver(forward_sim_params)[:, -1])
+
+    if not os.path.exists(forward_sim_output_dir):
+        os.makedirs(forward_sim_output_dir)
+
+    fig.savefig(os.path.join(forward_sim_output_dir,
+                             "infer_reversal_potential_forward_sim"))
+    plt.close(fig)
+
+    voltages = model.make_hybrid_solver_states(hybrid=False)(forward_sim_params)[:, -1]
+
+    return infer_reversal_potential(protocol, data, times, voltages=voltages,
+                                    **kwargs)
 
 
 def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
@@ -682,4 +797,3 @@ def detect_spikes(x, y, threshold=100, window_size=0, earliest=True):
     spike_indices -= 1
 
     return x[spike_indices], np.array(spike_indices)
-

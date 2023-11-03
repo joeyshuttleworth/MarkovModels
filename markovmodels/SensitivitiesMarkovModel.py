@@ -38,7 +38,7 @@ class SensitivitiesMarkovModel(ODEModel):
         # Include the additional Vm state (membrane voltage)
         return self.markov_model.get_no_state_vars() * (1 + len(self.get_default_parameters()))
 
-    def compute_steady_state_expressions(self, tend=1):
+    def compute_steady_state_expressions(self, tend=5000):
         p = self.get_default_parameters()
         atol, rtol = self.solver_tolerances
 

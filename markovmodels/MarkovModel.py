@@ -49,6 +49,7 @@ class MarkovModel(ODEModel):
             self.open_state_index = open_state_index
 
         self.n_states = A.shape[0] + 1
+        self.n_state_vars = A.shape[0]
 
         if default_parameters is not None:
             self.default_parameters = default_parameters

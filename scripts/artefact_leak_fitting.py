@@ -28,6 +28,7 @@ def main():
     parser.add_argument("subtraction_results_file")
     parser.add_argument("selection_file")
     parser.add_argument('traces_directory')
+    parser.add_argument('subtracted_traces_directory')
     parser.add_argument('--ramp_start', type=float, default=300)
     parser.add_argument('--ramp_end', type=float, default=900)
     parser.add_argument("--experiment_name")
@@ -38,11 +39,12 @@ def main():
     parser.add_argument("--no_plot", action='store_true')
     parser.add_argument('-P', '--protocols', nargs='+', default=['staircaseramp'])
     parser.add_argument('--noise', default=0.00, type=float)
-    parser.add_argument('--Erev', '-e', type=float)
+    parser.add_argument('--reversal', '-e', type=float)
     parser.add_argument('--cpus', '-c', default=1, type=int)
     parser.add_argument('--use_hybrid_solver', action='store_true')
     parser.add_argument('--sampling_frequency', default=0.1, type=float)
     parser.add_argument('--figsize', type=int, nargs=2, default=[8, 12])
+    parser.add_argument('--no_noise', action='store_true')
 
     global args
     args = parser.parse_args()
@@ -51,8 +53,8 @@ def main():
         args.wells = []
 
     Erev = markovmodels.utilities.calculate_reversal_potential()\
-        if args.Erev is None\
-        else args.Erev
+        if args.reversal is None\
+        else args.reversal
 
     global output_dir
     output_dir = markovmodels.utilities.setup_output_directory(args.output, 'artefact_leak_fitting_%s' % args.model)
@@ -77,9 +79,10 @@ def main():
 
     leak_df = pd.read_csv(args.subtraction_results_file)
     leak_df = leak_df[(leak_df.protocol.isin(['staircaseramp1']))
-                        & (leak_df.well.isin(passed_wells))][['pre-drug leak conductance',
-                                                              'pre-drug leak reversal',
-                                                              'protocol', 'sweep', 'well']]
+                      & (leak_df.well.isin(passed_wells))][['pre-drug leak conductance',
+                                                            'pre-drug leak reversal',
+                                                            'protocol', 'sweep', 'well',
+                                                            'fitted_E_rev']]
 
     leak_df = leak_df.set_index(['protocol', 'well', 'sweep']).sort_index()
     qc_df = qc_df.set_index(['protocol', 'well', 'sweep']).sort_index()
@@ -95,24 +98,27 @@ def main():
 
         gleak = leak_row['pre-drug leak conductance'] #* 1e-3
         Eleak = leak_row['pre-drug leak reversal']
-
         qc_row = qc_df.loc[protocol, well, sweep][['Rseries', 'Cm']]
         Rseries = qc_row['Rseries'].values[0] * 1e-9
         Cm = qc_row['Cm'].values[0] * 1e9
-        noise, gkr = estimate_noise_and_conductance(well, protocol, sweep)
+        E_obs = leak_row['fitted_E_rev']
+        noise, gkr = estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries, Cm, E_obs)
 
-        tasks.append((protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, Erev))
+        if args.no_noise:
+            noise = 0
+        tasks.append((protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev))
 
     with multiprocessing.Pool(args.cpus) as pool:
         res = pool.starmap(generate_data, tasks)
 
     dfs = []
     for fname, task in zip(res, tasks):
-        protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, Erev = task
+        protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev = task
         if well not in args.wells and args.wells:
             continue
         _args = args
         _args.data_directory = output_dir
+        _args.Erev = _args.reversal
         df = subtract_leak(well, protocol, _args, output_dir)
         df['noise'] = noise
         df['gkr'] = gkr
@@ -120,6 +126,8 @@ def main():
         df['Rseries'] = Rseries
         df['Cm'] = Cm
         df['Erev'] = Erev
+        if sweep not in df:
+            df['sweep'] = 1
         dfs.append(df)
 
     df = pd.concat(dfs, ignore_index=True)
@@ -135,39 +143,82 @@ def compare_synth_real_postprocessed_data(df, leak_df):
     fig = plt.figure(figsize=args.figsize)
     ax = fig.subplots()
 
+    leak_df = leak_df.reset_index()
+
     plot_dir = os.path.join(output_dir, "compare_real_synth_traces")
     if not os.path.exists(plot_dir):
         os.makedirs(plot_dir)
 
-    for well in df.well.unique():
-        for protocol in df.protocol.unique():
-
-            times_df = pd.read_csv(os.path.join(output_dir, 'subtracted_traces',
+    labels = []
+    for protocol in df.protocol.unique():
+        times_df = pd.read_csv(os.path.join(output_dir, 'subtracted_traces',
                                             f"{args.experiment_name}-{protocol}-times.csv"))
-            times = times_df['time'].to_numpy().flatten()
-            for sweep in df.protocol.sweep():
+        times = times_df['time'].to_numpy().flatten()
+
+        all_synth_traces = []
+        all_real_traces = []
+        wells = []
+        sweeps = []
+        for well in df.well.unique():
+            for sweep in df.sweep.unique():
                 # Get parameters
+                wells.append(well)
+                sweeps.append(sweep)
                 sub_df = df[(df.well == well) & (df.protocol == protocol) &
                             (df.sweep == sweep)].copy()
                 sub_leak_df = leak_df[(leak_df.well == well) & (leak_df.protocol == protocol) &
                                       (df.sweep == sweep)].copy()
+                if sub_leak_df.shape[0] == 0:
+                    continue
                 gleak, Eleak = sub_leak_df[['pre-drug leak conductance', 'pre-drug leak reversal']]
                 gkr, noise, Cm, Rseries = sub_df[['gkr', 'noise', 'Cm', 'Rseries']]
 
                 # Get synth trace
                 synth_sub_trace = pd.read_csv(os.path.join(output_dir, "subtracted_traces",
-                                            f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv"))['current'].to_numpy()
-                real_sub_trace = pd.read_csv(os.path.join(args.traces_directory,
-                                            f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv"))['current'].to_numpy()
+                                                           f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv"))['current'].to_numpy()
+                real_sub_trace = pd.read_csv(os.path.join(args.subtracted_traces_directory,
+                                                          f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv"))['current'].to_numpy()
 
                 # Plot both traces normalised
                 ax.plot(times, synth_sub_trace/synth_sub_trace.std(), alpha=.5, label='synth data')
-                ax.plot(times, real_sub_trace/real_sub_trace.std(), alpha=.5, label='real data')
 
-                ax.set_yaxis('normalised post-processed current')
-                ax.set_xaxis('times (ms)')
+                times_filename = f"{args.experiment_name}-staircaseramp1-times.csv"
+                real_times = pd.read_csv(os.path.join(args.subtracted_traces_directory, times_filename))['time'].to_numpy().flatten()
+                ax.plot(real_times, real_sub_trace/real_sub_trace.std(), alpha=.5, label='real data')
+
+                ax.set_ylabel('normalised post-processed current')
+                ax.set_xlabel('times (ms)')
+                ax.legend()
+
                 fig.savefig(os.path.join(plot_dir, f"{protocol}-{well}-sweep{sweep}-postprocessed"))
                 ax.cla()
+                label = f"{protocol}-{well}-{sweep}"
+                labels.append(label)
+                all_synth_traces.append(synth_sub_trace.flatten())
+                all_real_traces.append(real_sub_trace.flatten())
+
+        deflection_plot_dir = os.path.join(output_dir, 'deflection_plots')
+        if not os.path.exists(deflection_plot_dir):
+            os.makedirs(deflection_plot_dir)
+
+        all_real_traces = np.vstack(all_real_traces)
+        all_synth_traces = np.vstack(all_synth_traces)
+
+        # Find the average normalised real trace
+        average_real_trace = np.mean(all_real_traces / all_real_traces.std(axis=1).T, axis=0)
+        average_synth_trace = np.mean(all_synth_traces / all_synth_traces.std(axis=1).T, axis=0)
+
+        print(average_real_trace, average_synth_trace)
+        print(average_synth_trace.shape)
+
+        for i, (well, sweep) in enumerate(zip(wells, sweeps)):
+            trace_name = f"{well}_{sweep}_deflection_plots"
+            real_deflection = (all_real_traces[i, :] / all_real_traces[i, :].std()).flatten() - average_real_trace
+            synth_deflection = (all_synth_traces[i, :] / all_synth_traces[i, :].std()).flatten() - average_synth_trace
+            ax.plot(times, real_deflection, label='deflection from mean (real data)')
+            ax.plot(times, synth_deflection, label='deflection from mean (synth data)')
+            fig.savefig(os.path.join(deflection_plot_dir, trace_name))
+            ax.cla()
 
     plt.close(fig)
 
@@ -251,7 +302,7 @@ def plot_overlaid_traces(df):
                                       protocol_description=desc,
                                       tolerances=[1e-6, 1e-6])
 
-        model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm, R_s=Rseries)
+        model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm, R_series=Rseries)
 
         solver = model.make_hybrid_solver_states(hybrid=False)
         states = solver()
@@ -344,7 +395,7 @@ def plot_overlaid_traces(df):
             protocol, well, Rseries, Cm, gleak, Eleak, _, _, noise, gkr, Erev, sweep = [row[index] for index in indices]
 
             # gleak = gleak * 1e-3
-            model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm, R_s=Rseries)
+            model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm, R_series=Rseries)
 
             state_solver = model.make_hybrid_solver_states(hybrid=False)
             states = state_solver()
@@ -372,7 +423,7 @@ def plot_overlaid_traces(df):
         fig.savefig(os.path.join(output_dir, f"{protocol}-overlaid-normalised"))
 
 
-def estimate_noise_and_conductance(well, protocol, sweep):
+def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries, Cm, E_obs):
     # get data
     before_filename = f"{args.experiment_name}-{protocol}-{well}-before-sweep{sweep}.csv"
     before_trace_df = pd.read_csv(os.path.join(args.traces_directory, before_filename))
@@ -408,14 +459,16 @@ def estimate_noise_and_conductance(well, protocol, sweep):
 
     noise = before_trace[:200].std()
 
-    Erev = markovmodels.utilities.calculate_reversal_potential()
-
     prot_func, _times, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
 
     c_model = make_model_of_class(args.model,
-                                  voltage=prot_func, times=times, E_rev=Erev,
+                                  voltage=prot_func, times=times, E_rev=args.reversal,
                                   default_parameters=parameters,
                                   protocol_description=desc)
+
+    V_off = E_obs - args.reversal
+
+    model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm, R_series=Rseries, V_off=V_off)
 
     solver = c_model.make_forward_solver_current(njitted=True)
 
@@ -449,19 +502,18 @@ def estimate_noise_and_conductance(well, protocol, sweep):
     return noise, gkr
 
 
-def generate_data(protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, Erev=None):
+def generate_data(protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev=None):
     if Erev is None:
         Erev = markovmodels.utilities.calculate_reversal_potential()
 
     prot_func, _times, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
 
-    no_samples = int((_times[-1] - _times[0]) / args.sampling_frequency) + 1
-
-    times = np.linspace(_times[0], _times[-1],
-                        no_samples)
+    times_df = pd.read_csv(os.path.join(args.subtracted_traces_directory,
+                                        f"{args.experiment_name}-{protocol}-times.csv"))
+    times = times_df['time'].to_numpy().flatten()
 
     if not os.path.exists(os.path.join(output_dir, f"{args.experiment_name}-{protocol}-times.csv")):
-        times_df = pd.DataFrame(times.T, columns=('time',))
+        times_df = pd.DataFrame(times.T*1e-3, columns=('time',))
         times_df.to_csv(os.path.join(output_dir, f"{args.experiment_name}-{protocol}-times.csv"))
 
     _parameters = parameters.copy()
@@ -471,8 +523,10 @@ def generate_data(protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, Erev=No
                                   voltage=prot_func, times=times, E_rev=Erev,
                                   default_parameters=_parameters,
                                   protocol_description=desc)
+    V_off = E_obs - args.reversal
 
-    model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm, R_s=Rseries)
+    model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm,
+                          R_series=Rseries, V_off=V_off)
 
     solver = model.make_forward_solver_current(njitted=False)
     I_out = solver()

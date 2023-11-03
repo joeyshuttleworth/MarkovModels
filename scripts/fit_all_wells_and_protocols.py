@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import logging
 import multiprocessing
 import os
@@ -14,6 +12,9 @@ import markovmodels
 
 from argparse import ArgumentParser
 from markovmodels.model_generation import make_model_of_class
+from markovmodels.ArtefactModel import ArtefactModel
+from markovmodels.BeattieModel import BeattieModel
+from markovmodels.fitting import infer_reversal_potential_with_artefact
 
 matplotlib.use('agg')
 pool_kws = {'maxtasksperchild': 1}
@@ -25,19 +26,33 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
 
     infer_E_rev = not args.dont_infer_Erev
 
-    res_df = markovmodels.fitting.fit_well_data(model_class, well, protocol,
-                                                args.data_directory,
-                                                args.max_iterations,
-                                                output_dir=this_output_dir,
-                                                default_parameters=default_parameters,
-                                                removal_duration=args.removal_duration,
-                                                repeats=args.repeats,
-                                                infer_E_rev=infer_E_rev,
-                                                experiment_name=args.experiment_name,
-                                                E_rev=E_rev,
-                                                randomise_initial_guess=randomise_initial_guess,
-                                                solver_type=args.solver_type,
-                                                sweep=sweep)
+    if args.dont_infer_Erev and args.use_artefact_model:
+        raise Exception()
+
+    fix_parameters = []
+    if args.use_artefact_model:
+        fix_parameters = [-1, -2, -3, -4, -5, -6, -7]
+        fix_parameters = [i % len(default_parameters) for i in fix_parameters]
+
+    res_df = markovmodels.fitting.fit_well_data(
+        model_class, well, protocol,
+        args.data_directory,
+        args.max_iterations,
+        output_dir=this_output_dir,
+        default_parameters=default_parameters,
+        removal_duration=args.removal_duration,
+        repeats=args.repeats,
+        infer_E_rev=infer_E_rev,
+        experiment_name=args.experiment_name,
+        E_rev=E_rev,
+        randomise_initial_guess=randomise_initial_guess,
+        solver_type=args.solver_type,
+        sweep=sweep,
+        use_artefact_model=args.use_artefact_model,
+        fix_parameters=fix_parameters,
+        data_label=args.data_label,
+        artefact_default_kinetic_parameters=default_artefact_kinetic_parameters
+    )
 
     res_df['well'] = well
     res_df['protocol'] = protocol
@@ -47,8 +62,6 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
 
 
 def main():
-    Erev = markovmodels.utilities.calculate_reversal_potential()
-
     parser = ArgumentParser()
     parser.add_argument('data_directory')
     parser.add_argument('--max_iterations', '-i', type=int, default=100000)
@@ -64,6 +77,7 @@ def main():
     parser.add_argument('--chain_length', '-l', default=500, type=int)
     parser.add_argument('--figsize', '-f', help='mcmc chains to run', type=int)
     parser.add_argument('--use_parameter_file')
+    parser.add_argument('--artefact_default_kinetic_param_file')
     parser.add_argument('--dont_refit', action='store_true')
     parser.add_argument('--dont_infer_Erev', action='store_true')
     parser.add_argument('--solver_type', default='hybrid')
@@ -71,6 +85,11 @@ def main():
     parser.add_argument('--ignore_protocols', nargs='+', default=[])
     parser.add_argument('--ignore_wells', nargs='+', default=[])
     parser.add_argument('--sweeps', nargs='+', default=None)
+    parser.add_argument('--use_artefact_model', action='store_true')
+    parser.add_argument('--subtraction_df_file')
+    parser.add_argument('--qc_df_file')
+    parser.add_argument('--data_label')
+    parser.add_argument('--reversal', type=float)
     parser.add_argument('-o', '--output')
 
     global args
@@ -87,6 +106,22 @@ def main():
             selected_wells = fin.read().splitlines()
     else:
         selected_wells = None
+
+    global default_artefact_kinetic_parameters
+    default_artefact_kinetic_parameters = np.loadtxt(args.artefact_default_kinetic_param_file).flatten().astype(np.float64)
+
+    if args.use_artefact_model and not (args.qc_df_file and args.subtraction_df_file):
+        raise Exception('Cannot use artefact model without qc file')
+
+    if args.use_artefact_model and not args.reversal:
+        raise Exception('Nernst potential must be provided when using an artefact model')
+
+    if args.qc_df_file:
+        qc_df = pd.read_csv(args.qc_df_file)
+        qc_df = qc_df[qc_df.drug == 'before']
+
+    if args.subtraction_df_file:
+        subtraction_df = pd.read_csv(args.subtraction_df_file)
 
     output_dir = markovmodels.utilities.setup_output_directory(
         args.output,
@@ -150,22 +185,37 @@ def main():
         else:
             prefix = 'prelim_'
 
-        if args.sweeps:
-            sweep = groups[2]
-            tasks.append([protocol, well, args.model, starting_parameters, Erev,
-                          not args.dont_randomise_initial_guess, prefix, sweep])
-        else:
-            tasks.append([protocol, well, args.model, starting_parameters,
-                          Erev, prefix, not args.dont_randomise_initial_guess])
+        sweep = int(groups[2])
+        if args.use_artefact_model:
+            print(qc_df[(qc_df.well == well) & (qc_df.protocol == protocol)
+                        & (qc_df.sweep == sweep)])
+            row = qc_df[(qc_df.well == well) & (qc_df.protocol == protocol) &
+                        (qc_df.sweep == sweep)]
+            # assert(row.shape[0] == 1)
+
+            Rseries, Cm = row.iloc[0][['Rseries', 'Cm']]
+
+            Rseries = Rseries * 1e-9
+            Cm = Cm * 1e9
+
+            row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol)
+                                 & (subtraction_df.sweep == sweep)].iloc[0]
+            E_obs, gleak, Eleak = row[['fitted_E_rev', 'pre-drug leak conductance', 'pre-drug leak reversal']]
+            E_obs = float(E_obs)
+            gleak = float(gleak)
+            Eleak = float(Eleak)
+
+            V_off = E_obs - args.reversal
+            default_parameters = markovmodels.model_generation.make_model_of_class(args.model).get_default_parameters()
+            starting_parameters = np.append(default_parameters, [gleak, Eleak, 0, 0, V_off, Cm, Rseries])
+        tasks.append([protocol, well, args.model, starting_parameters, args.reversal,
+                      not args.dont_randomise_initial_guess, prefix, sweep])
 
         protocols_list.append(protocol)
 
     print(f"fitting tasks are {tasks}")
-
     assert len(tasks) > 0, "no valid protocol/well combinations provided"
-
     protocols_list = np.unique(protocols_list)
-
     pool_size = min(args.cores, len(tasks))
 
     with multiprocessing.Pool(pool_size, **pool_kws) as pool:
@@ -239,7 +289,6 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                            adjust_kinetic_parameters=False, args=None):
 
     assert(not (fix_EKr is not None and adjust_kinetic_parameters))
-
     param_labels = make_model_of_class(model_class).get_parameter_labels()
     params_df = get_best_params(params_df, protocol_label='protocol')
     predictions_dir = os.path.join(output_dir, label)
@@ -257,7 +306,7 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
     all_models_axs = all_models_fig.subplots(2)
 
     for sim_protocol in np.unique(protocols_list):
-        prot_func, times, desc = markovmodels.get_ramp_protocol_from_csv(sim_protocol)
+        prot_func, times, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(sim_protocol)
         full_times = pd.read_csv(
             os.path.join(args.data_directory,
                          f"{args.experiment_name}-{sim_protocol}-times.csv"))['time'].values.flatten()
@@ -278,22 +327,60 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                     full_data = markovmodels.get_data(well, sim_protocol,
                                                       args.data_directory,
                                                       experiment_name=args.experiment_name,
+                                                      data_label=args.data_label,
                                                       sweep=predict_sweep)
                 except (FileNotFoundError, StopIteration) as exc:
                     print(str(exc))
                     continue
 
-                prediction_E_rev = markovmodels.infer_reversal_potential(sim_protocol, full_data, full_times)
+                subdir_name = f"{well}_{sim_protocol}_sweep{predict_sweep}_predictions"\
+                    if predict_sweep is not None else f"{well}_{sim_protocol}_predictions"
+                sub_dir = os.path.join(predictions_dir, subdir_name)
 
-                model = make_model_of_class(model_class,
-                                                   voltage=prot_func,
-                                                   times=full_times,
-                                                   E_rev=prediction_E_rev if not fix_EKr else fix_EKr,
-                                                   protocol_description=desc)
+                if not args.use_artefact_model:
+                    E_obs = \
+                        markovmodels.infer_reversal_potential(sim_protocol,
+                                                              full_data,
+                                                              full_times,
+                                                              forward_sim_output_dir=sub_dir
+                                                              )
+
+                    model = make_model_of_class(model_class,
+                                                voltage=prot_func,
+                                                times=full_times,
+                                                E_rev=E_obs if not fix_EKr else fix_EKr,
+                                                protocol_description=desc)
+
+                    # Create dir for plot
+                else:
+                    # Use the artefact to forward simulate the voltages (using literature kinetics)
+                    model = make_model_of_class(model_class, voltage=prot_func,
+                                                times=times,
+                                                E_rev=args.reversal,
+                                                protocol_description=desc)
+
+                    model = ArtefactModel(model)
+                    forward_sim_parameters = default_artefact_kinetic_parameters.copy()
+                    param_row = params_df[(params_df.well == well) &
+                                          (params_df.protcol == sim_protocol) &\
+                                          (params_df.sweep == predict_sweep)].iloc[0]
+
+                    gleak, Eleak, V_off, Rseries, Cm = param_row[['gleak, Eleak, V_off, Rseries, Cm']]
+                    forward_sim_parameters[[-7, -6, -5, -4, -3, -2, -1]] = gleak, Eleak, 0, 0, V_off, Rseries, Cm
+                    E_obs = \
+                        infer_reversal_potential_with_artefact(sim_protocol,
+                                                               full_times,
+                                                               full_data,
+                                                               'model3',
+                                                               args.reversal,
+                                                               plot=True,
+                                                               output_path=sub_dir,
+                                                               forward_sim_output_dir=sub_dir,
+                                                               )
+                    V_off = E_obs - args.reversal
 
                 # Probably not worth compiling solver
                 solver = model.make_forward_solver_of_type(args.solver_type, njitted=False)
-
                 data = full_data[indices]
 
                 for i, protocol_fitted in enumerate(params_df['protocol'].unique()):
@@ -318,26 +405,24 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                         fitting_current = fitting_data['current'].values.flatten()
                         fitting_times = fitting_data['time'].values.flatten()
 
-                        fitting_E_rev = markovmodels.infer_reversal_potential(protocol_fitted, fitting_current,
-                                                                        fitting_times)
-
-                        if adjust_kinetic_parameters:
-                            if not issubclass(model_class, BeattieModel):
-                                NotImplementedError(f"Cannot adjust kinetic parameters for {model_class}")
+                        if adjust_kinetic_parameters and not args.use_artefact_model:
+                            fitting_E_rev = markovmodels.infer_reversal_potential(protocol_fitted, fitting_current,
+                                                                                  fitting_times)
                             if not args.reversal:
                                 Exception('reversal potential not provided')
                             else:
-                                    offset = prediction_E_rev - fitting_E_rev
-                                    params[0] *= np.exp(params[1] * offset)
-                                    params[2] *= np.exp(-params[3] * offset)
-                                    params[4] *= np.exp(params[5] * offset)
-                                    params[6] *= np.exp(-params[7] * offset)
+                                offset = E_obs - fitting_E_rev
+                                params[0] *= np.exp(params[1] * offset)
+                                params[2] *= np.exp(-params[3] * offset)
+                                params[4] *= np.exp(params[5] * offset)
+                                params[6] *= np.exp(-params[7] * offset)
 
-                        subdir_name = f"{well}_{sim_protocol}_sweep{predict_sweep}_predictions"\
-                            if predict_sweep is not None else f"{well}_{sim_protocol}_predictions"
-                        sub_dir = os.path.join(predictions_dir, subdir_name)
                         if not os.path.exists(sub_dir):
                             os.makedirs(sub_dir)
+
+                        # Set V_offset
+                        if args.use_artefact_model:
+                            params[-3] = V_off
 
                         full_prediction = solver(params)
                         prediction = full_prediction[indices]

@@ -92,7 +92,7 @@ class ODEModel:
     def func_rhs(self):
         raise NotImplementedError()
 
-    def define_auxiliary_function(self):
+    def define_auxiliary_function(self, **kwargs):
         return sp.lambdify((self.y, self.p, self.v), self.auxiliary_expression)
 
     def compute_steady_state_expressions(self):
@@ -298,17 +298,15 @@ class ODEModel:
     def make_hybrid_solver_current(self, protocol_description=None,
                                    njitted=True, strict=True,
                                    cond_threshold=None, atol=None, rtol=None,
-                                   hybrid=True):
+                                   hybrid=True, **kwargs):
         hybrid_solver =\
             self.make_hybrid_solver_states(protocol_description=protocol_description,
                                            njitted=njitted, strict=strict,
                                            cond_threshold=cond_threshold,
                                            atol=atol, rtol=rtol, hybrid=hybrid)
 
-        auxiliary_function = self.auxiliary_function
-
+        auxiliary_function = self.define_auxiliary_function(**kwargs)
         times = self.times
-
         atol, rtol = self.solver_tolerances
         voltage_func = self.voltage
 

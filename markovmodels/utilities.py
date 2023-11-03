@@ -31,15 +31,28 @@ def calculate_reversal_potential(T=293, K_in=120, K_out=5):
     return E * 1e3
 
 
-def get_data(well, protocol, data_directory, experiment_name='newtonrun4', sweep=None):
+def get_data(well, protocol, data_directory, experiment_name='newtonrun4',
+             label=None, sweep=None):
+
     # Find data
     if sweep:
-        regex = re.compile(f"^{experiment_name}-{protocol}-{well}-sweep{sweep}.csv$")
+        if label:
+            label = label + '-'
+        else:
+            label = ''
+        regex = re.compile(f"^{experiment_name}-{protocol}-{well}-{label}sweep{sweep}.csv$")
+        print(regex)
     else:
-        regex = re.compile(f"^{experiment_name}-{protocol}-{well}.csv$")
+        if label:
+            label = '-' + label
+        else:
+            label = ''
+        regex = re.compile(f"^{experiment_name}-{protocol}-{well}{label}.csv$")
+
     fname = next(filter(regex.match, os.listdir(data_directory)))
     data = pd.read_csv(os.path.join(data_directory, fname),
                        float_precision='round_trip')['current'].values
+    print("data is", data)
     return data
 
 
