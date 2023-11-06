@@ -1,6 +1,5 @@
 .venv/
 output/
-data
 paper_output/
 NumbaIDA
 markov_builder
