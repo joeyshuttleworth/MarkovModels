@@ -7,6 +7,7 @@ ARG UID=1001
 COPY requirements.txt /opt/app/requirements.txt
 
 COPY . /markovmodels
+COPY data /markovmodels/data
 COPY environment.yml /markovmodels/environment.yml
 
 WORKDIR /markovmodels
