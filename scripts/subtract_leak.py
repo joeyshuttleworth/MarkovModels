@@ -520,7 +520,7 @@ def subtract_leak(well, protocol, args, output_dir=None):
                                         observation_times,
                                         plot=False)
 
-        if Erev > -50 or Erev < -100:
+        if Erev > -50 or Erev < -120:
             print(f"{protocol}, {well} \tpassed QC.Erev")
             passed_Erev = False
         else:
