@@ -336,7 +336,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                                  output_path=output_path, voltages=voltages)
             if use_artefact_model:
                 inferred_E_rev = E_rev
-                V_off = E_obs - E_rev
+                V_off = E_rev - E_obs
                 default_parameters[-3] = V_off
             else:
                 inferred_E_rev = E_obs

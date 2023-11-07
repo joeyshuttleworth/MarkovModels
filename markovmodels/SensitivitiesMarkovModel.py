@@ -69,11 +69,9 @@ class SensitivitiesMarkovModel(ODEModel):
 
     def get_cfunc_rhs(self):
         rhs = nb.njit(self.func_S1)
-        sp.pprint(self.fS1)
 
         y0 = np.full(self.get_no_state_vars(), 0.0)
         y0[:self.markov_model.get_no_state_vars()] = self.markov_model.initial_condition
-        print(rhs(y0, self.get_default_parameters(), -80.0))
 
         voltage = self.markov_model.voltage
 
@@ -87,8 +85,6 @@ class SensitivitiesMarkovModel(ODEModel):
             y = nb.carray(y, ny)
             dy = nb.carray(dy, ny)
             data = nb.carray(data, n_p + 1)
-
-            # print(y, dy)
 
             p = data[:-1]
             t_offset = data[-1]
@@ -140,8 +136,6 @@ class SensitivitiesMarkovModel(ODEModel):
                 for k in range(ny):
                     state_contribution = sp.diff(self.markov_model.rhs_expr[i], y[k]) * dydp[k][j]
                     dS[i, j] += state_contribution
-
-        print(dS)
 
         # The sensitivity of the auxiliary function wrt the state variables
         self.dIdo = {y: sp.diff(self.markov_model.auxiliary_expression, y) for y in y}

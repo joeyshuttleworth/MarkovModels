@@ -162,14 +162,16 @@ def compare_synth_real_postprocessed_data(df, leak_df):
         for well in df.well.unique():
             for sweep in df.sweep.unique():
                 # Get parameters
-                wells.append(well)
-                sweeps.append(sweep)
                 sub_df = df[(df.well == well) & (df.protocol == protocol) &
                             (df.sweep == sweep)].copy()
                 sub_leak_df = leak_df[(leak_df.well == well) & (leak_df.protocol == protocol) &
                                       (df.sweep == sweep)].copy()
                 if sub_leak_df.shape[0] == 0:
                     continue
+
+                wells.append(well)
+                sweeps.append(sweep)
+
                 gleak, Eleak = sub_leak_df[['pre-drug leak conductance', 'pre-drug leak reversal']]
                 gkr, noise, Cm, Rseries = sub_df[['gkr', 'noise', 'Cm', 'Rseries']]
 
@@ -201,22 +203,23 @@ def compare_synth_real_postprocessed_data(df, leak_df):
         if not os.path.exists(deflection_plot_dir):
             os.makedirs(deflection_plot_dir)
 
+        print(all_real_traces)
         all_real_traces = np.vstack(all_real_traces)
         all_synth_traces = np.vstack(all_synth_traces)
 
-        # Find the average normalised real trace
-        average_real_trace = np.mean(all_real_traces / all_real_traces.std(axis=1).T, axis=0)
-        average_synth_trace = np.mean(all_synth_traces / all_synth_traces.std(axis=1).T, axis=0)
+        print(all_real_traces.shape)
 
-        print(average_real_trace, average_synth_trace)
-        print(average_synth_trace.shape)
+        # Find the average normalised real trace
+        average_real_trace = np.mean(all_real_traces.T / all_real_traces.std(axis=1), axis=1).T
+        average_synth_trace = np.mean(all_synth_traces.T / all_synth_traces.std(axis=1), axis=1).T
 
         for i, (well, sweep) in enumerate(zip(wells, sweeps)):
             trace_name = f"{well}_{sweep}_deflection_plots"
-            real_deflection = (all_real_traces[i, :] / all_real_traces[i, :].std()).flatten() - average_real_trace
-            synth_deflection = (all_synth_traces[i, :] / all_synth_traces[i, :].std()).flatten() - average_synth_trace
+            real_deflection = (all_real_traces[i, :].T / all_real_traces[i, :].std()).flatten().T - average_real_trace
+            synth_deflection = (all_synth_traces[i, :].T / all_synth_traces[i, :].std()).flatten().T - average_synth_trace
             ax.plot(times, real_deflection, label='deflection from mean (real data)')
             ax.plot(times, synth_deflection, label='deflection from mean (synth data)')
+            ax.legend()
             fig.savefig(os.path.join(deflection_plot_dir, trace_name))
             ax.cla()
 
@@ -523,7 +526,7 @@ def generate_data(protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, 
                                   voltage=prot_func, times=times, E_rev=Erev,
                                   default_parameters=_parameters,
                                   protocol_description=desc)
-    V_off = E_obs - args.reversal
+    V_off = args.reversal - E_obs
 
     model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm,
                           R_series=Rseries, V_off=V_off)

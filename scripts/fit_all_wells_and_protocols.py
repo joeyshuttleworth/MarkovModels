@@ -129,7 +129,7 @@ def main():
     )
 
     if len(args.wells) == 0:
-        args.wells = markovmodels.get_all_wells_in_directory(args.data_directory, experiment_name)
+        args.wells = markovmodels.utilities.get_all_wells_in_directory(args.data_directory, experiment_name)
 
     if len(args.protocols) == 0:
         protocols = markovmodels.voltage_protocols.get_protocol_list()
@@ -375,7 +375,7 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                                                                output_path=sub_dir,
                                                                forward_sim_output_dir=sub_dir,
                                                                )
-                    V_off = E_obs - args.reversal
+                    V_off = args.reversal - E_obs
 
                 # Probably not worth compiling solver
                 solver = model.make_forward_solver_of_type(args.solver_type, njitted=False)
