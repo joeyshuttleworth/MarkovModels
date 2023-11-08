@@ -139,14 +139,14 @@ class DisconnectedMarkovModel(MarkovModel):
     def make_hybrid_solver_states(self, protocol_description=None,
                                   njitted=False, strict=True,
                                   cond_threshold=None, atol=None, rtol=None,
-                                  hybrid=True):
+                                  hybrid=True, crhs=None):
         return self.make_solver_states(protocol_description, njitted, strict,
                                        hybrid=hybrid, cond_threshold=None,
-                                       atol=atol, rtol=rtol)
+                                       atol=atol, rtol=rtol, crhs=crhs)
 
     def make_solver_states(self, protocol_description=None, njitted=False,
                            strict=True, hybrid=True, solver_type='lsoda',
-                           atol=None, rtol=None, cond_threshold=None):
+                           atol=None, rtol=None, cond_threshold=None, crhs=None):
         if protocol_description is None:
             if self.protocol_description is None:
                 raise Exception("No protocol description has been provided")
@@ -174,7 +174,7 @@ class DisconnectedMarkovModel(MarkovModel):
 
         def hybrid_forward_solve_component(rhs_inf, analytic_solver, crhs_ptr, p=p,
                                            times=times, atol=atol, rtol=rtol,
-                                           strict=strict, hybrid=hybrid):
+                                           strict=strict, hybrid=hybrid, crhs=None):
             y0 = rhs_inf(p, voltage(.0)).flatten()
             no_states = y0.shape[0]
             solution = np.full((len(times), no_states), np.nan)
@@ -258,10 +258,14 @@ class DisconnectedMarkovModel(MarkovModel):
 
             return solution
 
-        rhs_cfunc_ptrs = []
-        for A, B, comp in zip(self.As, self.Bs, self.connected_components):
-            cfunc_rhs = self.make_cfunc_rhs(A, B, comp)
-            rhs_cfunc_ptrs.append(cfunc_rhs.address)
+        if crhs is None:
+            rhs_cfunc_ptrs = []
+            for A, B, comp in zip(self.As, self.Bs, self.connected_components):
+                cfunc_rhs = self.make_cfunc_rhs(A, B, comp)
+                rhs_cfunc_ptrs.append(cfunc_rhs.address)
+
+        else:
+            rhs_cfunc_ptrs = [cfunc.address for cfunc in crhs]
 
         rhs_cfunc_ptrs = tuple(rhs_cfunc_ptrs)
 
