@@ -33,17 +33,31 @@ class TestSensitivities(unittest.TestCase):
         model_name = 'model3'
         protocol = 'staircaseramp1'
         voltage_func, times, desc = get_ramp_protocol_from_csv(protocol)
-        tolerances = 1e-6, 1e-6
+
+        tolerances = (1e-8, 1e-8)
         channel_model = make_model_of_class(model_name, times, voltage_func,
                                             protocol_description=desc,
                                             tolerances=tolerances)
+
+        fig = plt.figure()
+        ax = fig.subplots()
 
         sensitivities_model = SensitivitiesMarkovModel(channel_model)
 
         voltages = np.array([voltage_func(t) for t in times])
         p = sensitivities_model.get_default_parameters()
         res = sensitivities_model.make_hybrid_solver_states(hybrid=False, njitted=False)()
-        print(res)
+
+        ax.plot(times, res[:, :2])
+        fig.savefig(os.path.join(self.output_dir, 'sensitivity_state_output'))
+
+        Erev = markovmodels.utilities.calculate_reversal_potential()
+
+        ax.cla()
+        ax.plot(times, res[:, 0] * res[:, 1] * (voltages - Erev))
+        fig.savefig(os.path.join(self.output_dir, 'sensitivity_current_output'))
+        ax.cla()
+
         I_Kr_sens = sensitivities_model.auxiliary_function(res.T, p, voltages)[:, 0, :].T
 
         mk_model = markov_builder.models.thirty_models.model_03().generate_myokit_model()
@@ -55,9 +69,9 @@ class TestSensitivities(unittest.TestCase):
         mk_simulation = myokit.Simulation(mk_model, mk_protocol,
                                           sensitivities=(['markov_chain.state_C'],
                                                          mk_param_labels))
-        mk_simulation.set_tolerance(*tolerances)
         mk_simulation.set_max_step_size(dtmax=100)
-        mk_simulation.pre(1e3)
+        mk_simulation.set_tolerance(*tolerances)
+        mk_simulation.pre(1e5)
 
         d, e = mk_simulation.run(mk_protocol.times()[-1]+1, log_times=times)
         sens = np.array(e)
@@ -66,10 +80,6 @@ class TestSensitivities(unittest.TestCase):
         error = I_Kr_sens - mk_S
 
         # Plot bot sensitivities
-
-        fig = plt.figure()
-        ax = fig.subplots()
-
         ax.plot(times, I_Kr_sens[:, 0])
         ax.plot(times, mk_S[:, 0])
 
@@ -77,9 +87,12 @@ class TestSensitivities(unittest.TestCase):
         ax.cla()
 
         plot_labels = [f"dI/d{lab}" for lab in channel_model.get_parameter_labels()]
+        axs = fig.subplots(2)
 
-        ax.plot(times, mk_S, label=plot_labels)
-
+        mk_IKr = d['markov_chain.I_Kr']
+        axs[0].plot(times, mk_IKr, label='I_Kr')
+        axs[0].legend()
+        axs[1].plot(times, mk_S, label=plot_labels)
         plt.close(fig)
         ax.legend()
         fig.savefig(os.path.join(self.output_dir, 'model3_sensitivities_mk'))

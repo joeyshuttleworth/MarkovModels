@@ -10,18 +10,23 @@ import numba as nb
 
 class SensitivitiesMarkovModel(ODEModel):
 
-    def __init__(self, markov_model):
+    def __init__(self, markov_model, parameters_to_use=None):
         self.markov_model = markov_model
 
+        if not parameters_to_use:
+            self.parameters_to_use = self.markov_model.get_parameter_labels()
+        else:
+            self.parameters_to_use = parameters_to_use
+
         self.rates_dict = markov_model.rates_dict
-        self.p = markov_model.p
+        self.p = sp.sympify(self.parameters_to_use)
         self.v = markov_model.v
         self.E_rev = self.markov_model.E_rev
         self.solver_tolerances = self.markov_model.solver_tolerances
 
         self.default_parameters = markov_model.get_default_parameters()
 
-        self.n_params = len(markov_model.get_default_parameters())
+        self.n_params = len(self.parameters_to_use)
 
         self.times = markov_model.times.copy()
         self.voltage = markov_model.voltage
@@ -36,14 +41,14 @@ class SensitivitiesMarkovModel(ODEModel):
 
     def get_no_state_vars(self):
         # Include the additional Vm state (membrane voltage)
-        return self.markov_model.get_no_state_vars() * (1 + len(self.get_default_parameters()))
+        return self.markov_model.get_no_state_vars() * (1 + self.n_params)
 
     def compute_steady_state_expressions(self, tend=5000):
         p = self.get_default_parameters()
         atol, rtol = self.solver_tolerances
 
         y0 = np.full(self.get_no_state_vars(), .0)
-        y0[0] = 1.0
+        y0[:self.markov_model.get_no_state_vars()] = self.markov_model.rhs_inf(p, self.voltage(0)).flatten()
 
         crhs = self.get_cfunc_rhs()
         crhs_ptr = crhs.address
@@ -69,16 +74,9 @@ class SensitivitiesMarkovModel(ODEModel):
 
     def get_cfunc_rhs(self):
         rhs = nb.njit(self.func_S1)
-
-        y0 = np.full(self.get_no_state_vars(), 0.0)
-        y0[:self.markov_model.get_no_state_vars()] = self.markov_model.initial_condition
-
         voltage = self.markov_model.voltage
-
         n_p = len(self.get_default_parameters())
         ny = self.get_no_state_vars()
-
-        assert(ny == len(y0))
 
         @cfunc(lsoda_sig)
         def crhs(t, y, dy, data):
@@ -93,7 +91,7 @@ class SensitivitiesMarkovModel(ODEModel):
                       p,
                       voltage(t, offset=t_offset)).flatten()
 
-            dy = res.flatten()
+            dy[:] = res.flatten()
 
         return crhs
 
@@ -101,51 +99,37 @@ class SensitivitiesMarkovModel(ODEModel):
         inputs = (list(self.markov_model.y), self.p, self.v)
         n_state_vars = self.get_no_state_vars()
         # Create symbols for 1st order sensitivities
-        dydp = [
-            [
-                sp.symbols(
-                    'dy%d' %
-                    i + 'dp%d' %
-                    j) for j in range(
-                    self.n_params)] for i in range(
-                        len(self.markov_model.y))]
+        dydp = [[sp.symbols(f"dy{i}_dp{j}") for j in range(self.n_params)]
+                for i in range(len(self.markov_model.y))]
 
         y = self.markov_model.y
 
         # Append 1st order sensitivities to inputs
-        for i in range(self.n_params):
-            for j in range(len(dydp)):
-                inputs[0].append(dydp[j][i])
+        for i in range(len(dydp)):
+            for j in range(self.n_params):
+                inputs[0].append(dydp[i][j])
 
-        # Initialise 1st order sensitivities
-        ny = self.markov_model.get_no_state_vars()
-        dS = sp.zeros(ny, self.n_params)
         S = sp.Matrix([[dydp[i][j] for j in range(self.n_params)]
                        for i in range(len(self.markov_model.y))])
 
-        # The sensitivity of each rate to the parameters
-        # rate_sensitivities = {r: sp.diff(expr, self.p) for r, expr in self.rates_dict.items()}
-
         # Create 1st order sensitivities function
-        for i in range(ny):
-            for j in range(self.n_params):
-                # sens_to_rates = {rate: sp.diff(self.rhs_expr[i], rate) for rate in self.rates_dict}
-                sens_to_param = sp.diff(self.markov_model.rhs_expr[i], self.p[j])
-                dS[i, j] = sens_to_param
-
-                for k in range(ny):
-                    state_contribution = sp.diff(self.markov_model.rhs_expr[i], y[k]) * dydp[k][j]
-                    dS[i, j] += state_contribution
+        J = self.markov_model.rhs_expr.jacobian(self.markov_model.y)
+        F = sp.Matrix([[sp.diff(f, p) for f in self.markov_model.rhs_expr] for p in self.p]).T
+        dS = J @ S + F
 
         # The sensitivity of the auxiliary function wrt the state variables
         self.dIdo = {y: sp.diff(self.markov_model.auxiliary_expression, y) for y in y}
 
-        self.auxiliary_expression = sp.Matrix([sum([self.dIdo[y] * dS[i, j] +
-                                                    sp.diff(self.markov_model.auxiliary_expression, p)
-                                                    for i, y in enumerate(y)])
-                                               for j, p in enumerate(self.p)]).subs({'E_Kr': self.E_rev})
+        self.auxiliary_expression = sp.Matrix([sum([self.dIdo[y] * S[i, j] for
+                                                    i, y in enumerate(y)]) for j, p
+                                               in enumerate(self.p)])
 
-        self.auxiliary_function = sp.lambdify(inputs, self.auxiliary_expression)
+        self.auxiliary_expression += sp.Matrix([sp.diff(self.markov_model.auxiliary_expression, p)
+                                                for p in self.p])
+
+        self.auxiliary_expression = self.auxiliary_expression.subs({'E_Kr': self.E_rev})
+
+        self.auxiliary_function = sp.lambdify(inputs, self.auxiliary_expression, cse=True)
 
         # Define number of 1st order sensitivities
         self.n_state_var_sensitivities = self.n_params * n_state_vars
@@ -153,9 +137,7 @@ class SensitivitiesMarkovModel(ODEModel):
         # Concatenate RHS and 1st order sensitivities
         fS1 = sp.flatten(dS)
         fS1 = sp.Matrix(np.concatenate((sp.flatten(self.markov_model.rhs_expr), fS1)))
-
         self.fS1 = fS1
-
         self.func_S1 = sp.lambdify(inputs, fS1)
 
         # Create Jacobian of the 1st order sensitivities function

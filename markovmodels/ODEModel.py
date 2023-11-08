@@ -133,7 +133,7 @@ class ODEModel:
     def make_hybrid_solver_states(self, protocol_description=None,
                                   njitted=False, analytic_solver=None,
                                   strict=True, cond_threshold=None, atol=None,
-                                  rtol=None, hybrid=True):
+                                  rtol=None, hybrid=True, crhs=None):
 
         if protocol_description is None:
             if self.protocol_description is None:
@@ -141,7 +141,9 @@ class ODEModel:
             else:
                 protocol_description = self.protocol_description
 
-        crhs = self.get_cfunc_rhs()
+        if crhs is None:
+            crhs = self.get_cfunc_rhs()
+
         crhs_ptr = crhs.address
 
         no_states = self.get_no_state_vars()
@@ -276,13 +278,13 @@ class ODEModel:
         voltage = self.voltage
 
         ny = self.get_no_state_vars()
-        np = len(self.get_default_parameters())
+        n_p = len(self.get_default_parameters())
 
         @cfunc(lsoda_sig)
         def crhs(t, y, dy, data):
             y = nb.carray(y, ny)
             dy = nb.carray(dy, ny)
-            data = nb.carray(data, np + 1)
+            data = nb.carray(data, n_p + 1)
 
             p = data[:-1]
             t_offset = data[-1]
