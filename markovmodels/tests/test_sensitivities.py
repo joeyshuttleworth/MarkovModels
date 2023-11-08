@@ -76,7 +76,6 @@ class TestSensitivities(unittest.TestCase):
         d, e = mk_simulation.run(mk_protocol.times()[-1]+1, log_times=times)
         sens = np.array(e)
         mk_S = sens.reshape(sens.shape[0], -1, order='C')
-
         error = I_Kr_sens - mk_S
 
         # Plot bot sensitivities
@@ -87,6 +86,7 @@ class TestSensitivities(unittest.TestCase):
         ax.cla()
 
         plot_labels = [f"dI/d{lab}" for lab in channel_model.get_parameter_labels()]
+        fig.clf()
         axs = fig.subplots(2)
 
         mk_IKr = d['markov_chain.I_Kr']
