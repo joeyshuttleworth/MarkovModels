@@ -67,8 +67,15 @@ def main():
     step_to_modify = -25
 
     # optimise one step (8th from last)
-    def opt_func(v):
+    def opt_func(x):
+        v, t = x
         new_desc = [[t1, t2, v1, v2] for t1, t2, v1, v2 in sc_desc]
+        new_tend = new_desc[step_to_modify][0] + t
+        new_desc[step_to_modify][1] = new_tend
+
+        if step_to_modify + 1 < len(desc):
+            new_desc[step_to_modify + 1][0] = new_tend
+
         new_desc[step_to_modify][2] = v
         new_desc[step_to_modify][3] = v
 
@@ -78,12 +85,22 @@ def main():
         print(util)
         return -util
 
-    res = scipy.optimize.minimize_scalar(opt_func, bounds=(-120, 60))
+    t_bound = np.array([.5, 2]) * desc[step_to_modify][1] - desc[step_to_modify][0]
+
+    res = scipy.optimize.minimize(opt_func, [0, 250], bounds=[(-120, 0), t_bound])
 
     # output optimised protocol
     new_desc = [[t1, t2, v1, v2] for t1, t2, v1, v2 in sc_desc]
-    new_desc[step_to_modify][2] = res.x
-    new_desc[step_to_modify][3] = res.x
+    new_tend = new_desc[step_to_modify][0] + res.x[1]
+    new_desc[step_to_modify][1] = new_tend
+
+    if step_to_modify + 1 < len(desc):
+        new_desc[step_to_modify + 1][0] = new_tend
+
+    v = res.x[0]
+
+    new_desc[step_to_modify][2] = v
+    new_desc[step_to_modify][3] = v
 
     new_desc = tuple([tuple(entry) for entry in new_desc])
 
