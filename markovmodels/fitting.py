@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import logging
 import os
 import time
@@ -19,7 +17,7 @@ import markovmodels
 from markovmodels.model_generation import make_model_of_class
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
 from markovmodels.utilities import get_data
-from markovmodels.voltage_protocols import remove_spikes
+from markovmodels.voltage_protocols import remove_spikes, detect_spikes
 from markovmodels.ArtefactModel import ArtefactModel
 
 
@@ -769,33 +767,3 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
 
     return roots[-1]
 
-
-def detect_spikes(x, y, threshold=100, window_size=0, earliest=True):
-    """
-    Find the points where time-series 'jumps' suddenly. This is useful in order
-    to find 'capacitive spikes' in protocols.
-
-    Params:
-    x : the independent variable (usually time)
-    y : the dependent variable (usually voltage)
-
-    """
-    dx = np.diff(x)
-    dy = np.diff(y)
-
-    deriv = dy / dx
-    spike_indices = np.argwhere(np.abs(deriv) > threshold)[:, 0]
-
-    if window_size > 0:
-        spike_indices = [index - window_size \
-                         + np.argmax(
-                             np.abs(y[(index - window_size):(index + window_size)]))
-                         for index in spike_indices]
-        spike_indices = np.unique(spike_indices)
-
-    if(len(spike_indices) == 0):
-        return [], np.array([])
-
-    spike_indices -= 1
-
-    return x[spike_indices], np.array(spike_indices)
