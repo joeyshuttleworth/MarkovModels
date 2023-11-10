@@ -254,3 +254,46 @@ def detect_spikes(x, y, threshold=100, window_size=0, earliest=True):
     spike_indices -= 1
 
     return x[spike_indices], np.array(spike_indices)
+
+
+def design_space_to_desc(d):
+    durations = d[1::2]
+    voltages = d[::2]
+
+    # Add leak ramp
+    leak_ramp_steps = [[0.0, 249.9, -80.0, -80.0],
+                       [250.0, 299.90000000000003, -120.0, -120.0],
+                       [300.0, 699.9000000000001, -119.99999999999991, -80.00999999999992],
+                       [700.0, 899.9000000000001, -80.0, -80.0],
+                       [900.0, 1899.9, 40.0, 40.0],
+                       [1900.0, 2399.9, -120.0, -120.0],
+                       [2400.0, 3399.9, -80.0, -80.0]]
+
+    reversal_steps = [[13900.0, 14399.900000000001, 40.0, 40.0],
+                      [14400.0, 14409.900000000001, -70.0, -70.0],
+                      [14410.0, 14509.900000000001, -70.00000000000364, -109.96000000000276],
+                      [14510.0, 14899.900000000001, -120.0, -120.0],
+                      [14900.0, 15399.800000000001, -80.0, -80.0],
+                      [15399.800000000001, np.inf, -80.0, -80.0]]
+
+    lines = leak_ramp_steps
+
+    t_cur = lines[-1][1]
+    # Add steps from the design
+    for dur, v in zip(durations, voltages):
+        lines.append([t_cur, t_cur + dur, v, v])
+        t_cur += dur
+
+    for row in reversal_steps:
+        dur = row[1] - row[0]
+        tstart = t_cur
+        tend = t_cur + dur
+        vstart, vend = row[2], row[3]
+        t_cur += dur
+        lines.append([tstart, tend, vstart, vend])
+
+    return tuple([tuple(line) for line in lines])
+
+
+def get_design_space_representation(desc):
+    return np.array([(line[2], line[1] - line[0]) for line in desc[7:-6]]).flatten()

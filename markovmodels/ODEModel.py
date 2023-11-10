@@ -197,7 +197,6 @@ class ODEModel:
                 vend = protocol_description[i][3]
 
                 step_times = np.full(iend-istart + 2, np.nan)
-                step_times = np.full(iend-istart + 2, np.nan)
 
                 if iend == len(times):
                     step_times[1:-1] = times[istart:]
