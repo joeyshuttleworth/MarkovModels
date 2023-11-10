@@ -40,7 +40,7 @@ def entropy_utility(desc, params, model, hybrid=False, removal_duration=5, inclu
     _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
 
     states = model.make_hybrid_solver_states(njitted=False, hybrid=False)()
-    n_boxes_per_variable = 10
+    n_boxes_per_variable = 6
 
     times_in_each_box = count_box_visitations(states[:, include_vars],
                                               n_boxes_per_variable, times, indices)
@@ -53,8 +53,8 @@ def entropy_utility(desc, params, model, hybrid=False, removal_duration=5, inclu
 
 @jit
 def count_box_visitations(states, n_boxes_per_variable, times, indices):
-    boxes = np.full((times.shape[0], states.shape[1]), 0, dtype=int)
     n_skip = 100
+    boxes = np.full((times[::n_skip].shape[0], states[::n_skip, :].shape[1]), 0, dtype=int)
 
     for i, (t, x) in enumerate(zip(times[indices][::n_skip], states[indices, ][::n_skip, :])):
         # Get box
@@ -120,12 +120,10 @@ def main():
     params = model.get_default_parameters()
     voltages = np.array([voltage_func(t) for t in times])
 
-    print(entropy_utility(sc_desc, params, model))
+    print('initial score: ', entropy_utility(sc_desc, params, model))
 
     global output_dir
     output_dir = markovmodels.utilities.setup_output_directory(None, 'modified_staircase')
-
-    step_to_modify = -25
 
     if args.subtraction_df_file:
         subtraction_df = pd.read_csv(args.subtraction_df_file)
@@ -185,7 +183,7 @@ def main():
                                               times=times, E_rev=args.reversal,
                                               protocol_description=desc)
 
-                solver = c_model.make_forward_solver_current(njitted=True)
+                solver = c_model.make_forward_solver_current(njitted=False)
                 default_parameters = c_model.get_default_parameters()
 
                 # Remove observations within 5ms of a spike
@@ -213,7 +211,6 @@ def main():
 
     a_model = ArtefactModel(model)
 
-    @jit
     def opt_func(x):
         # Force positive durations
         # x[1::2] = np.abs(x[1::2])
@@ -228,48 +225,54 @@ def main():
 
         desc = markovmodels.voltage_protocols.design_space_to_desc(x)
         params.set_index(['well', 'protocol', 'sweep'])
+
+        # ignore Vm state
         kinetic_indices = [i for i in range(a_model.get_no_state_vars() - 1)]
         utils = np.array([entropy_utility(desc, params, a_model,
                                           include_vars=kinetic_indices) for
                           p_vec in params.values])
+        print(utils)
         return -utils.mean()
 
     # t_bound = np.array([.5, 2]) * desc[step_to_modify][1] - desc[step_to_modify][0]
 
     # res = scipy.optimize.minimize(opt_func, [-60, 500], bounds=[(-120, 60), [250, 750]])
 
-    x0 = markovmodels.voltage_protocols.get_design_space_representation(sc_desc)
+    x0 = markovmodels.voltage_protocols.get_design_space_representation(sc_desc).flatten()
     stds = np.empty(x0.shape)
     stds[::2] = .25 * (60 + 120)
     stds[1::2] = .25 * 1000
 
     n_steps = 60 - 13
-    bounds = [[-120, 60] if (i % 2) == 0 else [1, 3000] for i in range(n_steps)]
+    l_bounds = [-120 if (i % 2) == 0 else 1 for i in range(n_steps)]
+    u_bounds = [60 if (i % 2) == 0 else 2000 for i in range(n_steps)]
+
+    bounds = l_bounds, u_bounds
     options = {'maxfevals': args.max_iterations,
                'CMA_stds': stds,
                'bounds': bounds
                }
 
-    xopt, es = cma.fmin2(opt_func, [x0], 1, options=options)
-    s_model = SensitivitiesMarkovModel(model,
-                                       parameters_to_use=[i for i in range(len(model.get_parameter_labels()))])
+    xopt, es = cma.fmin2(opt_func, x0, 1, options=options)
+    # s_model = SensitivitiesMarkovModel(model,
+    #                                    parameters_to_use=[i for i in range(len(model.get_parameter_labels()))])
 
-    # Check D_optimality of design vs staircase
-    params = model.get_default_parameters()
-    u_D_staircase = markovmodels.optimal_design.D_opt_utility(sc_desc,
-                                                              params,
-                                                              s_model,
-                                                              indices=indices)
-    print(f"u_D of staircase = {u_D_staircase}")
+    # # Check D_optimality of design vs staircase
+    # params = model.get_default_parameters()
+    # u_D_staircase = markovmodels.optimal_design.D_opt_utility(sc_desc,
+    #                                                           params,
+    #                                                           s_model,
+    #                                                           indices=indices)
+    # print(f"u_D of staircase = {u_D_staircase}")
 
-    found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt)
+    # found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt)
 
-    u_D_found = markovmodels.optimal_design.D_opt_utility(found_desc,
-                                                          params,
-                                                          s_model,
-                                                          indices=indices)
+    # u_D_found = markovmodels.optimal_design.D_opt_utility(found_desc,
+    #                                                       params,
+    #                                                       s_model,
+    #                                                       indices=indices)
 
-    print(f"u_D of found design = {u_D_found}")
+    # print(f"u_D of found design = {u_D_found}")
 
     # # print(res.x)
     # # output optimised protocol
@@ -295,6 +298,14 @@ def main():
     axs[1].plot(model.times, [model.voltage(t) for t in model.times])
 
     fig.savefig(os.path.join(output_dir, 'optimised_protocol'))
+
+    # Output protocol
+    with open(os.path.join(output_dir, 'found_design.txt'), 'w') as fout:
+        for line in markovmodels.voltage_protocols.desc_to_table(desc):
+            fout.write(line)
+    with open(os.path.join(output_dir, 'found_design_desc.txt'), 'w') as fout:
+        for line in new_desc:
+            fout.write(", ".join([str(entry) for entry in line]))
 
 
 if __name__ == '__main__':

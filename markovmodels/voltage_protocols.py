@@ -297,3 +297,18 @@ def design_space_to_desc(d):
 
 def get_design_space_representation(desc):
     return np.array([(line[2], line[1] - line[0]) for line in desc[7:-6]]).flatten()
+
+
+def desc_to_table(desc):
+    output_lines = ['Type \t Voltage \t Duration']
+    for (tstart, tend, vstart, vend) in desc:
+        dur = tend - tstart
+
+        if vstart == vend:
+            _type = 'ramp'
+        else:
+            _type = 'step'
+
+        output_lines.append(f"{_type} \t {vend} \t {dur}")
+
+    return output_lines

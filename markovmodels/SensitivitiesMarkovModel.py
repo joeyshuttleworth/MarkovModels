@@ -114,6 +114,9 @@ class SensitivitiesMarkovModel(ODEModel):
 
         # Create 1st order sensitivities function
         J = self.markov_model.rhs_expr.jacobian(self.markov_model.y)
+
+        print(self.markov_model.rhs_expr)
+
         F = sp.Matrix([[sp.diff(f, p) for f in self.markov_model.rhs_expr] for p in self.p]).T
         dS = J @ S + F
 

@@ -16,6 +16,7 @@ from markovmodels.utilities import setup_output_directory, calculate_reversal_po
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
 from markovmodels.model_generation import make_model_of_class, make_myokit_model
 from markovmodels.SensitivitiesMarkovModel import SensitivitiesMarkovModel
+from markovmodels.ArtefactModel import ArtefactModel
 
 
 class TestSensitivities(unittest.TestCase):
@@ -108,8 +109,11 @@ class TestSensitivities(unittest.TestCase):
         channel_model = make_model_of_class('model3', times,
                                             voltage_func,
                                             protocol_description=desc)
+        a_model = ArtefactModel(channel_model)
 
         sensitivities_model = SensitivitiesMarkovModel(channel_model)
+        a_sensitivities_model = SensitivitiesMarkovModel(a_model,
+                                                         parameters_to_use=channel_model.get_parameter_labels())
 
         res = sensitivities_model.make_hybrid_solver_states(hybrid=False, njitted=False)()
 
@@ -119,5 +123,10 @@ class TestSensitivities(unittest.TestCase):
 
         plt.plot(times, I_out_sens, label=channel_model.get_parameter_labels())
         plt.savefig(os.path.join(self.output_dir, 'model3_sensitivities'))
+        plt.clf()
+
+        I_out_sens = a_sensitivities_model.make_hybrid_solver_states(hybrid=False, njitted=False)()
+        plt.plot(times, I_out_sens, label='a_model.get_parameter_labels()')
+        plt.savefig(os.path.join(self.output_dir, 'model3_artefact_sensitivities'))
 
 
