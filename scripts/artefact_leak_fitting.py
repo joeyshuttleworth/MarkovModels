@@ -302,8 +302,7 @@ def plot_overlaid_traces(df):
         c_model = make_model_of_class(args.model,
                                       voltage=prot_func, times=times, E_rev=Erev,
                                       default_parameters=_parameters,
-                                      protocol_description=desc,
-                                      tolerances=[1e-6, 1e-6])
+                                      protocol_description=desc)
 
         model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm, R_series=Rseries)
 
@@ -471,10 +470,9 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
 
     V_off = E_obs - args.reversal
 
-    model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm, R_series=Rseries, V_off=V_off)
-
+    model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm,
+                          R_series=Rseries, V_off=V_off)
     solver = c_model.make_forward_solver_current(njitted=True)
-
     default_parameters = c_model.get_default_parameters()
 
     # @njit

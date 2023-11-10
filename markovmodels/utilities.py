@@ -41,7 +41,6 @@ def get_data(well, protocol, data_directory, experiment_name='newtonrun4',
         else:
             label = ''
         regex = re.compile(f"^{experiment_name}-{protocol}-{well}-{label}sweep{sweep}.csv$")
-        print(regex)
     else:
         if label:
             label = '-' + label
@@ -52,7 +51,6 @@ def get_data(well, protocol, data_directory, experiment_name='newtonrun4',
     fname = next(filter(regex.match, os.listdir(data_directory)))
     data = pd.read_csv(os.path.join(data_directory, fname),
                        float_precision='round_trip')['current'].values
-    print("data is", data)
     return data
 
 
