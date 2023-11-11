@@ -55,6 +55,7 @@ setup(
         'regex>=2022.9.13',
         'myokit>=1.33.0',
         'seaborn>=0.12.0',
+        'loky>=3.4.1',
         'markov_builder @ git+https://git@github.com/CardiacModelling/Markov-builder@thirty_models',
         'scikit-build>=0.16.7',
         'numbalsoda @ git+https://git@github.com/NicholasWogan/numbalsoda@main'

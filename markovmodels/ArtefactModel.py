@@ -102,7 +102,7 @@ class ArtefactModel(MarkovModel):
 
         @njit
         def rhs_inf(p=p, v=-80):
-            data = np.append(p, 0)
+            data = np.append(p, 0.0)
             res, _ = lsoda(crhs_ptr, y0,
                            np.array((-tend, .0)),
                            data=data,
@@ -158,7 +158,7 @@ class ArtefactModel(MarkovModel):
     def make_hybrid_solver_states(self, protocol_description=None,
                                   njitted=False, analytic_solver=None,
                                   strict=True, cond_threshold=None, atol=None,
-                                  rtol=None, hybrid=True):
+                                  rtol=None, hybrid=True, cfunc=None):
         if hybrid:
             raise NotImplementedError()
         else:
@@ -179,7 +179,8 @@ class ArtefactModel(MarkovModel):
     def make_hybrid_solver_current(self, protocol_description=None,
                                    njitted=False, analytic_solver=None,
                                    strict=True, cond_threshold=None, atol=None,
-                                   rtol=None, hybrid=True, return_var='I_Kr'):
+                                   rtol=None, hybrid=True, return_var='I_Kr',
+                                   cfunc=None):
         if hybrid:
             raise NotImplementedError()
         else:
@@ -190,7 +191,7 @@ class ArtefactModel(MarkovModel):
                 strict=strict,
                 cond_threshold=cond_threshold,
                 atol=atol, rtol=rtol, return_var=return_var,
-                hybrid=False
+                hybrid=False, cfunc=cfunc
             )
 
         if njitted:
