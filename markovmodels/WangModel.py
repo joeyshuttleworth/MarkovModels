@@ -20,10 +20,10 @@ class WangModel(MarkovModel):
 
         self.default_parameters = np.array([val
                                             for key, val in mc.default_values.items()
-                                            if str(key) not in ['E_Kr', 'E_rev']])
+                                            if str(key) not in ['E_Kr', 'E_rev', 'V']]).astype(np.float64)
         self.parameter_labels = [key
                                  for key in mc.default_values
-                                 if str(key) not in ['E_Kr', 'E_rev']]
+                                 if str(key) not in ['E_Kr', 'E_rev', 'V']]
         if parameters is not None:
             self.default_parameters = parameters
 
@@ -33,24 +33,26 @@ class WangModel(MarkovModel):
         self.state_labels = list(mc.graph)
 
         A, B = mc.eliminate_state_from_transition_matrix()
-        _, Q = mc.get_transition_matrix()
+        labs, Q = mc.get_transition_matrix()
 
         symbols = {}
         symbols['v'] = sp.sympify('V')
-        symbols['p'] = sp.Matrix([sp.sympify(p) for p in self.parameter_labels if p != 'E_Kr'])
+        symbols['p'] = sp.Matrix([sp.sympify(p) for p in self.parameter_labels\
+                                  if p not in ['E_Kr', 'E_rev', 'V']])
         symbols['y'] = sp.Matrix([mc.get_state_symbol(s)
                                   for s in self.state_labels[:-1]])
 
         self.n_params = len(self.parameter_labels)
         self.n_states = len(symbols['y']) + 1
         self.n_state_vars = self.n_states - 1
-        self.GKr_index = -1
-
+        self.GKr_index = self.n_params - 1
         self.open_state_index = 0
 
         super().__init__(symbols, A, B, mc.rate_expressions, times=times,
                          voltage=voltage, Q=Q, *args, **kwargs,
                          name='WangModel')
+
+        print(self.default_parameters, self.A, self.A)
 
         self.transformations = [
             pints.LogTransformation(1),
