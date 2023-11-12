@@ -280,9 +280,7 @@ class TestModelGeneration(unittest.TestCase):
 
         for original_model, generated_model in [['Beattie', 'model3']]:
             voltage_func, times, desc = get_ramp_protocol_from_csv(protocol)
-
             tolerances = 1e-10, 1e-10
-
             model1 = make_model_of_class(original_model, times, voltage=voltage_func,
                                          protocol_description=desc, tolerances=tolerances)
             model2 = make_model_of_class(generated_model, voltage=voltage_func,
@@ -323,6 +321,20 @@ class TestModelGeneration(unittest.TestCase):
             plt.clf()
 
             self.assertLess(rmse_error, 1e-2)
+
+    def test_named_models(self):
+        protocol = 'staircaseramp1'
+        voltage_func, times, desc = get_ramp_protocol_from_csv(protocol)
+
+        for model_name in ['Beattie', 'Kemp', 'Wang']:
+            model1 = make_model_of_class('Wang', times, voltage=voltage_func,
+                                         protocol_description=desc)
+
+            h_solver1 = model1.make_hybrid_solver_current(njitted=False, hybrid=False)
+            current = h_solver1()
+            self.assertTrue(np.all(np.isfinite(current)))
+            plt.plot(times, current)
+            plt.savefig(os.path.join(self.output_dir, f"{model_name}_model_output"))
 
     def test_tolerances(self):
         protocol = 'staircaseramp1'
