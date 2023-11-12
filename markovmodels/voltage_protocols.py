@@ -281,6 +281,10 @@ def design_space_to_desc(d):
     t_cur = lines[-1][1]
     # Add steps from the design
     for dur, v in zip(durations, voltages):
+        if dur <= 0:
+            print("WARNING: negative duration")
+            dur = 0
+
         lines.append([t_cur, t_cur + dur, v, v])
         t_cur += dur
 

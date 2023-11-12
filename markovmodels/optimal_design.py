@@ -4,15 +4,21 @@ import markovmodels.voltage_protocols
 from markovmodels.voltage_protocols import detect_spikes, remove_spikes
 
 
-def D_opt_utility(desc, params, s_model, hybrid=False, crhs=None, indices=None):
+def D_opt_utility(desc, params, s_model, hybrid=False, crhs=None, removal_duration=0):
     """ Evaluate the D-optimality of design, d for a certain parameter vector"""
     s_model.protocol_description = desc
     s_model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
-    # output = model.make_hybrid_solver_current(njitted=False, hybrid=hybrid)
+    s_model.times = np.arange(0, desc[-1][0], .5)
 
-    sens = s_model.make_hybrid_solver_states(njitted=False, hybrid=False, crhs=crhs)()
-    voltages = np.array([s_model.voltage(t) for t in s_model.times])
-    I_Kr_sens = s_model.auxiliary_function(sens.T, params, voltages)[:, 0, :].T
+    times = s_model.times
+    voltages = np.array([s_model.voltage(t) for t in times])
+
+    spike_times, _ = detect_spikes(times, voltages, window_size=0)
+    _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
+
+    res = s_model.make_hybrid_solver_states(njitted=False, hybrid=False, crhs=crhs)(params)
+
+    I_Kr_sens = s_model.auxiliary_function(res.T, params, voltages)[:, 0, :].T
 
     if indices is not None:
         I_Kr_sens = I_Kr_sens[indices]
@@ -50,13 +56,9 @@ def entropy_utility(desc, params, model, hybrid=False, removal_duration=5,
 
 
 def count_voxel_visitations(states, n_voxels_per_variable, times, indices, n_skip, return_voxels_visited=False):
-    print(states)
     voxels = np.full((times[::n_skip].shape[0], states.shape[1]), 0, dtype=int)
 
-    print(voxels)
-
     for i, (t, x) in enumerate(zip(times[indices][::n_skip], states[indices, ][::n_skip, :])):
-        print(x)
         voxels[i, :] = np.floor(x.flatten() * n_voxels_per_variable)
 
     no_states = states.shape[1]
@@ -84,11 +86,11 @@ def prediction_spread_utility(desc, params, model, indices=None, hybrid=False,
 
     solver = model.make_hybrid_solver_current(hybrid=hybrid, njitted=False)
 
-    predictions = np.array([solver(p)[indices] for p in params])
-    prediction_band = np.hstack([np.argmin(predictions, axis=1),
-                                 np.argmax(predictions, axis=1)])[indices, :]
+    predictions = np.vstack([solver(p).flatten()[indices] for p in params])
+    min_pred = np.min(predictions, axis=0).flatten()
+    max_pred = np.max(predictions, axis=0).flatten()
 
-    return np.mean(prediction_band[:, 1] - prediction_band[:, 0])
+    return np.mean(max_pred - min_pred)
 
 
 def entropy_weighted_D_opt_utility(desc, params, s_model,

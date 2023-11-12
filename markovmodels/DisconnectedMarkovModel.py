@@ -23,7 +23,9 @@ class DisconnectedMarkovModel(MarkovModel):
         self.connected_components = connected_components
         self.n_states = sum([Q.shape[0] for Q in Qs])
         self.parameter_labels = parameter_labels
+
         self.y = [var for y in ys for var in y]
+
         super().__init__(symbols, A, B, rates_dict, times, *args, **kwargs)
         self.n_state_vars = sum([len(y) for y in self.ys])
         self.auxiliary_function = self.define_auxiliary_function()
@@ -363,6 +365,9 @@ class DisconnectedMarkovModel(MarkovModel):
             dy[:] = res
 
         return cfunc_rhs
+
+    def get_cfunc_rhs(self):
+        return [self.make_cfunc_rhs(A, B, comp) for A, B, comp in zip(self.As, self.Bs, self.connected_components)]
 
     def get_rhs_func(self, njitted=True):
         y = [var for y in self.ys for var in y]
