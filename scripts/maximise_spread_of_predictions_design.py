@@ -74,14 +74,14 @@ def main():
 
 
     protocol = 'staircaseramp1'
-    voltage_func, times, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
+    voltage_func, sc_times, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
 
-    model = make_model_of_class(args.model_class, times, voltage_func,
+    model = make_model_of_class(args.model_class, sc_times, voltage_func,
                                 protocol_description=desc,
                                 default_parameters=default_parameters)
 
     params = model.get_default_parameters()
-    voltages = np.array([voltage_func(t) for t in times])
+    sc_voltages = np.array([voltage_func(t) for t in sc_times])
 
     global output_dir
     output_dir = markovmodels.utilities.setup_output_directory(None, 'modified_staircase')
@@ -139,7 +139,6 @@ def main():
                 fitted_params = fitting_df[(fitting_df.well == well)
                                            & (fitting_df.protocol == protocol)
                                            & (fitting_df.sweep == sweep)].head(1)[model.get_parameter_labels()].values.flatten().astype(np.float64)
-                print(fitted_params)
 
                 # param_set = np.concatenate((fitted_params,
                 #                            np.array([gleak, Eleak, 0, 0, V_off, Rseries, Cm])))
@@ -149,11 +148,13 @@ def main():
     params = pd.DataFrame(df_rows,
                           columns=['well', 'protocol', 'sweep'] + \
                           model.get_parameter_labels())
-    print(params)
 
     cfunc = model.get_cfunc_rhs()
 
     x0 = markovmodels.voltage_protocols.get_design_space_representation(sc_desc).flatten()
+
+    x0[1::2] = x0[1::2] / 2
+
     n_additional_steps = int(64 - 13 - (x0.shape[0] / 2))
     x0 = np.append(x0, [10] * 2 * n_additional_steps)
 
@@ -162,62 +163,67 @@ def main():
     stds[::2] = .25 * (60 + 120)
     stds[1::2] = .25 * 1000
 
-    n_steps = 60 - 13
-    l_bounds = [-120 if (i % 2) == 0 else 1 for i in range(n_steps)]
-    u_bounds = [60 if (i % 2) == 0 else 2000 for i in range(n_steps)]
+    n_steps = 64 - 13
+    l_bounds = [-120 if (i % 2) == 0 else 1 for i in range(n_steps * 2)]
+    u_bounds = [60 if (i % 2) == 0 else 2000 for i in range(n_steps * 2)]
 
-    bounds = l_bounds, u_bounds
+    bounds = [l_bounds, u_bounds]
+    seed = np.random.randint(2**32 - 1)
     options = {'maxfevals': args.max_iterations,
                'CMA_stds': stds,
                'bounds': bounds,
                'tolx': 1,
-               'popsize': max(args.no_cpus, 15)
+               'popsize': 15,
+               'seed': seed
                }
 
-    es = cma.CMAEvolutionStrategy(x0, 1, options)
+    es = cma.CMAEvolutionStrategy(x0, 1, options, seed=seed)
+    with open(os.path.join('pycma_seed.txt'), 'w') as fout:
+        fout.write(seed)
+        fout.write('\n')
 
-    # seed = es.seed
-    # with open(os.path.join('pycma_seed.txt'), 'w') as fout:
-    #     fout.write(seed)
-    #     fout.write('\n')
-
-    pool_kws = {}
-
+    best_scores = []
     while not es.stop():
         d_list = es.ask()
         x = [(d, model, params, cfunc) for d in d_list]
-        res = list(map(opt_func, x))
+        # Check bounds
+
+        res = np.array([opt_func(pars) for pars in x])
+
+        best_scores.append(res.min())
         es.tell(d_list, res)
 
-    xopt = es.result[0]
+    np.savetxt(np.array(best_scores), os.path.join('best_scores_from_generations'))
 
+    xopt = es.result.xbest
     s_model = SensitivitiesMarkovModel(model,
                                        parameters_to_use=model.get_parameter_labels())
 
+    default_params = model.get_default_parameters()
     # Check D_optimality of design vs staircase
     u_D_staircase = markovmodels.optimal_design.D_opt_utility(sc_desc,
-                                                              params,
+                                                              default_params,
                                                               s_model,
                                                               removal_duration=args.removal_duration)
     print(f"u_D of staircase = {u_D_staircase}")
 
     found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt)
-
     u_D_found = markovmodels.optimal_design.D_opt_utility(found_desc,
-                                                          params,
+                                                          default_params,
                                                           s_model,
                                                           removal_duration=args.removal_duration)
 
     print(f"u_D of found design = {u_D_found}")
 
-    fig = plt.figure()
-    axs = fig.subplots(2)
     found_voltage_func = markovmodels.voltage_protocols.make_voltage_function_from_description(found_desc)
-
     model.protocol_description = found_desc
     model.voltage = found_voltage_func
     model.times = np.arange(0, found_desc[-1][0], .5)
+
     output = model.make_hybrid_solver_current(njitted=False, hybrid=False)()
+
+    fig = plt.figure()
+    axs = fig.subplots(2)
     axs[0].plot(model.times, output)
     axs[1].plot(model.times, [model.voltage(t) for t in model.times])
 
@@ -240,33 +246,34 @@ def main():
     model.voltage = found_voltage_func
     model.protocol_description = found_desc
 
-    states = model.make_hybrid_solver_states(njitted=False, hybrid=False)()[::args.n_skip]
+    states = model.make_hybrid_solver_states(njitted=False, hybrid=False)()
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
     axs[0].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o')
 
     # Plot phase diagram (first two states)
     states = model.make_hybrid_solver_states(njitted=False, hybrid=False)()
     np.savetxt(os.path.join('found_design_trajectory.csv'), states)
-    states = states[::args.n_skip]
 
     model.voltage = sc_func
     model.protocol_description = sc_desc
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
-    for i in range(states.shape[0]):
-        axs[0].scatter(states[i, 0], states[i, 1], alpha=.25, color=cols, marker='o')
+    axs[1].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o')
 
-    fig.savefig(os.path.join("phase_diagrams.png"))
+    fig.savefig(os.path.join(output_dir, "phase_diagrams.png"))
 
 
 def opt_func(x):
     d, model, params, cfunc = x
-    # Force positive durations
-    # x[1::2] = np.abs(x[1::2])
 
-    times = np.arange(0, d[1::2].sum(), .5)
+    # Force positive durations
+    d = d.copy()
+    d[1::2] = np.abs(d[1::2])
+
+    model.times = np.arange(0, d[1::2].sum(), .5)
 
     # constrain total length
-    if d[1::2].sum() > 12_500:
+    protocol_length = d[1::2].sum()
+    if protocol_length > 15_000:
         return np.inf
 
     # Constrain voltage
@@ -278,20 +285,20 @@ def opt_func(x):
     # ignore Vm state
     kinetic_indices = [i for i in range(model.get_no_state_vars())]
 
+    cfunc = model.get_cfunc_rhs()
+
+    params = params.loc[np.all(np.isfinite(params[model.get_parameter_labels()]), axis=1), :]
+
     utils = []
-
-    if isinstance(model, markovmodels.DisconnectedMarkovModel.DisconnectedMarkovModel):
-        cfunc = None
-
-    params = params[np.all(np.isfinite(params[model.get_parameter_labels()]), axis=1), :]
-
     for well in params.well.unique():
         sub_df = params[params.well == well]
-        print(sub_df)
-
-        util = prediction_spread_utility(desc, sub_df.values, model,
+        util = prediction_spread_utility(desc,
+                                         sub_df[model.get_parameter_labels()].values,
+                                         model,
                                          removal_duration=args.removal_duration)
         utils.append(util)
+    utils = np.array(utils)
+    print('utils are', utils)
     return -np.mean(utils)
 
 
