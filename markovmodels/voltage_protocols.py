@@ -309,9 +309,9 @@ def desc_to_table(desc):
         dur = tend - tstart
 
         if vstart == vend:
-            _type = 'ramp'
-        else:
             _type = 'step'
+        else:
+            _type = 'ramp'
 
         output_lines.append(f"{_type}\t{vend}\t{dur}")
 

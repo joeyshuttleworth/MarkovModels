@@ -233,7 +233,7 @@ def main():
 
     # Output protocol
     with open(os.path.join(output_dir, 'found_design.txt'), 'w') as fout:
-        for line in markovmodels.voltage_protocols.desc_to_table(desc):
+        for line in markovmodels.voltage_protocols.desc_to_table(found_desc):
             fout.write(line)
             fout.write('\n')
     with open(os.path.join(output_dir, 'found_design_desc.txt'), 'w') as fout:
@@ -255,7 +255,7 @@ def main():
     model.voltage = sc_func
     model.protocol_description = sc_desc
     states = model.make_hybrid_solver_states(njitted=False, hybrid=False)()
-    np.savetxt(os.path.join('found_design_trajectory.csv'), states)
+    np.savetxt(os.path.join(output_dir, 'found_design_trajectory.csv'), states)
 
     model.voltage = sc_func
     model.protocol_description = sc_desc
