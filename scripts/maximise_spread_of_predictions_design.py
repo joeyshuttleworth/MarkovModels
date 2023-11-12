@@ -172,7 +172,8 @@ def main():
     options = {'maxfevals': args.max_iterations,
                'CMA_stds': stds,
                'bounds': bounds,
-               'tolx': 1,
+               'tolx': 2,
+               'tolfun': 1,
                'popsize': 15,
                'seed': seed
                }
