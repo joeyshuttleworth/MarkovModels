@@ -83,7 +83,7 @@ def main():
     voltages = np.array([voltage_func(t) for t in times])
 
     global output_dir
-    output_dir = markovmodels.utilities.setup_output_directory(None, 'modified_staircase')
+    output_dir = markovmodels.utilities.setup_output_directory(None, 'max_entropy')
 
     if args.subtraction_df_file:
         subtraction_df = pd.read_csv(args.subtraction_df_file)
@@ -174,6 +174,7 @@ def main():
     cfunc = a_model.get_cfunc_rhs()
 
     x0 = markovmodels.voltage_protocols.get_design_space_representation(sc_desc).flatten()
+    x0[1::2] = x0[1::2] / 2
 
     n_additional_steps = int(64 - 13 - (x0.shape[0] / 2))
     # x0 = np.append(x0, [10.0] * 2 * n_additional_steps)
@@ -182,31 +183,32 @@ def main():
     stds[::2] = .25 * (60 + 120)
     stds[1::2] = .25 * 1000
 
-    n_steps = 60 - 13
-    l_bounds = [-120 if (i % 2) == 0 else 1 for i in range(n_steps)]
-    u_bounds = [60 if (i % 2) == 0 else 2000 for i in range(n_steps)]
+    n_steps = 64 - 13
+    l_bounds = [-120 if (i % 2) == 0 else 1 for i in range(n_steps * 2)]
+    u_bounds = [60 if (i % 2) == 0 else 2000 for i in range(n_steps * 2)]
 
     bounds = l_bounds, u_bounds
+    seed = np.random.randint(2**32 - 1)
     options = {'maxfevals': args.max_iterations,
                'CMA_stds': stds,
                'bounds': bounds,
                'tolx': 1,
-               'popsize': max(args.no_cpus, 15)
+               'popsize': max(args.no_cpus, 15),
+               'seed': seed
                }
 
     es = cma.CMAEvolutionStrategy(x0, 1, options)
 
-    # with open(os.path.join('pycma_seed.txt'), 'w') as fout:
-    #     fout.write(seed)
-    #     fout.write('\n')
-
-    pool_kws = {}
+    with open(os.path.join('pycma_seed.txt'), 'w') as fout:
+        fout.write(str(seed))
+        fout.write('\n')
 
     while not es.stop():
         d_list = es.ask()
         x = [(d, a_model, params, cfunc) for d in d_list]
         res = list(map(opt_func, x))
         es.tell(d_list, res)
+        es.result_pretty()
 
     xopt = es.result[0]
 
@@ -214,19 +216,20 @@ def main():
                                        parameters_to_use=model.get_parameter_labels())
 
     # Check D_optimality of design vs staircase
-    params = model.get_default_parameters()
+    default_params = model.get_default_parameters()
+
     u_D_staircase = markovmodels.optimal_design.D_opt_utility(sc_desc,
-                                                              params,
+                                                              default_params,
                                                               s_model,
-                                                              indices=indices)
+                                                              removal_duration=args.removal_duration)
     print(f"u_D of staircase = {u_D_staircase}")
 
     found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt)
 
     u_D_found = markovmodels.optimal_design.D_opt_utility(found_desc,
-                                                          params,
+                                                          default_params,
                                                           s_model,
-                                                          indices=indices)
+                                                          removal_duration=args.removal_duration)
 
     print(f"u_D of found design = {u_D_found}")
 
@@ -265,6 +268,8 @@ def main():
     axs[0].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o')
 
     # Plot phase diagram (first two states)
+    model.voltage = sc_func
+    model.protocol_description = sc_desc
     states = a_model.make_hybrid_solver_states(njitted=False, hybrid=False)()
     np.savetxt(os.path.join('found_design_trajectory.csv'), states)
     states = states[::args.n_skip]
@@ -272,10 +277,18 @@ def main():
     a_model.voltage = sc_func
     a_model.protocol_description = sc_desc
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
-    for i in range(states.shape[0]):
-        axs[0].scatter(states[i, 0], states[i, 1], alpha=.25, color=cols, marker='o')
+    axs[1].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o')
 
-    fig.savefig(os.path.join("phase_diagrams.png"))
+    fig.savefig(os.path.join(output_dir, "phase_diagrams.png"))
+
+    # output_score
+    with open(os.path.join(output_dir, 'best_score.txt'), 'w') as fout:
+        fout.write(str(es.result[1]))
+        fout.write('\n')
+
+    with open(os.path.join(output_dir, 'u_d.txt'), 'w') as fout:
+        fout.write(str(u_D_found))
+        fout.write('\n')
 
 
 def opt_func(x):
@@ -283,10 +296,8 @@ def opt_func(x):
     # Force positive durations
     # x[1::2] = np.abs(x[1::2])
 
-    times = np.arange(0, d[1::2].sum(), .5)
-
     # constrain total length
-    if d[1::2].sum() > 12_500:
+    if d[1::2].sum() > 15_000:
         return np.inf
 
     # Constrain voltage
@@ -294,12 +305,16 @@ def opt_func(x):
     #     return np.inf
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
+    times = np.arange(0, d[1::2].sum(), .5)
+    a_model.times = times
 
     # ignore Vm state
     kinetic_indices = [i for i in range(a_model.get_no_state_vars() - 1)]
     util = entropy_utility(desc,
                            params.values.astype(np.float64).mean(axis=0).flatten(),
-                           a_model)
+                           a_model, include_vars=kinetic_indices,
+                           cfunc=cfunc)
+    print(util)
     return -util
 
 

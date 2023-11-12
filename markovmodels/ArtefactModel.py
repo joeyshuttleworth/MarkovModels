@@ -158,7 +158,7 @@ class ArtefactModel(MarkovModel):
     def make_hybrid_solver_states(self, protocol_description=None,
                                   njitted=False, analytic_solver=None,
                                   strict=True, cond_threshold=None, atol=None,
-                                  rtol=None, hybrid=True, cfunc=None):
+                                  rtol=None, hybrid=True, crhs=None):
         if hybrid:
             raise NotImplementedError()
         else:
@@ -169,7 +169,8 @@ class ArtefactModel(MarkovModel):
                 strict=strict,
                 cond_threshold=cond_threshold,
                 atol=atol, rtol=rtol,
-                hybrid=False
+                hybrid=False,
+                crhs=crhs
             )
 
         if njitted:

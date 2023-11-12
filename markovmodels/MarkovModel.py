@@ -98,13 +98,11 @@ class MarkovModel(ODEModel):
         if voltage is not None:
             self.voltage = voltage
 
-        inputs = list(self.y) + list(self.p) + [self.v]
-
         self.func_rhs = sp.lambdify((self.y, self.p, self.v), self.rhs_expr, cse=True)
 
         # Create Jacobian of the RHS function
         jrhs = sp.Matrix(self.rhs_expr).jacobian(self.y)
-        self.jfunc_rhs = sp.lambdify(inputs, jrhs)
+        self.jfunc_rhs = sp.lambdify((self.y, self.p, self.v), jrhs)
 
         self.compute_steady_state_expressions()
 

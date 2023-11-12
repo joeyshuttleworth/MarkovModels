@@ -313,6 +313,6 @@ def desc_to_table(desc):
         else:
             _type = 'step'
 
-        output_lines.append(f"{_type} \t {vend} \t {dur}")
+        output_lines.append(f"{_type}\t{vend}\t{dur}")
 
     return output_lines
