@@ -249,7 +249,7 @@ def main():
 
     # Output protocol
     with open(os.path.join(output_dir, 'found_design.txt'), 'w') as fout:
-        for line in markovmodels.voltage_protocols.desc_to_table(desc):
+        for line in markovmodels.voltage_protocols.desc_to_table(found_desc):
             fout.write(line)
             fout.write('\n')
     with open(os.path.join(output_dir, 'found_design_desc.txt'), 'w') as fout:
