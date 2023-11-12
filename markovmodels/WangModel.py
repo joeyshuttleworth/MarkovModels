@@ -44,7 +44,7 @@ class WangModel(MarkovModel):
         self.n_params = len(self.parameter_labels)
         self.n_states = len(symbols['y']) + 1
         self.n_state_vars = self.n_states - 1
-        self.GKr_index = self.parameter_labels.index('g_Kr')
+        self.GKr_index = -1
 
         self.open_state_index = 0
 

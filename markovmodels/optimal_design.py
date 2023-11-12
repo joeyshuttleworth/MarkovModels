@@ -43,10 +43,13 @@ def entropy_utility(desc, params, model, hybrid=False, removal_duration=5,
     _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
 
     params = params.astype(np.float64)
-    states = model.make_hybrid_solver_states(njitted=False, hybrid=False, cfunc=cfunc)(params)
+    states = model.make_hybrid_solver_states(njitted=False, hybrid=False, crhs=cfunc)(params)
     n_voxels_per_variable = n_voxels_per_variable
 
-    times_in_each_voxel = count_voxel_visitations(states[:, include_vars],
+    if include_vars is not None:
+        states = states[:, include_vars]
+
+    times_in_each_voxel = count_voxel_visitations(states,
                                                   n_voxels_per_variable, times,
                                                   indices, n_skip=n_skip)
     log_prob = np.full(times_in_each_voxel.shape, 0)
@@ -74,7 +77,7 @@ def count_voxel_visitations(states, n_voxels_per_variable, times, indices, n_ski
 
 
 def prediction_spread_utility(desc, params, model, indices=None, hybrid=False,
-                              removal_duration=0):
+                              removal_duration=0, cfunc=None):
 
     model.protocol_description = desc
     model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
@@ -84,7 +87,7 @@ def prediction_spread_utility(desc, params, model, indices=None, hybrid=False,
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
 
-    solver = model.make_hybrid_solver_current(hybrid=hybrid, njitted=False)
+    solver = model.make_hybrid_solver_current(hybrid=hybrid, njitted=False, crhs=cfunc)
 
     predictions = np.vstack([solver(p).flatten()[indices] for p in params])
     min_pred = np.min(predictions, axis=0).flatten()

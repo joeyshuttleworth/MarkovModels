@@ -299,12 +299,13 @@ class ODEModel:
     def make_hybrid_solver_current(self, protocol_description=None,
                                    njitted=True, strict=True,
                                    cond_threshold=None, atol=None, rtol=None,
-                                   hybrid=True, **kwargs):
+                                   hybrid=True, crhs=None, **kwargs):
         hybrid_solver =\
             self.make_hybrid_solver_states(protocol_description=protocol_description,
                                            njitted=njitted, strict=strict,
                                            cond_threshold=cond_threshold,
-                                           atol=atol, rtol=rtol, hybrid=hybrid)
+                                           atol=atol, rtol=rtol, hybrid=hybrid,
+                                           crhs=crhs)
 
         auxiliary_function = self.define_auxiliary_function(**kwargs)
         times = self.times

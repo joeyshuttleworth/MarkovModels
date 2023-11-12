@@ -84,7 +84,7 @@ def main():
     sc_voltages = np.array([voltage_func(t) for t in sc_times])
 
     global output_dir
-    output_dir = markovmodels.utilities.setup_output_directory(None, 'modified_staircase')
+    output_dir = markovmodels.utilities.setup_output_directory(None, 'max_sop')
 
     if args.subtraction_df_file:
         subtraction_df = pd.read_csv(args.subtraction_df_file)
@@ -177,9 +177,9 @@ def main():
                'seed': seed
                }
 
-    es = cma.CMAEvolutionStrategy(x0, 1, options, seed=seed)
+    es = cma.CMAEvolutionStrategy(x0, 1, options)
     with open(os.path.join('pycma_seed.txt'), 'w') as fout:
-        fout.write(seed)
+        fout.write(str( seed))
         fout.write('\n')
 
     best_scores = []
@@ -192,8 +192,9 @@ def main():
 
         best_scores.append(res.min())
         es.tell(d_list, res)
+        es.result_pretty()
 
-    np.savetxt(np.array(best_scores), os.path.join('best_scores_from_generations'))
+    np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
 
     xopt = es.result.xbest
     s_model = SensitivitiesMarkovModel(model,
@@ -245,12 +246,13 @@ def main():
     # Plot phase diagram for the new design (first two states)
     model.voltage = found_voltage_func
     model.protocol_description = found_desc
-
     states = model.make_hybrid_solver_states(njitted=False, hybrid=False)()
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
     axs[0].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o')
 
     # Plot phase diagram (first two states)
+    model.voltage = sc_func
+    model.protocol_description = sc_desc
     states = model.make_hybrid_solver_states(njitted=False, hybrid=False)()
     np.savetxt(os.path.join('found_design_trajectory.csv'), states)
 
@@ -260,6 +262,15 @@ def main():
     axs[1].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o')
 
     fig.savefig(os.path.join(output_dir, "phase_diagrams.png"))
+
+    # output_score
+    with open(os.path.join(output_dir, 'best_score.txt'), 'w') as fout:
+        fout.write(str(es.result[1]))
+        fout.write('\n')
+
+    with open(os.path.join(output_dir, 'u_d.txt'), 'w') as fout:
+        fout.write(str(u_D_found))
+        fout.write('\n')
 
 
 def opt_func(x):
@@ -285,8 +296,6 @@ def opt_func(x):
     # ignore Vm state
     kinetic_indices = [i for i in range(model.get_no_state_vars())]
 
-    cfunc = model.get_cfunc_rhs()
-
     params = params.loc[np.all(np.isfinite(params[model.get_parameter_labels()]), axis=1), :]
 
     utils = []
@@ -295,11 +304,12 @@ def opt_func(x):
         util = prediction_spread_utility(desc,
                                          sub_df[model.get_parameter_labels()].values,
                                          model,
-                                         removal_duration=args.removal_duration)
+                                         removal_duration=args.removal_duration,
+                                         cfunc=cfunc)
         utils.append(util)
     utils = np.array(utils)
     print('utils are', utils)
-    return -np.mean(utils)
+    return -np.min(utils)
 
 
 if __name__ == '__main__':

@@ -11,7 +11,10 @@ class DisconnectedMarkovModel(MarkovModel):
 
     def __init__(self, symbols, A, B, Qs, As, Bs, ys, connected_components,
                  rates_dict, times, parameter_labels,
-                 auxiliary_expression, *args, **kwargs):
+                 auxiliary_expression, analytic_solution_funcs=None,
+                 *args, **kwargs):
+
+        self.analytic_solution_funcs = analytic_solution_funcs
 
         self.As = As
         self.Bs = Bs
@@ -58,8 +61,10 @@ class DisconnectedMarkovModel(MarkovModel):
     def get_analytic_solution_funcs(self, cond_threshold=None):
         rates_func = self.get_rates_func()
 
-        ret_funcs = []
+        if self.analytic_solution_funcs is not None:
+            return self.analytic_solution_funcs
 
+        ret_funcs = []
         for A, B, comp in zip(self.As, self.Bs, self.connected_components):
 
             times = self.times
@@ -75,6 +80,8 @@ class DisconnectedMarkovModel(MarkovModel):
                                                              voltage,
                                                              rates_func,
                                                              cond_threshold=cond_threshold))
+
+        self.analytic_solution_funcs = ret_funcs
         return ret_funcs
 
     def get_analytic_solution_func(self, A_func, B_func, A, B, p, times,
