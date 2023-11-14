@@ -102,7 +102,6 @@ def main():
 
     new_desc[step_to_modify][2] = v
     new_desc[step_to_modify][3] = v
-
     new_desc = tuple([tuple(entry) for entry in new_desc])
 
     new_v_func = markovmodels.voltage_protocols.make_voltage_function_from_description(new_desc)
