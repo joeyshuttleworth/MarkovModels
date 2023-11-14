@@ -87,13 +87,20 @@ def main():
 
     t_bound = np.array([.5, 2]) * desc[step_to_modify][1] - desc[step_to_modify][0]
 
-    res = scipy.optimize.minimize(opt_func, [0, 500], bounds=[(-120, 0), t_bound])
-    print(res.x)
+    res = scipy.optimize.minimize(opt_func, [0, 250], bounds=[(-120, 0), t_bound])
 
     # output optimised protocol
     new_desc = [[t1, t2, v1, v2] for t1, t2, v1, v2 in sc_desc]
     new_tend = new_desc[step_to_modify][0] + res.x[1]
     new_desc[step_to_modify][1] = new_tend
+
+    if step_to_modify + 1 < len(desc):
+        new_desc[step_to_modify + 1][0] = new_tend
+
+    v = res.x[0]
+
+    new_desc[step_to_modify][2] = v
+    new_desc[step_to_modify][3] = v
 
     if step_to_modify + 1 < len(desc):
         new_desc[step_to_modify + 1][0] = new_tend
