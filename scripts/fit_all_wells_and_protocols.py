@@ -125,7 +125,7 @@ def main():
 
     output_dir = markovmodels.utilities.setup_output_directory(
         args.output,
-        f"fitting_{args.removal_duration:.2f}_removed_{args.model}"
+        f"fitting_{args.experiment_name}_{args.model}"
     )
 
     if len(args.wells) == 0:
