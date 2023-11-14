@@ -88,7 +88,6 @@ def main():
     t_bound = np.array([.5, 2]) * desc[step_to_modify][1] - desc[step_to_modify][0]
 
     res = scipy.optimize.minimize(opt_func, [0, 500], bounds=[(-120, 0), t_bound])
-
     print(res.x)
 
     # output optimised protocol

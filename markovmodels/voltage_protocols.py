@@ -156,25 +156,31 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None,
 
     protocol = tuple(lst)
 
+    protocol_func = make_voltage_function_from_description(protocol, holding_potential)
+
+    return protocol_func, times, protocol
+
+
+def make_voltage_function_from_description(desc, holding_potential=-80):
     @njit
     def protocol_func(t: np.float64, offset=0.0):
         t = t + offset
-        if t <= 0 or t >= protocol[-1][1]:
+        if t <= 0 or t >= desc[-1][1]:
             return holding_potential
 
-        for i in range(len(protocol)):
-            if t < protocol[i][1]:
-                # ramp_start = protocol[i][0]
-                if protocol[i][3] - protocol[i][2] != 0:
-                    return protocol[i][2] + (t - protocol[i][0])\
-                        * (protocol[i][3] - protocol[i][2]) / \
-                        (protocol[i][1] - protocol[i][0])
+        for i in range(len(desc)):
+            if t < desc[i][1]:
+                # ramp_start = desc[i][0]
+                if desc[i][3] - desc[i][2] != 0:
+                    return desc[i][2] + (t - desc[i][0])\
+                        * (desc[i][3] - desc[i][2]) / \
+                        (desc[i][1] - desc[i][0])
                 else:
-                    return protocol[i][3]
+                    return desc[i][3]
 
-        raise Exception()
+    return protocol_func
 
-    return protocol_func, times, protocol
+
 
 
 def beattie_sine_wave(t):
@@ -242,10 +248,9 @@ def detect_spikes(x, y, threshold=100, window_size=0, earliest=True):
                          for index in spike_indices]
         spike_indices = np.unique(spike_indices)
 
-    if(len(spike_indices) == 0):
+    if len(spike_indices) == 0:
         return [], np.array([])
 
     spike_indices -= 1
 
     return x[spike_indices], np.array(spike_indices)
-

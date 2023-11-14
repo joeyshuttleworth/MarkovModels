@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import logging
 import os
 import time
@@ -19,7 +17,7 @@ import markovmodels
 from markovmodels.model_generation import make_model_of_class
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
 from markovmodels.utilities import get_data
-from markovmodels.voltage_protocols import remove_spikes
+from markovmodels.voltage_protocols import remove_spikes, detect_spikes
 from markovmodels.ArtefactModel import ArtefactModel
 
 
