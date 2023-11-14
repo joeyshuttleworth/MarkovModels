@@ -15,7 +15,6 @@ environment.yml environment.yml
     apt install git -y
     apt update && apt-get install git graphviz graphviz-dev gcc bash build-essential cmake gfortran -y
     apt install texlive-latex-extra texlive-fonts-recommended dvipng cm-super -y
-
     micromamba env create -f environment.yml 
 %runscript
     micromamba run -n markovmodels "$@"

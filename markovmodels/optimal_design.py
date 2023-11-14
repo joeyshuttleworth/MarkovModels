@@ -68,7 +68,7 @@ def count_voxel_visitations(states, n_voxels_per_variable, times, indices, n_ski
     times_in_each_voxel = np.zeros([n_voxels_per_variable for i in range(no_states)]).astype(int)
 
     for voxel in voxels:
-        times_in_each_voxel[*voxel.astype(int)] += 1
+        times_in_each_voxel[tuple(voxel.astype(int))] += 1
 
     if return_voxels_visited:
         return times_in_each_voxel, voxels
