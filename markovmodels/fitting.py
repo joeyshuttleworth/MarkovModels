@@ -342,7 +342,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
             if inferred_E_rev < -50 or inferred_E_rev > -100:
                 E_rev = inferred_E_rev
 
-        except None as exc:
+        except exc as exc:
             print(str(exc))
             pass
 
