@@ -55,7 +55,8 @@ class ArtefactModel(MarkovModel):
         self.channel_model.compute_steady_state_expressions()
         self.auxiliary_function = self.define_auxiliary_function()
 
-        self.transformations = self.channel_model.transformations + [pints.IdentityTransformation(1)] * no_artefact_parameters
+        self.transformations = self.channel_model.transformations + \
+            [pints.IdentityTransformation(1)] * no_artefact_parameters
 
         self.rhs_inf = self.define_steady_state_function()
         p = self.p

@@ -92,4 +92,3 @@ class WangModel(MarkovModel):
         # Create voltage symbol
         v = sp.symbols('v')
         return {'p': p, 'y': y, 'v': v}
-

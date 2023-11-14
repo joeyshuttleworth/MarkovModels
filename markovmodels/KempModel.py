@@ -1,5 +1,6 @@
 import numpy as np
 import sympy as sp
+import pints
 
 from markov_builder.example_models import construct_kemp_model
 from markovmodels.MarkovModel import MarkovModel
@@ -51,9 +52,31 @@ class KempModel(MarkovModel):
             # use fine tolerances
             kwargs['tolerances'] = (1e-8, 1e-8)
 
+        transformations = [
+            pints.LogTransformation(1),
+            pints.IdentityTransformation(1),
+
+            pints.LogTransformation(1),
+            pints.IdentityTransformation(1),
+
+            pints.LogTransformation(1),
+            pints.IdentityTransformation(1),
+
+            pints.LogTransformation(1),
+            pints.IdentityTransformation(1),
+
+            pints.LogTransformation(1),
+            pints.IdentityTransformation(1),
+
+            pints.LogTransformation(1),
+            pints.IdentityTransformation(1),
+
+            pints.LogTransformation(1)
+        ]
+
         super().__init__(symbols, A, B, mc.rate_expressions, times,
-                         voltage=voltage, Q=Q, *args, **kwargs,
-                         name='KempModel')
+                         voltage=voltage, Q=Q, transformations=transformations,
+                         *args, **kwargs, name='KempModel')
 
     def CreateSymbols(self):
         """
