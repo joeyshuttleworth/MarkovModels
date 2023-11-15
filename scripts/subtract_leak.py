@@ -73,7 +73,8 @@ def main():
 
     if args.selection_file is not None:
         with open(args.selection_file) as fin:
-            selected_wells = fin.read().splitlines()
+            selected_wells = [line.strip() for line in fin.readlines()]
+            print('selected_wells are ', selected_wells)
         if not args.output_all:
             args.wells = [well for well in args.wells if well in selected_wells]
     else:
