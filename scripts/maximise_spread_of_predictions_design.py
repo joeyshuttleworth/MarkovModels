@@ -184,6 +184,7 @@ def main():
         fout.write('\n')
 
     best_scores = []
+    iteration = 0
     while not es.stop():
         d_list = es.ask()
         x = [(d, model, params, cfunc) for d in d_list]
@@ -194,6 +195,12 @@ def main():
         best_scores.append(res.min())
         es.tell(d_list, res)
         es.result_pretty()
+        if iteration % 10 == 0:
+            es.result_pretty()
+        if iteration % 100 == 0:
+            markovmodels.optimal_design.save_es(es, args.output_dir,
+                                                f"optimisation_iteration_{iteration}")
+        iteration += 1
 
     np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
 
@@ -273,6 +280,14 @@ def main():
         fout.write(str(u_D_found))
         fout.write('\n')
 
+    # Pickle and save optimisation results
+    filename = 'es-status-pickled'
+    with open(filename, 'wb') as fout:
+        fout.write(es.pickle_dumps())
+
+    markovmodels.optimal_design.save_es(es, args.output_dir,
+                                        "es_halted")
+
 
 def opt_func(x):
     d, model, params, cfunc = x
@@ -293,9 +308,6 @@ def opt_func(x):
     #     return np.inf
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
-
-    # ignore Vm state
-    kinetic_indices = [i for i in range(model.get_no_state_vars())]
 
     params = params.loc[np.all(np.isfinite(params[model.get_parameter_labels()]), axis=1), :]
 

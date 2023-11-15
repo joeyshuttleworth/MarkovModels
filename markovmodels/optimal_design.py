@@ -1,5 +1,5 @@
 import numpy as np
-import pandas as pd
+import os
 import markovmodels.voltage_protocols
 from markovmodels.voltage_protocols import detect_spikes, remove_spikes
 
@@ -126,4 +126,10 @@ def entropy_weighted_D_opt_utility(desc, params, s_model,
     weighted_D_opt = w_sens.T @ w_sens
 
     return weighted_D_opt
+
+
+def save_es(es, output_dir, fname):
+    # Pickle and save optimisation results
+    with open(os.path.join(output_dir, fname), 'wb') as fout:
+        fout.write(es.pickle_dumps())
 

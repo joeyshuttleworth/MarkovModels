@@ -204,12 +204,18 @@ def main():
         fout.write(str(seed))
         fout.write('\n')
 
+    iteration = 0
     while not es.stop():
         d_list = es.ask()
         x = [(d, a_model, params, cfunc) for d in d_list]
         res = list(map(opt_func, x))
         es.tell(d_list, res)
-        es.result_pretty()
+        if iteration % 10 == 0:
+            es.result_pretty()
+        if iteration % 100 == 0:
+            markovmodels.optimal_design.save_es(es, args.output_dir,
+                                                f"optimisation_iteration_{iteration}")
+        iteration += 1
 
     xopt = es.result[0]
 
@@ -290,6 +296,9 @@ def main():
     with open(os.path.join(output_dir, 'u_d.txt'), 'w') as fout:
         fout.write(str(u_D_found))
         fout.write('\n')
+
+    markovmodels.optimal_design.save_es(es, args.output_dir,
+                                        "es_halted")
 
 
 def opt_func(x):
