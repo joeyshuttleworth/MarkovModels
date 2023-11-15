@@ -52,8 +52,6 @@ class WangModel(MarkovModel):
                          voltage=voltage, Q=Q, *args, **kwargs,
                          name='WangModel')
 
-        print(self.default_parameters, self.A, self.A)
-
         self.transformations = [
             pints.LogTransformation(1),
             pints.IdentityTransformation(1),
