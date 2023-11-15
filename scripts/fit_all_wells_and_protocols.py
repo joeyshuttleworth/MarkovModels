@@ -311,9 +311,9 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
 
         voltages = np.array([prot_func(t) for t in full_times])
 
-        spike_times, spike_indices = markovmodels.detect_spikes(full_times, voltages,
-                                                                threshold=10)
-        _, _, indices = markovmodels.remove_spikes(full_times, voltages, spike_times,
+        spike_times, spike_indices = markovmodels.voltage_protocols.detect_spikes(full_times, voltages,
+                                                                                  threshold=10)
+        _, _, indices = markovmodels.voltage_protocols.remove_spikes(full_times, voltages, spike_times,
                                                    time_to_remove=args.removal_duration)
         times = full_times[indices]
 
@@ -322,11 +322,11 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
         for well in params_df['well'].unique():
             for predict_sweep in params_df[params_df.protocol == sim_protocol].sweep.unique():
                 try:
-                    full_data = markovmodels.get_data(well, sim_protocol,
-                                                      args.data_directory,
-                                                      experiment_name=args.experiment_name,
-                                                      data_label=args.data_label,
-                                                      sweep=predict_sweep)
+                    full_data = markovmodels.utilities.get_data(well, sim_protocol,
+                                                                args.data_directory,
+                                                                experiment_name=args.experiment_name,
+                                                                label=args.data_label,
+                                                                sweep=predict_sweep)
                 except (FileNotFoundError, StopIteration) as exc:
                     print(str(exc))
                     continue
@@ -360,7 +360,7 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                     model = ArtefactModel(model)
                     forward_sim_parameters = default_artefact_kinetic_parameters.copy()
                     param_row = params_df[(params_df.well == well) &
-                                          (params_df.protcol == sim_protocol) &\
+                                          (params_df.protocol == sim_protocol) &\
                                           (params_df.sweep == predict_sweep)].iloc[0]
 
                     gleak, Eleak, V_off, Rseries, Cm = param_row[['gleak, Eleak, V_off, Rseries, Cm']]
