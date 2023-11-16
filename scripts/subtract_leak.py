@@ -45,6 +45,7 @@ def main():
     parser.add_argument('--output_all', action='store_true')
     parser.add_argument('--no_plot', action='store_true')
     parser.add_argument('--Erev', type=float)
+    parser.add_argument('--dont_correct_post', action='store_true')
 
     global args
     args = parser.parse_args()
@@ -111,7 +112,7 @@ def main():
                 df.loc[df.well == well, 'passed QC7'] = passed_QC7
 
     if args.selection_file:
-        df['selected'] = [well in selected_wells for well in df['well']]
+        df['selected'] = df['well'].isin(selected_wells)
     else:
         df['selected'] = True
 
@@ -143,7 +144,7 @@ def main():
                     failed = True
                     break
             elif args.selection_file:
-                if well not in selected_wells:
+                if not well in selected_wells:
                     failed = True
                     break
         if not failed:
@@ -153,8 +154,8 @@ def main():
 
     with open(os.path.join(output, "passed_wells.txt"), 'w') as fout:
         for well in passed_lst:
-            fout.write(well)
-            fout.write("\n")
+            if well in selected_wells:
+                fout.writeline(well)
 
     with multiprocessing.Pool(pool_size, **pool_kws) as pool:
         pool.map(overlay_first_last_staircases, df.well.unique())
@@ -430,7 +431,12 @@ def subtract_leak(well, protocol, args, output_dir=None):
                                      plot=not args.no_plot)
 
         if after_trace is not None:
-            after_corrected = after_trace - (g_leak_after * (protocol_voltages - E_leak_after))
+            if not args.dont_correct_post:
+                after_corrected = after_trace - (g_leak_after * (protocol_voltages - E_leak_after))
+
+            else:
+                after_corrected = after_trace
+
             infer_reversal_potential(protocol, after_corrected,
                                      observation_times,
                                      output_path=os.path.join(reversal_plot_dir,
