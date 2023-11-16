@@ -435,7 +435,7 @@ def subtract_leak(well, protocol, args, output_dir=None):
                 after_corrected = after_trace - (g_leak_after * (protocol_voltages - E_leak_after))
 
             else:
-                after_corrected = after_trace
+                after_corrected = np.full(after_trace.shape, 0)
 
             infer_reversal_potential(protocol, after_corrected,
                                      observation_times,
@@ -528,10 +528,10 @@ def subtract_leak(well, protocol, args, output_dir=None):
                                         plot=False)
 
         if Erev > -50 or Erev < -120:
-            print(f"{protocol}, {well} \tpassed QC.Erev")
+            print(f"{protocol}, {well} \failed QC.Erev")
             passed_Erev = False
         else:
-            print(f"{protocol}, {well} \tfailed QC.Erev")
+            print(f"{protocol}, {well} \passed QC.Erev")
             passed_Erev = True
 
         if after_trace is not None:
