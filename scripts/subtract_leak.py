@@ -4,6 +4,7 @@ import argparse
 import gc
 import multiprocessing
 import os
+import string
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -144,7 +145,7 @@ def main():
                     failed = True
                     break
             elif args.selection_file:
-                if not well in selected_wells:
+                if well not in selected_wells:
                     failed = True
                     break
         if not failed:
@@ -177,18 +178,12 @@ def compute_E_Kr_spread(df):
 
 
 def get_wells_list(input_dir):
-    regex = re.compile(f"{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9])-after")
-    wells = []
-
-    for f in filter(regex.match, os.listdir(input_dir)):
-        well = re.search(regex, f).groups(2)[1]
-        if well not in wells:
-            wells.append(well)
-    return list(np.unique(wells))
+    return [l+str(i).zfill(2) for l in string.ascii_uppercase[:16] for i in
+            range(1, 25)]
 
 
 def get_protocol_list(input_dir):
-    regex = re.compile(f"{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z][0-9][0-9])-after")
+    regex = re.compile(f"{experiment_name}-([a-z|A-Z|0-9|_]*)-([A-Z][0-9][0-9])-after")
     protocols = []
     for f in filter(regex.match, os.listdir(input_dir)):
         well = re.search(regex, f).groups(3)[0]
@@ -263,10 +258,8 @@ def overlay_first_last_staircases(well):
     try:
         if not os.path.exists(sub_dir):
             os.makedirs(sub_dir)
-
-    except FileExistsError as exc:
-        # Directory already exists or there's a file here
-        print(str(exc))
+    except FileExistsError:
+        pass
 
     fig.savefig(os.path.join(sub_dir, f"{well}_overlaid.png"))
     plt.close(fig)
@@ -528,10 +521,10 @@ def subtract_leak(well, protocol, args, output_dir=None):
                                         plot=False)
 
         if Erev > -50 or Erev < -120:
-            print(f"{protocol}, {well} \failed QC.Erev")
+            print(f"{protocol}, {well} \tfailed QC.Erev")
             passed_Erev = False
         else:
-            print(f"{protocol}, {well} \passed QC.Erev")
+            print(f"{protocol}, {well} \tpassed QC.Erev")
             passed_Erev = True
 
         if after_trace is not None:
