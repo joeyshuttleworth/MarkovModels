@@ -186,9 +186,9 @@ def get_protocol_list(input_dir):
     regex = re.compile(f"{experiment_name}-([a-z|A-Z|0-9|_]*)-([A-Z][0-9][0-9])-after")
     protocols = []
     for f in filter(regex.match, os.listdir(input_dir)):
-        well = re.search(regex, f).groups(3)[0]
+        protocol = re.search(regex, f).groups(3)[0]
         if protocols not in protocols:
-            protocols.append(well)
+            protocols.append(protocol)
     return list(np.unique(protocols))
 
 
