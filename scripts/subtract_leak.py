@@ -156,7 +156,8 @@ def main():
     with open(os.path.join(output, "passed_wells.txt"), 'w') as fout:
         for well in passed_lst:
             if well in selected_wells:
-                fout.writeline(well)
+                fout.write(well)
+                fout.write('\n')
 
     with multiprocessing.Pool(pool_size, **pool_kws) as pool:
         pool.map(overlay_first_last_staircases, df.well.unique())
