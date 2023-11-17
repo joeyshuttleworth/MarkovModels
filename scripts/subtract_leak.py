@@ -183,7 +183,7 @@ def get_wells_list(input_dir):
 
 
 def get_protocol_list(input_dir):
-    regex = re.compile(f"{experiment_name}-([a-z|A-Z|0-9|_]*)-([A-Z][0-9][0-9])-after")
+    regex = re.compile(f"{experiment_name}-(\w*)-([A-Z][0-9][0-9])-after")
     protocols = []
     for f in filter(regex.match, os.listdir(input_dir)):
         protocol = re.search(regex, f).groups(3)[0]
