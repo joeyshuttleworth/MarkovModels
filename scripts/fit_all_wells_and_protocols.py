@@ -238,56 +238,56 @@ def main():
                                                 model_class=args.model,
                                                 default_artefact_kinetic_parameters=default_artefact_kinetic_parameters)
 
-    # Plot predictions
-    predictions_df.to_csv(os.path.join(output_dir, f"{prefix}predictions_df.csv"))
+        # Plot predictions
+        predictions_df.to_csv(os.path.join(output_dir, f"{prefix}predictions_df.csv"))
 
-    # Select best parameters for each protocol
-    best_params_df_rows = []
-    print(predictions_df)
-    for well in predictions_df.well.unique():
-        for validation_protocol in predictions_df['validation_protocol'].unique():
-            sub_df = predictions_df[(predictions_df.validation_protocol ==
-                                     validation_protocol) & (predictions_df.well == well)]
+        # Select best parameters for each protocol
+        best_params_df_rows = []
+        print(predictions_df)
+        for well in predictions_df.well.unique():
+            for validation_protocol in predictions_df['validation_protocol'].unique():
+                sub_df = predictions_df[(predictions_df.validation_protocol ==
+                                        validation_protocol) & (predictions_df.well == well)]
 
-            best_param_row = sub_df[sub_df.score == sub_df['score'].min()].head(1).copy()
-            best_params_df_rows.append(best_param_row)
+                best_param_row = sub_df[sub_df.score == sub_df['score'].min()].head(1).copy()
+                best_params_df_rows.append(best_param_row)
 
-    best_params_df = pd.concat(best_params_df_rows, ignore_index=True)
-    print(best_params_df)
+        best_params_df = pd.concat(best_params_df_rows, ignore_index=True)
+        print(best_params_df)
 
-    for task in tasks:
-        if args.sweeps:
-            protocol, well, model_class, default_parameters, Erev, randomise, _, sweep = task
-        else:
-            protocol, well, model_class, default_parameters, Erev, randomise, _ = task
-        best_params_row = best_params_df[(best_params_df.well == well)
-                                         & (best_params_df.validation_protocol == protocol)].head(1)
-        param_labels = make_model_of_class(model_class).get_parameter_labels()
-        best_params = best_params_row[param_labels].astype(np.float64).values.flatten()
-        task[3] = best_params
-        task[6] = ''
-        task[5] = False
+        for task in tasks:
+            if args.sweeps:
+                protocol, well, model_class, default_parameters, Erev, randomise, _, sweep = task
+            else:
+                protocol, well, model_class, default_parameters, Erev, randomise, _ = task
+            best_params_row = best_params_df[(best_params_df.well == well)
+                                            & (best_params_df.validation_protocol == protocol)].head(1)
+            param_labels = make_model_of_class(model_class).get_parameter_labels()
+            best_params = best_params_row[param_labels].astype(np.float64).values.flatten()
+            task[3] = best_params
+            task[6] = ''
+            task[5] = False
 
-    if not args.dont_refit:
-        with multiprocessing.Pool(pool_size, **pool_kws) as pool:
-            res = pool.starmap(fit_func, tasks)
+        if not args.dont_refit:
+            with multiprocessing.Pool(pool_size, **pool_kws) as pool:
+                res = pool.starmap(fit_func, tasks)
 
-            fitting_df = pd.concat(res + [fitting_df], ignore_index=True)
-            fitting_df.to_csv(os.path.join(output_dir, "fitting.csv"))
+                fitting_df = pd.concat(res + [fitting_df], ignore_index=True)
+                fitting_df.to_csv(os.path.join(output_dir, "fitting.csv"))
 
-            if args.compute_predictions:
-                predictions_df = compute_predictions_df(params_df, output_dir,
-                                                        model_class=model_class,
-                                                        args=args,
-                                                        default_artefact_kinetic_paramets=default_artefact_kinetic_parameters)
+                if args.compute_predictions:
+                    predictions_df = compute_predictions_df(params_df, output_dir,
+                                                            model_class=model_class,
+                                                            args=args,
+                                                            default_artefact_kinetic_paramets=default_artefact_kinetic_parameters)
 
-                predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
+                    predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
 
-                best_params_df = get_best_params(predictions_df, protocol_label='validation_protocol')
-                print(best_params_df)
+                    best_params_df = get_best_params(predictions_df, protocol_label='validation_protocol')
+                    print(best_params_df)
 
-                best_params_df['protocol'] = best_params_df['validation_protocol']
-                best_params_df.to_csv(os.path.join(output_dir, 'best_fitting.csv'))
+                    best_params_df['protocol'] = best_params_df['validation_protocol']
+                    best_params_df.to_csv(os.path.join(output_dir, 'best_fitting.csv'))
 
 
 if __name__ == "__main__":
