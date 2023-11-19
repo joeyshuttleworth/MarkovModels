@@ -14,41 +14,40 @@ from markovmodels.model_generation import make_model_of_class
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('combine_dir')
-    parser.add_argument('data_directories')
+    parser.add_argument('data_directories', nargs='+')
     parser.add_argument('--filename', default='fitting.csv')
     parser.add_argument('--output', '-o')
     parser.add_argument('--figsize', '-f', nargs=2, type=int)
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
     parser.add_argument('--model_class')
 
+    global args 
     args = parser.parse_args()
 
-    glob_string = args.combine_dir + f"/*/{args.filename}"
+    glob_string = f"*/{args.filename}"
 
-    res = [glob(os.path.join(directory, glob_string)) for directory\
+    res = [glob(os.path.join(directory, glob_string), recursive=True) for directory\
            in args.data_directories]
-
-    # Flatten res
-    res = itertools.chain(res)
     print(res)
 
-    rgex = re.compile(r'([A-Z|0-9][0-9][0-9])_([a-z|A-Z|0-9]*)_fitted_params.csv$')
+    # Flatten res
+    res = list(itertools.chain(itertools.chain(res)))
+    print(res)
 
     dfs = []
-    for fname in res:
-        well = re.search(rgex, fname).groups()[0]
-        protocol = re.search(rgex, fname).groups()[1]
-
+    for entry in res:
+        if len(entry) == 0:
+            continue
+        fname = entry[0]
+        if not isinstance(fname, str):
+            continue
         this_df = pd.read_csv(fname)
-        this_df['protocol'] = protocol
-        this_df['well'] = well
         dfs.append(this_df)
 
     df = pd.concat(dfs, ignore_index=True)
     print(df)
 
-    output_dir = markovmodels.setup_output_directory(args.output, 'combine_fitting_results')
+    output_dir = markovmodels.utilities.setup_output_directory(args.output, 'combine_fitting_results')
 
     df.to_csv(os.path.join(output_dir, 'combined_fitting_results.csv'))
 
