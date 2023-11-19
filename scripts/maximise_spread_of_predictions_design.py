@@ -117,7 +117,8 @@ def main():
         subtraction_df = subtraction_df[(subtraction_df.sweep.astype(str).isin(args.sweeps))]
         qc_df = qc_df[qc_df.sweep.astype(str).isin(args.sweeps)]
 
-    # fitting_df = pd.read_csv(args.fitting_df).sort_values('score', axis=0)
+    fitting_df['score'] = fitting_df.score.astype(np.float64)
+    fitting_df = pd.read_csv(args.fitting_df).sort_values('score', axis=0)
     df_rows = []
     for well in passed_wells:
         for protocol in protocols:
