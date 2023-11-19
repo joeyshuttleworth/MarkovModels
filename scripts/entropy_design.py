@@ -52,8 +52,9 @@ def main():
     global args
     args = parser.parse_args()
 
-    params_for_Erev = \
-        np.loadtxt(args.artefact_default_kinetic_param_file).flatten().astype(np.float64)
+    if args.artefact_default_kinetic_param_file:
+        params_for_Erev = \
+            np.loadtxt(args.artefact_default_kinetic_param_file).flatten().astype(np.float64)
 
     if args.use_parameter_file:
         default_parameters = \
@@ -164,14 +165,13 @@ def main():
                 row[-8] = gkr
                 df_rows.append(row)
 
-    params = pd.DataFrame(df_rows,
-                          columns=['well', 'protocol', 'sweep'] + \
-                          ArtefactModel(model).get_parameter_labels(),
-                          )
-    params = params.set_index(['well', 'protocol', 'sweep'])
+    # params = pd.DataFrame(df_rows,
+    #                       columns=['well', 'protocol', 'sweep'] + \
+    #                       ArtefactModel(model).get_parameter_labels(),
+    #                       )
+    # params = params.set_index(['well', 'protocol', 'sweep'])
 
-    a_model = ArtefactModel(model)
-    cfunc = a_model.get_cfunc_rhs()
+    # a_model = ArtefactModel(model)
 
     x0 = markovmodels.voltage_protocols.get_design_space_representation(sc_desc).flatten()
     x0[1::2] = x0[1::2] / 2
@@ -205,15 +205,16 @@ def main():
         fout.write('\n')
 
     iteration = 0
+    params = model.get_default_parameters()
     while not es.stop():
         d_list = es.ask()
-        x = [(d, a_model, params, cfunc) for d in d_list]
+        x = [(d, model, params) for d in d_list]
         res = list(map(opt_func, x))
         es.tell(d_list, res)
         if iteration % 10 == 0:
             es.result_pretty()
         if iteration % 100 == 0:
-            markovmodels.optimal_design.save_es(es, args.output_dir,
+            markovmodels.optimal_design.save_es(es, output_dir,
                                                 f"optimisation_iteration_{iteration}")
         iteration += 1
 
@@ -267,22 +268,22 @@ def main():
     axs[1].cla()
 
     # Plot phase diagram for the new design (first two states)
-    a_model.voltage = found_voltage_func
-    a_model.protocol_description = found_desc
+    model.voltage = found_voltage_func
+    model.protocol_description = found_desc
 
-    states = a_model.make_hybrid_solver_states(njitted=False, hybrid=False)()[::args.n_skip]
+    states = model.make_hybrid_solver_states(njitted=False, hybrid=False)()[::args.n_skip]
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
     axs[0].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o')
 
     # Plot phase diagram (first two states)
     model.voltage = sc_func
     model.protocol_description = sc_desc
-    states = a_model.make_hybrid_solver_states(njitted=False, hybrid=False)()
+    states = model.make_hybrid_solver_states(njitted=False, hybrid=False)()
     np.savetxt(os.path.join('found_design_trajectory.csv'), states)
     states = states[::args.n_skip]
 
-    a_model.voltage = sc_func
-    a_model.protocol_description = sc_desc
+    model.voltage = sc_func
+    model.protocol_description = sc_desc
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
     axs[1].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o')
 
@@ -297,12 +298,12 @@ def main():
         fout.write(str(u_D_found))
         fout.write('\n')
 
-    markovmodels.optimal_design.save_es(es, args.output_dir,
+    markovmodels.optimal_design.save_es(es, output_dir,
                                         "es_halted")
 
 
 def opt_func(x):
-    d, a_model, params, cfunc = x
+    d, model, params = x
     # Force positive durations
     # x[1::2] = np.abs(x[1::2])
 
@@ -317,10 +318,10 @@ def opt_func(x):
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
 
     # ignore Vm state
-    kinetic_indices = [i for i in range(a_model.get_no_state_vars() - 1)]
+    kinetic_indices = [i for i in range(model.get_no_state_vars() - 1)]
     util = entropy_utility(desc,
-                           params.values.astype(np.float64).mean(axis=0).flatten(),
-                           a_model, include_vars=kinetic_indices, cfunc=cfunc,
+                           params,
+                           model, include_vars=kinetic_indices,
                            removal_duration=args.removal_duration)
     print(util)
     return -util
