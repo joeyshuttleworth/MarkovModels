@@ -109,6 +109,8 @@ class SensitivitiesMarkovModel(ODEModel):
             for j in range(self.n_params):
                 inputs[0].append(dydp[i][j])
 
+        self.y = inputs[0]
+
         S = sp.Matrix([[dydp[i][j] for j in range(self.n_params)]
                        for i in range(len(self.markov_model.y))])
 
