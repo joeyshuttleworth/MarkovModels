@@ -7,6 +7,7 @@ import numpy as np
 import itertools
 import regex as re
 import markovmodels
+from markovmodels.model_generation import make_model_of_class
 
 # from fit_all_wells_and_protocols import compute_predictions_df
 
@@ -19,9 +20,9 @@ def main():
     parser.add_argument('--output', '-o')
     parser.add_argument('--figsize', '-f', nargs=2, type=int)
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
+    parser.add_argument('--model_class')
 
     args = parser.parse_args()
-    model_class = markovmodels.get_model_class(args.model_class)
 
     glob_string = args.combine_dir + f"/*/{args.filename}"
 
@@ -51,25 +52,20 @@ def main():
 
     df.to_csv(os.path.join(output_dir, 'combined_fitting_results.csv'))
 
-    param_labels = model_class().get_parameter_labels()
+    if args.model_class:
+        model = markovmodels.make_model_of_class(args.model_class)
+        param_labels = model.get_parameter_labels()
+        # filter out parameters that dont lie in parameter set
+        remove = []
+        for i, row in df.iterrows():
+            params = row[param_labels]
+            remove.append(not check(model, parameters=params))
 
-    # filter out parameters that dont lie in parameter set
-    remove = []
-    for i, row in df.iterrows():
-        params = row[param_labels]
-        remove.append(not check(model_class, parameters=params))
-
-    df = df[~np.array(remove)]
-
-    # predictions_df = compute_predictions_df(df, output_dir, args=args,
-    #                                         model_class=model_class)
-    # predictions_df.to_csv(os.path.join(output_dir, 'combined_predictions_df.csv'))
+        df = df[~np.array(remove)]
 
 
-def check(model_class, parameters):
+def check(mm, parameters):
     parameters = parameters.copy()
-
-    mm = model_class()
 
     # rates function
     rates_func = mm.get_rates_func(njitted=False)
