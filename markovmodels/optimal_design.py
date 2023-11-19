@@ -120,9 +120,10 @@ def entropy_weighted_A_opt_utility(desc, params, s_model,
         no_params = len(s_model.get_default_parameters())
         include_params = [i for i in range(no_params)]
 
-    sens = s_model.auxiliary_function(states.T, params,
-                                      voltages).reshape([times.shape[0], -1])
-
+    aux_func = s_model.define_auxiliary_function()
+    sens = aux_func(states.T, params,
+                    voltages).reshape([times.shape[0], -1])
+    sens = sens / s_model.get_default_parameters()[None, :]
     sens = sens[:, include_params]
 
     if include_params is not None:
@@ -150,7 +151,7 @@ def entropy_weighted_A_opt_utility(desc, params, s_model,
     weighted_A_opt = np.trace(w_sens.T @ w_sens)
 
     if ax is not None:
-        ax.plot(times, states)
+        ax.plot(times, states[:, include_vars])
 
     return np.log(weighted_A_opt)
 

@@ -58,7 +58,7 @@ def main():
 
     for i in range(len(fitting_dfs)):
         fitting_dfs[i].score = fitting_dfs[i].score.astype(np.float64)
-        fitting_dfs[i] = fitting_dfs[i].sort_values('score', ascending=False)
+        fitting_dfs[i] = fitting_dfs[i].sort_values('score', ascending=True)
 
     if args.selection_file:
         with open(args.selection_file) as fin:
