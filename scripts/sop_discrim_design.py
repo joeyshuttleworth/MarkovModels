@@ -83,7 +83,7 @@ def main():
     sc_voltages = np.array([voltage_func(t) for t in sc_times])
 
     global output_dir
-    output_dir = markovmodels.utilities.setup_output_directory(None, 'max_sop')
+    output_dir = markovmodels.utilities.setup_output_directory(None, 'sop_discriminate')
 
     # optimise one step (8th from last)
     protocols = fitting_dfs[0].protocol.unique()
