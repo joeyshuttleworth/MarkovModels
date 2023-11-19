@@ -116,8 +116,6 @@ def main():
     params[0]['noise'] = [get_noise(row) for _, row in params[0].iterrows()]
     params[1]['noise'] = [get_noise(row) for _, row in params[1].iterrows()]
 
-    print(params[0]['noise'])
-
     n_steps = 64 - 13
     x0 = np.zeros(n_steps).astype(np.float64)
     x0[1::2] = 100.0
@@ -157,7 +155,7 @@ def main():
                    'CMA_stds': stds,
                    'bounds': bounds,
                    'tolx': 2,
-                   'tolfun': 1,
+                   'tolfun': 1e-5,
                    'popsize': 15,
                    'seed': seed
                    }
@@ -307,7 +305,8 @@ def opt_func(x, ax=None):
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
 
     params1 = params1.loc[np.all(np.isfinite(params1[model1.get_parameter_labels()]), axis=1), :]
-    params2 = params1.loc[np.all(np.isfinite(params2[model2.get_parameter_labels()]), axis=1), :]
+
+    params2 = params2.loc[np.all(np.isfinite(params2[model2.get_parameter_labels()]), axis=1), :]
 
     wells = params1.well.unique().flatten()
     wells = [w for w in wells if w in params2.well.unique()]
@@ -315,7 +314,7 @@ def opt_func(x, ax=None):
     utils = []
     for well in wells:
         sub_df1 = params1[params1.well == well]
-        sub_df2 = params1[params2.well == well]
+        sub_df2 = params2[params2.well == well]
 
         noise = sub_df1.noise.values.flatten()[0]
 
