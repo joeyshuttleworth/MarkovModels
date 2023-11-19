@@ -96,3 +96,8 @@ def setup_output_directory(dirname: str = None, subdir_name: str = None):
 
     return dirname
 
+
+def put_copy(arr, ind, v, mode='raise'):
+    _arr = arr.copy()
+    np.put(_arr, ind, v, mode)
+    return _arr

@@ -35,6 +35,7 @@ def remove_spikes(times, voltages, spike_times, time_to_remove):
     intervals_to_remove = np.vstack(intervals_to_remove)
 
     indices = remove_indices(list(range(len(times))), intervals_to_remove)
+
     return times[indices], voltages[indices], indices
 
 
@@ -78,7 +79,7 @@ def remove_indices(lst, indices_to_remove):
 
     lst = list(first_lst) + [index for lst in lsts for index in lst]
 
-    return np.unique(lst)
+    return np.unique(lst).astype(int)
 
 
 def get_protocol_from_csv(protocol_name: str, directory=None, holding_potential=-80):
@@ -256,7 +257,7 @@ def detect_spikes(x, y, threshold=100, window_size=0, earliest=True):
     return x[spike_indices], np.array(spike_indices)
 
 
-def design_space_to_desc(d):
+def design_space_to_desc(d, t_step=.1):
     durations = d[1::2]
     voltages = d[::2]
 
@@ -286,14 +287,14 @@ def design_space_to_desc(d):
             dur = 0
 
         lines.append([t_cur, t_cur + dur, v, v])
-        t_cur += dur
+        t_cur += dur + t_step
 
     for row in reversal_steps:
         dur = row[1] - row[0]
         tstart = t_cur
         tend = t_cur + dur
         vstart, vend = row[2], row[3]
-        t_cur += dur
+        t_cur += dur + t_step
         lines.append([tstart, tend, vstart, vend])
 
     return tuple([tuple(line) for line in lines])

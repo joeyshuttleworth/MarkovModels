@@ -21,9 +21,9 @@ from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.BeattieModel import BeattieModel
 from markovmodels.fitting import infer_reversal_potential_with_artefact
 from markovmodels.SensitivitiesMarkovModel import SensitivitiesMarkovModel
-from markovmodels.voltage_protocols import detect_spikes, remove_spikes
+from markovmodels.voltage_protocols import detect_spikes, remove_spikes, get_design_space_representation
 from markovmodels.fitting import infer_reversal_potential_with_artefact
-from markovmodels.utilities import get_data
+from markovmodels.utilities import get_data, put_copy
 from numba import njit, jit
 from markovmodels.optimal_design import entropy_utility, D_opt_utility, prediction_spread_utility
 
@@ -41,15 +41,22 @@ def main():
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
     parser.add_argument('--sweeps', '-s', type=str, default=[], nargs='+')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
+    parser.add_argument('--ignore_protocols', type=str, default=[], nargs='+')
     parser.add_argument('--selection_file')
     parser.add_argument('--model_class', default='model3')
     parser.add_argument('--max_iterations', '-i', type=int, default=100000)
     parser.add_argument("--experiment_name", default='25112022_MW')
     parser.add_argument("--removal_duration", default=5.0, type=float)
+    parser.add_argument("--steps_at_a_time", type=int)
+    parser.add_argument("--n_sample_starting_points", type=int)
     parser.add_argument("-c", "--no_cpus", type=int, default=1)
 
     global args
     args = parser.parse_args()
+
+    for protocol in args.protocols:
+        if protocol in args.ignore_protocols:
+            raise ValueError(f"{protocol} is specified as a protocol and with --ignore_protocls")
 
     fitting_df = pd.read_csv(args.fitting_df)
 
@@ -114,6 +121,8 @@ def main():
     df_rows = []
     for well in passed_wells:
         for protocol in protocols:
+            if protocol in args.ignore_protocols:
+                continue
             for sweep in fitting_df[(fitting_df.well == well) & \
                                     (fitting_df.protocol == protocol)]['sweep'].unique():
                 # leak_row = subtraction_df[(subtraction_df.well == well) &\
@@ -149,58 +158,96 @@ def main():
                           columns=['well', 'protocol', 'sweep'] + \
                           model.get_parameter_labels())
 
-    cfunc = model.get_cfunc_rhs()
-
-    x0 = markovmodels.voltage_protocols.get_design_space_representation(sc_desc).flatten()
-
-    x0[1::2] = x0[1::2] / 2
-
-    n_additional_steps = int(64 - 13 - (x0.shape[0] / 2))
-    x0 = np.append(x0, [10] * 2 * n_additional_steps)
-
-    print('initial score: ', opt_func([x0, model, params, cfunc]))
-    stds = np.empty(x0.shape)
-    stds[::2] = .25 * (60 + 120)
-    stds[1::2] = .25 * 1000
-
     n_steps = 64 - 13
-    l_bounds = [-120 if (i % 2) == 0 else 1 for i in range(n_steps * 2)]
-    u_bounds = [60 if (i % 2) == 0 else 2000 for i in range(n_steps * 2)]
+    x0 = np.zeros(n_steps*2).astype(np.float64)
+    x0[1::2] = 100.0
+    x0[::2] = -80.0
 
-    bounds = [l_bounds, u_bounds]
-    seed = np.random.randint(2**32 - 1)
-    options = {'maxfevals': args.max_iterations,
-               'CMA_stds': stds,
-               'bounds': bounds,
-               'tolx': 2,
-               'tolfun': 1,
-               'popsize': 15,
-               'seed': seed
-               }
+    if args.n_sample_starting_points:
+        starting_guesses = np.random.uniform(size=(x0.shape[0], args.n_sample_starting_points))
+        starting_guesses[:, ::2] = (starting_guesses[:, ::2]*160) - 120
+        starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
 
-    es = cma.CMAEvolutionStrategy(x0, 1, options)
-    with open(os.path.join('pycma_seed.txt'), 'w') as fout:
-        fout.write(str( seed))
-        fout.write('\n')
+        scores = [opt_func([d, model, params]) for d in starting_guesses]
+        print(scores)
 
-    best_scores = []
-    iteration = 0
-    while not es.stop():
-        d_list = es.ask()
-        x = [(d, model, params, cfunc) for d in d_list]
-        # Check bounds
+        best_guess_index = np.argmin(scores)
+        x0 = starting_guesses[best_guess_index, :].flatten()
+        print('x0', x0)
 
-        res = np.array([opt_func(pars) for pars in x])
+    steps_fitted = 0
+    if args.steps_at_a_time is None:
+        args.steps_at_a_time = int(x0.shape[0]/2)
 
-        best_scores.append(res.min())
-        es.tell(d_list, res)
-        es.result_pretty()
-        if iteration % 10 == 0:
+    previous_d = x0.astype(np.float64)
+
+    step_group = 0
+
+    fig = plt.figure()
+    axs = fig.subplots(2)
+    sc_x = get_design_space_representation(sc_desc)
+
+    initial_score = opt_func([x0, model, params], ax=axs[0])
+    sc_score = opt_func([sc_x, model, params], ax=axs[1])
+    print('initial score: ', initial_score)
+    print('staircase score: ', sc_score)
+    fig.savefig(os.path.join(output_dir, 'initial_design_sc_compare'))
+
+    for ax in axs:
+        ax.cla()
+
+    while steps_fitted != int(x0.shape[0] / 2):
+        stds = np.empty(args.steps_at_a_time * 2)
+        stds[::2] = .25 * (40 + 120)
+        stds[1::2] = .25 * 1000
+
+        l_bounds = [-120 if (i % 2) == 0 else 1 for i in range(args.steps_at_a_time * 2)]
+        u_bounds = [40 if (i % 2) == 0 else 2000 for i in range(args.steps_at_a_time * 2)]
+
+        bounds = [l_bounds, u_bounds]
+        seed = np.random.randint(2**32 - 1)
+        options = {'maxfevals': args.max_iterations,
+                   'CMA_stds': stds,
+                   'bounds': bounds,
+                   'tolx': 2,
+                   'tolfun': 1,
+                   'popsize': 15,
+                   'seed': seed
+                   }
+
+        es = cma.CMAEvolutionStrategy(x0[steps_fitted * 2: steps_fitted * 2 + args.steps_at_a_time * 2], 1, options)
+        with open(os.path.join('pycma_seed.txt'), 'w') as fout:
+            fout.write(str(seed))
+            fout.write('\n')
+
+        best_scores = []
+
+        iteration = 0
+        while not es.stop():
+            d_list = es.ask()
+            if args.steps_at_a_time != x0.shape[0] / 2:
+                ind = list(range(steps_fitted * 2,
+                                 (steps_fitted + args.steps_at_a_time) * 2))
+                [put_copy(previous_d, ind, d) for d in d_list]
+
+            x = [(d, model, params) for d in d_list]
+            # Check bounds
+
+            res = np.array([opt_func(pars) for pars in x])
+
+            best_scores.append(res.min())
+            es.tell(d_list, res)
             es.result_pretty()
-        if iteration % 100 == 0:
-            markovmodels.optimal_design.save_es(es, args.output_dir,
-                                                f"optimisation_iteration_{iteration}")
-        iteration += 1
+            if iteration % 10 == 0:
+                es.result_pretty()
+            if iteration % 100 == 0:
+                markovmodels.optimal_design.save_es(es, output_dir,
+                                                    f"optimisation_iteration_{iteration}_{step_group}")
+            iteration += 1
+        steps_fitted += args.steps_at_a_time
+        step_group += 1
+        x0 = es.result.xbest
+        print(f"fitted {steps_fitted} steps")
 
     np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
 
@@ -216,7 +263,7 @@ def main():
                                                               removal_duration=args.removal_duration)
     print(f"u_D of staircase = {u_D_staircase}")
 
-    found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt)
+    found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt.copy())
     u_D_found = markovmodels.optimal_design.D_opt_utility(found_desc,
                                                           default_params,
                                                           s_model,
@@ -231,8 +278,6 @@ def main():
 
     output = model.make_hybrid_solver_current(njitted=False, hybrid=False)()
 
-    fig = plt.figure()
-    axs = fig.subplots(2)
     axs[0].plot(model.times, output)
     axs[1].plot(model.times, [model.voltage(t) for t in model.times])
 
@@ -254,6 +299,7 @@ def main():
     # Plot phase diagram for the new design (first two states)
     model.voltage = found_voltage_func
     model.protocol_description = found_desc
+    model.times = np.arange(0, found_desc[-1][0], .5)
     states = model.make_hybrid_solver_states(njitted=False, hybrid=False)()
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
     axs[0].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o')
@@ -285,18 +331,30 @@ def main():
     with open(filename, 'wb') as fout:
         fout.write(es.pickle_dumps())
 
-    markovmodels.optimal_design.save_es(es, args.output_dir,
+    markovmodels.optimal_design.save_es(es, output_dir,
                                         "es_halted")
 
+    fig.clf()
+    axs = fig.subplots(4)
 
-def opt_func(x):
-    d, model, params, cfunc = x
+    found_score = opt_func([xopt, model, params], ax=axs[0])
+    found_times = np.arange(0, found_desc[-1][0], .5)
+    found_voltages = np.array([found_voltage_func(t) for t in found_times])
+    axs[1].plot(found_times, found_voltages)
+    sc_score = opt_func([sc_x, model, params], ax=axs[2])
+    axs[3].plot(sc_times, sc_voltages)
+    print('found score: ', found_score)
+    print('staircase score: ', sc_score)
+
+    fig.savefig(os.path.join(output_dir, 'found_design_vs_staircase'))
+
+
+def opt_func(x, ax=None):
+    d, model, params = x
 
     # Force positive durations
     d = d.copy()
     d[1::2] = np.abs(d[1::2])
-
-    model.times = np.arange(0, d[1::2].sum(), .5)
 
     # constrain total length
     protocol_length = d[1::2].sum()
@@ -318,10 +376,9 @@ def opt_func(x):
                                          sub_df[model.get_parameter_labels()].values,
                                          model,
                                          removal_duration=args.removal_duration,
-                                         cfunc=cfunc)
+                                         ax=ax)
         utils.append(util)
     utils = np.array(utils)
-    print('utils are', utils)
     return -np.min(utils)
 
 
