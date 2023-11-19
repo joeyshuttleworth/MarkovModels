@@ -315,15 +315,13 @@ def opt_func(x):
     #     return np.inf
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
-    times = np.arange(0, d[1::2].sum(), .5)
-    a_model.times = times
 
     # ignore Vm state
     kinetic_indices = [i for i in range(a_model.get_no_state_vars() - 1)]
     util = entropy_utility(desc,
                            params.values.astype(np.float64).mean(axis=0).flatten(),
-                           a_model, include_vars=kinetic_indices,
-                           cfunc=cfunc)
+                           a_model, include_vars=kinetic_indices, cfunc=cfunc,
+                           removal_duration=args.removal_duration)
     print(util)
     return -util
 
