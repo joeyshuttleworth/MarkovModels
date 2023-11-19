@@ -21,17 +21,17 @@ from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.BeattieModel import BeattieModel
 from markovmodels.fitting import infer_reversal_potential_with_artefact
 from markovmodels.SensitivitiesMarkovModel import SensitivitiesMarkovModel
-from markovmodels.voltage_protocols import detect_spikes, remove_spikes, get_design_space_representation
+from markovmodels.voltage_protocols import detect_spikes, remove_spikes
 from markovmodels.fitting import infer_reversal_potential_with_artefact
 from markovmodels.utilities import get_data, put_copy
 from numba import njit, jit
-from markovmodels.optimal_design import entropy_utility, D_opt_utility, prediction_spread_utility
+from markovmodels.optimal_design import D_opt_utility, discriminate_spread_of_predictions_utility
 
 
 def main():
     parser = ArgumentParser()
     parser.add_argument('data_directory')
-    parser.add_argument('fitting_df')
+    parser.add_argument('fitting_dfs', nargs=2)
     parser.add_argument('--reversal', type=float, default=-91.71)
     parser.add_argument('-o', '--output')
     parser.add_argument('--subtraction_df_file')
@@ -41,9 +41,9 @@ def main():
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
     parser.add_argument('--sweeps', '-s', type=str, default=[], nargs='+')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
-    parser.add_argument('--ignore_protocols', type=str, default=[], nargs='+')
+    parser.add_argument('--ignore_protocols', type=str, default=['longap'], nargs='+')
     parser.add_argument('--selection_file')
-    parser.add_argument('--model_class', default='model3')
+    parser.add_argument('--model_classes', default=('model3', 'Wang'), nargs=2)
     parser.add_argument('--max_iterations', '-i', type=int, default=100000)
     parser.add_argument("--experiment_name", default='25112022_MW')
     parser.add_argument("--removal_duration", default=5.0, type=float)
@@ -54,20 +54,11 @@ def main():
     global args
     args = parser.parse_args()
 
-    for protocol in args.protocols:
-        if protocol in args.ignore_protocols:
-            raise ValueError(f"{protocol} is specified as a protocol and with --ignore_protocls")
+    fitting_dfs = [pd.read_csv(fname) for fname in args.fitting_dfs]
 
-    fitting_df = pd.read_csv(args.fitting_df)
-
-    params_for_Erev = \
-        np.loadtxt(args.artefact_default_kinetic_param_file).flatten().astype(np.float64)
-
-    if args.use_parameter_file:
-        default_parameters = \
-            np.loadtxt(args.use_parameter_file).flatten().astype(np.float64)
-    else:
-        default_parameters = make_model_of_class(args.model_class).get_default_parameters()
+    for i in range(len(fitting_dfs)):
+        fitting_dfs[i].score = fitting_dfs[i].score.astype(np.float64)
+        fitting_dfs[i] = fitting_dfs[i].sort_values('score', ascending=False)
 
     if args.selection_file:
         with open(args.selection_file) as fin:
@@ -79,87 +70,56 @@ def main():
     global sc_func
     sc_func, sc_times, sc_desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv('staircaseramp1')
 
-
     protocol = 'staircaseramp1'
     voltage_func, sc_times, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
 
-    model = make_model_of_class(args.model_class, sc_times, voltage_func,
-                                protocol_description=desc,
-                                default_parameters=default_parameters)
+    models = [0, 0]
+    models[0] = make_model_of_class(args.model_classes[0], sc_times,
+                                    voltage_func, protocol_description=desc)
 
-    params = model.get_default_parameters()
+    models[1] = make_model_of_class(args.model_classes[1], sc_times,
+                                    voltage_func, protocol_description=desc)
+
     sc_voltages = np.array([voltage_func(t) for t in sc_times])
 
     global output_dir
     output_dir = markovmodels.utilities.setup_output_directory(None, 'max_sop')
 
-    if args.subtraction_df_file:
-        subtraction_df = pd.read_csv(args.subtraction_df_file)
-
-    if args.qc_df_file:
-        qc_df = pd.read_csv(args.qc_df_file)
-        qc_df = qc_df[qc_df.drug == 'before']
-        # qc_df = qc_df.set_index(['well', 'protocol', 'sweep'])
-
     # optimise one step (8th from last)
-    protocols = fitting_df.protocol.unique()
-
-    if args.protocols:
-        subtraction_df = subtraction_df[(subtraction_df.protocol.isin(args.protocols))]
-        qc_df = qc_df[(qc_df.protocol.isin(args.protocols))]
+    protocols = fitting_dfs[0].protocol.unique()
 
     if args.wells:
-        subtraction_df = subtraction_df[(subtraction_df.well.isin(args.wells))]
-        qc_df = qc_df[(qc_df.well.isin(args.wells))]
         passed_wells = [well for well in passed_wells if well in args.wells]
 
-    if args.sweeps:
-        subtraction_df = subtraction_df[(subtraction_df.sweep.astype(str).isin(args.sweeps))]
-        qc_df = qc_df[qc_df.sweep.astype(str).isin(args.sweeps)]
-
-    # fitting_df = pd.read_csv(args.fitting_df).sort_values('score', axis=0)
     df_rows = []
-    for well in passed_wells:
-        for protocol in protocols:
-            if protocol in args.ignore_protocols:
-                continue
-            for sweep in fitting_df[(fitting_df.well == well) & \
-                                    (fitting_df.protocol == protocol)]['sweep'].unique():
-                # leak_row = subtraction_df[(subtraction_df.well == well) &\
-                #                           (subtraction_df.protocol == protocol) \
-                #                           & (subtraction_df.sweep == sweep)]
 
-                # gleak = leak_row['pre-drug leak conductance'].values[0]
-                # Eleak = leak_row['pre-drug leak reversal'].values[0]
-                # qc_row = qc_df[(qc_df.well == well) & (qc_df.protocol == protocol) \
-                #                & (qc_df.sweep == sweep)][['Rseries', 'Cm']]
-                # Rseries = qc_row['Rseries'].values[0] * 1e-9
-                # Cm = qc_row['Cm'].values[0] * 1e9
-                # data = get_data(well, protocol, args.data_directory,
-                #                 args.experiment_name, label=None, sweep=sweep)
+    params = []
+    for model, fitting_df in zip(models, fitting_dfs):
 
-                # times_df = pd.read_csv(os.path.join(args.data_directory,
-                #                                     f"{args.experiment_name}-{protocol}-times.csv"))
-                # times = times_df['time'].to_numpy().flatten()
+        for well in passed_wells:
+            for protocol in protocols:
+                if protocol in args.ignore_protocols:
+                    continue
+                for sweep in fitting_df[(fitting_df.well == well) & \
+                                        (fitting_df.protocol == protocol)]['sweep'].unique():
+                    fitted_params = fitting_df[(fitting_df.well == well) &
+                                               (fitting_df.protocol == protocol) &
+                                               (fitting_df.sweep == sweep)].head(1)[model.get_parameter_labels()].values.flatten().astype(np.float64)
 
-                # E_obs = leak_row['fitted_E_rev'].values[0]
-                # V_off = E_obs - args.reversal
+                    row = [well, protocol, sweep] + list(fitted_params)
+                    df_rows.append(row)
 
-                fitted_params = fitting_df[(fitting_df.well == well)
-                                           & (fitting_df.protocol == protocol)
-                                           & (fitting_df.sweep == sweep)].head(1)[model.get_parameter_labels()].values.flatten().astype(np.float64)
+        params.append(pd.DataFrame(df_rows,
+                              columns=['well', 'protocol', 'sweep'] + \
+                              model.get_parameter_labels()))
 
-                # param_set = np.concatenate((fitted_params,
-                #                            np.array([gleak, Eleak, 0, 0, V_off, Rseries, Cm])))
-                row = [well, protocol, sweep] + list(fitted_params)
-                df_rows.append(row)
+    params[0]['noise'] = [get_noise(row) for _, row in params[0].iterrows()]
+    params[1]['noise'] = [get_noise(row) for _, row in params[1].iterrows()]
 
-    params = pd.DataFrame(df_rows,
-                          columns=['well', 'protocol', 'sweep'] + \
-                          model.get_parameter_labels())
+    print(params[0]['noise'])
 
     n_steps = 64 - 13
-    x0 = np.zeros(n_steps*2).astype(np.float64)
+    x0 = np.zeros(n_steps).astype(np.float64)
     x0[1::2] = 100.0
     x0[::2] = -80.0
 
@@ -168,7 +128,7 @@ def main():
         starting_guesses[:, ::2] = (starting_guesses[:, ::2]*160) - 120
         starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
 
-        scores = [opt_func([d, model, params]) for d in starting_guesses]
+        scores = [opt_func([d, models, params]) for d in starting_guesses]
         print(scores)
 
         best_guess_index = np.argmin(scores)
@@ -182,21 +142,8 @@ def main():
     previous_d = x0.astype(np.float64)
 
     step_group = 0
-
-    fig = plt.figure()
-    axs = fig.subplots(2)
-    sc_x = get_design_space_representation(sc_desc)
-
-    initial_score = opt_func([x0, model, params], ax=axs[0])
-    sc_score = opt_func([sc_x, model, params], ax=axs[1])
-    print('initial score: ', initial_score)
-    print('staircase score: ', sc_score)
-    fig.savefig(os.path.join(output_dir, 'initial_design_sc_compare'))
-
-    for ax in axs:
-        ax.cla()
-
     while steps_fitted != int(x0.shape[0] / 2):
+        print('initial score: ', opt_func([x0, models, params]))
         stds = np.empty(args.steps_at_a_time * 2)
         stds[::2] = .25 * (40 + 120)
         stds[1::2] = .25 * 1000
@@ -230,7 +177,7 @@ def main():
                                  (steps_fitted + args.steps_at_a_time) * 2))
                 [put_copy(previous_d, ind, d) for d in d_list]
 
-            x = [(d, model, params) for d in d_list]
+            x = [(d, models, params) for d in d_list]
             # Check bounds
 
             res = np.array([opt_func(pars) for pars in x])
@@ -263,7 +210,7 @@ def main():
                                                               removal_duration=args.removal_duration)
     print(f"u_D of staircase = {u_D_staircase}")
 
-    found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt.copy())
+    found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt)
     u_D_found = markovmodels.optimal_design.D_opt_utility(found_desc,
                                                           default_params,
                                                           s_model,
@@ -278,6 +225,8 @@ def main():
 
     output = model.make_hybrid_solver_current(njitted=False, hybrid=False)()
 
+    fig = plt.figure()
+    axs = fig.subplots(2)
     axs[0].plot(model.times, output)
     axs[1].plot(model.times, [model.voltage(t) for t in model.times])
 
@@ -299,7 +248,6 @@ def main():
     # Plot phase diagram for the new design (first two states)
     model.voltage = found_voltage_func
     model.protocol_description = found_desc
-    model.times = np.arange(0, found_desc[-1][0], .5)
     states = model.make_hybrid_solver_states(njitted=False, hybrid=False)()
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
     axs[0].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o')
@@ -334,27 +282,18 @@ def main():
     markovmodels.optimal_design.save_es(es, output_dir,
                                         "es_halted")
 
-    fig.clf()
-    axs = fig.subplots(4)
-
-    found_score = opt_func([xopt, model, params], ax=axs[0])
-    found_times = np.arange(0, found_desc[-1][0], .5)
-    found_voltages = np.array([found_voltage_func(t) for t in found_times])
-    axs[1].plot(found_times, found_voltages)
-    sc_score = opt_func([sc_x, model, params], ax=axs[2])
-    axs[3].plot(sc_times, sc_voltages)
-    print('found score: ', found_score)
-    print('staircase score: ', sc_score)
-
-    fig.savefig(os.path.join(output_dir, 'found_design_vs_staircase'))
-
 
 def opt_func(x, ax=None):
-    d, model, params = x
+    d, models, (params1, params2) = x
+
+    model1, model2 = models
 
     # Force positive durations
     d = d.copy()
     d[1::2] = np.abs(d[1::2])
+
+    model1.times = np.arange(0, d[1::2].sum(), .5)
+    model2.times = np.arange(0, d[1::2].sum(), .5)
 
     # constrain total length
     protocol_length = d[1::2].sum()
@@ -367,19 +306,42 @@ def opt_func(x, ax=None):
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
 
-    params = params.loc[np.all(np.isfinite(params[model.get_parameter_labels()]), axis=1), :]
+    params1 = params1.loc[np.all(np.isfinite(params1[model1.get_parameter_labels()]), axis=1), :]
+    params2 = params1.loc[np.all(np.isfinite(params2[model2.get_parameter_labels()]), axis=1), :]
+
+    wells = params1.well.unique().flatten()
+    wells = [w for w in wells if w in params2.well.unique()]
 
     utils = []
-    for well in params.well.unique():
-        sub_df = params[params.well == well]
-        util = prediction_spread_utility(desc,
-                                         sub_df[model.get_parameter_labels()].values,
-                                         model,
-                                         removal_duration=args.removal_duration,
-                                         ax=ax)
+    for well in wells:
+        sub_df1 = params1[params1.well == well]
+        sub_df2 = params1[params2.well == well]
+
+        noise = sub_df1.noise.values.flatten()[0]
+
+        util = discriminate_spread_of_predictions_utility(desc,
+                                                          sub_df1[model1.get_parameter_labels()].values,
+                                                          sub_df2[model2.get_parameter_labels()].values,
+                                                          model1, model2,
+                                                          removal_duration=args.removal_duration,
+                                                          sigma2=noise**2,
+                                                          ax=ax)
+
         utils.append(util)
     utils = np.array(utils)
+
+    print('utils are', utils)
     return -np.min(utils)
+
+
+def get_noise(row):
+    well, protocol, sweep = row[['well', 'protocol', 'sweep']]
+
+    data = markovmodels.utilities.get_data(well, protocol, args.data_directory,
+                                           experiment_name=args.experiment_name,
+                                           sweep=sweep)
+
+    return data[:200].std()
 
 
 if __name__ == '__main__':

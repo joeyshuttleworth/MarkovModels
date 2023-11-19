@@ -25,30 +25,25 @@ from markovmodels.voltage_protocols import detect_spikes, remove_spikes, get_des
 from markovmodels.fitting import infer_reversal_potential_with_artefact
 from markovmodels.utilities import get_data, put_copy
 from numba import njit, jit
-from markovmodels.optimal_design import entropy_utility, D_opt_utility, prediction_spread_utility
+from markovmodels.optimal_design import entropy_weighted_A_opt_utility, D_opt_utility
 
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument('data_directory')
-    parser.add_argument('fitting_df')
     parser.add_argument('--reversal', type=float, default=-91.71)
     parser.add_argument('-o', '--output')
-    parser.add_argument('--subtraction_df_file')
-    parser.add_argument('--qc_df_file')
-    parser.add_argument('--use_parameter_file')
-    parser.add_argument('--artefact_default_kinetic_param_file')
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
     parser.add_argument('--sweeps', '-s', type=str, default=[], nargs='+')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--ignore_protocols', type=str, default=[], nargs='+')
     parser.add_argument('--selection_file')
+    parser.add_argument('--use_parameter_file')
     parser.add_argument('--model_class', default='model3')
     parser.add_argument('--max_iterations', '-i', type=int, default=100000)
-    parser.add_argument("--experiment_name", default='25112022_MW')
     parser.add_argument("--removal_duration", default=5.0, type=float)
     parser.add_argument("--steps_at_a_time", type=int)
     parser.add_argument("--n_sample_starting_points", type=int)
+    parser.add_argument("--popsize", type=int, default=15)
     parser.add_argument("-c", "--no_cpus", type=int, default=1)
 
     global args
@@ -57,11 +52,6 @@ def main():
     for protocol in args.protocols:
         if protocol in args.ignore_protocols:
             raise ValueError(f"{protocol} is specified as a protocol and with --ignore_protocls")
-
-    fitting_df = pd.read_csv(args.fitting_df)
-
-    params_for_Erev = \
-        np.loadtxt(args.artefact_default_kinetic_param_file).flatten().astype(np.float64)
 
     if args.use_parameter_file:
         default_parameters = \
@@ -91,84 +81,26 @@ def main():
     sc_voltages = np.array([voltage_func(t) for t in sc_times])
 
     global output_dir
-    output_dir = markovmodels.utilities.setup_output_directory(None, 'max_sop')
+    output_dir = markovmodels.utilities.setup_output_directory(None, 'weighted_A_opt')
 
-    if args.subtraction_df_file:
-        subtraction_df = pd.read_csv(args.subtraction_df_file)
-
-    if args.qc_df_file:
-        qc_df = pd.read_csv(args.qc_df_file)
-        qc_df = qc_df[qc_df.drug == 'before']
-        # qc_df = qc_df.set_index(['well', 'protocol', 'sweep'])
-
-    # optimise one step (8th from last)
-    protocols = fitting_df.protocol.unique()
-
-    if args.protocols:
-        subtraction_df = subtraction_df[(subtraction_df.protocol.isin(args.protocols))]
-        qc_df = qc_df[(qc_df.protocol.isin(args.protocols))]
+    # subtraction_df = pd.read_csv(args.subtraction_df_file)
 
     if args.wells:
-        subtraction_df = subtraction_df[(subtraction_df.well.isin(args.wells))]
-        qc_df = qc_df[(qc_df.well.isin(args.wells))]
         passed_wells = [well for well in passed_wells if well in args.wells]
-
-    if args.sweeps:
-        subtraction_df = subtraction_df[(subtraction_df.sweep.astype(str).isin(args.sweeps))]
-        qc_df = qc_df[qc_df.sweep.astype(str).isin(args.sweeps)]
-
-    # fitting_df = pd.read_csv(args.fitting_df).sort_values('score', axis=0)
-    df_rows = []
-    for well in passed_wells:
-        for protocol in protocols:
-            if protocol in args.ignore_protocols:
-                continue
-            for sweep in fitting_df[(fitting_df.well == well) & \
-                                    (fitting_df.protocol == protocol)]['sweep'].unique():
-                # leak_row = subtraction_df[(subtraction_df.well == well) &\
-                #                           (subtraction_df.protocol == protocol) \
-                #                           & (subtraction_df.sweep == sweep)]
-
-                # gleak = leak_row['pre-drug leak conductance'].values[0]
-                # Eleak = leak_row['pre-drug leak reversal'].values[0]
-                # qc_row = qc_df[(qc_df.well == well) & (qc_df.protocol == protocol) \
-                #                & (qc_df.sweep == sweep)][['Rseries', 'Cm']]
-                # Rseries = qc_row['Rseries'].values[0] * 1e-9
-                # Cm = qc_row['Cm'].values[0] * 1e9
-                # data = get_data(well, protocol, args.data_directory,
-                #                 args.experiment_name, label=None, sweep=sweep)
-
-                # times_df = pd.read_csv(os.path.join(args.data_directory,
-                #                                     f"{args.experiment_name}-{protocol}-times.csv"))
-                # times = times_df['time'].to_numpy().flatten()
-
-                # E_obs = leak_row['fitted_E_rev'].values[0]
-                # V_off = E_obs - args.reversal
-
-                fitted_params = fitting_df[(fitting_df.well == well)
-                                           & (fitting_df.protocol == protocol)
-                                           & (fitting_df.sweep == sweep)].head(1)[model.get_parameter_labels()].values.flatten().astype(np.float64)
-
-                # param_set = np.concatenate((fitted_params,
-                #                            np.array([gleak, Eleak, 0, 0, V_off, Rseries, Cm])))
-                row = [well, protocol, sweep] + list(fitted_params)
-                df_rows.append(row)
-
-    params = pd.DataFrame(df_rows,
-                          columns=['well', 'protocol', 'sweep'] + \
-                          model.get_parameter_labels())
 
     n_steps = 64 - 13
     x0 = np.zeros(n_steps*2).astype(np.float64)
     x0[1::2] = 100.0
     x0[::2] = -80.0
 
+    s_model = SensitivitiesMarkovModel(model)
+
     if args.n_sample_starting_points:
         starting_guesses = np.random.uniform(size=(x0.shape[0], args.n_sample_starting_points))
         starting_guesses[:, ::2] = (starting_guesses[:, ::2]*160) - 120
         starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
 
-        scores = [opt_func([d, model, params]) for d in starting_guesses]
+        scores = [opt_func([d, s_model, params]) for d in starting_guesses]
         print(scores)
 
         best_guess_index = np.argmin(scores)
@@ -187,8 +119,8 @@ def main():
     axs = fig.subplots(2)
     sc_x = get_design_space_representation(sc_desc)
 
-    initial_score = opt_func([x0, model, params], ax=axs[0])
-    sc_score = opt_func([sc_x, model, params], ax=axs[1])
+    initial_score = opt_func([x0, s_model, params], axs[0])
+    sc_score = opt_func([sc_x, s_model, params], axs[1])
     print('initial score: ', initial_score)
     print('staircase score: ', sc_score)
     fig.savefig(os.path.join(output_dir, 'initial_design_sc_compare'))
@@ -211,7 +143,7 @@ def main():
                    'bounds': bounds,
                    'tolx': 2,
                    'tolfun': 1,
-                   'popsize': 15,
+                   'popsize': args.popsize,
                    'seed': seed
                    }
 
@@ -229,11 +161,8 @@ def main():
                 ind = list(range(steps_fitted * 2,
                                  (steps_fitted + args.steps_at_a_time) * 2))
                 [put_copy(previous_d, ind, d) for d in d_list]
-
-            x = [(d, model, params) for d in d_list]
-            # Check bounds
-
-            res = np.array([opt_func(pars) for pars in x])
+            x = [(d, s_model, params) for d in d_list]
+            res = np.array(list(map(opt_func, x)))
 
             best_scores.append(res.min())
             es.tell(d_list, res)
@@ -337,11 +266,11 @@ def main():
     fig.clf()
     axs = fig.subplots(4)
 
-    found_score = opt_func([xopt, model, params], ax=axs[0])
+    found_score = opt_func([xopt, s_model, params], ax=axs[0])
     found_times = np.arange(0, found_desc[-1][0], .5)
     found_voltages = np.array([found_voltage_func(t) for t in found_times])
     axs[1].plot(found_times, found_voltages)
-    sc_score = opt_func([sc_x, model, params], ax=axs[2])
+    sc_score = opt_func([sc_x, s_model, params], ax=axs[2])
     axs[3].plot(sc_times, sc_voltages)
     print('found score: ', found_score)
     print('staircase score: ', sc_score)
@@ -350,7 +279,7 @@ def main():
 
 
 def opt_func(x, ax=None):
-    d, model, params = x
+    d, s_model, params = x
 
     # Force positive durations
     d = d.copy()
@@ -367,19 +296,12 @@ def opt_func(x, ax=None):
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
 
-    params = params.loc[np.all(np.isfinite(params[model.get_parameter_labels()]), axis=1), :]
-
-    utils = []
-    for well in params.well.unique():
-        sub_df = params[params.well == well]
-        util = prediction_spread_utility(desc,
-                                         sub_df[model.get_parameter_labels()].values,
-                                         model,
-                                         removal_duration=args.removal_duration,
-                                         ax=ax)
-        utils.append(util)
-    utils = np.array(utils)
-    return -np.min(utils)
+    util = entropy_weighted_A_opt_utility(desc,
+                                          params,
+                                          s_model,
+                                          removal_duration=args.removal_duration,
+                                          ax=ax)
+    return -util
 
 
 if __name__ == '__main__':

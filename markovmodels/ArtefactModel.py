@@ -39,7 +39,8 @@ class ArtefactModel(MarkovModel):
 
         self.channel_model = channel_model
 
-        self.p = sp.Matrix.vstack(channel_model.p, sp.Matrix([('p_a_%i' % i) for i in range(7)]))
+        self.p = sp.Matrix.vstack(channel_model.p,
+                                  sp.Matrix([[sp.sympify(label) for label in self.get_parameter_labels()[:-no_artefact_parameters]]]).T)
         self.y = sp.Matrix.vstack(channel_model.y, sp.Matrix([sp.sympify('Vm')]))
         self.v = channel_model.v
         self.n_state_vars = channel_model.n_state_vars + 1
