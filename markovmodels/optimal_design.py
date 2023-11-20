@@ -114,7 +114,8 @@ def entropy_weighted_A_opt_utility(desc, params, s_model,
     _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
 
     # no_states = s_model.markov_model.get_no_state_vars()
-    states = s_model.make_hybrid_solver_states(hybrid=hybrid)(params)
+    states = s_model.make_hybrid_solver_states(hybrid=hybrid,
+                                               njitted=False)(params)
 
     if include_params is None:
         no_params = len(s_model.get_default_parameters())

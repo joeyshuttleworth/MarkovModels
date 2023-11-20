@@ -177,7 +177,7 @@ def main():
     x0[1::2] = x0[1::2] / 2
 
     n_additional_steps = int(64 - 13 - (x0.shape[0] / 2))
-    # x0 = np.append(x0, [10.0] * 2 * n_additional_steps)
+    x0 = np.append(x0, [10.0] * 2 * n_additional_steps)
 
     stds = np.empty(x0.shape)
     stds[::2] = .25 * (60 + 120)
