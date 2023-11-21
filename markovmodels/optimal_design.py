@@ -166,12 +166,20 @@ def entropy_weighted_A_opt_utility(desc, params, s_model,
 
 def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
                                                model2, removal_duration=0,
-                                               sigma2=100, hybrid=False,
-                                               ax=None):
+                                               sigma2=100, hybrid=False, crhs1=None,
+                                               crhs2=None, ax=None):
 
     means = [0, 0]
     varis = [0, 0]
     predictions = [0, 0]
+
+    if crhs1 is None:
+        crhs1 = model1.get_cfunc_rhs()
+    if crhs2 is None:
+        crhs2 = model2.get_cfunc_rhs()
+
+    crhs = [crhs1, crhs2]
+
     for i, (model, params) in enumerate(zip([model1, model2], [params1, params2])):
         model.protocol_description = desc
         model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
@@ -183,7 +191,8 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
         spike_times, _ = detect_spikes(times, voltages, window_size=0)
         _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
 
-        solver = model.make_hybrid_solver_current(hybrid=hybrid, njitted=False)
+        solver = model.make_hybrid_solver_current(hybrid=hybrid, njitted=False,
+                                                  crhs=crhs[i])
 
         params = params.astype(np.float64)
 
