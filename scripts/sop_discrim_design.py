@@ -305,18 +305,17 @@ def opt_func(x, ax=None, hybrid=False):
     #     return np.inf
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
+    voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
     model1.protocol_description = desc
+    model1.voltage = voltage
     model2.protocol_description = desc
+    model2.voltage = voltage
 
     params1 = params1.loc[np.all(np.isfinite(params1[model1.get_parameter_labels()]), axis=1), :]
     params2 = params2.loc[np.all(np.isfinite(params2[model2.get_parameter_labels()]), axis=1), :]
 
     wells = params1.well.unique().flatten()
     wells = [w for w in wells if w in params2.well.unique()]
-
-    solver1 = model1.make_hybrid_solver_current(hybrid=hybrid)
-    solver2 = model2.make_hybrid_solver_current(hybrid=hybrid)
-
     utils = []
     for well in wells:
         sub_df1 = params1[params1.well == well]
