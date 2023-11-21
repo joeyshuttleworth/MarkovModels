@@ -132,7 +132,7 @@ class SensitivitiesMarkovModel(ODEModel):
 
         self.auxiliary_expression = self.auxiliary_expression.subs({'E_Kr': self.E_rev})
 
-        self.axuxiliary_function = sp.lambdify(inputs, self.auxiliary_expression, cse=True)
+        self.auxiliary_function = sp.lambdify(inputs, self.auxiliary_expression, cse=True)
 
         # Define number of 1st order sensitivities
         self.n_state_var_sensitivities = self.n_params * n_state_vars
