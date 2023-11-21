@@ -74,7 +74,7 @@ class SensitivitiesMarkovModel(ODEModel):
 
     def get_cfunc_rhs(self):
         rhs = nb.njit(self.func_S1)
-        voltage = self.markov_model.voltage
+        voltage = self.voltage
         n_p = len(self.get_default_parameters())
         ny = self.get_no_state_vars()
 
@@ -116,8 +116,6 @@ class SensitivitiesMarkovModel(ODEModel):
 
         # Create 1st order sensitivities function
         J = self.markov_model.rhs_expr.jacobian(self.markov_model.y)
-
-        print(self.markov_model.rhs_expr)
 
         F = sp.Matrix([[sp.diff(f, p) for f in self.markov_model.rhs_expr] for p in self.p]).T
         dS = J @ S + F
