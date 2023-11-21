@@ -292,9 +292,6 @@ def opt_func(x, ax=None, hybrid=False):
     d = d.copy()
     d[1::2] = np.abs(d[1::2])
 
-    model1.times = np.arange(0, d[1::2].sum(), .5)
-    model2.times = np.arange(0, d[1::2].sum(), .5)
-
     # constrain total length
     protocol_length = d[1::2].sum()
     if protocol_length > 15_000:
@@ -305,14 +302,17 @@ def opt_func(x, ax=None, hybrid=False):
     #     return np.inf
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
+    times = np.arange(0, desc[-1][0], .5)
+    model1.times = times
+    model2.times = times
     voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
     model1.protocol_description = desc
     model1.voltage = voltage
     model2.protocol_description = desc
     model2.voltage = voltage
 
-    solver1 = model1.make_hybrid_solver_current()
-    solver2 = model2.make_hybrid_solver_current()
+    solver1 = model1.make_hybrid_solver_current(njitted=False)
+    solver2 = model2.make_hybrid_solver_current(njitted=False)
 
     params1 = params1.loc[np.all(np.isfinite(params1[model1.get_parameter_labels()]), axis=1), :]
     params2 = params2.loc[np.all(np.isfinite(params2[model2.get_parameter_labels()]), axis=1), :]
