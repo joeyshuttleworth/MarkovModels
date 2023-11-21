@@ -311,6 +311,9 @@ def opt_func(x, ax=None):
     wells = params1.well.unique().flatten()
     wells = [w for w in wells if w in params2.well.unique()]
 
+    crhs1 = model1.get_cfunc_rhs()
+    crhs2 = model2.get_cfunc_rhs()
+
     utils = []
     for well in wells:
         sub_df1 = params1[params1.well == well]
@@ -324,7 +327,8 @@ def opt_func(x, ax=None):
                                                           model1, model2,
                                                           removal_duration=args.removal_duration,
                                                           sigma2=noise**2,
-                                                          ax=ax)
+                                                          ax=ax, crhs1=crhs1,
+                                                          crhs2=crhs2)
 
         utils.append(util)
     utils = np.array(utils)
