@@ -174,9 +174,9 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
     predictions = [0, 0]
 
     if solver1 is None:
-        solver1 = model1.get_make_hybrid_solver()
+        solver1 = model1.get_make_hybrid_solver_current()
     if solver2 is None:
-        solver2 = model2.make_hybrid_solver_()
+        solver2 = model2.make_hybrid_solver_current()
 
     solvers = [solver1, solver2]
 

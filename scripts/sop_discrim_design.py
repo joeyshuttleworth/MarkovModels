@@ -305,9 +305,10 @@ def opt_func(x, ax=None, hybrid=False):
     #     return np.inf
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
+    model1.protocol_description = desc
+    model2.protocol_description = desc
 
     params1 = params1.loc[np.all(np.isfinite(params1[model1.get_parameter_labels()]), axis=1), :]
-
     params2 = params2.loc[np.all(np.isfinite(params2[model2.get_parameter_labels()]), axis=1), :]
 
     wells = params1.well.unique().flatten()
