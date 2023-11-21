@@ -69,16 +69,15 @@ def main():
     global sc_func
     sc_func, sc_times, sc_desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv('staircaseramp1')
 
-
     protocol = 'staircaseramp1'
-    voltage_func, sc_times, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
+    sc_voltage_func, sc_times, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
 
-    model = make_model_of_class(args.model_class, sc_times, voltage_func,
-                                protocol_description=desc,
-                                default_parameters=default_parameters)
+    model = make_model_of_class(args.model_class,
+                                default_parameters=default_parameters,
+                                voltage=sc_voltage_func)
 
     params = model.get_default_parameters()
-    sc_voltages = np.array([voltage_func(t) for t in sc_times])
+    sc_voltages = np.array([sc_voltage_func(t) for t in sc_times])
 
     global output_dir
     output_dir = markovmodels.utilities.setup_output_directory(None, 'weighted_A_opt')
@@ -96,7 +95,7 @@ def main():
     s_model = SensitivitiesMarkovModel(model)
 
     if args.n_sample_starting_points:
-        starting_guesses = np.random.uniform(size=(x0.shape[0], args.n_sample_starting_points))
+        starting_guesses = np.random.uniform(size=(args.n_sample_starting_points, x0.shape[0]))
         starting_guesses[:, ::2] = (starting_guesses[:, ::2]*160) - 120
         starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
 
@@ -116,11 +115,17 @@ def main():
     step_group = 0
 
     fig = plt.figure()
-    axs = fig.subplots(2)
+    axs = fig.subplots(4)
     sc_x = get_design_space_representation(sc_desc)
 
-    initial_score = opt_func([x0, s_model, params], axs[0])
-    sc_score = opt_func([sc_x, s_model, params], axs[1])
+    initial_desc = markovmodels.voltage_protocols.design_space_to_desc(x0.copy())
+    initial_voltage_func = markovmodels.voltage_protocols.make_voltage_function_from_description(initial_desc)
+    initial_times = np.arange(0, initial_desc[-1][0], 0.5)
+    initial_score = opt_func([x0.copy(), s_model, params], ax=axs[0])
+    sc_score = opt_func([sc_x, s_model, params], ax=axs[2])
+    initial_voltages = np.array([initial_voltage_func(t) for t in initial_times])
+    axs[1].plot(initial_times, initial_voltages)
+    axs[3].plot(sc_times, sc_voltages)
     print('initial score: ', initial_score)
     print('staircase score: ', sc_score)
     fig.savefig(os.path.join(output_dir, 'initial_design_sc_compare'))
@@ -181,6 +186,7 @@ def main():
     np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
 
     xopt = es.result.xbest
+    found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt.copy())
     s_model = SensitivitiesMarkovModel(model,
                                        parameters_to_use=model.get_parameter_labels())
 
@@ -192,7 +198,6 @@ def main():
                                                               removal_duration=args.removal_duration)
     print(f"u_D of staircase = {u_D_staircase}")
 
-    found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt.copy())
     u_D_found = markovmodels.optimal_design.D_opt_utility(found_desc,
                                                           default_params,
                                                           s_model,
@@ -207,6 +212,8 @@ def main():
 
     output = model.make_hybrid_solver_current(njitted=False, hybrid=False)()
 
+    fig.clf()
+    axs = fig.subplots(2)
     axs[0].plot(model.times, output)
     axs[1].plot(model.times, [model.voltage(t) for t in model.times])
 
@@ -222,8 +229,8 @@ def main():
             fout.write(", ".join([str(entry) for entry in line]))
             fout.write('\n')
 
-    axs[0].cla()
-    axs[1].cla()
+    fig.clf()
+    axs = fig.subplots(2)
 
     # Plot phase diagram for the new design (first two states)
     model.voltage = found_voltage_func
@@ -289,10 +296,6 @@ def opt_func(x, ax=None):
     protocol_length = d[1::2].sum()
     if protocol_length > 15_000:
         return np.inf
-
-    # Constrain voltage
-    # if np.any(x[::2] < -120) or np.any(x[::2] > 60):
-    #     return np.inf
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
 
