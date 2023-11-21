@@ -345,6 +345,7 @@ def main():
     axs[1].plot(found_times, found_voltages)
     sc_score = opt_func([sc_x, model, params], ax=axs[2])
     axs[3].plot(sc_times, sc_voltages)
+
     print('found score: ', found_score)
     print('staircase score: ', sc_score)
 
@@ -363,10 +364,6 @@ def opt_func(x, ax=None):
     if protocol_length > 15_000:
         return np.inf
 
-    # Constrain voltage
-    # if np.any(x[::2] < -120) or np.any(x[::2] > 60):
-    #     return np.inf
-
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
 
     params = params.loc[np.all(np.isfinite(params[model.get_parameter_labels()]), axis=1), :]
@@ -374,7 +371,6 @@ def opt_func(x, ax=None):
     utils = []
     for well in params.well.unique():
         sub_df = params[params.well == well]
-        print(sub_df.protocol)
         util = prediction_spread_utility(desc,
                                          sub_df[model.get_parameter_labels()].values,
                                          model,
