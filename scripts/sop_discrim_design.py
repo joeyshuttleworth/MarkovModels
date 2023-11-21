@@ -311,6 +311,9 @@ def opt_func(x, ax=None, hybrid=False):
     model2.protocol_description = desc
     model2.voltage = voltage
 
+    solver1 = model1.make_hybrid_solver_current()
+    solver2 = model2.make_hybrid_solver_current()
+
     params1 = params1.loc[np.all(np.isfinite(params1[model1.get_parameter_labels()]), axis=1), :]
     params2 = params2.loc[np.all(np.isfinite(params2[model2.get_parameter_labels()]), axis=1), :]
 
@@ -329,7 +332,8 @@ def opt_func(x, ax=None, hybrid=False):
                                                           model1, model2,
                                                           removal_duration=args.removal_duration,
                                                           sigma2=noise**2,
-                                                          ax=ax, solver1=solver1,
+                                                          ax=ax,
+                                                          solver1=solver1,
                                                           solver2=solver2)
 
         utils.append(util)
