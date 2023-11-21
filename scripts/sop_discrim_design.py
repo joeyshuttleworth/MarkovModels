@@ -110,8 +110,8 @@ def main():
                     df_rows.append(row)
 
         params.append(pd.DataFrame(df_rows,
-                              columns=['well', 'protocol', 'sweep'] + \
-                              model.get_parameter_labels()))
+                                   columns=['well', 'protocol', 'sweep'] + \
+                                   model.get_parameter_labels()))
 
     params[0]['noise'] = [get_noise(row) for _, row in params[0].iterrows()]
     params[1]['noise'] = [get_noise(row) for _, row in params[1].iterrows()]
@@ -122,7 +122,9 @@ def main():
     x0[::2] = -80.0
 
     if args.n_sample_starting_points:
-        starting_guesses = np.random.uniform(size=(x0.shape[0], args.n_sample_starting_points))
+        starting_guesses = \
+            np.random.uniform(size=(args.n_sample_starting_points, x0.shape[0]))
+
         starting_guesses[:, ::2] = (starting_guesses[:, ::2]*160) - 120
         starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
 
@@ -281,7 +283,7 @@ def main():
                                         "es_halted")
 
 
-def opt_func(x, ax=None):
+def opt_func(x, ax=None, hybrid=False):
     d, models, (params1, params2) = x
 
     model1, model2 = models
@@ -311,8 +313,8 @@ def opt_func(x, ax=None):
     wells = params1.well.unique().flatten()
     wells = [w for w in wells if w in params2.well.unique()]
 
-    crhs1 = model1.get_cfunc_rhs()
-    crhs2 = model2.get_cfunc_rhs()
+    solver1 = model1.make_hybrid_solver_current(hybrid=hybrid)
+    solver2 = model2.make_hybrid_solver_current(hybrid=hybrid)
 
     utils = []
     for well in wells:
@@ -327,8 +329,8 @@ def opt_func(x, ax=None):
                                                           model1, model2,
                                                           removal_duration=args.removal_duration,
                                                           sigma2=noise**2,
-                                                          ax=ax, crhs1=crhs1,
-                                                          crhs2=crhs2)
+                                                          ax=ax, solver1=solver1,
+                                                          solver2=solver2)
 
         utils.append(util)
     utils = np.array(utils)
