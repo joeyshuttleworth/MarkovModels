@@ -166,19 +166,19 @@ def entropy_weighted_A_opt_utility(desc, params, s_model,
 
 def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
                                                model2, removal_duration=0,
-                                               sigma2=100, hybrid=False, crhs1=None,
-                                               crhs2=None, ax=None):
+                                               sigma2=100, hybrid=False, solver1=None,
+                                               solver2=None, ax=None):
 
     means = [0, 0]
     varis = [0, 0]
     predictions = [0, 0]
 
-    if crhs1 is None:
-        crhs1 = model1.get_cfunc_rhs()
-    if crhs2 is None:
-        crhs2 = model2.get_cfunc_rhs()
+    if solver1 is None:
+        solver1 = model1.get_make_hybrid_solver()
+    if solver2 is None:
+        solver2 = model2.make_hybrid_solver_()
 
-    crhs = [crhs1, crhs2]
+    solvers = [solver1, solver2]
 
     for i, (model, params) in enumerate(zip([model1, model2], [params1, params2])):
         model.protocol_description = desc
@@ -191,8 +191,7 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
         spike_times, _ = detect_spikes(times, voltages, window_size=0)
         _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
 
-        solver = model.make_hybrid_solver_current(hybrid=hybrid, njitted=False,
-                                                  crhs=crhs[i])
+        solver = solvers[i]
 
         params = params.astype(np.float64)
 
