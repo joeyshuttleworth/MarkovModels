@@ -307,7 +307,7 @@ class ODEModel:
                                            atol=atol, rtol=rtol, hybrid=hybrid,
                                            crhs=crhs)
 
-        auxiliary_function = self.define_auxiliary_function(**kwargs)
+        auxiliary_function = njit(self.define_auxiliary_function(**kwargs))
         times = self.times
         atol, rtol = self.solver_tolerances
         voltage_func = self.voltage

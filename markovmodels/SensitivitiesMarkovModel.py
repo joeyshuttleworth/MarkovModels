@@ -132,7 +132,7 @@ class SensitivitiesMarkovModel(ODEModel):
 
         self.auxiliary_expression = self.auxiliary_expression.subs({'E_Kr': self.E_rev})
 
-        self.auxiliary_function = sp.lambdify(inputs, self.auxiliary_expression, cse=True)
+        self.axuxiliary_function = sp.lambdify(inputs, self.auxiliary_expression, cse=True)
 
         # Define number of 1st order sensitivities
         self.n_state_var_sensitivities = self.n_params * n_state_vars
@@ -147,3 +147,6 @@ class SensitivitiesMarkovModel(ODEModel):
         Ss = sp.Matrix(np.concatenate((sp.flatten(y), sp.flatten(S))))
         jS1 = fS1.jacobian(Ss)
         self.jfunc_S1 = sp.lambdify(inputs, jS1)
+
+    def define_auxiliary_function(self):
+        return self.auxiliary_function
