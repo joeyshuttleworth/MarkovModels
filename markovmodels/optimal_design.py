@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import markovmodels.voltage_protocols
+from markovmodels.SensitivitiesMarkovModel import SensitivitiesMarkovModel
 from markovmodels.voltage_protocols import detect_spikes, remove_spikes
 
 
@@ -77,7 +78,7 @@ def count_voxel_visitations(states, n_voxels_per_variable, times, indices, n_ski
 
 
 def prediction_spread_utility(desc, params, model, indices=None, hybrid=False,
-                              removal_duration=0, ax=None):
+                              removal_duration=0, ax=None, mode='spread'):
 
     model.protocol_description = desc
     model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
@@ -96,7 +97,12 @@ def prediction_spread_utility(desc, params, model, indices=None, hybrid=False,
     if ax is not None:
         ax.plot(times, predictions.T)
 
-    return np.mean(max_pred - min_pred)
+    if mode == 'spread':
+        return np.mean(max_pred - min_pred)
+    elif mode == 'std':
+        return np.mean(np.std(predictions, axis=0))
+    else:
+        raise ValueError()
 
 
 def entropy_weighted_A_opt_utility(desc, params, s_model,
@@ -106,16 +112,23 @@ def entropy_weighted_A_opt_utility(desc, params, s_model,
                                    include_params=None, ax=None):
 
     s_model.protocol_description = desc
-    s_model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
+    v_func = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
+    s_model.voltage = v_func
+
     times = np.arange(0, desc[-1][0], .5)
     s_model.times = times
     voltages = np.array([s_model.voltage(t) for t in s_model.times])
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
 
-    # no_states = s_model.markov_model.get_no_state_vars()
     states = s_model.make_hybrid_solver_states(hybrid=hybrid,
-                                               njitted=False)(params)
+                                               njitted=False,
+                                               protocol_description=desc)(params)
+
+    if include_vars is None:
+        include_vars = [i for i in range(s_model.markov_model.get_no_state_vars())]
+    if ax is not None:
+        ax.plot(times, states[:, include_vars])
 
     if include_params is None:
         no_params = len(s_model.get_default_parameters())
@@ -124,17 +137,14 @@ def entropy_weighted_A_opt_utility(desc, params, s_model,
     aux_func = s_model.define_auxiliary_function()
     sens = aux_func(states.T, params,
                     voltages).reshape([times.shape[0], -1])
-    sens = sens / s_model.get_default_parameters()[None, :]
+    sens = sens * s_model.get_default_parameters()[None, :]
     sens = sens[:, include_params]
 
     if include_params is not None:
         sens = sens[:, include_params]
 
-    if include_vars is None:
-        include_vars = [i for i in range(s_model.markov_model.get_no_state_vars())]
-
     times_in_each_voxel, voxels_visited = count_voxel_visitations(
-        states[:, include_vars].reshape(times.shape[0], -1),
+        states[:, include_vars].reshape(times.shape[0], -1).copy(),
         n_voxels_per_variable, times,
         indices, n_skip=n_skip,
         return_voxels_visited=True)
@@ -150,9 +160,6 @@ def entropy_weighted_A_opt_utility(desc, params, s_model,
     raveled_visited_indices = np.ravel_multi_index(voxels_visited.T, log_prob.shape)
     w_sens = sens[indices, :][::n_skip, :] * log_prob.flatten()[raveled_visited_indices, None]
     weighted_A_opt = np.trace(w_sens.T @ w_sens)
-
-    if ax is not None:
-        ax.plot(times, states[:, include_vars])
 
     return np.log(weighted_A_opt)
 
@@ -190,7 +197,7 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
 
     if ax is not None:
         ax.plot(times, predictions[0].T, color='blue', label='model1')
-        ax.plot(times, predictions[1].T, color='blue', label='model1')
+        ax.plot(times, predictions[1].T, color='orange', label='model1')
 
     return np.sum(((means[1] - means[0])**2) / (varis[1] + varis[0] + sigma2))
 

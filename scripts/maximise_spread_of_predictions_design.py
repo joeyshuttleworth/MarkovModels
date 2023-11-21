@@ -41,13 +41,14 @@ def main():
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
     parser.add_argument('--sweeps', '-s', type=str, default=[], nargs='+')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
-    parser.add_argument('--ignore_protocols', type=str, default=[], nargs='+')
+    parser.add_argument('--ignore_protocols', type=str, default=['longap'], nargs='+')
     parser.add_argument('--selection_file')
     parser.add_argument('--model_class', default='model3')
     parser.add_argument('--max_iterations', '-i', type=int, default=100000)
     parser.add_argument("--experiment_name", default='25112022_MW')
     parser.add_argument("--removal_duration", default=5.0, type=float)
     parser.add_argument("--steps_at_a_time", type=int)
+    parser.add_argument("--mode", default='spread')
     parser.add_argument("--n_sample_starting_points", type=int)
     parser.add_argument("-c", "--no_cpus", type=int, default=1)
 
@@ -162,7 +163,7 @@ def main():
     n_steps = 64 - 13
     x0 = np.zeros(n_steps*2).astype(np.float64)
     x0[1::2] = 100.0
-    x0[::2] = -80.0
+    x0[::2] = 40.0
 
     if args.n_sample_starting_points:
         starting_guesses = np.random.uniform(size=(x0.shape[0], args.n_sample_starting_points))
@@ -373,11 +374,13 @@ def opt_func(x, ax=None):
     utils = []
     for well in params.well.unique():
         sub_df = params[params.well == well]
+        print(sub_df.protocol)
         util = prediction_spread_utility(desc,
                                          sub_df[model.get_parameter_labels()].values,
                                          model,
                                          removal_duration=args.removal_duration,
-                                         ax=ax)
+                                         ax=ax,
+                                         mode=args.mode)
         utils.append(util)
     utils = np.array(utils)
     return -np.min(utils)
