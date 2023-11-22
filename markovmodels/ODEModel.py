@@ -62,6 +62,9 @@ class ODEModel:
 
         self.protocol_description = protocol_description
 
+        if self.protocol_description is None:
+            protocol_description = np.array([0., np.inf, -80, -80])
+
         self.window_locs = None
 
         self.y = symbols['y']
@@ -139,7 +142,7 @@ class ODEModel:
             if self.protocol_description is None:
                 raise Exception("No protocol description has been provided")
             else:
-                protocol_description = self.protocol_description
+                protocol_description = self.protocol_description.copy()
 
         if crhs is None:
             crhs = self.get_cfunc_rhs()
@@ -170,13 +173,13 @@ class ODEModel:
         p = self.get_default_parameters()
         eps = np.finfo(float).eps
 
-        start_times = [val[0] for val in protocol_description]
+        start_times = protocol_description[:, 0].flatten()
         intervals = tuple(zip(start_times[:-1], start_times[1:]))
 
         def hybrid_forward_solve(p=p, times=times, atol=atol, rtol=rtol,
-                                 strict=strict, hybrid=hybrid):
+                                 strict=strict, hybrid=hybrid,
+                                 protocol_description=protocol_description):
             y0 = rhs_inf(p, voltage(.0)).flatten()
-
             solution = np.full((len(times), no_states), np.nan)
             solution[0, :] = y0
 
@@ -193,8 +196,8 @@ class ODEModel:
                 if iend == 0:
                     iend = len(times)
 
-                vstart = protocol_description[i][2]
-                vend = protocol_description[i][3]
+                vstart = protocol_description[i, 2]
+                vend = protocol_description[i, 3]
 
                 step_times = np.full(iend-istart + 2, np.nan)
 
@@ -225,6 +228,17 @@ class ODEModel:
 
                     t_offset = tstart
                     data = np.append(p, t_offset)
+
+                    # pad protocol description to fill up 64 steps
+                    flat_desc = protocol_description.flatten().copy()
+                    if flat_desc.shape[0] < 64 * 4:
+                        flat_desc = \
+                            np.append(flat_desc,
+                                      np.full(64 * 4 - flat_desc.shape[0],
+                                              np.inf))
+
+                    data = np.concatenate((data, np.array(flat_desc).astype(np.float64).flatten()))
+
                     if tend - step_times[-1] < 2 * eps * np.abs(tend):
                         end_int = -1
                         step_sol[start_int: end_int], _ = lsoda(crhs_ptr, y0,
@@ -279,18 +293,20 @@ class ODEModel:
         ny = self.get_no_state_vars()
         n_p = len(self.get_default_parameters())
 
+        # Maximum steps in protocol
+        n_max_steps = 64
+
         @cfunc(lsoda_sig)
         def crhs(t, y, dy, data):
             y = nb.carray(y, ny)
             dy = nb.carray(dy, ny)
-            data = nb.carray(data, n_p + 1)
+            data = nb.carray(data, int(n_p + 1 + n_max_steps * 4))
+            p = data[:-1 - n_max_steps * 4]
+            t_offset = data[-1 - n_max_steps * 4]
 
-            p = data[:-1]
-            t_offset = data[-1]
-
-            res = rhs(y,
-                      p,
-                      voltage(t, offset=t_offset)).flatten()
+            desc = data[-n_max_steps * 4:].reshape(-1, 4)
+            res = rhs(y, p, voltage(t, offset=t_offset,
+                                    protocol_description=desc)).flatten()
 
             dy[:] = res
 
@@ -300,6 +316,10 @@ class ODEModel:
                                    njitted=True, strict=True,
                                    cond_threshold=None, atol=None, rtol=None,
                                    hybrid=True, crhs=None, **kwargs):
+
+        if protocol_description is None:
+            protocol_description = self.protocol_description
+
         hybrid_solver =\
             self.make_hybrid_solver_states(protocol_description=protocol_description,
                                            njitted=njitted, strict=strict,
@@ -315,12 +335,15 @@ class ODEModel:
         params = self.get_default_parameters()
 
         def hybrid_forward_solve(p=params, times=times, atol=atol, rtol=rtol,
-                                 hybrid=hybrid):
+                                 hybrid=hybrid,
+                                 protocol_description=protocol_description):
             voltages = np.empty(len(times))
             for i in range(len(times)):
                 voltages[i] = voltage_func(times[i])
 
-            states = hybrid_solver(p, times=times, hybrid=hybrid, atol=atol, rtol=rtol)
+            states = hybrid_solver(p, times=times, hybrid=hybrid, atol=atol,
+                                   rtol=rtol,
+                                   protocol_description=protocol_description)
             return (auxiliary_function(states.T, p, voltages)).flatten()
 
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve
@@ -329,15 +352,19 @@ class ODEModel:
                                     protocol_description=None,
                                     solver_type='lsoda', atol=None, rtol=None):
 
+        if protocol_description is None:
+            protocol_description = self.protocol_description
+
         solver_states = self.make_hybrid_solver_states(njitted=njitted,
                                                        protocol_description=protocol_description,
                                                        atol=atol, rtol=rtol,
                                                        hybrid=False)
         return self.make_solver_current(solver_states, voltages=voltages,
-                                        atol=atol, rtol=rtol, njitted=njitted)
+                                        atol=atol, rtol=rtol, njitted=njitted,
+                                        protocol_description=protocol_description)
 
     def make_solver_current(self, solver_states, voltages=None, atol=None,
-                            rtol=None, njitted=False):
+                            rtol=None, njitted=False, protocol_description=None):
         if atol is None:
             atol = self.solver_tolerances[0]
 
@@ -348,16 +375,18 @@ class ODEModel:
             voltages = self.GetVoltage()
 
         times = self.times
-
         default_parameters = self.get_default_parameters()
-
         auxiliary_function = self.auxiliary_function
 
         if njitted:
             auxiliary_function = njit(auxiliary_function)
 
-        def forward_solver(p=default_parameters, times=times, voltages=voltages, atol=atol, rtol=rtol):
-            states = solver_states(p, times, atol, rtol)
+        def forward_solver(p=default_parameters, times=times,
+                           voltages=voltages, atol=atol, rtol=rtol,
+                           protocol_description=protocol_description):
+            states = solver_states(p, times, atol, rtol,
+                                   protocol_description=protocol_description)
+
             return (auxiliary_function(states.T, p, voltages)).flatten()
 
         if njitted:

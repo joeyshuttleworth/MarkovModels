@@ -9,7 +9,7 @@ def D_opt_utility(desc, params, s_model, hybrid=False, crhs=None, removal_durati
     """ Evaluate the D-optimality of design, d for a certain parameter vector"""
     s_model.protocol_description = desc
     s_model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
-    s_model.times = np.arange(0, desc[-1][0], .5)
+    s_model.times = np.arange(0, desc[-1, 0], .5)
 
     times = s_model.times
     voltages = np.array([s_model.voltage(t) for t in times])
@@ -34,7 +34,7 @@ def entropy_utility(desc, params, model, hybrid=False, removal_duration=5,
     model.protocol_description = desc
     model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
     # output = model.make_hybrid_solver_current(njitted=False, hybrid=hybrid)
-    times = np.arange(0, desc[-1][0], .5)
+    times = np.arange(0, desc[-1, 0], .5)
     model.times = times
     voltages = np.array([model.voltage(t) for t in times])
 
@@ -84,7 +84,7 @@ def prediction_spread_utility(desc, params, model, indices=None, hybrid=False,
     if solver is None:
         model.protocol_description = desc
         model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
-        times = np.arange(0, desc[-1][0], .5)
+        times = np.arange(0, desc[-1, 0], .5)
         model.times = times
         solver = model.make_hybrid_solver_current(hybrid=hybrid, njitted=False)
 
@@ -120,7 +120,7 @@ def entropy_weighted_A_opt_utility(desc, params, s_model,
     v_func = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
     s_model.voltage = v_func
 
-    times = np.arange(0, desc[-1][0], .5)
+    times = np.arange(0, desc[-1, 0], .5)
     s_model.times = times
     voltages = np.array([s_model.voltage(t) for t in s_model.times])
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
@@ -185,7 +185,7 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
 
     solvers = [solver1, solver2]
 
-    times = np.arange(0, desc[-1][0], .5)
+    times = np.arange(0, desc[-1, 0], .5)
     voltages = np.array([model1.voltage(t) for t in times])
 
     spike_times, _ = detect_spikes(times, voltages, window_size=0)

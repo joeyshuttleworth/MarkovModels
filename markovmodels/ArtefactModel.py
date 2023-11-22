@@ -49,7 +49,11 @@ class ArtefactModel(MarkovModel):
         self.rates_dict = channel_model.rates_dict
 
         self.times = channel_model.times
+
         self.protocol_description = channel_model.protocol_description
+
+        if self.protocol_description is None:
+            raise ValueError()
 
         self.solver_tolerances = channel_model.solver_tolerances
         self.E_rev = channel_model.E_rev
@@ -102,9 +106,13 @@ class ArtefactModel(MarkovModel):
         y0[0] = 1.0
         y0 = np.append(y0, -80.0)
 
+        n_max_steps = 64
+
         @njit
         def rhs_inf(p=p, v=-80):
             data = np.append(p, 0.0)
+            data = np.concatenate((data, np.full(n_max_steps*2, np.inf)))
+
             res, _ = lsoda(crhs_ptr, y0,
                            np.array((-tend, .0)),
                            data=data,
@@ -165,7 +173,7 @@ class ArtefactModel(MarkovModel):
             raise NotImplementedError()
         else:
             solver = super().make_hybrid_solver_states(
-                protocol_description,
+                protocol_description=protocol_description,
                 njitted=False,
                 analytic_solver=analytic_solver,
                 strict=strict,
@@ -188,7 +196,7 @@ class ArtefactModel(MarkovModel):
             raise NotImplementedError()
         else:
             solver = super().make_hybrid_solver_current(
-                protocol_description,
+                protocol_description=protocol_description,
                 njitted=False,
                 analytic_solver=analytic_solver,
                 strict=strict,
@@ -206,7 +214,6 @@ class ArtefactModel(MarkovModel):
 
         # States are:
         # [channel model], V_m
-        #
 
         # Eliminate one state and add equation for V_m
         ny = self.channel_model.get_no_state_vars() + 1
@@ -216,22 +223,28 @@ class ArtefactModel(MarkovModel):
 
         prot_func = self.channel_model.voltage
 
+        # Maximum steps in protocol
+        n_max_steps = 64
+
         channel_auxiliary_function = njit(self.channel_model.define_auxiliary_function())
 
         @cfunc(lsoda_sig)
         def crhs_func(t, y, dy, data):
             y = nb.carray(y, ny)
             dy = nb.carray(dy, ny)
-            data = nb.carray(data, n_p + 1)
+            data = nb.carray(data, n_p + 1 + n_max_steps * 4)
 
-            t_offset = data[-1]
-            p = data[:-1]
+            p = data[:-1 - n_max_steps*4]
+            t_offset = data[-1 - n_max_steps*4]
+
+            desc = data[-n_max_steps * 4:].reshape((-1, 4))
 
             #  get artefact parameters
             g_leak, E_leak, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
 
             V_m = y[-1]
-            V_cmd = prot_func(t, offset=t_offset)
+            V_cmd = prot_func(t, offset=t_offset,
+                              protocol_description=desc)
 
             I_leak = (V_m - V_off - E_leak) * g_leak
             I_leak_leftover = (V_m - E_leak_leftover) * g_leak_leftover

@@ -153,35 +153,35 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None,
 
         lst.append((start_t, end_t, v_start, v_end))
 
-    lst.append((end_t, np.inf, holding_potential, holding_potential))
-
-    protocol = tuple(lst)
+    lst.append(np.array([end_t, np.inf, holding_potential, holding_potential]))
+    protocol = np.vstack(lst).astype(np.float64)
 
     protocol_func = make_voltage_function_from_description(protocol, holding_potential)
-
     return protocol_func, times, protocol
 
 
 def make_voltage_function_from_description(desc, holding_potential=-80):
+
     @njit
-    def protocol_func(t: np.float64, offset=0.0):
+    def protocol_func(t: np.float64, offset=0.0,
+                      protocol_description=desc):
+        desc = protocol_description.reshape(-1, 4)
         t = t + offset
-        if t <= 0 or t >= desc[-1][1]:
+
+        if t <= 0 or t >= desc[-1, 1]:
             return holding_potential
 
-        for i in range(len(desc)):
-            if t < desc[i][1]:
+        for row in desc:
+            if t < row[1]:
                 # ramp_start = desc[i][0]
-                if desc[i][3] - desc[i][2] != 0:
-                    return desc[i][2] + (t - desc[i][0])\
-                        * (desc[i][3] - desc[i][2]) / \
-                        (desc[i][1] - desc[i][0])
+                if row[3] - row[2] != 0:
+                    return row[2] + (t - row[0])\
+                        * (row[3] - row[2]) / \
+                        (row[1] - row[0])
                 else:
-                    return desc[i][3]
+                    return row[3]
 
     return protocol_func
-
-
 
 
 def beattie_sine_wave(t):
@@ -297,11 +297,11 @@ def design_space_to_desc(d, t_step=.1):
         t_cur += dur + t_step
         lines.append([tstart, tend, vstart, vend])
 
-    return tuple([tuple(line) for line in lines])
+    return np.vstack([line for line in lines]).astype(np.float64)
 
 
 def get_design_space_representation(desc):
-    return np.array([(line[2], line[1] - line[0]) for line in desc[7:-6]]).flatten()
+    return np.array([(line[2], line[1] - line[0]) for line in desc[7:-6, :]]).flatten()
 
 
 def desc_to_table(desc):

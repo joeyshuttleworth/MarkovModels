@@ -183,7 +183,8 @@ class DisconnectedMarkovModel(MarkovModel):
 
         def hybrid_forward_solve_component(rhs_inf, analytic_solver, crhs_ptr, p=p,
                                            times=times, atol=atol, rtol=rtol,
-                                           strict=strict, hybrid=hybrid, crhs=None):
+                                           strict=strict, hybrid=hybrid, crhs=None,
+                                           protocol_description=protocol_description):
             y0 = rhs_inf(p, voltage(.0)).flatten()
             no_states = y0.shape[0]
             solution = np.full((len(times), no_states), np.nan)
@@ -202,8 +203,8 @@ class DisconnectedMarkovModel(MarkovModel):
                 if iend == 0:
                     iend = len(times)
 
-                vstart = protocol_description[i][2]
-                vend = protocol_description[i][3]
+                vstart = protocol_description.reshape((-1, 4))[i, 2]
+                vend = protocol_description.reshape((-1, 4))[i, 3]
 
                 step_times = np.full(iend-istart + 2, np.nan)
 
@@ -240,6 +241,16 @@ class DisconnectedMarkovModel(MarkovModel):
 
                     t_offset = tstart
                     data = np.append(p, t_offset)
+                    protocol_description = protocol_description.flatten().astype(np.float64)
+                    if protocol_description.shape[0] < 64 * 4:
+                        protocol_description = \
+                            np.append(protocol_description,
+                                      np.full(64 * 4 - protocol_description.shape[0],
+                                              np.inf))
+
+                        data = np.concatenate((data,
+                                               np.array(protocol_description).astype(np.float64).flatten()))
+
                     if tend - step_times[-1] < 2 * eps * np.abs(tend):
                         end_int = -1
                         step_sol[start_int: end_int], _ = lsoda(crhs_ptr, y0,
@@ -278,8 +289,6 @@ class DisconnectedMarkovModel(MarkovModel):
 
         rhs_cfunc_ptrs = tuple(rhs_cfunc_ptrs)
 
-        no_components = len(self.connected_components)
-
         steady_state_funcs = tuple(self.rhs_infs)
         analytic_solvers = tuple([njit(func) for func in self.get_analytic_solution_funcs()])
 
@@ -289,13 +298,15 @@ class DisconnectedMarkovModel(MarkovModel):
         steady_state_func1 = steady_state_funcs[0]
         rhs_cfunc1 = rhs_cfunc_ptrs[0]
         n_state_vars = self.n_state_vars
+
         if len(self.connected_components) == 2:
             analytic_solver2 = analytic_solvers[1]
             steady_state_func2 = steady_state_funcs[1]
             rhs_cfunc2 = rhs_cfunc_ptrs[1]
 
             def hybrid_forward_solver(p=p, times=times, atol=atol, rtol=rtol,
-                                      strict=strict, hybrid=hybrid):
+                                      strict=strict, hybrid=hybrid,
+                                      protocol_description=protocol_description):
                 solution = np.full((times.shape[0], n_state_vars), np.nan)
                 state_counter = 0
                 component_solution = \
@@ -305,7 +316,8 @@ class DisconnectedMarkovModel(MarkovModel):
                                                    times=times,
                                                    atol=atol, rtol=rtol,
                                                    strict=strict,
-                                                   hybrid=hybrid)
+                                                   hybrid=hybrid,
+                                                   protocol_description=protocol_description)
 
                 solution[:, :component_solution.shape[1]] = component_solution
                 state_counter += component_solution.shape[1]
@@ -317,7 +329,9 @@ class DisconnectedMarkovModel(MarkovModel):
                                                    times=times,
                                                    atol=atol, rtol=rtol,
                                                    strict=strict,
-                                                   hybrid=hybrid)
+                                                   hybrid=hybrid,
+                                                   protocol_description=protocol_description
+                                                   )
 
                 solution[:, state_counter:] = component_solution
 
@@ -325,7 +339,8 @@ class DisconnectedMarkovModel(MarkovModel):
 
         elif len(self.connected_components) == 1:
             def hybrid_forward_solver(p=p, times=times, atol=atol, rtol=rtol,
-                                      strict=strict, hybrid=hybrid):
+                                      strict=strict, hybrid=hybrid,
+                                      protocol_description=protocol_description):
                 solution = np.full((times.shape[0], n_state_vars), np.nan)
                 component_solution = \
                     hybrid_forward_solve_component(steady_state_func1,
@@ -334,6 +349,7 @@ class DisconnectedMarkovModel(MarkovModel):
                                                    times=times,
                                                    atol=atol, rtol=rtol,
                                                    strict=strict,
+                                                   protocol_description=protocol_description,
                                                    hybrid=hybrid)
 
                 solution[:, :] = component_solution
@@ -359,16 +375,21 @@ class DisconnectedMarkovModel(MarkovModel):
         n_p = len(self.get_default_parameters())
         voltage = self.voltage
 
+        n_max_steps = 64
+
         @cfunc(lsoda_sig)
         def cfunc_rhs(t, y, dy, data):
             y = nb.carray(y, ny)
             dy = nb.carray(dy, ny)
-            data = nb.carray(data, n_p + 1)
+            data = nb.carray(data, n_p + 1 + n_max_steps*4)
 
-            p = data[:-1]
-            t_offset = data[-1]
+            p = data[:-1 - n_max_steps*4]
+            t_offset = data[-1 - n_max_steps*4]
 
-            res = rhs_func(y, p, voltage(t, offset=t_offset)).flatten()
+            protocol_description = data[-n_max_steps * 4:].reshape((-1, 4))
+
+            res = rhs_func(y, p, voltage(t, offset=t_offset,
+                                         protocol_description=protocol_description)).flatten()
             dy[:] = res
 
         return cfunc_rhs
