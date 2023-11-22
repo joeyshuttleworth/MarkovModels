@@ -180,17 +180,17 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
 
     solvers = [solver1, solver2]
 
+    times = np.arange(0, desc[-1][0], .5)
+    voltages = np.array([model1.voltage(t) for t in times])
+
+    spike_times, _ = detect_spikes(times, voltages, window_size=0)
+    _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
+
     for i, (model, params) in enumerate(zip([model1, model2], [params1, params2])):
         model.protocol_description = desc
         model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
 
-        times = np.arange(0, desc[-1][0], .5)
         model.times = times
-        voltages = np.array([model.voltage(t) for t in times])
-
-        spike_times, _ = detect_spikes(times, voltages, window_size=0)
-        _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
-
         params = params.astype(np.float64)
         solver = solvers[i]
         predictions[i] = np.vstack([solver(p).flatten()[indices] for p in params])

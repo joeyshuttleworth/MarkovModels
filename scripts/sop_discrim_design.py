@@ -175,7 +175,7 @@ def main():
             if args.steps_at_a_time != x0.shape[0] / 2:
                 ind = list(range(steps_fitted * 2,
                                  (steps_fitted + args.steps_at_a_time) * 2))
-                [put_copy(previous_d, ind, d) for d in d_list]
+                d_list = [put_copy(previous_d, ind, d) for d in d_list]
 
             x = [(d, models, params) for d in d_list]
             # Check bounds
@@ -193,8 +193,13 @@ def main():
             iteration += 1
         steps_fitted += args.steps_at_a_time
         step_group += 1
-        x0 = es.result.xbest
-        print(f"fitted {steps_fitted} steps")
+        ind = list(range(steps_fitted * 2,
+                         (steps_fitted + args.steps_at_a_time) * 2))
+        if args.steps_at_a_time != x0.shape[0] / 2:
+            x0 = put_copy(x0, ind, es.result.xbest)
+
+            print(f"fitted {steps_fitted} steps (sequentially)")
+            print(f"design so far {x0}")
 
     np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
 
@@ -320,7 +325,7 @@ def opt_func(x, ax=None, hybrid=False):
     wells = params1.well.unique().flatten()
     wells = [w for w in wells if w in params2.well.unique()]
     utils = []
-    for well in wells:
+    for i, well in enumerate(wells):
         sub_df1 = params1[params1.well == well]
         sub_df2 = params2[params2.well == well]
 
@@ -332,7 +337,7 @@ def opt_func(x, ax=None, hybrid=False):
                                                           model1, model2,
                                                           removal_duration=args.removal_duration,
                                                           sigma2=noise**2,
-                                                          ax=ax,
+                                                          ax=ax if i == 0 else None,
                                                           solver1=solver1,
                                                           solver2=solver2)
 
