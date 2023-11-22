@@ -231,9 +231,12 @@ def main():
             if args.steps_at_a_time != x0.shape[0] / 2:
                 ind = list(range(steps_fitted * 2,
                                  (steps_fitted + args.steps_at_a_time) * 2))
-                x0 = [put_copy(previous_d, ind, d) for d in d_list]
+                modified_d_list = [put_copy(previous_d, ind, d) for d in d_list]
 
-            x = [(d, model, params) for d in d_list]
+            else:
+                modified_d_list = d_list
+
+            x = [(d, model, params) for d in modified_d_list]
             # Check bounds
 
             res = np.array([opt_func(pars) for pars in x])
