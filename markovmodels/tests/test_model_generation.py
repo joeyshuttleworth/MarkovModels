@@ -34,7 +34,7 @@ class TestModelGeneration(unittest.TestCase):
         voltage_func, times, desc = get_ramp_protocol_from_csv('staircaseramp')
         self.assertEqual(voltage_func(0), -80.0, desc)
 
-    def test_model16_solver_error(self):
+    def test_model14_solver_error(self):
 
         protocol = 'staircaseramp1'
         voltage_func, times, desc = get_ramp_protocol_from_csv(protocol)

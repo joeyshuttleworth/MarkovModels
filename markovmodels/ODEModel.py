@@ -302,10 +302,10 @@ class ODEModel:
             y = nb.carray(y, ny)
             dy = nb.carray(dy, ny)
             data = nb.carray(data, int(n_p + 1 + n_max_steps * 4))
-            p = data[:-1 - n_max_steps * 4]
-            t_offset = data[-1 - n_max_steps * 4]
+            p = data[:n_p]
+            t_offset = data[n_p]
 
-            desc = data[-n_max_steps * 4:].reshape(-1, 4)
+            desc = data[n_p + 1:].reshape(-1, 4)
             res = rhs(y, p, voltage(t, offset=t_offset,
                                     protocol_description=desc)).flatten()
 
