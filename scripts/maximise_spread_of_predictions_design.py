@@ -48,6 +48,7 @@ def main():
     parser.add_argument("--experiment_name", default='25112022_MW')
     parser.add_argument("--removal_duration", default=5.0, type=float)
     parser.add_argument("--steps_at_a_time", type=int)
+    parser.add_argument("--hybrid", action='store_true')
     parser.add_argument("--mode", default='spread')
     parser.add_argument("--n_sample_starting_points", type=int)
     parser.add_argument("-c", "--no_cpus", type=int, default=1)
@@ -365,6 +366,17 @@ def opt_func(x, ax=None):
         return np.inf
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
+    model.protocol_description = desc
+    model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
+    times = np.arange(0, desc[-1][0], .5)
+    model.times = times
+    voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
+
+    voltages = np.array([model.voltage(t) for t in model.times])
+    spike_times, _ = detect_spikes(times, voltages, window_size=0)
+    _, _, indices = remove_spikes(times, voltages, spike_times,
+                                  args.removal_duration)
+    solver = model.make_hybrid_solver_current(hybrid=args.hybrid, njitted=False)
 
     params = params.loc[np.all(np.isfinite(params[model.get_parameter_labels()]), axis=1), :]
 
@@ -373,10 +385,9 @@ def opt_func(x, ax=None):
         sub_df = params[params.well == well]
         util = prediction_spread_utility(desc,
                                          sub_df[model.get_parameter_labels()].values,
-                                         model,
+                                         model, indices=indices,
                                          removal_duration=args.removal_duration,
-                                         ax=ax,
-                                         mode=args.mode)
+                                         ax=ax, mode=args.mode, solver=solver)
         utils.append(util)
     utils = np.array(utils)
     return -np.min(utils)

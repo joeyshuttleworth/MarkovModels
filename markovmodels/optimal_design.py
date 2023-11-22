@@ -78,21 +78,26 @@ def count_voxel_visitations(states, n_voxels_per_variable, times, indices, n_ski
 
 
 def prediction_spread_utility(desc, params, model, indices=None, hybrid=False,
-                              removal_duration=0, ax=None, mode='spread'):
+                              removal_duration=0, ax=None, mode='spread',
+                              solver=None):
 
-    model.protocol_description = desc
-    model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
+    if solver is None:
+        model.protocol_description = desc
+        model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
+        times = np.arange(0, desc[-1][0], .5)
+        model.times = times
+        solver = model.make_hybrid_solver_current(hybrid=hybrid, njitted=False)
 
-    times = np.arange(0, desc[-1][0], .5)
-    model.times = times
-    voltages = np.array([model.voltage(t) for t in times])
-    spike_times, _ = detect_spikes(times, voltages, window_size=0)
-    _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
-    solver = model.make_hybrid_solver_current(hybrid=hybrid, njitted=False)
+    if indices is None:
+        voltages = np.array([model.voltage(t) for t in model.times])
+        spike_times, _ = detect_spikes(model.times, voltages, window_size=0)
+        _, _, indices = remove_spikes(model.times, voltages, spike_times, removal_duration)
 
     predictions = np.vstack([solver(p).flatten() for p in params])
     min_pred = np.min(predictions, axis=0).flatten()[indices]
     max_pred = np.max(predictions, axis=0).flatten()[indices]
+
+    times = model.times
 
     if ax is not None:
         ax.plot(times, predictions.T)
