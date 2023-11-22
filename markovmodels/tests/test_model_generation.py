@@ -30,7 +30,7 @@ class TestModelGeneration(unittest.TestCase):
         self.model_names = [f"model{i}" for i in range(15)]
         logging.info("outputting to " + test_output_dir)
 
-    def test_model16_solver_error(self):
+    def test_model14_solver_error(self):
 
         protocol = 'staircaseramp1'
         voltage_func, times, desc = get_ramp_protocol_from_csv(protocol)

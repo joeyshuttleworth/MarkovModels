@@ -12,7 +12,7 @@ from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.utilities import setup_output_directory
 from markovmodels.model_generation import make_model_of_class
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
-from markovmodels.SensitivitiesMarkovModel import SensitiviesMarkovModels
+from markovmodels.SensitivitiesMarkovModel import SensitivitiesMarkovModel
 
 
 class TestArtefactModel(unittest.TestCase):
