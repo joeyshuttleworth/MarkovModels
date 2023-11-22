@@ -255,9 +255,11 @@ def main():
         ind = list(range(steps_fitted * 2,
                          (steps_fitted + args.steps_at_a_time) * 2))
 
-        previous_d = put_copy(previous_d, ind, es.result.xbest)
+        if args.steps_at_a_time != x0.shape[0] / 2:
+            previous_d = put_copy(previous_d, ind, es.result.xbest)
 
-        print(f"fitted {steps_fitted} steps")
+            print(f"fitted {steps_fitted} steps")
+            print(f"design so far {x0}")
 
     np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
 
