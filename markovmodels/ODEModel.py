@@ -237,7 +237,8 @@ class ODEModel:
                                       np.full(64 * 4 - flat_desc.shape[0],
                                               np.inf))
 
-                    data = np.concatenate((data, np.array(flat_desc).astype(np.float64).flatten()))
+                    data = np.concatenate((data,
+                                           flat_desc))
 
                     if tend - step_times[-1] < 2 * eps * np.abs(tend):
                         end_int = -1

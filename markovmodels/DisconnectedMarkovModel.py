@@ -240,16 +240,18 @@ class DisconnectedMarkovModel(MarkovModel):
                         start_int = 0
 
                     t_offset = tstart
-                    data = np.append(p, t_offset)
                     protocol_description = protocol_description.flatten().astype(np.float64)
+                    flat_desc = protocol_description.flatten().copy()
+
                     if protocol_description.shape[0] < 64 * 4:
                         protocol_description = \
                             np.append(protocol_description,
-                                      np.full(64 * 4 - protocol_description.shape[0],
+                                      np.full(64 * 4 - flat_desc.shape[0],
                                               np.inf))
 
-                        data = np.concatenate((data,
-                                               np.array(protocol_description).astype(np.float64).flatten()))
+                    data = np.append(p, t_offset)
+                    data = np.concatenate((data,
+                                           np.array(flat_desc)))
 
                     if tend - step_times[-1] < 2 * eps * np.abs(tend):
                         end_int = -1
@@ -381,15 +383,15 @@ class DisconnectedMarkovModel(MarkovModel):
         def cfunc_rhs(t, y, dy, data):
             y = nb.carray(y, ny)
             dy = nb.carray(dy, ny)
-            data = nb.carray(data, n_p + 1 + n_max_steps*4)
+            data = nb.carray(data, n_p + 1 + n_max_steps * 4)
 
             p = data[:-1 - n_max_steps*4]
             t_offset = data[-1 - n_max_steps*4]
 
-            protocol_description = data[-n_max_steps * 4:].reshape((-1, 4))
+            desc = data[-n_max_steps * 4:].reshape((-1, 4))
 
             res = rhs_func(y, p, voltage(t, offset=t_offset,
-                                         protocol_description=protocol_description)).flatten()
+                                         protocol_description=desc)).flatten()
             dy[:] = res
 
         return cfunc_rhs
