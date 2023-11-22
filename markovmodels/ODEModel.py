@@ -340,7 +340,8 @@ class ODEModel:
                                  protocol_description=protocol_description):
             voltages = np.empty(len(times))
             for i in range(len(times)):
-                voltages[i] = voltage_func(times[i])
+                voltages[i] = voltage_func(times[i],
+                                           protocol_description=protocol_description)
 
             states = hybrid_solver(p, times=times, hybrid=hybrid, atol=atol,
                                    rtol=rtol,
