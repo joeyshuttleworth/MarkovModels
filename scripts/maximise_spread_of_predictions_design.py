@@ -231,7 +231,7 @@ def main():
             if args.steps_at_a_time != x0.shape[0] / 2:
                 ind = list(range(steps_fitted * 2,
                                  (steps_fitted + args.steps_at_a_time) * 2))
-                [put_copy(previous_d, ind, d) for d in d_list]
+                x0 = [put_copy(previous_d, ind, d) for d in d_list]
 
             x = [(d, model, params) for d in d_list]
             # Check bounds
@@ -249,7 +249,11 @@ def main():
             iteration += 1
         steps_fitted += args.steps_at_a_time
         step_group += 1
-        x0 = es.result.xbest
+        ind = list(range(steps_fitted * 2,
+                         (steps_fitted + args.steps_at_a_time) * 2))
+
+        previous_d = put_copy(previous_d, ind, es.result.xbest)
+
         print(f"fitted {steps_fitted} steps")
 
     np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
