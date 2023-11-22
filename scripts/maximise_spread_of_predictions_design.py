@@ -89,6 +89,8 @@ def main():
                                 protocol_description=desc,
                                 default_parameters=default_parameters)
 
+    solver = model.make_hybrid_solver_current(hybrid=False)
+
     params = model.get_default_parameters()
     sc_voltages = np.array([voltage_func(t) for t in sc_times])
 
@@ -171,7 +173,7 @@ def main():
         starting_guesses[:, ::2] = (starting_guesses[:, ::2]*160) - 120
         starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
 
-        scores = [opt_func([d, model, params]) for d in starting_guesses]
+        scores = [opt_func([d, model, params, solver]) for d in starting_guesses]
         print(scores)
 
         best_guess_index = np.argmin(scores)
@@ -190,8 +192,8 @@ def main():
     axs = fig.subplots(2)
     sc_x = get_design_space_representation(sc_desc)
 
-    initial_score = opt_func([x0, model, params], ax=axs[0])
-    sc_score = opt_func([sc_x, model, params], ax=axs[1])
+    initial_score = opt_func([x0, model, params, solver], ax=axs[0])
+    sc_score = opt_func([sc_x, model, params, solver], ax=axs[1])
     print('initial score: ', initial_score)
     print('staircase score: ', sc_score)
     fig.savefig(os.path.join(output_dir, 'initial_design_sc_compare'))
@@ -233,7 +235,7 @@ def main():
                                  (steps_fitted + args.steps_at_a_time) * 2))
                 [put_copy(previous_d, ind, d) for d in d_list]
 
-            x = [(d, model, params) for d in d_list]
+            x = [(d, model, params, solver) for d in d_list]
             # Check bounds
 
             res = np.array([opt_func(pars) for pars in x])
@@ -354,7 +356,7 @@ def main():
 
 
 def opt_func(x, ax=None):
-    d, model, params = x
+    d, model, params, solver = x
 
     # Force positive durations
     d = d.copy()
@@ -370,13 +372,11 @@ def opt_func(x, ax=None):
     model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
     times = np.arange(0, desc[-1][0], .5)
     model.times = times
-    voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
 
     voltages = np.array([model.voltage(t) for t in model.times])
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   args.removal_duration)
-    solver = model.make_hybrid_solver_current(hybrid=args.hybrid, njitted=False)
 
     params = params.loc[np.all(np.isfinite(params[model.get_parameter_labels()]), axis=1), :]
 
