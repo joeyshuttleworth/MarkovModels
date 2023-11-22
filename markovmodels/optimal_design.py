@@ -192,8 +192,10 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
         _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
 
         params = params.astype(np.float64)
+
         solver = solvers[i]
-        predictions[i] = np.vstack([solver(p).flatten()[indices] for p in params])
+
+        predictions[i] = np.vstack([solver(p.flatten()).flatten()[indices] for p in params])
 
         mean_pred = predictions[i].mean(axis=1)
         var_pred = predictions[i].std(axis=1)**2
