@@ -176,6 +176,14 @@ class ODEModel:
         start_times = protocol_description[:, 0].flatten()
         intervals = tuple(zip(start_times[:-1], start_times[1:]))
 
+        # pad protocol description to fill up 64 steps
+        flat_desc = protocol_description.flatten().copy()
+        if flat_desc.shape[0] < 64 * 4:
+            flat_desc = \
+                np.concatenate((flat_desc,
+                                np.full(64 * 4 - flat_desc.shape[0],
+                                        np.inf)))
+
         def hybrid_forward_solve(p=p, times=times, atol=atol, rtol=rtol,
                                  strict=strict, hybrid=hybrid,
                                  protocol_description=protocol_description):
@@ -229,15 +237,7 @@ class ODEModel:
                     t_offset = tstart
                     data = np.append(p, t_offset)
 
-                    # pad protocol description to fill up 64 steps
-                    flat_desc = protocol_description.flatten().copy()
-                    if flat_desc.shape[0] < 64 * 4:
-                        flat_desc = \
-                            np.append(flat_desc,
-                                      np.full(64 * 4 - flat_desc.shape[0],
-                                              np.inf))
-
-                    data = np.concatenate((data,
+                    data = np.concatenate((p, np.array([t_offset]),
                                            flat_desc))
 
                     if tend - step_times[-1] < 2 * eps * np.abs(tend):
