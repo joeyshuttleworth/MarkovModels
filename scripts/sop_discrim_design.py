@@ -81,7 +81,7 @@ def main():
     models[1] = make_model_of_class(args.model_classes[1], sc_times,
                                     voltage_func, protocol_description=desc)
 
-    solvers = [m.make_hybrid_solver_current(hybrid=False, njitted=True)]
+    solvers = [m.make_hybrid_solver_current(hybrid=False, njitted=True) for m in models]
 
     sc_voltages = np.array([voltage_func(t) for t in sc_times])
 
