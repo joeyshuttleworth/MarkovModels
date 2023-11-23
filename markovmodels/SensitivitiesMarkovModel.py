@@ -77,20 +77,21 @@ class SensitivitiesMarkovModel(ODEModel):
         voltage = self.voltage
         n_p = len(self.get_default_parameters())
         ny = self.get_no_state_vars()
+        n_max_steps = 64
 
         @cfunc(lsoda_sig)
         def crhs(t, y, dy, data):
             y = nb.carray(y, ny)
             dy = nb.carray(dy, ny)
-            data = nb.carray(data, n_p + 1)
+            data = nb.carray(data, n_p + 1 + n_max_steps * 4)
 
-            p = data[:-1]
-            t_offset = data[-1]
+            p = data[:n_p]
+            t_offset = data[n_p]
+            desc = data[n_p + 1:]
 
-            res = rhs(y,
-                      p,
-                      voltage(t, offset=t_offset)).flatten()
-
+            v = voltage(t, offset=t_offset,
+                        protocol_description=desc)
+            res = rhs(y, p, v).flatten()
             dy[:] = res.flatten()
 
         return crhs

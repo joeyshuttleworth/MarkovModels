@@ -234,10 +234,9 @@ class ArtefactModel(MarkovModel):
             dy = nb.carray(dy, ny)
             data = nb.carray(data, n_p + 1 + n_max_steps * 4)
 
-            p = data[:-1 - n_max_steps*4]
-            t_offset = data[-1 - n_max_steps*4]
-
-            desc = data[-n_max_steps * 4:].reshape((-1, 4))
+            p = data[:n_p]
+            t_offset = data[n_p]
+            desc = data[n_p + 1:].reshape((-1, 4))
 
             #  get artefact parameters
             g_leak, E_leak, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]

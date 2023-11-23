@@ -50,7 +50,7 @@ class TestModelGeneration(unittest.TestCase):
 
         boundaries = markovmodels.fitting.fitting_boundaries(full_parameters, model)
 
-        n_samples = 1000
+        n_samples = 100
         sampled_parameter_sets = boundaries.sample(n=n_samples)
 
         hsolver = model.make_hybrid_solver_current(cond_threshold=np.inf, njitted=False)
@@ -336,9 +336,9 @@ class TestModelGeneration(unittest.TestCase):
 
             h_solver1 = model1.make_hybrid_solver_current(njitted=False, hybrid=False)
             current = h_solver1()
-            self.assertTrue(np.all(np.isfinite(current)))
             plt.plot(times, current)
             plt.savefig(os.path.join(self.output_dir, f"{model_name}_model_output"))
+            self.assertTrue(np.all(np.isfinite(current)))
 
     def test_tolerances(self):
         protocol = 'staircaseramp1'

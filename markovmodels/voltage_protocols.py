@@ -151,12 +151,13 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None,
         v_start = voltages[start]
         v_end = voltages[end-1]
 
-        lst.append((start_t, end_t, v_start, v_end))
+        lst.append(np.array([start_t, end_t, v_start, v_end]))
 
     lst.append(np.array([end_t, np.inf, holding_potential, holding_potential]))
     protocol = np.vstack(lst).astype(np.float64)
 
     protocol_func = make_voltage_function_from_description(protocol, holding_potential)
+
     return protocol_func, times, protocol
 
 
@@ -297,7 +298,7 @@ def design_space_to_desc(d, t_step=.1):
         t_cur += dur + t_step
         lines.append([tstart, tend, vstart, vend])
 
-    return np.vstack([line for line in lines]).astype(np.float64)
+    return np.vstack([np.array(line) for line in lines]).astype(np.float64)
 
 
 def get_design_space_representation(desc):

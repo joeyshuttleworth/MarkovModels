@@ -27,6 +27,7 @@ from markovmodels.utilities import get_data, put_copy
 from numba import njit, jit
 from markovmodels.optimal_design import D_opt_utility, discriminate_spread_of_predictions_utility
 
+max_time = 15_000
 
 def main():
     parser = ArgumentParser()
@@ -80,6 +81,8 @@ def main():
     models[1] = make_model_of_class(args.model_classes[1], sc_times,
                                     voltage_func, protocol_description=desc)
 
+    solvers = [m.make_hybrid_solver_current(hybrid=False, njitted=True)]
+
     sc_voltages = np.array([voltage_func(t) for t in sc_times])
 
     global output_dir
@@ -128,7 +131,7 @@ def main():
         starting_guesses[:, ::2] = (starting_guesses[:, ::2]*160) - 120
         starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
 
-        scores = [opt_func([d, models, params]) for d in starting_guesses]
+        scores = [opt_func([d, models, params, solvers]) for d in starting_guesses]
         print(scores)
 
         best_guess_index = np.argmin(scores)
@@ -141,9 +144,11 @@ def main():
 
     previous_d = x0.astype(np.float64)
 
+    fig = plt.figure()
+    axs = fig.subplots(2)
     step_group = 0
     while steps_fitted != int(x0.shape[0] / 2):
-        print('initial score: ', opt_func([x0, models, params]))
+        print('initial score: ', opt_func([x0, models, params, solvers]))
         stds = np.empty(args.steps_at_a_time * 2)
         stds[::2] = .25 * (40 + 120)
         stds[1::2] = .25 * 1000
@@ -175,10 +180,9 @@ def main():
             if args.steps_at_a_time != x0.shape[0] / 2:
                 ind = list(range(steps_fitted * 2,
                                  (steps_fitted + args.steps_at_a_time) * 2))
-                d_list = [put_copy(previous_d, ind, d) for d in d_list]
+                modified_d_list = [put_copy(previous_d, ind, d) for d in d_list]
 
-            x = [(d, models, params) for d in d_list]
-            # Check bounds
+            x = [(d, models, params, solvers) for d in modified_d_list]
 
             res = np.array([opt_func(pars) for pars in x])
 
@@ -187,17 +191,29 @@ def main():
             es.result_pretty()
             if iteration % 10 == 0:
                 es.result_pretty()
+                d = modified_d_list[-1]
+                desc = markovmodels.voltage_protocols.design_space_to_desc(d)
+                times = np.arange(0, desc[-1, 0], 0.5)
+                axs[1].plot(times, [sc_func(t, protocol_description=desc) for t in times])
+                opt_func([x0, models, params, solvers], ax=axs[0])
+                fig.savefig(os.path.join(output_dir,
+                                         f"{step_group}_{iteration}_example.png"))
+
+
             if iteration % 100 == 0:
                 markovmodels.optimal_design.save_es(es, output_dir,
                                                     f"optimisation_iteration_{iteration}_{step_group}")
             iteration += 1
-        steps_fitted += args.steps_at_a_time
-        step_group += 1
+
         ind = list(range(steps_fitted * 2,
                          (steps_fitted + args.steps_at_a_time) * 2))
-        if args.steps_at_a_time != x0.shape[0] / 2:
-            x0 = put_copy(x0, ind, es.result.xbest)
+        steps_fitted += args.steps_at_a_time
+        step_group += 1
 
+        # Update design so far
+        np.put(previous_d, ind, es.result.xbest)
+
+        if args.steps_at_a_time != x0.shape[0] / 2:
             print(f"fitted {steps_fitted} steps (sequentially)")
             print(f"design so far {x0}")
 
@@ -289,7 +305,7 @@ def main():
 
 
 def opt_func(x, ax=None, hybrid=False):
-    d, models, (params1, params2) = x
+    d, models, (params1, params2), solvers = x
 
     model1, model2 = models
 
@@ -297,10 +313,12 @@ def opt_func(x, ax=None, hybrid=False):
     d = d.copy()
     d[1::2] = np.abs(d[1::2])
 
-    # constrain total length
+    # Penalise length
     protocol_length = d[1::2].sum()
+
+    penalty = 0
     if protocol_length > 15_000:
-        return np.inf
+        penalty = (protocol_length - max_time)**2 * 1e3
 
     # Constrain voltage
     # if np.any(x[::2] < -120) or np.any(x[::2] > 60):
@@ -308,16 +326,6 @@ def opt_func(x, ax=None, hybrid=False):
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
     times = np.arange(0, desc[-1][0], .5)
-    model1.times = times
-    model2.times = times
-    voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
-    model1.protocol_description = desc
-    model1.voltage = voltage
-    model2.protocol_description = desc
-    model2.voltage = voltage
-
-    solver1 = model1.make_hybrid_solver_current(njitted=False, hybrid=False)
-    solver2 = model2.make_hybrid_solver_current(njitted=False, hybrid=False)
 
     params1 = params1.loc[np.all(np.isfinite(params1[model1.get_parameter_labels()]), axis=1), :]
     params2 = params2.loc[np.all(np.isfinite(params2[model2.get_parameter_labels()]), axis=1), :]
@@ -338,14 +346,14 @@ def opt_func(x, ax=None, hybrid=False):
                                                           removal_duration=args.removal_duration,
                                                           sigma2=noise**2,
                                                           ax=ax if i == 0 else None,
-                                                          solver1=solver1,
-                                                          solver2=solver2)
+                                                          solver1=solvers[0],
+                                                          solver2=solvers[1])
 
         utils.append(util)
     utils = np.array(utils)
 
     print('utils are', utils)
-    return -np.min(utils)
+    return -np.min(utils) + penalty
 
 
 def get_noise(row):

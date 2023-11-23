@@ -28,6 +28,8 @@ from numba import njit, jit
 from markovmodels.optimal_design import entropy_weighted_A_opt_utility, D_opt_utility
 
 
+t_max = 20_000
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('--reversal', type=float, default=-91.71)
@@ -93,13 +95,15 @@ def main():
     x0[::2] = -80.0
 
     s_model = SensitivitiesMarkovModel(model)
+    solver = s_model.make_hybrid_solver_states(njitted=False, hybrid=False,
+                                               protocol_description=sc_desc)
 
     if args.n_sample_starting_points:
         starting_guesses = np.random.uniform(size=(args.n_sample_starting_points, x0.shape[0]))
         starting_guesses[:, ::2] = (starting_guesses[:, ::2]*160) - 120
         starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
 
-        scores = [opt_func([d, s_model, params]) for d in starting_guesses]
+        scores = [opt_func([d, s_model, params, solver]) for d in starting_guesses]
         print(scores)
 
         best_guess_index = np.argmin(scores)
@@ -121,8 +125,11 @@ def main():
     initial_desc = markovmodels.voltage_protocols.design_space_to_desc(x0.copy())
     initial_voltage_func = markovmodels.voltage_protocols.make_voltage_function_from_description(initial_desc)
     initial_times = np.arange(0, initial_desc[-1][0], 0.5)
-    initial_score = opt_func([x0.copy(), s_model, params], ax=axs[0])
-    sc_score = opt_func([sc_x, s_model, params], ax=axs[2])
+    initial_score = opt_func([x0.copy(), s_model, params, solver], ax=axs[0])
+    sc_score = opt_func([sc_x, s_model, params, solver], ax=axs[2])
+
+    assert(np.isfinite(sc_score + initial_score))
+
     initial_voltages = np.array([initial_voltage_func(t) for t in initial_times])
     axs[1].plot(initial_times, initial_voltages)
     axs[3].plot(sc_times, sc_voltages)
@@ -166,12 +173,11 @@ def main():
                 ind = list(range(steps_fitted * 2,
                                  (steps_fitted + args.steps_at_a_time) * 2))
                 [put_copy(previous_d, ind, d) for d in d_list]
-            x = [(d, s_model, params) for d in d_list]
+            x = [(d, s_model, params, solver) for d in d_list]
             res = np.array(list(map(opt_func, x)))
 
             best_scores.append(res.min())
             es.tell(d_list, res)
-            es.result_pretty()
             if iteration % 10 == 0:
                 es.result_pretty()
             if iteration % 100 == 0:
@@ -273,11 +279,11 @@ def main():
     fig.clf()
     axs = fig.subplots(4)
 
-    found_score = opt_func([xopt, s_model, params], ax=axs[0])
+    found_score = opt_func([xopt, s_model, params, solver], ax=axs[0])
     found_times = np.arange(0, found_desc[-1][0], .5)
     found_voltages = np.array([found_voltage_func(t) for t in found_times])
     axs[1].plot(found_times, found_voltages)
-    sc_score = opt_func([sc_x, s_model, params], ax=axs[2])
+    sc_score = opt_func([sc_x, s_model, params, solver], ax=axs[2])
     axs[3].plot(sc_times, sc_voltages)
     print('found score: ', found_score)
     print('staircase score: ', sc_score)
@@ -286,7 +292,7 @@ def main():
 
 
 def opt_func(x, ax=None):
-    d, s_model, params = x
+    d, s_model, params, solver = x
 
     # Force positive durations
     d = d.copy()
@@ -294,17 +300,19 @@ def opt_func(x, ax=None):
 
     # constrain total length
     protocol_length = d[1::2].sum()
-    if protocol_length > 15_000:
-        return np.inf
+    penalty = 0
+    if protocol_length > t_max:
+        penalty = (protocol_length - t_max) * 1e3
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
 
     util = entropy_weighted_A_opt_utility(desc,
                                           params,
                                           s_model,
+                                          solver=solver,
                                           removal_duration=args.removal_duration,
                                           ax=ax)
-    return -util
+    return -util + penalty
 
 
 if __name__ == '__main__':

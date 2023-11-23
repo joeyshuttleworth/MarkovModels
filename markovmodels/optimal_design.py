@@ -5,26 +5,55 @@ from markovmodels.SensitivitiesMarkovModel import SensitivitiesMarkovModel
 from markovmodels.voltage_protocols import detect_spikes, remove_spikes
 
 
-def D_opt_utility(desc, params, s_model, hybrid=False, crhs=None, removal_duration=0):
+def D_opt_utility(desc, params, s_model, hybrid=False, solver=None,
+                  removal_duration=0, ax=None, t_range=None, rescale=True):
     """ Evaluate the D-optimality of design, d for a certain parameter vector"""
-    s_model.protocol_description = desc
-    s_model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
-    s_model.times = np.arange(0, desc[-1, 0], .5)
+    times = np.arange(0, desc[-1, 0], .5)
+    s_model.times = times
 
-    times = s_model.times
-    voltages = np.array([s_model.voltage(t) for t in times])
+    if solver is None:
+        s_model.protocol_description = desc
+        s_model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
+        s_model.times = times
+        solver = s_model.make_hybrid_solver_states(njitted=False, hybrid=False)
+
+    voltages = np.array([s_model.voltage(t, protocol_description=desc) for t in times])
 
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
 
-    res = s_model.make_hybrid_solver_states(njitted=False, hybrid=False, crhs=crhs)(params)
+    res = solver(params, times=times, protocol_description=desc)
 
     I_Kr_sens = s_model.auxiliary_function(res.T, params, voltages)[:, 0, :].T
 
-    if indices is not None:
-        I_Kr_sens = I_Kr_sens[indices]
+    if ax:
+        ax.plot(times, I_Kr_sens)
 
-    return np.log(np.linalg.det(I_Kr_sens.T @ I_Kr_sens))
+    if indices is not None:
+        I_Kr_sens = I_Kr_sens[indices, :]
+
+    if t_range is not None:
+        tstart, tend = t_range
+        istart = np.argmax(times > tstart)
+        iend = np.argmax(times > tend)
+
+        if tend > 0:
+            iend = np.argmax(times > tend)
+        else:
+            tend = -1
+
+        I_Kr_sens = I_Kr_sens[istart:iend, :]
+
+    if rescale:
+        I_Kr_sens = I_Kr_sens * s_model.get_default_parameters()[None, :]
+
+    ret_val = np.log(np.linalg.det(I_Kr_sens.T @ I_Kr_sens))
+
+    if not np.isfinite(ret_val):
+        return -np.inf
+
+    else:
+        return ret_val
 
 
 def entropy_utility(desc, params, model, hybrid=False, removal_duration=5,
@@ -59,17 +88,19 @@ def entropy_utility(desc, params, model, hybrid=False, removal_duration=5,
     return np.sum(log_prob * (times_in_each_voxel / times[indices].shape[0]))
 
 
-def count_voxel_visitations(states, n_voxels_per_variable, times, indices, n_skip, return_voxels_visited=False):
+def count_voxel_visitations(states, n_voxels_per_variable, times, indices,
+                            n_skip, return_voxels_visited=False):
     voxels = np.full((times[indices][::n_skip].shape[0], states.shape[1]), 0, dtype=int)
 
     for i, (t, x) in enumerate(zip(times[indices][::n_skip], states[indices, :][::n_skip, :])):
-        voxels[i, :] = np.floor(x.flatten() * n_voxels_per_variable)
+        voxels[i, :] = np.floor(x.flatten() *
+                                n_voxels_per_variable).astype(int)
 
     no_states = states.shape[1]
     times_in_each_voxel = np.zeros([n_voxels_per_variable for i in range(no_states)]).astype(int)
 
     for voxel in voxels:
-        times_in_each_voxel[tuple(voxel.astype(int))] += 1
+        times_in_each_voxel[tuple(voxel)] += 1
 
     if return_voxels_visited:
         return times_in_each_voxel, voxels
@@ -79,23 +110,36 @@ def count_voxel_visitations(states, n_voxels_per_variable, times, indices, n_ski
 
 def prediction_spread_utility(desc, params, model, indices=None, hybrid=False,
                               removal_duration=0, ax=None, mode='spread',
-                              solver=None):
+                              solver=None, t_range=None):
+
+    times = np.arange(0, desc[-1, 0], .5)
 
     if solver is None:
         model.protocol_description = desc
-        model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
-        times = np.arange(0, desc[-1, 0], .5)
         model.times = times
         solver = model.make_hybrid_solver_current(hybrid=hybrid, njitted=False)
 
     if indices is None:
-        voltages = np.array([model.voltage(t) for t in model.times])
+        voltages = np.array([model.voltage(t, protocol_description=desc) for t
+                             in model.times])
         spike_times, _ = detect_spikes(model.times, voltages, window_size=0)
         _, _, indices = remove_spikes(model.times, voltages, spike_times, removal_duration)
 
-    predictions = np.vstack([solver(p).flatten() for p in params])
+    predictions = np.vstack([solver(p, times,
+                                    protocol_description=desc).flatten() for p in params])
     min_pred = np.min(predictions, axis=0).flatten()[indices]
     max_pred = np.max(predictions, axis=0).flatten()[indices]
+
+    if t_range is not None:
+        tstart, tend = t_range
+        istart = np.argmax(times > tstart)
+
+        if tend > 0:
+            iend = np.argmax(times > tend)
+        else:
+            tend = -1
+
+        min_pred = min_pred[istart:iend]
 
     times = model.times
 
@@ -112,26 +156,34 @@ def prediction_spread_utility(desc, params, model, indices=None, hybrid=False,
 
 def entropy_weighted_A_opt_utility(desc, params, s_model,
                                    n_voxels_per_variable=10,
-                                   removal_duration=5, n_skip=1,
-                                   hybrid=False, include_vars=None,
+                                   removal_duration=5, n_skip=1, hybrid=False,
+                                   include_vars=None, solver=None,
                                    include_params=None, ax=None):
 
     s_model.protocol_description = desc
-    v_func = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
-    s_model.voltage = v_func
 
     times = np.arange(0, desc[-1, 0], .5)
     s_model.times = times
-    voltages = np.array([s_model.voltage(t) for t in s_model.times])
+    voltages = np.array([s_model.voltage(t, protocol_description=desc) for t in
+                         s_model.times])
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
 
-    states = s_model.make_hybrid_solver_states(hybrid=hybrid,
-                                               njitted=False,
-                                               protocol_description=desc)(params)
+    if solver is None:
+        solver = s_model.make_hybrid_solver_states(njitted=False, hybrid=False,
+                                                   protocol_description=desc)
+
+    states = solver(params, times=times, protocol_description=desc)
+
+    if np.any(~np.isfinite(states)):
+        return -np.inf
 
     if include_vars is None:
         include_vars = [i for i in range(s_model.markov_model.get_no_state_vars())]
+
+    if np.any((states[:, include_vars] < 0) | (states[:, include_vars] > 1)):
+        return -np.inf
+
     if ax is not None:
         ax.plot(times, states[:, include_vars])
 
@@ -179,7 +231,7 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
     predictions = [0, 0]
 
     if solver1 is None:
-        solver1 = model1.get_make_hybrid_solver_current()
+        solver1 = model1.make_hybrid_solver_current()
     if solver2 is None:
         solver2 = model2.make_hybrid_solver_current()
 
@@ -192,15 +244,13 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
     _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
 
     for i, (model, params) in enumerate(zip([model1, model2], [params1, params2])):
-        model.protocol_description = desc
-        model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
-
-        model.times = times
         params = params.astype(np.float64)
 
         solver = solvers[i]
 
-        predictions[i] = np.vstack([solver(p.flatten()).flatten()[indices] for p in params])
+        predictions[i] = np.vstack([solver(p.flatten(), times=times,
+                                           protocol_description=desc).flatten()[indices]
+                                    for p in params])
 
         mean_pred = predictions[i].mean(axis=1)
         var_pred = predictions[i].std(axis=1)**2

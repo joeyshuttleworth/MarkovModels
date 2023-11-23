@@ -28,27 +28,18 @@ from numba import njit, jit
 from markovmodels.optimal_design import entropy_utility, D_opt_utility, prediction_spread_utility
 
 
-seed = np.random.randint(2**32 - 1)
 max_time = 15_000
 leak_ramp_length = 4_000
+seed = np.random.randint(2**32 - 1)
 
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument('data_directory')
-    parser.add_argument('fitting_df')
     parser.add_argument('--reversal', type=float, default=-91.71)
     parser.add_argument('-o', '--output')
-    parser.add_argument('--subtraction_df_file')
-    parser.add_argument('--qc_df_file')
-    parser.add_argument('--use_parameter_file')
-    parser.add_argument('--artefact_default_kinetic_param_file')
-    parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
-    parser.add_argument('--sweeps', '-s', type=str, default=[], nargs='+')
-    parser.add_argument('--protocols', type=str, default=[], nargs='+')
-    parser.add_argument('--ignore_protocols', type=str, default=['longap'], nargs='+')
     parser.add_argument('--selection_file')
     parser.add_argument('--model_class', default='model3')
+    parser.add_argument('--use_parameter_file')
     parser.add_argument('--max_iterations', '-i', type=int, default=100000)
     parser.add_argument("--experiment_name", default='25112022_MW')
     parser.add_argument("--removal_duration", default=5.0, type=float)
@@ -61,26 +52,11 @@ def main():
     global args
     args = parser.parse_args()
 
-    for protocol in args.protocols:
-        if protocol in args.ignore_protocols:
-            raise ValueError(f"{protocol} is specified as a protocol and with --ignore_protocls")
-
-    fitting_df = pd.read_csv(args.fitting_df)
-
-    params_for_Erev = \
-        np.loadtxt(args.artefact_default_kinetic_param_file).flatten().astype(np.float64)
-
     if args.use_parameter_file:
         default_parameters = \
             np.loadtxt(args.use_parameter_file).flatten().astype(np.float64)
     else:
         default_parameters = make_model_of_class(args.model_class).get_default_parameters()
-
-    if args.selection_file:
-        with open(args.selection_file) as fin:
-            passed_wells = fin.read().splitlines()
-    else:
-        passed_wells = None
 
     # get staircase protocol
     global sc_func
@@ -93,39 +69,14 @@ def main():
                                 protocol_description=desc,
                                 default_parameters=default_parameters)
 
-    solver = model.make_hybrid_solver_current(hybrid=args.hybrid, njitted=True)
+    s_model = SensitivitiesMarkovModel(model)
+    solver = s_model.make_hybrid_solver_states(hybrid=args.hybrid, njitted=True)
 
     params = model.get_default_parameters()
     sc_voltages = np.array([voltage_func(t) for t in sc_times])
 
     global output_dir
-    output_dir = markovmodels.utilities.setup_output_directory(None, 'max_sop')
-
-    # optimise one step (8th from last)
-    protocols = fitting_df.protocol.unique()
-
-    if args.wells:
-        passed_wells = [well for well in passed_wells if well in args.wells]
-
-    fitting_df['score'] = fitting_df.score.astype(np.float64)
-    fitting_df = pd.read_csv(args.fitting_df).sort_values('score', axis=0)
-    df_rows = []
-    for well in passed_wells:
-        for protocol in protocols:
-            if protocol in args.ignore_protocols:
-                continue
-            for sweep in fitting_df[(fitting_df.well == well) & \
-                                    (fitting_df.protocol == protocol)]['sweep'].unique():
-                fitted_params = fitting_df[(fitting_df.well == well)
-                                           & (fitting_df.protocol == protocol)
-                                           & (fitting_df.sweep == sweep)].head(1)[model.get_parameter_labels()].values.flatten().astype(np.float64)
-
-                row = [well, protocol, sweep] + list(fitted_params)
-                df_rows.append(row)
-
-    params = pd.DataFrame(df_rows,
-                          columns=['well', 'protocol', 'sweep'] + \
-                          model.get_parameter_labels())
+    output_dir = markovmodels.utilities.setup_output_directory(None, 'D_opt')
 
     n_steps = 64 - 13
     x0 = np.zeros(n_steps*2).astype(np.float64)
@@ -137,7 +88,7 @@ def main():
         starting_guesses[:, ::2] = (starting_guesses[:, ::2]*160) - 120
         starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
 
-        scores = [opt_func([d, model, params, solver, None]) for d in starting_guesses]
+        scores = [opt_func([d, s_model, params, solver]) for d in starting_guesses]
         print(scores)
 
         best_guess_index = np.argmin(scores)
@@ -148,14 +99,16 @@ def main():
     if args.steps_at_a_time is None:
         args.steps_at_a_time = int(x0.shape[0]/2)
 
+    previous_d = x0.astype(np.float64)
+
     step_group = 0
 
     fig = plt.figure()
     axs = fig.subplots(2)
     sc_x = get_design_space_representation(sc_desc)
 
-    initial_score = opt_func([x0, model, params, solver, None], ax=axs[0])
-    sc_score = opt_func([sc_x, model, params, solver, None], ax=axs[1])
+    initial_score = opt_func([x0, s_model, params, solver], ax=axs[0])
+    sc_score = opt_func([sc_x, s_model, params, solver], ax=axs[1])
     print('initial score: ', initial_score)
     print('staircase score: ', sc_score)
     fig.savefig(os.path.join(output_dir, 'initial_design_sc_compare'))
@@ -163,10 +116,6 @@ def main():
     for ax in axs:
         ax.cla()
 
-    fig.clf()
-    ax = fig.subplots()
-
-    previous_d = x0.astype(np.float64)
     while steps_fitted < n_steps:
         stds = np.empty(args.steps_at_a_time * 2)
         stds[::2] = .25 * (40 + 120)
@@ -193,24 +142,25 @@ def main():
                    }
 
         es = cma.CMAEvolutionStrategy(previous_d[steps_fitted * 2: steps_fitted * 2 + steps_to_fit * 2], 1, options)
-        with open(os.path.join(output_dir, 'pycma_seed.txt'), 'w') as fout:
+        with open(os.path.join('pycma_seed.txt'), 'w') as fout:
             fout.write(str(seed))
             fout.write('\n')
 
         best_scores = []
 
         iteration = 0
+
         # Stop optimising if we've used up the majority of the time
         if args.steps_at_a_time != int(x0.shape[0]/2)\
-           and previous_d[:steps_fitted*2:2].sum() >= 0.95 * (max_time - leak_ramp_length):
+           and previous_d[:steps_fitted*2:2].sum() >= 0.95 * max_time:
             break
+
         while not es.stop():
             d_list = es.ask()
             if args.steps_at_a_time != x0.shape[0] / 2:
                 ind = list(range(steps_fitted * 2,
                                  (steps_fitted + steps_to_fit) * 2))
                 modified_d_list = [put_copy(previous_d, ind, d) for d in d_list]
-
             else:
                 modified_d_list = d_list
 
@@ -219,12 +169,12 @@ def main():
                     return (0, 0)
                 t_end = d[1::2][steps_fitted: steps_fitted +
                                 steps_to_fit].sum() + leak_ramp_length
-                t_start = leak_ramp_length + d[1::2][:steps_fitted].sum()
-                t_range = (t_start, t_end)
 
+                t_range = (leak_ramp_length, t_end)
                 return t_range
 
-            x = [(d, model, params, solver, get_t_range(d)) for d in modified_d_list]
+            x = [(d, s_model, params, solver, get_t_range(d))
+                 for d in modified_d_list]
 
             # Check bounds
             res = np.array([opt_func(pars) for pars in x])
@@ -233,13 +183,6 @@ def main():
             es.tell(d_list, res)
             if iteration % 10 == 0:
                 es.result_pretty()
-                d = modified_d_list[-1]
-                desc = markovmodels.voltage_protocols.design_space_to_desc(d)
-                times = np.arange(0, desc[-1, 0], 0.5)
-                ax.plot(times, [sc_func(t, protocol_description=desc) for t in times])
-                fig.savefig(os.path.join(output_dir,
-                                         f"{step_group}_{iteration}_example.png"))
-                ax.cla()
             if iteration % 100 == 0:
                 markovmodels.optimal_design.save_es(es, output_dir,
                                                     f"optimisation_iteration_{iteration}_{step_group}")
@@ -250,9 +193,7 @@ def main():
 
         steps_fitted += steps_to_fit
         step_group += 1
-
         np.put(previous_d, ind, es.result.xbest)
-        print(previous_d)
         print(f"fitted {steps_fitted} steps")
 
     np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
@@ -261,7 +202,7 @@ def main():
     s_model = SensitivitiesMarkovModel(model,
                                        parameters_to_use=model.get_parameter_labels())
 
-    default_params = model.get_default_parameters()
+    default_params = s_model.get_default_parameters()
     # Check D_optimality of design vs staircase
     u_D_staircase = markovmodels.optimal_design.D_opt_utility(sc_desc,
                                                               default_params,
@@ -283,7 +224,7 @@ def main():
     output = model.make_hybrid_solver_current(njitted=False, hybrid=False)()
 
     axs[0].plot(model.times, output)
-    axs[1].plot(model.times, [model.voltage(t, protocol_descripton=found_desc) for t in model.times])
+    axs[1].plot(model.times, [model.voltage(t) for t in model.times])
 
     fig.savefig(os.path.join(output_dir, 'optimised_protocol'))
 
@@ -342,13 +283,13 @@ def main():
     fig.clf()
     axs = fig.subplots(4)
 
-    found_score = opt_func([xopt, model, params, solver, None], ax=axs[0])
+    found_score = opt_func([xopt, s_model, params, solver], ax=axs[0])
     found_times = np.arange(0, found_desc[-1][0], .5)
     found_voltages = np.array([model.voltage(t, protocol_description=found_desc)\
                                for t in found_times])
 
     axs[1].plot(found_times, found_voltages)
-    sc_score = opt_func([sc_x, model, params, solver, None], ax=axs[2])
+    sc_score = opt_func([sc_x, s_model, params, solver], ax=axs[2])
     axs[3].plot(sc_times, sc_voltages)
 
     print('found score: ', found_score)
@@ -358,7 +299,11 @@ def main():
 
 
 def opt_func(x, ax=None):
-    d, model, params, solver, t_range = x
+    if len(x) == 4:
+        x = list(x)
+        x.append(None)
+
+    d, s_model, params, solver, t_range = x
 
     # Force positive durations
     d = d.copy()
@@ -369,34 +314,17 @@ def opt_func(x, ax=None):
 
     penalty = 0
     if protocol_length > max_time:
-        penalty = (protocol_length - max_time) ** 2 * 1e5
+        penalty = (protocol_length - max_time) * 1e3
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
-    model.protocol_description = desc
+    s_model.protocol_description = desc
     times = np.arange(0, desc[-1][0], .5)
-    model.times = times
+    s_model.times = times
 
-    voltages = np.array([model.voltage(t, protocol_description=desc)
-                         for t in model.times])
-
-    spike_times, _ = detect_spikes(times, voltages, window_size=0)
-    _, _, indices = remove_spikes(times, voltages, spike_times,
-                                  args.removal_duration)
-
-    params = params.loc[np.all(np.isfinite(params[model.get_parameter_labels()]), axis=1), :]
-
-    utils = []
-    for well in params.well.unique():
-        sub_df = params[params.well == well]
-        util = prediction_spread_utility(desc,
-                                         sub_df[model.get_parameter_labels()].values,
-                                         model, indices=indices,
-                                         removal_duration=args.removal_duration,
-                                         ax=ax, mode=args.mode, solver=solver,
-                                         t_range=t_range)
-        utils.append(util)
-    utils = np.array(utils) + penalty
-    return -np.min(utils)
+    util = D_opt_utility(desc, params, s_model,
+                         removal_duration=args.removal_duration, ax=ax,
+                         solver=solver, t_range=t_range)
+    return -util + penalty
 
 
 if __name__ == '__main__':

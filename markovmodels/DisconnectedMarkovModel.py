@@ -175,9 +175,6 @@ class DisconnectedMarkovModel(MarkovModel):
         p = self.get_default_parameters()
         eps = np.finfo(float).eps
 
-        start_times = [val[0] for val in protocol_description]
-        intervals = tuple(zip(start_times[:-1], start_times[1:]))
-
         if solver_type != 'lsoda':
             raise NotImplementedError()
 
@@ -190,12 +187,25 @@ class DisconnectedMarkovModel(MarkovModel):
             solution = np.full((len(times), no_states), np.nan)
             solution[0, :] = y0
 
-            for i, (tstart, tend) in enumerate(intervals):
+            # Flatten and pad out protocol description to 64 steps
+            flat_desc = protocol_description.flatten().copy()
+            if protocol_description.shape[0] < 64 * 4:
+                flat_desc = \
+                    np.append(protocol_description,
+                            np.full(64 * 4 - flat_desc.shape[0],
+                                    np.inf))
+
+            start_times = protocol_description[:, 0]
+
+            for i in range(len(protocol_description) - 1):
 
                 start_int = 0
                 end_int = 0
 
-                if i == len(intervals) - 1:
+                tstart = protocol_description[i, 0]
+                tend = protocol_description[i + 1, 0]
+
+                if i == len(start_times) - 1:
                     tend = times[-1] + 1
                 istart = np.argmax(times > tstart)
                 iend = np.argmax(times > tend)
@@ -203,8 +213,8 @@ class DisconnectedMarkovModel(MarkovModel):
                 if iend == 0:
                     iend = len(times)
 
-                vstart = protocol_description.reshape((-1, 4))[i, 2]
-                vend = protocol_description.reshape((-1, 4))[i, 3]
+                vstart = protocol_description[i, 2]
+                vend = protocol_description[i, 3]
 
                 step_times = np.full(iend-istart + 2, np.nan)
 
@@ -222,8 +232,8 @@ class DisconnectedMarkovModel(MarkovModel):
 
                 if vstart == vend and hybrid:
                     try:
-                        step_sol[:, :] = analytic_solver(step_times - tstart,
-                                                         vstart, p, y0)
+                        # step_sol[:, :] = analytic_solver(step_times - tstart,
+                        #                                  vstart, p, y0)
                         analytic_success = np.all(np.isfinite(step_sol))
 
                     except Exception:
@@ -240,18 +250,8 @@ class DisconnectedMarkovModel(MarkovModel):
                         start_int = 0
 
                     t_offset = tstart
-                    protocol_description = protocol_description.flatten().astype(np.float64)
-                    flat_desc = protocol_description.flatten().copy()
-
-                    if protocol_description.shape[0] < 64 * 4:
-                        protocol_description = \
-                            np.append(protocol_description,
-                                      np.full(64 * 4 - flat_desc.shape[0],
-                                              np.inf))
-
-                    data = np.append(p, t_offset)
-                    data = np.concatenate((data,
-                                           np.array(flat_desc)))
+                    data = np.concatenate((p, np.array([t_offset]),
+                                           flat_desc))
 
                     if tend - step_times[-1] < 2 * eps * np.abs(tend):
                         end_int = -1
@@ -365,7 +365,7 @@ class DisconnectedMarkovModel(MarkovModel):
         return njit(hybrid_forward_solver) if njitted else hybrid_forward_solver
 
     def make_cfunc_rhs(self, A, B, comp):
-        auxiliary_states = [str(s) for s in self.auxiliary_expression.free_symbols\
+        auxiliary_states = [str(s) for s in self.auxiliary_expression.free_symbols
                             if len(str(s)) > 6]
         auxiliary_states = [s for s in auxiliary_states if s[:6] == 'state_']
         eliminated_state = [state for state in comp if state not in auxiliary_states][0]
@@ -384,14 +384,13 @@ class DisconnectedMarkovModel(MarkovModel):
             y = nb.carray(y, ny)
             dy = nb.carray(dy, ny)
             data = nb.carray(data, n_p + 1 + n_max_steps * 4)
-
             p = data[:-1 - n_max_steps*4]
             t_offset = data[-1 - n_max_steps*4]
-
             desc = data[-n_max_steps * 4:].reshape((-1, 4))
 
-            res = rhs_func(y, p, voltage(t, offset=t_offset,
-                                         protocol_description=desc)).flatten()
+            v = voltage(t, offset=t_offset, protocol_description=desc)
+
+            res = rhs_func(y, p, v).flatten()
             dy[:] = res
 
         return cfunc_rhs
