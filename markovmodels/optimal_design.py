@@ -238,7 +238,9 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
     solvers = [solver1, solver2]
 
     times = np.arange(0, desc[-1, 0], .5)
-    voltages = np.array([model1.voltage(t) for t in times])
+    voltages = np.array([model1.voltage(t, protocol_description=desc) for t in times])
+    model1.times = times
+    model2.times = times
 
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
