@@ -250,7 +250,10 @@ def overlay_first_last_staircases(well):
     ax1.plot(times, before_trace, label='staircaseramp1 sweep-1')
     ax1.plot(times, after_trace, label='staircaseramp2 sweep-2')
 
-    prot_func, _, _, = get_ramp_protocol_from_csv('staircaseramp1')
+    prot_func, _, _, = \
+        get_ramp_protocol_from_csv(f"{experiment_name}-staircaseramp1-voltages.csv",
+                                   directory=args.data_directory)
+
     voltages = np.array([prot_func(t) for t in times])
     ax2.plot(times, voltages)
 
@@ -290,7 +293,9 @@ def subtract_leak(well, protocol, args, output_dir=None):
         protocol_axs, before_axs, after_axs, corrected_axs, subtracted_ax, \
             long_protocol_ax = setup_subtraction_grid(fig, nsweeps)
 
-    protocol_func, _, _ = get_ramp_protocol_from_csv(protocol)
+        protocol_func, _, _ = get_ramp_protocol_from_csv(f"{args.experiment_name}-{protocol}-voltages.csv",
+                                                         directory=args.data_directory)
+
     observation_times = pd.read_csv(os.path.join(
         args.data_directory, f"{args.experiment_name}-{protocol}-times.csv")).to_numpy()[:, -1].flatten()*1e3
     protocol_voltages = np.array([protocol_func(t) for t in observation_times])

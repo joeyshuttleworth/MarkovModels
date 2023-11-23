@@ -208,6 +208,7 @@ def main():
             d_list = es.ask()
             if args.steps_at_a_time != x0.shape[0] / 2:
                 ind = list(range(steps_fitted * 2,
+<<<<<<< HEAD
                                  (steps_fitted + steps_to_fit) * 2))
                 modified_d_list = [put_copy(previous_d, ind, d) for d in d_list]
 
@@ -226,6 +227,15 @@ def main():
 
             x = [(d, model, params, solver, get_t_range(d)) for d in modified_d_list]
 
+=======
+                                 (steps_fitted + args.steps_at_a_time) * 2))
+                modified_d_list = [put_copy(previous_d, ind, d) for d in d_list]
+
+            else:
+                modified_d_list = d_list
+
+            x = [(d, model, params) for d in modified_d_list]
+>>>>>>> a65f343d7f25af734e8201806e72ccd1e104f62e
             # Check bounds
             res = np.array([opt_func(pars) for pars in x])
 
@@ -250,10 +260,21 @@ def main():
 
         steps_fitted += steps_to_fit
         step_group += 1
+<<<<<<< HEAD
 
         np.put(previous_d, ind, es.result.xbest)
         print(previous_d)
         print(f"fitted {steps_fitted} steps")
+=======
+        ind = list(range(steps_fitted * 2,
+                         (steps_fitted + args.steps_at_a_time) * 2))
+
+        if args.steps_at_a_time != x0.shape[0] / 2:
+            previous_d = put_copy(previous_d, ind, es.result.xbest)
+
+            print(f"fitted {steps_fitted} steps")
+            print(f"design so far {x0}")
+>>>>>>> a65f343d7f25af734e8201806e72ccd1e104f62e
 
     np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
 
@@ -382,6 +403,10 @@ def opt_func(x, ax=None):
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   args.removal_duration)
+<<<<<<< HEAD
+=======
+    solver = model.make_hybrid_solver_current(hybrid=args.hybrid, njitted=True)
+>>>>>>> a65f343d7f25af734e8201806e72ccd1e104f62e
 
     params = params.loc[np.all(np.isfinite(params[model.get_parameter_labels()]), axis=1), :]
 
