@@ -124,10 +124,15 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None,
 
     """
 
+    protocol_name, file_ext = os.path.splitext(protocol_name)
+
+    if file_ext == '':
+        file_ext = '.csv'
+
     if directory is None:
         directory = get_protocol_directory()
 
-    protocol = pd.read_csv(os.path.join(directory, protocol_name + ".csv"),
+    protocol = pd.read_csv(os.path.join(directory, protocol_name + file_ext),
                            float_precision='round_trip')
 
     times = protocol["time"].values.flatten().astype(np.float64)
