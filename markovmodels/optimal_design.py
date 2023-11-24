@@ -35,12 +35,11 @@ def D_opt_utility(desc, params, s_model, hybrid=False, solver=None,
     if t_range is not None:
         tstart, tend = t_range
         istart = np.argmax(times > tstart)
-        iend = np.argmax(times > tend)
 
         if tend > 0:
             iend = np.argmax(times > tend)
         else:
-            tend = -1
+            iend = None
 
         I_Kr_sens = I_Kr_sens[istart:iend, :]
 
@@ -150,6 +149,10 @@ def prediction_spread_utility(desc, params, model, indices=None, hybrid=False,
         return np.mean(max_pred - min_pred)
     elif mode == 'std':
         return np.mean(np.std(predictions, axis=0))
+    elif mode == 'quantiles':
+        upper_qs = np.quantile(predictions, .9, axis=0)
+        lower_qs = np.quantile(predictions, .1, axis=0)
+        return np.abs(np.sum(upper_qs - lower_qs))
     else:
         raise ValueError()
 

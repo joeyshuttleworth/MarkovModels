@@ -373,7 +373,7 @@ def opt_func(x, ax=None):
 
     penalty = 0
     if protocol_length > max_time:
-        penalty = (protocol_length - max_time) ** 2 * 1e5
+        penalty = (protocol_length - max_time) ** 2 * 1e3
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
     model.protocol_description = desc
@@ -399,7 +399,9 @@ def opt_func(x, ax=None):
                                          ax=ax, mode=args.mode, solver=solver,
                                          t_range=t_range)
         utils.append(util)
-    utils = np.array(utils) + penalty
+    utils = np.array(utils) - penalty
+
+    # Return the worst score across wells
     return -np.min(utils)
 
 

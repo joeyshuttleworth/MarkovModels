@@ -245,8 +245,10 @@ def main():
     model.times = np.arange(0, found_desc[-1][0], .5)
     states = model.make_hybrid_solver_states(njitted=False, hybrid=False)()
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
-    axs[0].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o',
-                   label=model.get_state_labels()[:2])
+    axs[0].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o')
+
+    axs[0].set_ylabel(model.get_state_labels()[0])
+    axs[0].set_xlabel(model.get_state_labels()[1])
 
     # Plot phase diagram for the staircase protocol (first two states)
     model.voltage = sc_func
@@ -259,6 +261,9 @@ def main():
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
     axs[1].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o',
                    label=model.get_state_labels()[:2])
+
+    axs[1].set_ylabel(model.get_state_labels()[0])
+    axs[1].set_xlabel(model.get_state_labels()[1])
 
     fig.savefig(os.path.join(output_dir, "phase_diagrams.png"))
 

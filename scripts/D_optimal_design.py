@@ -91,6 +91,8 @@ def main():
         scores = [opt_func([d, s_model, params, solver]) for d in starting_guesses]
         print(scores)
 
+        scores = [s for s in scores if np.isfinite(s)]
+
         best_guess_index = np.argmin(scores)
         x0 = starting_guesses[best_guess_index, :].flatten()
         print('x0', x0)
@@ -218,20 +220,7 @@ def main():
                                        parameters_to_use=model.get_parameter_labels())
 
     default_params = s_model.get_default_parameters()
-    # Check D_optimality of design vs staircase
-    u_D_staircase = markovmodels.optimal_design.D_opt_utility(sc_desc,
-                                                              default_params,
-                                                              s_model,
-                                                              removal_duration=args.removal_duration)
-    print(f"u_D of staircase = {u_D_staircase}")
-
     found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt.copy())
-    u_D_found = markovmodels.optimal_design.D_opt_utility(found_desc,
-                                                          default_params,
-                                                          s_model,
-                                                          removal_duration=args.removal_duration)
-
-    print(f"u_D of found design = {u_D_found}")
 
     model.protocol_description = found_desc
     model.times = np.arange(0, found_desc[-1][0], .5)
@@ -258,7 +247,8 @@ def main():
 
     # Plot phase diagram for the new design (first two states)
     model.protocol_description = found_desc
-    model.times = np.arange(0, found_desc[-1][0], .5)
+    times = np.arange(0, found_desc[-1, 0], .5)
+    model.times = times
     states = model.make_hybrid_solver_states(njitted=False, hybrid=False,
                                              protocol_description=found_desc)()
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
@@ -281,10 +271,6 @@ def main():
     # output_score
     with open(os.path.join(output_dir, 'best_score.txt'), 'w') as fout:
         fout.write(str(es.result[1]))
-        fout.write('\n')
-
-    with open(os.path.join(output_dir, 'u_d.txt'), 'w') as fout:
-        fout.write(str(u_D_found))
         fout.write('\n')
 
     # Pickle and save optimisation results
@@ -333,7 +319,7 @@ def opt_func(x, ax=None):
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
     s_model.protocol_description = desc
-    times = np.arange(0, desc[-1][0], .5)
+    times = np.arange(0, desc[-1, 0], .5)
     s_model.times = times
 
     util = D_opt_utility(desc, params, s_model,

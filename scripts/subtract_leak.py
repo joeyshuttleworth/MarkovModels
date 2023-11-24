@@ -40,8 +40,6 @@ def main():
     parser.add_argument('--output', '-o', default=None)
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--experiment_name', default='newtonrun4')
-    parser.add_argument('--ramp_start', type=float, default=300)
-    parser.add_argument('--ramp_end', type=float, default=900)
     parser.add_argument('--figsize', type=int, nargs=2, default=[8, 12])
     parser.add_argument('--output_all', action='store_true')
     parser.add_argument('--no_plot', action='store_true')
@@ -290,7 +288,13 @@ def subtract_leak(well, protocol, args, output_dir=None):
         protocol_axs, before_axs, after_axs, corrected_axs, subtracted_ax, \
             long_protocol_ax = setup_subtraction_grid(fig, nsweeps)
 
-    protocol_func, _, _ = get_ramp_protocol_from_csv(protocol)
+    protocol_func, _, desc = get_ramp_protocol_from_csv(protocol,
+                                                     data_directory=args.data_directory)
+
+    # TODO
+    # Find ramp start and end from desc
+    # ramp_start_step = min([])
+
     observation_times = pd.read_csv(os.path.join(
         args.data_directory, f"{args.experiment_name}-{protocol}-times.csv")).to_numpy()[:, -1].flatten()*1e3
     protocol_voltages = np.array([protocol_func(t) for t in observation_times])
@@ -335,8 +339,8 @@ def subtract_leak(well, protocol, args, output_dir=None):
         if before_trace is not None and np.all(np.isfinite(before_trace)):
             g_leak_before, E_leak_before, _, _, _, x, y = fit_leak_lr(
                 protocol_voltages, before_trace, dt=dt,
-                ramp_start=args.ramp_start,
-                ramp_end=args.ramp_end
+                ramp_start=ramp_start,
+                ramp_end=ramp_end
             )
 
             n = len(x)
@@ -360,7 +364,7 @@ def subtract_leak(well, protocol, args, output_dir=None):
                 window_ax_before.plot(observation_times[indices_to_plot],
                                       (protocol_voltages[indices_to_plot] - E_leak_before) * g_leak_before)
 
-                window_ax_before.axvspan(args.ramp_start, args.ramp_end,
+                window_ax_before.axvspan(ramp_start, ramp_end,
                                          color='grey', alpha=.5)
         else:
             g_leak_before = np.nan
@@ -369,8 +373,8 @@ def subtract_leak(well, protocol, args, output_dir=None):
         if after_trace is not None and np.all(np.isfinite(after_trace)):
             g_leak_after, E_leak_after, _, _, _, x, y = fit_leak_lr(
                 protocol_voltages, after_trace, dt=dt,
-                ramp_start=args.ramp_start,
-                ramp_end=args.ramp_end
+                ramp_start=ramp_start,
+                ramp_end=ramp_end
             )
             n = len(x)
             # msres = (((x - E_leak_before) * g_leak_before - y)**2 / (n - 2)).sum()

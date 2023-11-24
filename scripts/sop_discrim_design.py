@@ -228,11 +228,11 @@ def main():
 
         ind = list(range(steps_fitted * 2,
                          (steps_fitted + args.steps_at_a_time) * 2))
-        steps_fitted += args.steps_at_a_time
-        step_group += 1
-
         # Update design so far
         np.put(previous_d, ind, es.result.xbest)
+
+        steps_fitted += args.steps_at_a_time
+        step_group += 1
 
         if args.steps_at_a_time != x0.shape[0] / 2:
             print(f"fitted {steps_fitted} steps (sequentially)")
