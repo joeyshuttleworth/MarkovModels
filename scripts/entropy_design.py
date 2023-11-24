@@ -28,6 +28,9 @@ from numba import njit, jit
 from markovmodels.optimal_design import entropy_utility, D_opt_utility
 
 
+seed = np.random.randint(2**32 - 1)
+max_time = 15_000
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('data_directory')
@@ -188,7 +191,6 @@ def main():
     u_bounds = [60 if (i % 2) == 0 else 2000 for i in range(n_steps * 2)]
 
     bounds = l_bounds, u_bounds
-    seed = np.random.randint(2**32 - 1)
     options = {'maxfevals': args.max_iterations,
                'CMA_stds': stds,
                'bounds': bounds,
@@ -304,16 +306,11 @@ def main():
 
 def opt_func(x):
     d, model, params = x
-    # Force positive durations
-    # x[1::2] = np.abs(x[1::2])
 
     # constrain total length
-    if d[1::2].sum() > 15_000:
-        return np.inf
-
-    # Constrain voltage
-    # if np.any(x[::2] < -120) or np.any(x[::2] > 60):
-    #     return np.inf
+    protocol_length = d[1::2].sum()
+    if protocol_length > max_time:
+        penalty = (protocol_length - max_time)**2 * 1e3
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
 
@@ -323,8 +320,7 @@ def opt_func(x):
                            params,
                            model, include_vars=kinetic_indices,
                            removal_duration=args.removal_duration)
-    print(util)
-    return -util
+    return -util + penalty
 
 
 if __name__ == '__main__':

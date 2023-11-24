@@ -137,7 +137,7 @@ def prediction_spread_utility(desc, params, model, indices=None, hybrid=False,
         if tend > 0:
             iend = np.argmax(times > tend)
         else:
-            tend = -1
+            iend = -1
 
         min_pred = min_pred[istart:iend]
 
@@ -175,8 +175,7 @@ def entropy_weighted_A_opt_utility(desc, params, s_model,
 
     states = solver(params, times=times, protocol_description=desc)
 
-    if np.any(~np.isfinite(states)):
-        return -np.inf
+    # print(times[np.any(~np.isfinite(states), axis=1)])
 
     if include_vars is None:
         include_vars = [i for i in range(s_model.markov_model.get_no_state_vars())]
@@ -224,7 +223,7 @@ def entropy_weighted_A_opt_utility(desc, params, s_model,
 def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
                                                model2, removal_duration=0,
                                                sigma2=100, hybrid=False, solver1=None,
-                                               solver2=None, ax=None):
+                                               solver2=None, ax=None, t_range=(0, 0)):
 
     means = [0, 0]
     varis = [0, 0]
@@ -238,6 +237,13 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
     solvers = [solver1, solver2]
 
     times = np.arange(0, desc[-1, 0], .5)
+
+    istart = np.argmax(times > t_range[0])
+    iend = np.argmax(times > t_range[1])
+
+    if iend == 0:
+        iend = -1
+
     voltages = np.array([model1.voltage(t, protocol_description=desc) for t in times])
     model1.times = times
     model2.times = times
@@ -252,7 +258,7 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
 
         predictions[i] = np.vstack([solver(p.flatten(), times=times,
                                            protocol_description=desc).flatten()[indices]
-                                    for p in params])
+                                    for p in params])[:, istart:iend]
 
         mean_pred = predictions[i].mean(axis=1)
         var_pred = predictions[i].std(axis=1)**2

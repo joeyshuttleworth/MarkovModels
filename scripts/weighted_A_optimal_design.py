@@ -28,7 +28,7 @@ from numba import njit, jit
 from markovmodels.optimal_design import entropy_weighted_A_opt_utility, D_opt_utility
 
 
-t_max = 20_000
+t_max = 15_000
 
 def main():
     parser = ArgumentParser()
@@ -37,13 +37,14 @@ def main():
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
     parser.add_argument('--sweeps', '-s', type=str, default=[], nargs='+')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
-    parser.add_argument('--ignore_protocols', type=str, default=[], nargs='+')
+    parser.add_argument('--ignore_protocols', type=str, default=['longap'], nargs='+')
     parser.add_argument('--selection_file')
     parser.add_argument('--use_parameter_file')
     parser.add_argument('--model_class', default='model3')
     parser.add_argument('--max_iterations', '-i', type=int, default=100000)
     parser.add_argument("--removal_duration", default=5.0, type=float)
     parser.add_argument("--steps_at_a_time", type=int)
+    parser.add_argument("--n_voxels_per_variable", type=int, default=10)
     parser.add_argument("--n_sample_starting_points", type=int)
     parser.add_argument("--popsize", type=int, default=15)
     parser.add_argument("-c", "--no_cpus", type=int, default=1)
@@ -142,11 +143,11 @@ def main():
 
     while steps_fitted != int(x0.shape[0] / 2):
         stds = np.empty(args.steps_at_a_time * 2)
-        stds[::2] = .25 * (40 + 120)
+        stds[::2] = .25 * (60 + 120)
         stds[1::2] = .25 * 1000
 
         l_bounds = [-120 if (i % 2) == 0 else 1 for i in range(args.steps_at_a_time * 2)]
-        u_bounds = [40 if (i % 2) == 0 else 2000 for i in range(args.steps_at_a_time * 2)]
+        u_bounds = [60 if (i % 2) == 0 else 2000 for i in range(args.steps_at_a_time * 2)]
 
         bounds = [l_bounds, u_bounds]
         seed = np.random.randint(2**32 - 1)
@@ -244,9 +245,10 @@ def main():
     model.times = np.arange(0, found_desc[-1][0], .5)
     states = model.make_hybrid_solver_states(njitted=False, hybrid=False)()
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
-    axs[0].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o')
+    axs[0].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o',
+                   label=model.get_state_labels()[:2])
 
-    # Plot phase diagram (first two states)
+    # Plot phase diagram for the staircase protocol (first two states)
     model.voltage = sc_func
     model.protocol_description = sc_desc
     states = model.make_hybrid_solver_states(njitted=False, hybrid=False)()
@@ -255,7 +257,8 @@ def main():
     model.voltage = sc_func
     model.protocol_description = sc_desc
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
-    axs[1].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o')
+    axs[1].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o',
+                   label=model.get_state_labels()[:2])
 
     fig.savefig(os.path.join(output_dir, "phase_diagrams.png"))
 
@@ -306,12 +309,10 @@ def opt_func(x, ax=None):
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
 
-    util = entropy_weighted_A_opt_utility(desc,
-                                          params,
-                                          s_model,
-                                          solver=solver,
+    util = entropy_weighted_A_opt_utility(desc, params, s_model, solver=solver,
                                           removal_duration=args.removal_duration,
-                                          ax=ax)
+                                          ax=ax,
+                                          n_voxels_per_variable=args.n_voxels_per_variable)
     return -util + penalty
 
 
