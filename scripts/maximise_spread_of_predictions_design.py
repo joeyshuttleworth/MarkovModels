@@ -30,7 +30,7 @@ from markovmodels.optimal_design import entropy_utility, D_opt_utility, predicti
 
 seed = np.random.randint(2**32 - 1)
 max_time = 15_000
-leak_ramp_length = 4_000
+leak_ramp_length = 3_400
 
 
 def main():
@@ -129,8 +129,8 @@ def main():
 
     n_steps = 64 - 13
     x0 = np.zeros(n_steps*2).astype(np.float64)
-    x0[1::2] = 100.0
-    x0[::2] = 40.0
+    x0[1::2] = 50.0
+    x0[::2] = 60.0
 
     if args.n_sample_starting_points:
         starting_guesses = np.random.uniform(size=(x0.shape[0], args.n_sample_starting_points))
@@ -164,23 +164,23 @@ def main():
         ax.cla()
 
     fig.clf()
-    ax = fig.subplots()
+    axs = fig.subplots(2)
 
     previous_d = x0.astype(np.float64)
     while steps_fitted < n_steps:
         stds = np.empty(args.steps_at_a_time * 2)
-        stds[::2] = .25 * (40 + 120)
+        stds[::2] = .25 * (60 + 120)
         stds[1::2] = .25 * 1000
 
         if steps_fitted + args.steps_at_a_time > n_steps:
             steps_to_fit = n_steps - steps_fitted
-            if steps_to_fit == 1:
+            if steps_to_fit == 0:
                 break
         else:
             steps_to_fit = args.steps_at_a_time
 
         l_bounds = [-120 if (i % 2) == 0 else 1 for i in range(steps_to_fit * 2)]
-        u_bounds = [40 if (i % 2) == 0 else 2000 for i in range(steps_to_fit * 2)]
+        u_bounds = [60 if (i % 2) == 0 else 2000 for i in range(steps_to_fit * 2)]
 
         bounds = [l_bounds, u_bounds]
         options = {'maxfevals': args.max_iterations,
@@ -204,6 +204,16 @@ def main():
         if args.steps_at_a_time != int(x0.shape[0]/2)\
            and previous_d[:steps_fitted*2:2].sum() >= 0.95 * (max_time - leak_ramp_length):
             break
+
+        def get_t_range(d):
+            if args.steps_at_a_time == int(x0.shape[0] / 2):
+                return (0, 0)
+            t_start = leak_ramp_length + d[1::2][:steps_fitted].sum()
+            t_end = t_start + d[1::2][steps_fitted: steps_fitted +
+                                      steps_to_fit].sum()
+            t_range = (t_start, t_end)
+            return t_range
+
         while not es.stop():
             d_list = es.ask()
             if args.steps_at_a_time != x0.shape[0] / 2:
@@ -214,16 +224,6 @@ def main():
 
             else:
                 modified_d_list = d_list
-
-            def get_t_range(d):
-                if args.steps_at_a_time == int(x0.shape[0] / 2):
-                    return (0, 0)
-                t_end = d[1::2][steps_fitted: steps_fitted +
-                                steps_to_fit].sum() + leak_ramp_length
-                t_start = leak_ramp_length + d[1::2][:steps_fitted].sum()
-                t_range = (t_start, t_end)
-
-                return t_range
 
             x = [(d, model, params, solver, get_t_range(d)) for d in modified_d_list]
 
@@ -243,13 +243,18 @@ def main():
             es.tell(d_list, res)
             if iteration % 10 == 0:
                 es.result_pretty()
-                d = modified_d_list[-1]
+                d = modified_d_list[0]
                 desc = markovmodels.voltage_protocols.design_space_to_desc(d)
                 times = np.arange(0, desc[-1, 0], 0.5)
-                ax.plot(times, [sc_func(t, protocol_description=desc) for t in times])
+                initial_score = opt_func([d, model, params, solver, None], ax=axs[0])
+                axs[1].plot(times, [sc_func(t, protocol_description=desc) for t in times])
+                axs[0].axvspan(*get_t_range(d), alpha=.25, color='grey')
+                axs[1].axvspan(*get_t_range(d), alpha=.25, color='grey')
                 fig.savefig(os.path.join(output_dir,
                                          f"{step_group}_{iteration}_example.png"))
-                ax.cla()
+                for ax in axs:
+                    ax.cla()
+
             if iteration % 100 == 0:
                 markovmodels.optimal_design.save_es(es, output_dir,
                                                     f"optimisation_iteration_{iteration}_{step_group}")
@@ -263,7 +268,6 @@ def main():
 <<<<<<< HEAD
 
         np.put(previous_d, ind, es.result.xbest)
-        print(previous_d)
         print(f"fitted {steps_fitted} steps")
 =======
         ind = list(range(steps_fitted * 2,
@@ -390,7 +394,7 @@ def opt_func(x, ax=None):
 
     penalty = 0
     if protocol_length > max_time:
-        penalty = (protocol_length - max_time) ** 2 * 1e5
+        penalty = (protocol_length - max_time) ** 2 * 1e3
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
     model.protocol_description = desc
@@ -420,7 +424,9 @@ def opt_func(x, ax=None):
                                          ax=ax, mode=args.mode, solver=solver,
                                          t_range=t_range)
         utils.append(util)
-    utils = np.array(utils) + penalty
+    utils = np.array(utils) - penalty
+
+    # Return the worst score across wells
     return -np.min(utils)
 
 

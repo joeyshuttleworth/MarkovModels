@@ -91,6 +91,7 @@ class SensitivitiesMarkovModel(ODEModel):
 
             v = voltage(t, offset=t_offset,
                         protocol_description=desc)
+
             res = rhs(y, p, v).flatten()
             dy[:] = res.flatten()
 

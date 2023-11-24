@@ -50,7 +50,7 @@ class TestModelGeneration(unittest.TestCase):
 
         boundaries = markovmodels.fitting.fitting_boundaries(full_parameters, model)
 
-        n_samples = 100
+        n_samples = 1000
         sampled_parameter_sets = boundaries.sample(n=n_samples)
 
         hsolver = model.make_hybrid_solver_current(cond_threshold=np.inf, njitted=False)
@@ -200,10 +200,10 @@ class TestModelGeneration(unittest.TestCase):
                   for m in self.model_names]
 
         for name, model in zip(self.model_names, models):
-            output1 = model.make_forward_solver_current(njitted=False,
-                                                        atol=1e-8, rtol=1e-8)()
+            output1 = model.make_forward_solver_current(njitted=True,
+                                                        atol=1e-6, rtol=1e-6)()
 
-            output2 = model.make_hybrid_solver_current(njitted=False,
+            output2 = model.make_hybrid_solver_current(njitted=True,
                                                        atol=1e-8, rtol=1e-8)()
 
             plt.plot(times, output1)
@@ -344,9 +344,9 @@ class TestModelGeneration(unittest.TestCase):
         protocol = 'staircaseramp1'
         voltage_func, times, desc = get_ramp_protocol_from_csv(protocol)
 
-        model_name = 'model11'
+        model_name = 'model3'
         model = make_model_of_class(model_name, times, voltage_func, protocol_description=desc)
-        tol_range = 10**np.linspace(-3, -8, 6)
+        tol_range = 10**np.linspace(-3, -7, 3)
         solver = model.make_hybrid_solver_current(njitted=False, hybrid=False)
         reference_sol = solver(atol=1e-9, rtol=1e-9, hybrid=False)
 

@@ -192,11 +192,10 @@ class DisconnectedMarkovModel(MarkovModel):
             if protocol_description.shape[0] < 64 * 4:
                 flat_desc = \
                     np.append(protocol_description,
-                            np.full(64 * 4 - flat_desc.shape[0],
-                                    np.inf))
+                              np.full(64 * 4 - flat_desc.shape[0],
+                                      np.inf))
 
             start_times = protocol_description[:, 0]
-
             for i in range(len(protocol_description) - 1):
 
                 start_int = 0
@@ -207,6 +206,7 @@ class DisconnectedMarkovModel(MarkovModel):
 
                 if i == len(start_times) - 1:
                     tend = times[-1] + 1
+
                 istart = np.argmax(times > tstart)
                 iend = np.argmax(times > tend)
 

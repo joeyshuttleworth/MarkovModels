@@ -29,7 +29,7 @@ from markovmodels.optimal_design import entropy_utility, D_opt_utility, predicti
 
 
 max_time = 15_000
-leak_ramp_length = 4_000
+leak_ramp_length = 3_400
 seed = np.random.randint(2**32 - 1)
 
 
@@ -81,7 +81,7 @@ def main():
     n_steps = 64 - 13
     x0 = np.zeros(n_steps*2).astype(np.float64)
     x0[1::2] = 100.0
-    x0[::2] = 40.0
+    x0[::2] = 60.0
 
     if args.n_sample_starting_points:
         starting_guesses = np.random.uniform(size=(x0.shape[0], args.n_sample_starting_points))
@@ -90,6 +90,8 @@ def main():
 
         scores = [opt_func([d, s_model, params, solver]) for d in starting_guesses]
         print(scores)
+
+        scores = [s for s in scores if np.isfinite(s)]
 
         best_guess_index = np.argmin(scores)
         x0 = starting_guesses[best_guess_index, :].flatten()
@@ -118,7 +120,7 @@ def main():
 
     while steps_fitted < n_steps:
         stds = np.empty(args.steps_at_a_time * 2)
-        stds[::2] = .25 * (40 + 120)
+        stds[::2] = .25 * (60 + 120)
         stds[1::2] = .25 * 1000
 
         if steps_fitted + args.steps_at_a_time > n_steps:
@@ -129,7 +131,7 @@ def main():
             steps_to_fit = args.steps_at_a_time
 
         l_bounds = [-120 if (i % 2) == 0 else 1 for i in range(steps_to_fit * 2)]
-        u_bounds = [40 if (i % 2) == 0 else 2000 for i in range(steps_to_fit * 2)]
+        u_bounds = [60 if (i % 2) == 0 else 2000 for i in range(steps_to_fit * 2)]
 
         bounds = [l_bounds, u_bounds]
         options = {'maxfevals': args.max_iterations,
@@ -182,7 +184,22 @@ def main():
             best_scores.append(res.min())
             es.tell(d_list, res)
             if iteration % 10 == 0:
-                es.result_pretty()
+                d = modified_d_list[0]
+                desc = markovmodels.voltage_protocols.design_space_to_desc(d)
+                times = np.arange(0, desc[-1, 0], 0.5)
+                initial_score = opt_func([d, s_model, params, solver, None], ax=axs[0])
+                axs[1].plot(times, [sc_func(t, protocol_description=desc) for t in times])
+                axs[0].axvspan(*get_t_range(d), alpha=.25, color='grey')
+                axs[1].axvspan(*get_t_range(d), alpha=.25, color='grey')
+                fig.savefig(os.path.join(output_dir,
+                                         f"{step_group}_{iteration}_example.png"))
+                for ax in axs:
+                    ax.cla()
+
+                try:
+                    es.result_pretty()
+                except TypeError:
+                    pass
             if iteration % 100 == 0:
                 markovmodels.optimal_design.save_es(es, output_dir,
                                                     f"optimisation_iteration_{iteration}_{step_group}")
@@ -203,20 +220,7 @@ def main():
                                        parameters_to_use=model.get_parameter_labels())
 
     default_params = s_model.get_default_parameters()
-    # Check D_optimality of design vs staircase
-    u_D_staircase = markovmodels.optimal_design.D_opt_utility(sc_desc,
-                                                              default_params,
-                                                              s_model,
-                                                              removal_duration=args.removal_duration)
-    print(f"u_D of staircase = {u_D_staircase}")
-
     found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt.copy())
-    u_D_found = markovmodels.optimal_design.D_opt_utility(found_desc,
-                                                          default_params,
-                                                          s_model,
-                                                          removal_duration=args.removal_duration)
-
-    print(f"u_D of found design = {u_D_found}")
 
     model.protocol_description = found_desc
     model.times = np.arange(0, found_desc[-1][0], .5)
@@ -243,7 +247,8 @@ def main():
 
     # Plot phase diagram for the new design (first two states)
     model.protocol_description = found_desc
-    model.times = np.arange(0, found_desc[-1][0], .5)
+    times = np.arange(0, found_desc[-1, 0], .5)
+    model.times = times
     states = model.make_hybrid_solver_states(njitted=False, hybrid=False,
                                              protocol_description=found_desc)()
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
@@ -266,10 +271,6 @@ def main():
     # output_score
     with open(os.path.join(output_dir, 'best_score.txt'), 'w') as fout:
         fout.write(str(es.result[1]))
-        fout.write('\n')
-
-    with open(os.path.join(output_dir, 'u_d.txt'), 'w') as fout:
-        fout.write(str(u_D_found))
         fout.write('\n')
 
     # Pickle and save optimisation results
@@ -318,7 +319,7 @@ def opt_func(x, ax=None):
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
     s_model.protocol_description = desc
-    times = np.arange(0, desc[-1][0], .5)
+    times = np.arange(0, desc[-1, 0], .5)
     s_model.times = times
 
     util = D_opt_utility(desc, params, s_model,

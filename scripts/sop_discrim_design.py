@@ -28,6 +28,7 @@ from numba import njit, jit
 from markovmodels.optimal_design import D_opt_utility, discriminate_spread_of_predictions_utility
 
 max_time = 15_000
+leak_ramp_length = 3_400
 
 def main():
     parser = ArgumentParser()
@@ -146,15 +147,25 @@ def main():
 
     fig = plt.figure()
     axs = fig.subplots(2)
+
+    n_steps = 64 - 13
+
     step_group = 0
-    while steps_fitted != int(x0.shape[0] / 2):
+    while steps_fitted < n_steps:
         print('initial score: ', opt_func([x0, models, params, solvers]))
         stds = np.empty(args.steps_at_a_time * 2)
-        stds[::2] = .25 * (40 + 120)
+        stds[::2] = .25 * (60 + 120)
         stds[1::2] = .25 * 1000
 
+        if steps_fitted + args.steps_at_a_time > n_steps:
+            steps_to_fit = n_steps - steps_fitted
+            if steps_to_fit == 0:
+                break
+        else:
+            steps_to_fit = args.steps_at_a_time
+
         l_bounds = [-120 if (i % 2) == 0 else 1 for i in range(args.steps_at_a_time * 2)]
-        u_bounds = [40 if (i % 2) == 0 else 2000 for i in range(args.steps_at_a_time * 2)]
+        u_bounds = [60 if (i % 2) == 0 else 2000 for i in range(args.steps_at_a_time * 2)]
 
         bounds = [l_bounds, u_bounds]
         seed = np.random.randint(2**32 - 1)
@@ -174,6 +185,15 @@ def main():
 
         best_scores = []
 
+        def get_t_range(d):
+            if args.steps_at_a_time == int(x0.shape[0] / 2):
+                return (0, 0)
+            t_start = leak_ramp_length + d[1::2][:steps_fitted].sum()
+            t_end = t_start + d[1::2][steps_fitted: steps_fitted +
+                                      steps_to_fit].sum()
+            t_range = (t_start, t_end)
+            return t_range
+
         iteration = 0
         while not es.stop():
             d_list = es.ask()
@@ -181,14 +201,8 @@ def main():
                 ind = list(range(steps_fitted * 2,
                                  (steps_fitted + args.steps_at_a_time) * 2))
                 modified_d_list = [put_copy(previous_d, ind, d) for d in d_list]
-
-            else:
-                modified_d_list = d_list
-
-            x = [(d, models, params) for d in modified_d_list]
-            x = [(d, models, params, solvers) for d in modified_d_list]
-            # Check bounds
-
+            x = [(d, models, params, solvers, get_t_range(d)) for d in
+                 modified_d_list]
             res = np.array([opt_func(pars) for pars in x])
 
             best_scores.append(res.min())
@@ -199,11 +213,13 @@ def main():
                 d = modified_d_list[-1]
                 desc = markovmodels.voltage_protocols.design_space_to_desc(d)
                 times = np.arange(0, desc[-1, 0], 0.5)
+                t_range = get_t_range(d)
+
                 axs[1].plot(times, [sc_func(t, protocol_description=desc) for t in times])
-                opt_func([x0, models, params, solvers], ax=axs[0])
+                opt_func([d, models, params, solvers, t_range], ax=axs[0])
+
                 fig.savefig(os.path.join(output_dir,
                                          f"{step_group}_{iteration}_example.png"))
-
 
             if iteration % 100 == 0:
                 markovmodels.optimal_design.save_es(es, output_dir,
@@ -219,6 +235,9 @@ def main():
 
         # Update design so far
         np.put(previous_d, ind, es.result.xbest)
+
+        steps_fitted += args.steps_at_a_time
+        step_group += 1
 
         if args.steps_at_a_time != x0.shape[0] / 2:
             print(f"fitted {steps_fitted} steps (sequentially)")
@@ -312,7 +331,12 @@ def main():
 
 
 def opt_func(x, ax=None, hybrid=False):
-    d, models, (params1, params2), solvers = x
+
+    x = list(x)
+    if len(x) == 4:
+        x.append((0, 0))
+
+    d, models, (params1, params2), solvers, t_range = x
 
     model1, model2 = models
 
@@ -354,7 +378,8 @@ def opt_func(x, ax=None, hybrid=False):
                                                           sigma2=noise**2,
                                                           ax=ax if i == 0 else None,
                                                           solver1=solvers[0],
-                                                          solver2=solvers[1])
+                                                          solver2=solvers[1],
+                                                          t_range=t_range)
 
         utils.append(util)
     utils = np.array(utils)
