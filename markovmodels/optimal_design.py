@@ -270,8 +270,8 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
         varis[i] = var_pred
 
     if ax is not None:
-        ax.plot(times[indices], predictions[0].T, color='blue', label='model1')
-        ax.plot(times[indices], predictions[1].T, color='orange', label='model1')
+        ax.plot(times[indices][istart:iend], predictions[0].T, color='blue', label='model1')
+        ax.plot(times[indices][istart:iend], predictions[1].T, color='orange', label='model2')
 
     print(varis, sigma2)
 
