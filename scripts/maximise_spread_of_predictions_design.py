@@ -386,7 +386,6 @@ def opt_func(x, ax=None):
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   args.removal_duration)
-    solver = model.make_hybrid_solver_current(hybrid=args.hybrid, njitted=True)
 
     params = params.loc[np.all(np.isfinite(params[model.get_parameter_labels()]), axis=1), :]
 
