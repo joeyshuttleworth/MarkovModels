@@ -82,7 +82,7 @@ def main():
     models[1] = make_model_of_class(args.model_classes[1], sc_times,
                                     voltage_func, protocol_description=desc)
 
-    solvers = [m.make_hybrid_solver_current(hybrid=False, njitted=True)]
+    solvers = [m.make_hybrid_solver_current(hybrid=False, njitted=True) for m in models]
 
     sc_voltages = np.array([voltage_func(t) for t in sc_times])
 
@@ -121,7 +121,7 @@ def main():
     params[1]['noise'] = [get_noise(row) for _, row in params[1].iterrows()]
 
     n_steps = 64 - 13
-    x0 = np.zeros(n_steps).astype(np.float64)
+    x0 = np.zeros(n_steps*2).astype(np.float64)
     x0[1::2] = 100.0
     x0[::2] = -80.0
 
@@ -199,6 +199,8 @@ def main():
                 ind = list(range(steps_fitted * 2,
                                  (steps_fitted + args.steps_at_a_time) * 2))
                 modified_d_list = [put_copy(previous_d, ind, d) for d in d_list]
+            else:
+                modified_d_list = d_list
             x = [(d, models, params, solvers, get_t_range(d)) for d in
                  modified_d_list]
             res = np.array([opt_func(pars) for pars in x])
@@ -226,6 +228,11 @@ def main():
 
         ind = list(range(steps_fitted * 2,
                          (steps_fitted + args.steps_at_a_time) * 2))
+        steps_fitted += args.steps_at_a_time
+        step_group += 1
+        if args.steps_at_a_time != x0.shape[0] / 2:
+            previous_d = put_copy(previous_d, ind, es.result.xbest)
+
         # Update design so far
         np.put(previous_d, ind, es.result.xbest)
 
@@ -356,6 +363,7 @@ def opt_func(x, ax=None, hybrid=False):
 
     wells = params1.well.unique().flatten()
     wells = [w for w in wells if w in params2.well.unique()]
+
     utils = []
     for i, well in enumerate(wells):
         sub_df1 = params1[params1.well == well]
