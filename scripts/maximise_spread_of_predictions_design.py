@@ -39,8 +39,6 @@ def main():
     parser.add_argument('fitting_df')
     parser.add_argument('--reversal', type=float, default=-91.71)
     parser.add_argument('-o', '--output')
-    parser.add_argument('--subtraction_df_file')
-    parser.add_argument('--qc_df_file')
     parser.add_argument('--use_parameter_file')
     parser.add_argument('--artefact_default_kinetic_param_file')
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
@@ -55,6 +53,7 @@ def main():
     parser.add_argument("--steps_at_a_time", type=int)
     parser.add_argument("--hybrid", action='store_true')
     parser.add_argument("--mode", default='spread')
+    parser.add_argument("--use_artefact_model", action='store_true')
     parser.add_argument("--n_sample_starting_points", type=int)
     parser.add_argument("-c", "--no_cpus", type=int, default=1)
 
@@ -93,6 +92,9 @@ def main():
                                 protocol_description=desc,
                                 default_parameters=default_parameters)
 
+    if args.use_artefact_model:
+        model = ArtefactModel(model)
+
     solver = model.make_hybrid_solver_current(hybrid=args.hybrid, njitted=True)
 
     params = model.get_default_parameters()
@@ -117,15 +119,15 @@ def main():
             for sweep in fitting_df[(fitting_df.well == well) & \
                                     (fitting_df.protocol == protocol)]['sweep'].unique():
                 fitted_params = fitting_df[(fitting_df.well == well)
-                                           & (fitting_df.protocol == protocol)
-                                           & (fitting_df.sweep == sweep)].head(1)[model.get_parameter_labels()].values.flatten().astype(np.float64)
+                                        & (fitting_df.protocol == protocol)
+                                        & (fitting_df.sweep == sweep)].head(1)[model.get_parameter_labels()].values.flatten().astype(np.float64)
 
                 row = [well, protocol, sweep] + list(fitted_params)
                 df_rows.append(row)
 
     params = pd.DataFrame(df_rows,
-                          columns=['well', 'protocol', 'sweep'] + \
-                          model.get_parameter_labels())
+                        columns=['well', 'protocol', 'sweep'] + \
+                        model.get_parameter_labels())
 
     n_steps = 64 - 13
     x0 = np.zeros(n_steps*2).astype(np.float64)
