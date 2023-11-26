@@ -133,8 +133,6 @@ def main():
         starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
 
         scores = [opt_func([d, models, params, solvers]) for d in starting_guesses]
-        print(scores)
-
         best_guess_index = np.argmin(scores)
         x0 = starting_guesses[best_guess_index, :].flatten()
         print('x0', x0)
@@ -379,7 +377,6 @@ def opt_func(x, ax=None, hybrid=False):
         utils.append(util)
     utils = np.array(utils)
 
-    print('utils are', utils)
     return -np.min(utils) + penalty
 
 
