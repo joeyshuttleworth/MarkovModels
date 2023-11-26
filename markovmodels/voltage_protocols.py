@@ -321,7 +321,7 @@ def desc_to_table(desc, round=True):
             _type = 'Ramp'
 
         if round:
-            vend = round(vend)
+            vend = np.round(vend)
 
         output_lines.append(f"{_type}\t{vend}\t{dur}")
 

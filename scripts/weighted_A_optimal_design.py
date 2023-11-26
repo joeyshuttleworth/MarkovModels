@@ -22,13 +22,15 @@ from markovmodels.BeattieModel import BeattieModel
 from markovmodels.fitting import infer_reversal_potential_with_artefact
 from markovmodels.SensitivitiesMarkovModel import SensitivitiesMarkovModel
 from markovmodels.voltage_protocols import detect_spikes, remove_spikes, get_design_space_representation
-from markovmodels.fitting import infer_reversal_potential_with_artefact
+from markovmodels.fitting import infer_reversal_potential_with_artefact, get_best_params
 from markovmodels.utilities import get_data, put_copy
 from numba import njit, jit
 from markovmodels.optimal_design import entropy_weighted_A_opt_utility, D_opt_utility
 
 
-t_max = 15_000
+max_time = 15_000
+leak_ramp_length = 3_400
+seed = np.random.randint(2**32 - 1)
 
 def main():
     parser = ArgumentParser()
@@ -38,7 +40,6 @@ def main():
     parser.add_argument('--sweeps', '-s', type=str, default=[], nargs='+')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
     parser.add_argument('--ignore_protocols', type=str, default=['longap'], nargs='+')
-    parser.add_argument('--selection_file')
     parser.add_argument('--use_parameter_file')
     parser.add_argument('--model_class', default='model3')
     parser.add_argument('--max_iterations', '-i', type=int, default=100000)
@@ -48,6 +49,8 @@ def main():
     parser.add_argument("--n_sample_starting_points", type=int)
     parser.add_argument("--popsize", type=int, default=15)
     parser.add_argument("-c", "--no_cpus", type=int, default=1)
+    parser.add_argument("--fitting_df")
+    parser.add_argument("--use_artefact_model", action='store_true')
 
     global args
     args = parser.parse_args()
@@ -62,33 +65,36 @@ def main():
     else:
         default_parameters = make_model_of_class(args.model_class).get_default_parameters()
 
-    if args.selection_file:
-        with open(args.selection_file) as fin:
-            passed_wells = fin.read().splitlines()
-    else:
-        passed_wells = None
-
-    # get staircase protocol
-    global sc_func
-    sc_func, sc_times, sc_desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv('staircaseramp1')
-
     protocol = 'staircaseramp1'
-    sc_voltage_func, sc_times, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
+    sc_voltage_func, sc_times, sc_desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
 
     model = make_model_of_class(args.model_class,
                                 default_parameters=default_parameters,
-                                voltage=sc_voltage_func)
+                                voltage=sc_voltage_func, times=sc_times)
+
+    if args.use_artefact_model:
+        model = ArtefactModel(model)
+
+    if args.fitting_df:
+        fitting_df = pd.read_csv(args.fitting_df)
+        if args.wells:
+            fitting_df = fitting_df[fitting_df.well.isin(args.wells)]
+        fitting_df = fitting_df[~fitting_df.protocol.isin(args.ignore_protocols)]
+        fitting_df = get_best_params(fitting_df)
+        param_labels = model.get_parameter_labels()
+        params = fitting_df[param_labels].values.astype(np.float64)
+
+    elif args.use_parameter_file:
+        params = \
+            np.loadtxt(args.use_parameter_file).flatten().astype(np.float64)[None, :]
+    else:
+        params = model.get_default_parameters()[None, :]
 
     params = model.get_default_parameters()
     sc_voltages = np.array([sc_voltage_func(t) for t in sc_times])
 
     global output_dir
     output_dir = markovmodels.utilities.setup_output_directory(None, 'weighted_A_opt')
-
-    # subtraction_df = pd.read_csv(args.subtraction_df_file)
-
-    if args.wells:
-        passed_wells = [well for well in passed_wells if well in args.wells]
 
     n_steps = 64 - 13
     x0 = np.zeros(n_steps*2).astype(np.float64)
@@ -105,7 +111,6 @@ def main():
         starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
 
         scores = [opt_func([d, s_model, params, solver]) for d in starting_guesses]
-        print(scores)
 
         best_guess_index = np.argmin(scores)
         x0 = starting_guesses[best_guess_index, :].flatten()
@@ -129,7 +134,7 @@ def main():
     initial_score = opt_func([x0.copy(), s_model, params, solver], ax=axs[0])
     sc_score = opt_func([sc_x, s_model, params, solver], ax=axs[2])
 
-    assert(np.isfinite(sc_score + initial_score))
+    # assert(np.isfinite(sc_score + initial_score))
 
     initial_voltages = np.array([initial_voltage_func(t) for t in initial_times])
     axs[1].plot(initial_times, initial_voltages)
@@ -141,31 +146,53 @@ def main():
     for ax in axs:
         ax.cla()
 
-    while steps_fitted != int(x0.shape[0] / 2):
+    while steps_fitted < n_steps:
+
+        if steps_fitted + args.steps_at_a_time > n_steps:
+            steps_to_fit = n_steps - steps_fitted
+            if steps_to_fit == 1:
+                break
+        else:
+            steps_to_fit = args.steps_at_a_time
+
         stds = np.empty(args.steps_at_a_time * 2)
         stds[::2] = .25 * (60 + 120)
         stds[1::2] = .25 * 1000
 
-        l_bounds = [-120 if (i % 2) == 0 else 1 for i in range(args.steps_at_a_time * 2)]
-        u_bounds = [60 if (i % 2) == 0 else 2000 for i in range(args.steps_at_a_time * 2)]
+        l_bounds = [-120 if (i % 2) == 0 else 1 for i in range(steps_to_fit * 2)]
+        u_bounds = [60 if (i % 2) == 0 else 2000 for i in range(steps_to_fit * 2)]
 
         bounds = [l_bounds, u_bounds]
-        seed = np.random.randint(2**32 - 1)
         options = {'maxfevals': args.max_iterations,
                    'CMA_stds': stds,
                    'bounds': bounds,
                    'tolx': 2,
-                   'tolfun': 1,
+                   'tolfun': 0.1,
                    'popsize': args.popsize,
                    'seed': seed
                    }
 
-        es = cma.CMAEvolutionStrategy(x0[steps_fitted * 2: steps_fitted * 2 + args.steps_at_a_time * 2], 1, options)
+        es = cma.CMAEvolutionStrategy(x0[steps_fitted * 2:
+                                         steps_fitted * 2 + steps_to_fit * 2], 1, options)
         with open(os.path.join('pycma_seed.txt'), 'w') as fout:
             fout.write(str(seed))
             fout.write('\n')
 
         best_scores = []
+
+        def get_t_range(d):
+            if args.steps_at_a_time == int(x0.shape[0] / 2):
+                return (0, 0)
+            t_end = d[1::2][steps_fitted: steps_fitted +
+                            steps_to_fit].sum() + leak_ramp_length
+
+            t_range = (0, t_end)
+            return t_range
+
+        # Stop optimising if we've used up the majority of the time
+        if args.steps_at_a_time != int(x0.shape[0]/2)\
+           and previous_d[:steps_fitted*2:2].sum() >= 0.95 * max_time:
+            break
 
         iteration = 0
         while not es.stop():
@@ -173,9 +200,19 @@ def main():
             if args.steps_at_a_time != x0.shape[0] / 2:
                 ind = list(range(steps_fitted * 2,
                                  (steps_fitted + args.steps_at_a_time) * 2))
-                [put_copy(previous_d, ind, d) for d in d_list]
-            x = [(d, s_model, params, solver) for d in d_list]
+                modified_d_list = [put_copy(previous_d, ind, d) for d in d_list]
+            else:
+                modified_d_list = d_list
+
+            x = [(d, s_model, params, solver, get_t_range(d)) for d in modified_d_list]
             res = np.array(list(map(opt_func, x)))
+
+            if steps_fitted + args.steps_at_a_time > n_steps:
+                steps_to_fit = n_steps - steps_fitted
+                if steps_to_fit == 1:
+                    break
+            else:
+                steps_to_fit = args.steps_at_a_time
 
             best_scores.append(res.min())
             es.tell(d_list, res)
@@ -240,10 +277,9 @@ def main():
     axs = fig.subplots(2)
 
     # Plot phase diagram for the new design (first two states)
-    model.voltage = found_voltage_func
-    model.protocol_description = found_desc
-    model.times = np.arange(0, found_desc[-1][0], .5)
-    states = model.make_hybrid_solver_states(njitted=False, hybrid=False)()
+    times = np.arange(0, found_desc[-1][0], .5)
+    states = model.make_hybrid_solver_states(njitted=False,
+                                             hybrid=False)(protocol_description=found_desc, times=times)
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
     axs[0].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o')
 
@@ -251,13 +287,11 @@ def main():
     axs[0].set_xlabel(model.get_state_labels()[1])
 
     # Plot phase diagram for the staircase protocol (first two states)
-    model.voltage = sc_func
-    model.protocol_description = sc_desc
-    states = model.make_hybrid_solver_states(njitted=False, hybrid=False)()
+    times = np.arange(0, sc_desc[-1][0], .5)
+    states = model.make_hybrid_solver_states(njitted=False,
+                                             hybrid=False)(protocol_description=sc_desc,
+                                                           times=times)
     np.savetxt(os.path.join(output_dir, 'found_design_trajectory.csv'), states)
-
-    model.voltage = sc_func
-    model.protocol_description = sc_desc
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
     axs[1].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o',
                    label=model.get_state_labels()[:2])
@@ -300,7 +334,9 @@ def main():
 
 
 def opt_func(x, ax=None):
-    d, s_model, params, solver = x
+    if len(x) == 4:
+        x.append((0, 0))
+    d, s_model, params, solver, t_range = x
 
     # Force positive durations
     d = d.copy()
@@ -309,14 +345,12 @@ def opt_func(x, ax=None):
     # constrain total length
     protocol_length = d[1::2].sum()
     penalty = 0
-    if protocol_length > t_max:
-        penalty = (protocol_length - t_max) * 1e3
-
+    if protocol_length > max_time:
+        penalty = (protocol_length - max_time) * 1e3
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
-
     util = entropy_weighted_A_opt_utility(desc, params, s_model, solver=solver,
                                           removal_duration=args.removal_duration,
-                                          ax=ax,
+                                          ax=ax, t_range=t_range,
                                           n_voxels_per_variable=args.n_voxels_per_variable)
     return -util + penalty
 

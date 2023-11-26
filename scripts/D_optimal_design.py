@@ -22,11 +22,10 @@ from markovmodels.BeattieModel import BeattieModel
 from markovmodels.fitting import infer_reversal_potential_with_artefact
 from markovmodels.SensitivitiesMarkovModel import SensitivitiesMarkovModel
 from markovmodels.voltage_protocols import detect_spikes, remove_spikes, get_design_space_representation
-from markovmodels.fitting import infer_reversal_potential_with_artefact
+from markovmodels.fitting import infer_reversal_potential_with_artefact, get_best_params
 from markovmodels.utilities import get_data, put_copy
 from numba import njit, jit
 from markovmodels.optimal_design import entropy_utility, D_opt_utility, prediction_spread_utility
-
 
 max_time = 15_000
 leak_ramp_length = 3_400
@@ -37,26 +36,22 @@ def main():
     parser = ArgumentParser()
     parser.add_argument('--reversal', type=float, default=-91.71)
     parser.add_argument('-o', '--output')
-    parser.add_argument('--selection_file')
     parser.add_argument('--model_class', default='model3')
-    parser.add_argument('--use_parameter_file')
+    parser.add_argument('--fitting_df')
     parser.add_argument('--max_iterations', '-i', type=int, default=100000)
     parser.add_argument("--experiment_name", default='25112022_MW')
     parser.add_argument("--removal_duration", default=5.0, type=float)
     parser.add_argument("--steps_at_a_time", type=int)
     parser.add_argument("--hybrid", action='store_true')
     parser.add_argument("--mode", default='spread')
+    parser.add_argument("--wells", nargs='+', default=[])
+    parser.add_argument("--ignore_protocols", nargs='+', default=['longap'])
     parser.add_argument("--n_sample_starting_points", type=int)
     parser.add_argument("-c", "--no_cpus", type=int, default=1)
+    parser.add_argument("--use_artefact_model", action='store_true')
 
     global args
     args = parser.parse_args()
-
-    if args.use_parameter_file:
-        default_parameters = \
-            np.loadtxt(args.use_parameter_file).flatten().astype(np.float64)
-    else:
-        default_parameters = make_model_of_class(args.model_class).get_default_parameters()
 
     # get staircase protocol
     global sc_func
@@ -66,13 +61,27 @@ def main():
     voltage_func, sc_times, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
 
     model = make_model_of_class(args.model_class, sc_times, voltage_func,
-                                protocol_description=desc,
-                                default_parameters=default_parameters)
+                                protocol_description=desc)
 
-    s_model = SensitivitiesMarkovModel(model)
+    parameters_to_use = model.get_parameter_labels()
+
+    if args.use_artefact_model:
+        model = ArtefactModel(model)
+
+    if args.fitting_df:
+        fitting_df = pd.read_csv(args.fitting_df)
+        if args.wells:
+            fitting_df = fitting_df[fitting_df.well.isin(args.wells)]
+        fitting_df = fitting_df[~fitting_df.protocol.isin(args.ignore_protocols)]
+        fitting_df = get_best_params(fitting_df)
+        param_labels = model.get_parameter_labels()
+        params = fitting_df[param_labels].values.astype(np.float64)
+    else:
+        params = model.get_default_parameters()[None, :]
+
+    s_model = SensitivitiesMarkovModel(model, parameters_to_use=parameters_to_use)
     solver = s_model.make_hybrid_solver_states(hybrid=args.hybrid, njitted=True)
 
-    params = model.get_default_parameters()
     sc_voltages = np.array([voltage_func(t) for t in sc_times])
 
     global output_dir
@@ -95,7 +104,8 @@ def main():
 
         best_guess_index = np.argmin(scores)
         x0 = starting_guesses[best_guess_index, :].flatten()
-        print('x0', x0)
+
+    print('x0', x0)
 
     steps_fitted = 0
     if args.steps_at_a_time is None:
@@ -149,13 +159,21 @@ def main():
             fout.write('\n')
 
         best_scores = []
-
         iteration = 0
 
         # Stop optimising if we've used up the majority of the time
         if args.steps_at_a_time != int(x0.shape[0]/2)\
            and previous_d[:steps_fitted*2:2].sum() >= 0.95 * max_time:
             break
+
+        def get_t_range(d):
+            if args.steps_at_a_time == int(x0.shape[0] / 2):
+                return (0, 0)
+            t_end = d[1::2][steps_fitted: steps_fitted +
+                            steps_to_fit].sum() + leak_ramp_length
+
+            t_range = (0, t_end)
+            return t_range
 
         while not es.stop():
             d_list = es.ask()
@@ -165,16 +183,6 @@ def main():
                 modified_d_list = [put_copy(previous_d, ind, d) for d in d_list]
             else:
                 modified_d_list = d_list
-
-            def get_t_range(d):
-                if args.steps_at_a_time == int(x0.shape[0] / 2):
-                    return (0, 0)
-                t_end = d[1::2][steps_fitted: steps_fitted +
-                                steps_to_fit].sum() + leak_ramp_length
-
-                t_range = (leak_ramp_length, t_end)
-                return t_range
-
             x = [(d, s_model, params, solver, get_t_range(d))
                  for d in modified_d_list]
 
@@ -218,8 +226,8 @@ def main():
     xopt = es.result.xbest
     s_model = SensitivitiesMarkovModel(model,
                                        parameters_to_use=model.get_parameter_labels())
+    s_model.set_tolerances(1e-6, 1e-6)
 
-    default_params = s_model.get_default_parameters()
     found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt.copy())
 
     model.protocol_description = found_desc
@@ -302,7 +310,7 @@ def main():
 def opt_func(x, ax=None):
     if len(x) == 4:
         x = list(x)
-        x.append(None)
+        x.append((0, 0))
 
     d, s_model, params, solver, t_range = x
 
@@ -322,9 +330,14 @@ def opt_func(x, ax=None):
     times = np.arange(0, desc[-1, 0], .5)
     s_model.times = times
 
-    util = D_opt_utility(desc, params, s_model,
-                         removal_duration=args.removal_duration, ax=ax,
-                         solver=solver, t_range=t_range)
+    utils = []
+    for param_set in params:
+        utils.append(D_opt_utility(desc, param_set.flatten(), s_model,
+                                   removal_duration=args.removal_duration, ax=ax,
+                                   solver=solver, t_range=t_range))
+    utils = np.array(utils)
+    util = np.min(utils)
+
     return -util + penalty
 
 
