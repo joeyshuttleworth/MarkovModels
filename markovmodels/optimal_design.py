@@ -34,14 +34,14 @@ def D_opt_utility(desc, params, s_model, hybrid=False, solver=None,
 
     if t_range is not None:
         tstart, tend = t_range
-        istart = np.argmax(times > tstart)
+        istart = np.argmax(times[indices] > tstart)
 
         if tend > 0:
-            iend = np.argmax(times > tend)
+            iend = np.argmax(times[indices] > tend)
         else:
             iend = None
 
-        I_Kr_sens = I_Kr_sens[istart:iend, :]
+        I_Kr_sens = I_Kr_sens[indices, :][istart:iend, :]
 
     if rescale:
         I_Kr_sens = I_Kr_sens * s_model.get_default_parameters()[None, :]
@@ -131,10 +131,10 @@ def prediction_spread_utility(desc, params, model, indices=None, hybrid=False,
 
     if t_range is not None:
         tstart, tend = t_range
-        istart = np.argmax(times > tstart)
+        istart = np.argmax(times[indices] > tstart)
 
         if tend > 0:
-            iend = np.argmax(times > tend)
+            iend = np.argmax(times[indices] > tend)
         else:
             iend = -1
 
@@ -240,19 +240,18 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
     solvers = [solver1, solver2]
 
     times = np.arange(0, desc[-1, 0], .5)
-
-    istart = np.argmax(times > t_range[0])
-    iend = np.argmax(times > t_range[1])
-
-    if iend == 0:
-        iend = -1
-
     voltages = np.array([model1.voltage(t, protocol_description=desc) for t in times])
-    model1.times = times
-    model2.times = times
-
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
+
+    istart = np.argmax(times[indices] >= t_range[0])
+    iend = np.argmax(times[indices] >= t_range[1])
+
+    if iend == 0:
+        iend = None
+
+    model1.times = times
+    model2.times = times
 
     for i, (model, params) in enumerate(zip([model1, model2], [params1, params2])):
         params = params.astype(np.float64)
@@ -260,8 +259,9 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
         solver = solvers[i]
 
         predictions[i] = np.vstack([solver(p.flatten(), times=times,
-                                           protocol_description=desc).flatten()[indices]
-                                    for p in params])[:, istart:iend]
+                                           protocol_description=desc).flatten()
+                                           for p in params])[:, indices][:, istart:iend]
+
 
         mean_pred = predictions[i].mean(axis=1)
         var_pred = predictions[i].std(axis=1)**2
@@ -270,8 +270,10 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
         varis[i] = var_pred
 
     if ax is not None:
-        ax.plot(times, predictions[0].T, color='blue', label='model1')
-        ax.plot(times, predictions[1].T, color='orange', label='model1')
+        ax.plot(times[indices], predictions[0].T, color='blue', label='model1')
+        ax.plot(times[indices], predictions[1].T, color='orange', label='model1')
+
+    print(varis, sigma2)
 
     return np.sum(((means[1] - means[0])**2) / (varis[1] + varis[0] + sigma2))
 

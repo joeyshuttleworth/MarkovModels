@@ -201,6 +201,8 @@ def main():
                 ind = list(range(steps_fitted * 2,
                                  (steps_fitted + args.steps_at_a_time) * 2))
                 modified_d_list = [put_copy(previous_d, ind, d) for d in d_list]
+            else:
+                modified_d_list = d_list
             x = [(d, models, params, solvers, get_t_range(d)) for d in
                  modified_d_list]
             res = np.array([opt_func(pars) for pars in x])
@@ -363,6 +365,7 @@ def opt_func(x, ax=None, hybrid=False):
 
     wells = params1.well.unique().flatten()
     wells = [w for w in wells if w in params2.well.unique()]
+
     utils = []
     for i, well in enumerate(wells):
         sub_df1 = params1[params1.well == well]
