@@ -133,8 +133,6 @@ def main():
         starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
 
         scores = [opt_func([d, models, params, solvers]) for d in starting_guesses]
-        print(scores)
-
         best_guess_index = np.argmin(scores)
         x0 = starting_guesses[best_guess_index, :].flatten()
         print('x0', x0)
@@ -222,6 +220,8 @@ def main():
 
                 fig.savefig(os.path.join(output_dir,
                                          f"{step_group}_{iteration}_example.png"))
+                for ax in axs:
+                    ax.cla()
 
             if iteration % 100 == 0:
                 markovmodels.optimal_design.save_es(es, output_dir,
@@ -280,6 +280,8 @@ def main():
     axs[1].plot(model.times, [model.voltage(t) for t in model.times])
 
     fig.savefig(os.path.join(output_dir, 'optimised_protocol'))
+    axs[0].cla()
+    axs[1].cla()
 
     # Output protocol
     with open(os.path.join(output_dir, 'found_design.txt'), 'w') as fout:
@@ -290,9 +292,6 @@ def main():
         for line in found_desc:
             fout.write(", ".join([str(entry) for entry in line]))
             fout.write('\n')
-
-    axs[0].cla()
-    axs[1].cla()
 
     # Plot phase diagram for the new design (first two states)
     model.voltage = found_voltage_func
@@ -311,8 +310,10 @@ def main():
     model.protocol_description = sc_desc
     cols = [plt.cm.jet(i / states.shape[0]) for i in range(states.shape[0])]
     axs[1].scatter(states[:, 0], states[:, 1], alpha=.25, color=cols, marker='o')
-
     fig.savefig(os.path.join(output_dir, "phase_diagrams.png"))
+
+    for ax in axs:
+        ax.cla()
 
     # output_score
     with open(os.path.join(output_dir, 'best_score.txt'), 'w') as fout:
@@ -387,7 +388,6 @@ def opt_func(x, ax=None, hybrid=False):
         utils.append(util)
     utils = np.array(utils)
 
-    print('utils are', utils)
     return -np.min(utils) + penalty
 
 

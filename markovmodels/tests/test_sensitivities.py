@@ -45,7 +45,9 @@ class TestSensitivities(unittest.TestCase):
 
         sensitivities_model = SensitivitiesMarkovModel(channel_model)
 
-        voltages = np.array([voltage_func(t) for t in times])
+        voltages = np.array([voltage_func(t, protocol_description=desc)
+                             for t in times])
+
         p = sensitivities_model.get_default_parameters()
         res = sensitivities_model.make_hybrid_solver_states(hybrid=False, njitted=False)()
 
@@ -98,6 +100,8 @@ class TestSensitivities(unittest.TestCase):
         ax.legend()
         fig.savefig(os.path.join(self.output_dir, 'model3_sensitivities_mk'))
 
+        self.assertFalse(np.any(np.isfinite(I_Kr_sens)))
+        self.assertFalse(np.any(np.isfinite(mk_S)))
         self.assertLess(np.sum(error**2), 1e-1)
 
         d.save_csv(os.path.join(self.output_dir, 'model_3_staircase_sensitivities_log.csv'))
