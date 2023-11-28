@@ -66,9 +66,6 @@ def main():
 
     fitting_df = pd.read_csv(args.fitting_df)
 
-    params_for_Erev = \
-        np.loadtxt(args.artefact_default_kinetic_param_file).flatten().astype(np.float64)
-
     if args.use_parameter_file:
         default_parameters = \
             np.loadtxt(args.use_parameter_file).flatten().astype(np.float64)
@@ -107,7 +104,10 @@ def main():
     protocols = fitting_df.protocol.unique()
 
     if args.wells:
-        passed_wells = [well for well in passed_wells if well in args.wells]
+        if passed_wells:
+            passed_wells = [well for well in passed_wells if well in args.wells]
+        else:
+            passed_wells = args.wells
 
     fitting_df['score'] = fitting_df.score.astype(np.float64)
     fitting_df = pd.read_csv(args.fitting_df).sort_values('score', axis=0)
@@ -289,7 +289,8 @@ def main():
     output = model.make_hybrid_solver_current(njitted=False, hybrid=False)()
 
     axs[0].plot(model.times, output)
-    axs[1].plot(model.times, [model.voltage(t, protocol_descripton=found_desc) for t in model.times])
+    axs[1].plot(model.times, [sc_func(t, protocol_description=found_desc)
+                              for t in model.times])
 
     fig.savefig(os.path.join(output_dir, 'optimised_protocol'))
 
