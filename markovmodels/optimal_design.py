@@ -31,6 +31,9 @@ def D_opt_utility(desc, params, s_model, hybrid=False, solver=None,
 
     I_Kr_sens = s_model.auxiliary_function(res.T, params, voltages)[:, 0, :].T
 
+    if rescale:
+        I_Kr_sens = I_Kr_sens * params[None, :]
+
     if ax:
         ax.plot(times, I_Kr_sens)
 
@@ -48,9 +51,6 @@ def D_opt_utility(desc, params, s_model, hybrid=False, solver=None,
             iend = None
 
         I_Kr_sens = I_Kr_sens[istart:iend, :]
-
-    if rescale:
-        I_Kr_sens = I_Kr_sens * params[None, :]
 
     ret_val = np.log(np.linalg.det(I_Kr_sens.T @ I_Kr_sens))
 
