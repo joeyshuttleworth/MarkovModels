@@ -30,7 +30,6 @@ def main():
     description = ""
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("input_file", help="CSV file listing model errors for each cell and protocol")
-    parser.add_argument("data_directory")
     parser.add_argument("--output_dir", "-o", help="Directory to output plots to.\
     By default a new directory will be generated", default=None)
     parser.add_argument("--normalise_diagonal", action="store_true")
@@ -42,15 +41,36 @@ def main():
     parser.add_argument('--removal_duration', '-r', default=5, type=float)
     parser.add_argument('--reversal', type=float, default=np.nan)
     parser.add_argument('--solver_type', default='hybrid')
+    parser.add_argument('--ignore_protocols', nargs='+', default=['longap'])
     parser.add_argument('--wells', '-w', nargs='+')
     parser.add_argument('--protocols', nargs='+')
+    parser.add_argument('--legend', action='store_true')
     parser.add_argument('--adjust_kinetics', action='store_true')
+    # parser.add_argument('--use_artefact_model')
     parser.add_argument('--hue', default='well')
 
     global args
     args = parser.parse_args()
 
     df = pd.read_csv(args.input_file)
+
+    df[~df.protocol.isin(args.ignore_protocols)]
+
+    if 'fitting_protocol' not in df.columns:
+        df['fitting_protocol'] = df['protocol']
+
+    if 'validation_protocol' not in df.columns:
+        df['validation_protocol'] = df['protocol']
+
+    if 'fitting_sweep' not in df.columns:
+        df['fitting_sweep'] = df['sweep']
+
+    if 'prediction_sweep' not in df.columns:
+        df['prediction_sweep'] = df['sweep']
+
+    df[~df.fitting_protocol.isin(args.ignore_protocols)]
+
+    df = markovmodels.fitting.get_best_params(df)
     df = df.drop_duplicates(subset=['well', 'fitting_protocol',
                                     'validation_protocol', 'fitting_sweep',
                                     'prediction_sweep'], keep='first')
@@ -64,20 +84,16 @@ def main():
     param_labels = make_model_of_class(args.model).get_parameter_labels()
     df[param_labels] = df[param_labels].astype(np.float64)
 
-    df = markovmodels.utilities.get_best_params(df)
-
     global output_dir
     output_dir = setup_output_directory(args.output_dir, 'scatterplots')
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
-    print(list(df.fitting_protocol.unique()))
 
     df['staircase'] = df.fitting_protocol.isin(['staircaseramp1', 'staircaseramp2'])
-    print(list(df.staircase.unique()))
 
     sns.scatterplot(data=df, x='p1', y='p2',
-                    legend=True,
+                    legend=args.legend,
                     hue='staircase', marker='x')
     default_params = make_model_of_class(args.model).get_default_parameters()
     if args.model == 'Beattie':
@@ -96,9 +112,6 @@ def main():
         well = row['well']
         sweep = row['sweep']
 
-        data = pd.read_csv(os.path.join(args.data_directory,
-                                        f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv"))
-
         inferred_E_rev = infer_reversal_potential(protocol,
                                                   data.current, data.time)
 
@@ -113,19 +126,18 @@ def main():
 
     if args.adjust_kinetics:
         adjusted_df = df.apply(adjust_rates, axis=1)
-        print(adjusted_df, df)
 
     for i in range(4):
         ax1 = axes[0][i]
         ax2 = axes[0][i]
         sns.scatterplot(df, x=param_labels[i*2], y=param_labels[i*2+1],
-                        hue=args.hue, legend=True,
+                        hue=args.hue, legend=args.legend,
                         ax=ax1)
 
         if args.adjust_kinetics:
             ax2 = axes[1][i]
             sns.scatterplot(adjusted_df, x=param_labels[i*2], y=param_labels[i*2+1],
-                            hue=args.hue, legend=True,
+                            hue=args.hue, legend=args.legend,
                             ax=ax2)
 
         xmin = min(ax1.get_xlim()[0], ax2.get_xlim()[0])
@@ -142,12 +154,12 @@ def main():
 
     ax1 = axes[0][-1]
     sns.stripplot(df, x=param_labels[-1], hue=args.hue,
-                  legend=True, ax=ax1)
+                  legend=args.legend, ax=ax1)
 
     if args.adjust_kinetics:
         ax2 = axes[1][-1]
         sns.stripplot(adjusted_df, x=param_labels[-1],
-                      hue=args.hue, legend=True, ax=ax2)
+                      hue=args.hue, legend=args.legend, ax=ax2)
 
     xmin = min(ax1.get_xlim()[0], ax2.get_xlim()[0])
     xmax = max(ax1.get_xlim()[1], ax2.get_xlim()[1])
@@ -170,25 +182,25 @@ def main():
     for i in range(2):
         ax = axes[0][i]
         sns.scatterplot(df, x=param_labels[i*2], y=param_labels[i*2+2],
-                        hue=args.hue, legend=True,
+                        hue=args.hue, legend=args.legend,
                         ax=ax)
 
         if args.adjust_kinetics:
             ax2 = axes[1][i]
             sns.scatterplot(adjusted_df, x=param_labels[i*2], y=param_labels[i*2+2],
-                            hue=args.hue, legend=True,
+                            hue=args.hue, legend=args.legend,
                             ax=ax2)
 
     for i in range(2):
         ax = axes[0][i+2]
         sns.scatterplot(df, x=param_labels[i*4+1], y=param_labels[i*4+3],
-                        hue=args.hue, legend=True,
+                        hue=args.hue, legend=args.legend,
                         ax=ax)
 
         if args.adjust_kinetics:
             ax2 = axes[1][i]
             sns.scatterplot(adjusted_df, x=param_labels[i*2+1], y=param_labels[i*2+3],
-                            hue=args.hue, legend=True,
+                            hue=args.hue, legend=args.legend,
                             ax=ax2)
 
     for i in range(5):
@@ -212,12 +224,12 @@ def main():
 
     ax1 = axes[0][-1]
     sns.stripplot(df, x=param_labels[-1], hue=args.hue,
-                  legend=True, ax=ax1)
+                  legend=args.legend, ax=ax1)
 
     if args.adjust_kinetics:
         ax2 = axes[1][-1]
         sns.stripplot(adjusted_df, x=param_labels[-1],
-                      hue=args.hue, legend=True, ax=ax2)
+                      hue=args.hue, legend=args.legend, ax=ax2)
 
     xmin = min(ax1.get_xlim()[0], ax2.get_xlim()[0])
     xmax = max(ax1.get_xlim()[1], ax2.get_xlim()[1])
