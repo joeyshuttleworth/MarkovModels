@@ -101,8 +101,15 @@ def main():
     x0[1::2] = 100.0
     x0[::2] = -80.0
 
-    s_model = SensitivitiesMarkovModel(model)
-    solver = s_model.make_hybrid_solver_states(njitted=False, hybrid=False,
+    parameters_to_use = model.get_parameter_labels()
+    if args.use_artefact_model:
+        model = ArtefactModel(model)
+
+    s_model = SensitivitiesMarkovModel(model,
+                                       parameters_to_use=parameters_to_use,
+                                       solver_tolerances=(1e-6, 1e-6))
+
+    solver = s_model.make_hybrid_solver_states(njitted=True, hybrid=False,
                                                protocol_description=sc_desc)
 
     if args.n_sample_starting_points:
@@ -111,6 +118,11 @@ def main():
         starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
 
         scores = [opt_func([d, s_model, params, solver]) for d in starting_guesses]
+
+        scores = [s for s in scores if np.isfinite(s)]
+
+        if len(scores) == 0:
+            raise ValueError()
 
         best_guess_index = np.argmin(scores)
         x0 = starting_guesses[best_guess_index, :].flatten()
@@ -231,8 +243,6 @@ def main():
 
     xopt = es.result.xbest
     found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt.copy())
-    s_model = SensitivitiesMarkovModel(model,
-                                       parameters_to_use=model.get_parameter_labels())
 
     default_params = model.get_default_parameters()
     # Check D_optimality of design vs staircase

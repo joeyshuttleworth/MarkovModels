@@ -10,7 +10,8 @@ import numba as nb
 
 class SensitivitiesMarkovModel(ODEModel):
 
-    def __init__(self, markov_model, parameters_to_use=None):
+    def __init__(self, markov_model, parameters_to_use=None,
+                 solver_tolerances=None):
         self.markov_model = markov_model
 
         if not parameters_to_use:
@@ -22,7 +23,11 @@ class SensitivitiesMarkovModel(ODEModel):
         self.p = sp.sympify(self.parameters_to_use)
         self.v = markov_model.v
         self.E_rev = self.markov_model.E_rev
-        self.solver_tolerances = self.markov_model.solver_tolerances
+
+        if not solver_tolerances:
+            self.solver_tolerances = self.markov_model.solver_tolerances
+        else:
+            self.solver_tolerances = solver_tolerances
 
         self.default_parameters = markov_model.get_default_parameters()
 
@@ -62,7 +67,6 @@ class SensitivitiesMarkovModel(ODEModel):
                            rtol=rtol,
                            atol=atol,
                            exit_on_warning=True)
-
             return res[-1, :].flatten()
 
         self.rhs_inf = rhs_inf

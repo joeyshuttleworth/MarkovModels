@@ -6,7 +6,8 @@ from markovmodels.voltage_protocols import detect_spikes, remove_spikes
 
 
 def D_opt_utility(desc, params, s_model, hybrid=False, solver=None,
-                  removal_duration=0, ax=None, t_range=None, rescale=True):
+                  removal_duration=0, ax=None, t_range=None, rescale=True,
+                  use_parameters=None):
     """ Evaluate the D-optimality of design, d for a certain parameter vector"""
     times = np.arange(0, desc[-1, 0], .5)
     s_model.times = times
@@ -22,7 +23,12 @@ def D_opt_utility(desc, params, s_model, hybrid=False, solver=None,
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
 
+    if use_parameters:
+        labels = s_model.markov_model.get_parameter_labels()
+        params = np.array([p for lab, p in zip(labels, params)
+                           if lab in use_parameters])
     res = solver(params, times=times, protocol_description=desc)
+
     I_Kr_sens = s_model.auxiliary_function(res.T, params, voltages)[:, 0, :].T
 
     if ax:
@@ -44,7 +50,7 @@ def D_opt_utility(desc, params, s_model, hybrid=False, solver=None,
         I_Kr_sens = I_Kr_sens[istart:iend, :]
 
     if rescale:
-        I_Kr_sens = I_Kr_sens * s_model.get_default_parameters()[None, :]
+        I_Kr_sens = I_Kr_sens * params[None, :]
 
     ret_val = np.log(np.linalg.det(I_Kr_sens.T @ I_Kr_sens))
 
@@ -101,20 +107,13 @@ def count_voxel_visitations(states, n_voxels_per_variable, times, indices,
     for i, (t, x) in enumerate(zip(times[indices][::n_skip], states[indices, :][::n_skip, :])):
         voxels[i, :] = np.floor(x.flatten() *
                                 n_voxels_per_variable).astype(int)
+    voxels = np.clip(voxels, 0, n_voxels_per_variable - 1).astype(int)
 
     no_states = states.shape[1]
     times_in_each_voxel = np.zeros([n_voxels_per_variable for i in range(no_states)]).astype(int)
 
     for voxel in voxels:
-        if np.all(voxel >= 0) and np.all(voxel < n_voxels_per_variable):
-            times_in_each_voxel[tuple(voxel)] += 1
-
-        else:
-            if return_voxels_visited:
-                return np.full(times_in_each_voxel.shape, 0).astype(int),\
-                    np.zeros(voxels.shape).astype(int)
-            else:
-                return np.full(times_in_each_voxel.shape, 0)
+        times_in_each_voxel[tuple(voxel)] += 1
 
     if return_voxels_visited:
         return times_in_each_voxel, voxels
@@ -188,11 +187,10 @@ def entropy_weighted_A_opt_utility(desc, params, s_model,
     if solver is None:
         solver = s_model.make_hybrid_solver_states(njitted=False, hybrid=False,
                                                    protocol_description=desc)
-
     states = solver(params, times=times, protocol_description=desc)
 
     istart = np.argmax(times[indices] >= t_range[0])
-    iend = np.argmax(times[indices] > t_range[1])
+    iend = np.argmax(times[indices] >= t_range[1])
 
     if iend == 0:
         iend = None
@@ -226,7 +224,7 @@ def entropy_weighted_A_opt_utility(desc, params, s_model,
         return_voxels_visited=True)
 
     log_prob = np.full(times_in_each_voxel.shape, 0)
-    visited_voxel_indices = times_in_each_voxel != 0
+    visited_voxel_indices = (times_in_each_voxel != 0)
 
     log_prob[visited_voxel_indices] = -np.log(times_in_each_voxel[visited_voxel_indices] / times[indices].shape[0])
 
@@ -234,7 +232,10 @@ def entropy_weighted_A_opt_utility(desc, params, s_model,
     # the flattened log_prob array) which describes the voxel that the model is
     # in at each time-step
     raveled_visited_indices = np.ravel_multi_index(voxels_visited.T, log_prob.shape)
-    w_sens = sens[indices, :][istart:iend:n_skip, :] * log_prob.flatten()[raveled_visited_indices, None]
+    w_sens = sens[indices, :][::n_skip, :] \
+        * log_prob.flatten()[raveled_visited_indices, None]
+
+    w_sens = w_sens[istart:iend, :]
     weighted_A_opt = np.trace(w_sens.T @ w_sens)
 
     return np.log(weighted_A_opt)

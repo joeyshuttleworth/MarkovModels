@@ -63,6 +63,7 @@ def main():
     model = make_model_of_class(args.model_class, sc_times, voltage_func,
                                 protocol_description=desc)
 
+    global parameters_to_use
     parameters_to_use = model.get_parameter_labels()
 
     if args.use_artefact_model:
@@ -79,7 +80,8 @@ def main():
     else:
         params = model.get_default_parameters()[None, :]
 
-    s_model = SensitivitiesMarkovModel(model, parameters_to_use=parameters_to_use)
+    s_model = SensitivitiesMarkovModel(model)
+                                       # parameters_to_use=parameters_to_use)
     solver = s_model.make_hybrid_solver_states(hybrid=args.hybrid, njitted=True)
 
     sc_voltages = np.array([voltage_func(t) for t in sc_times])
@@ -224,8 +226,6 @@ def main():
     np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
 
     xopt = es.result.xbest
-    s_model = SensitivitiesMarkovModel(model,
-                                       parameters_to_use=model.get_parameter_labels())
     s_model.set_tolerances(1e-6, 1e-6)
 
     found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt.copy())
@@ -236,9 +236,12 @@ def main():
     output = model.make_hybrid_solver_current(njitted=False, hybrid=False)()
 
     axs[0].plot(model.times, output)
-    axs[1].plot(model.times, [model.voltage(t) for t in model.times])
+    axs[1].plot(model.times, [model.voltage(t,
+                                            protocol_description=desc)
+                              for t in model.times])
 
-    fig.savefig(os.path.join(output_dir, 'optimised_protocol'))
+    fig.savefig(os.path.join(output_dir,
+                             'optimised_protocol'))
 
     # Output protocol
     with open(os.path.join(output_dir, 'found_design.txt'), 'w') as fout:
@@ -326,15 +329,15 @@ def opt_func(x, ax=None):
         penalty = (protocol_length - max_time) * 1e3
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
-    s_model.protocol_description = desc
     times = np.arange(0, desc[-1, 0], .5)
     s_model.times = times
 
     utils = []
     for param_set in params:
         utils.append(D_opt_utility(desc, param_set.flatten(), s_model,
-                                   removal_duration=args.removal_duration, ax=ax,
-                                   solver=solver, t_range=t_range))
+                                   removal_duration=args.removal_duration,
+                                   ax=ax, solver=solver, t_range=t_range))
+                                   # use_parameters=parameters_to_use))
     utils = np.array(utils)
     util = np.min(utils)
 
