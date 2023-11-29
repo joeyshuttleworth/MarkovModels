@@ -23,16 +23,20 @@ def D_opt_utility(desc, params, s_model, hybrid=False, solver=None,
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
 
-    if use_parameters:
-        labels = s_model.markov_model.get_parameter_labels()
-        params = np.array([p for lab, p in zip(labels, params)
-                           if lab in use_parameters])
     res = solver(params, times=times, protocol_description=desc)
-
     I_Kr_sens = s_model.auxiliary_function(res.T, params, voltages)[:, 0, :].T
 
+    if use_parameters:
+        labels = s_model.get_parameter_labels()
+        use_param_indices = [labels.index(lab) for lab in use_parameters]
+        I_Kr_sens = I_Kr_sens[:, use_param_indices].reshape(-1, len(use_parameters))
+
     if rescale:
-        I_Kr_sens = I_Kr_sens * params[None, :]
+        if use_parameters:
+            I_Kr_sens = I_Kr_sens * params[None, use_param_indices]
+        else:
+            I_Kr_sens = I_Kr_sens * params[None, :]
+
 
     if ax:
         ax.plot(times, I_Kr_sens)

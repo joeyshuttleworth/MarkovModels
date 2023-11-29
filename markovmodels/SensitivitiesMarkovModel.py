@@ -41,6 +41,8 @@ class SensitivitiesMarkovModel(ODEModel):
         self.setup_sensitivities()
         self.compute_steady_state_expressions()
 
+        self.parameter_labels = markov_model.get_parameter_labels()
+
     def get_default_parameters(self):
         return self.default_parameters.copy()
 
