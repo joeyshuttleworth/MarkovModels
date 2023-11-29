@@ -79,8 +79,9 @@ def main():
     else:
         params = model.get_default_parameters()[None, :]
 
-    s_model = SensitivitiesMarkovModel(model)
-                                       # parameters_to_use=parameters_to_use)
+    s_model = SensitivitiesMarkovModel(model,
+                                       parameters_to_use=parameters_to_use)
+
     solver = s_model.make_hybrid_solver_states(hybrid=args.hybrid, njitted=True)
 
     sc_voltages = np.array([voltage_func(t) for t in sc_times])
@@ -94,7 +95,7 @@ def main():
     x0[::2] = 60.0
 
     if args.n_sample_starting_points:
-        starting_guesses = np.random.uniform(size=(x0.shape[0], args.n_sample_starting_points))
+        starting_guesses = np.random.uniform(size=(x0.shape[0], args.n_sample_starting_points)).T
         starting_guesses[:, ::2] = (starting_guesses[:, ::2]*160) - 120
         starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
 
@@ -336,7 +337,6 @@ def opt_func(x, ax=None):
         utils.append(D_opt_utility(desc, param_set.flatten(), s_model,
                                    removal_duration=args.removal_duration,
                                    ax=ax, solver=solver, t_range=t_range))
-                                   # use_parameters=parameters_to_use))
     utils = np.array(utils)
     util = np.min(utils)
 
