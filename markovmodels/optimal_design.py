@@ -291,8 +291,8 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
 
     # TODO plot entire trace, not just t_range used for this optimisation
     if ax is not None:
-        ax.plot(times[indices], predictions[0].T, color='blue', label='model1')
-        ax.plot(times[indices], predictions[1].T, color='orange', label='model1')
+        ax.plot(times[indices][istart:iend], predictions[0].T, color='blue', label='model1')
+        ax.plot(times[indices][istart:iend], predictions[1].T, color='orange', label='model2')
 
     return np.mean(((means[1] - means[0])**2) / (varis[1] + varis[0] + sigma2))
 
