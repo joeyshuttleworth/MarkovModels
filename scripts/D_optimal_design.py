@@ -13,7 +13,6 @@ import markovmodels
 import scipy
 import pints
 import cma
-import loky
 
 from argparse import ArgumentParser
 from markovmodels.model_generation import make_model_of_class

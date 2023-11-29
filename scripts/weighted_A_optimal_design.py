@@ -107,7 +107,7 @@ def main():
 
     s_model = SensitivitiesMarkovModel(model,
                                        parameters_to_use=parameters_to_use,
-                                       solver_tolerances=(1e-6, 1e-6))
+                                       solver_tolerances=(1e-8, 1e-8))
 
     solver = s_model.make_hybrid_solver_states(njitted=True, hybrid=False,
                                                protocol_description=sc_desc)
