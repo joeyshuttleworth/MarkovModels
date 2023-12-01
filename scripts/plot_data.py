@@ -10,7 +10,11 @@ import pandas as pd
 import seaborn as sns
 from matplotlib import gridspec
 
-from markovmodels import common
+import markovmodels
+from markovmodels.model_generation import make_model_of_class
+from markovmodels.fitting import get_best_params
+from markovmodels.utilities import setup_output_directory, get_data, get_all_wells_in_directory
+from markovmodels.voltage_protocols import get_protocol_list, get_ramp_protocol_from_csv
 
 
 def main():
@@ -21,8 +25,9 @@ def main():
     parser.add_argument('--experiment_name', '-e', default='newtonrun4')
     parser.add_argument('--wells', '-w', type=str, nargs='+')
     parser.add_argument('--protocols', type=str, nargs='+')
+    parser.add_argument('--use_artefact_model', action='store_true')
     parser.add_argument('--prediction_protocols', type=str, nargs='+', default=[])
-    parser.add_argument('--output', type=str)
+    parser.add_argument('-o', '--output', type=str)
     parser.add_argument('--figsize', '-f', nargs=2, type=float)
     parser.add_argument('--fig_title', '-t', default='')
     parser.add_argument('--parameter_file')
@@ -31,35 +36,34 @@ def main():
     parser.add_argument('--dpi', '-d', default=500, type=int)
     parser.add_argument('--fontsize', type=int)
     parser.add_argument('--show_uncertainty', action='store_true')
-    parser.add_argument('--ignore_protocols', nargs='+', default=[])
+    parser.add_argument('--ignore_protocols', nargs='+', default=['longap'])
     parser.add_argument('--shared_plot_limits', action='store_true')
     parser.add_argument('--no_voltage', action='store_true')
     parser.add_argument('--file_format', default='')
+    parser.add_argument('--reversal', default=-91.71, type=float)
 
     global args
     args = parser.parse_args()
 
-    output_dir = common.setup_output_directory(args.output, 'plot_data')
+    output_dir = setup_output_directory(args.output, 'plot_data')
 
     if args.fontsize:
         matplotlib.rcParams.update({'font.size': args.fontsize})
 
-    if args.wells is None:
-        args.wells = common.get_all_wells_in_directory(args.data_directory)
-
     if args.protocols is None:
-        args.protocols = common.get_protocol_list()
+        args.protocols = get_protocol_list()
 
     if args.parameter_file and args.model:
         params_df = pd.read_csv(args.parameter_file)
-        model_class = common.get_model_class(args.model)
     else:
         params_df = None
 
     if params_df is not None:
         args.protocols = [protocol for protocol in args.protocols if protocol
                           in params_df['protocol'].unique()]
-        args.wells = [well for well in args.wells if well in params_df['well'].unique()]
+        wells = [well for well in params_df['well'].unique()]
+        if args.wells:
+            wells = [w for w in wells if w in args.wells]
 
     # if args.prediction_protocols is None:
     #     args.prediction_protocols = args.protocols
@@ -82,23 +86,48 @@ def main():
     args.protocols = [p for p in args.protocols if p not in
                       args.ignore_protocols]
 
+    infer_reversal_params = np.loadtxt(os.path.join('data', 'BeattieModel_roomtemp_staircase_params.csv')).flatten().astype(np.float64)
+
+    print(infer_reversal_params)
+
     if args.prediction_protocols:
-        for well in args.wells:
+        for well in wells:
+            print(well)
+            sweep = 1
+
             for prediction_protocol in args.prediction_protocols:
+                print(prediction_protocol)
                 predictions = []
-                prot_func, _, desc = common.get_ramp_protocol_from_csv(prediction_protocol)
+                prot_func, _, desc = get_ramp_protocol_from_csv(prediction_protocol)
                 if os.path.exists(os.path.join(args.data_directory,
                                                f"{args.experiment_name}-{prediction_protocol}-times.csv")):
-                    current = common.get_data(well, prediction_protocol, args.data_directory,
-                                              args.experiment_name)
+                    current = get_data(well, prediction_protocol, args.data_directory,
+                                              args.experiment_name, sweep=sweep)
                     times = pd.read_csv(os.path.join(args.data_directory,
                                                      f"{args.experiment_name}-{prediction_protocol}-times.csv"))['time'].values.astype(np.float64).flatten()
 
-                voltages = np.array([prot_func(t) for t in times])
-                model = model_class(voltage=prot_func, times=times,
-                                    protocol_description=desc)
-                print(params_df)
+                    voltages = np.array([prot_func(t) for t in times])
+                else:
+                    raise Exception()
+
+                if args.use_artefact_model:
+                    E_rev = \
+                        markovmodels.fitting.infer_reversal_potential_with_artefact(prediction_protocol,
+                                                                                    times, current, 'model3',
+                                                                                    default_parameters=infer_reversal_params,
+                                                                                    E_rev=args.reversal)
+                else:
+                    E_rev = markovmodels.fitting.infer_reversal_potential(prediciton_protocol,
+                                                                          times, current,
+                                                                          'model3', args.reversal)
+
+                model = make_model_of_class(args.model, voltage=prot_func, times=times,
+                                            protocol_description=desc, E_rev=E_rev)
+                if args.use_artefact_model:
+                    model = ArtefactModel(model)
+
                 for i, protocol in enumerate(args.protocols):
+                    print(protocol)
                     if params_df is not None:
                         param_labels = model_class().get_parameter_labels()
                         if protocol not in params_df.protocol.unique():
@@ -120,7 +149,13 @@ def main():
                         label = f"{prediction_protocol} fit"
 
                     if model:
-                        prediction = model.SimulateForwardModel(parameters)
+                        if use_artefact_model:
+                            params_from_fitted_trace = params_df[(params_df.well==well)
+                                                                 & (params_df.protocol == prediction_protocol)].head(1)[artefact_param_labels].values_flatten()
+
+                            params[-7:] = params_from_fitted_trace[artefact_params]
+
+                        prediction = solver(parameters, protocol_description=desc)
                         color = 'red'
                         axs[0].plot(times, prediction, color=color,
                                     label=label, linewidth=lw,
@@ -172,7 +207,7 @@ def main():
             time_range = (0, 0)
             current_range = (0, 0)
             voltage_range = (0, 0)
-            for well in args.wells:
+            for well in wells:
                 for protocol in args.protocols:
                     data, voltages, fit, times = get_data_voltages_fit_times(protocol, well, params_df, model_class)
                     time_range = (0, max(np.max(times), time_range[1]))
@@ -185,7 +220,7 @@ def main():
             current_range = None
             voltage_range = None
 
-        for well in args.wells:
+        for well in wells:
             for protocol in args.protocols:
                 data, voltages, fit, times = get_data_voltages_fit_times(protocol, well, params_df, model_class)
                 if not args.no_voltage:
@@ -227,14 +262,15 @@ def main():
 
 
 def get_data_voltages_fit_times(protocol, well, params_df, model_class):
+    sweep = 1
     if os.path.exists(os.path.join(args.data_directory,
                                    f"{args.experiment_name}-{protocol}-times.csv")):
-        current = common.get_data(well, protocol, args.data_directory,
-                                  args.experiment_name)
+        current = get_data(well, protocol, args.data_directory,
+                                  args.experiment_name, sweep=sweep)
         times = pd.read_csv(os.path.join(args.data_directory,
                                          f"{args.experiment_name}-{protocol}-times.csv"))['time'].values.astype(np.float64).flatten()
 
-        prot_func, _, desc = common.get_ramp_protocol_from_csv(protocol)
+        prot_func, _, desc = get_ramp_protocol_from_csv(protocol)
         voltages = np.array([prot_func(t) for t in times])
 
         fit = None
