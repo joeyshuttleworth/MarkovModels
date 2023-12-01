@@ -100,8 +100,8 @@ class TestSensitivities(unittest.TestCase):
         ax.legend()
         fig.savefig(os.path.join(self.output_dir, 'model3_sensitivities_mk'))
 
-        self.assertFalse(np.any(np.isfinite(I_Kr_sens)))
-        self.assertFalse(np.any(np.isfinite(mk_S)))
+        self.assertTrue(np.all(np.isfinite(mk_S)))
+        self.assertTrue(np.all(np.isfinite(I_Kr_sens)))
         self.assertLess(np.sum(error**2), 1e-1)
 
         d.save_csv(os.path.join(self.output_dir, 'model_3_staircase_sensitivities_log.csv'))
@@ -130,7 +130,29 @@ class TestSensitivities(unittest.TestCase):
         plt.clf()
 
         I_out_sens = a_sensitivities_model.make_hybrid_solver_states(hybrid=False, njitted=False)()
-        plt.plot(times, I_out_sens, label='a_model.get_parameter_labels()')
+        plt.plot(times, I_out_sens)
         plt.savefig(os.path.join(self.output_dir, 'model3_artefact_sensitivities'))
 
+
+    def test_reduced_sensitivities(self):
+        protocol = 'staircaseramp1'
+        voltage_func, times, desc = get_ramp_protocol_from_csv(protocol)
+
+        channel_model = make_model_of_class('model3', times,
+                                            voltage_func,
+                                            protocol_description=desc)
+        a_model = ArtefactModel(channel_model)
+
+        sensitivities_model = SensitivitiesMarkovModel(channel_model,
+                                                       parameters_to_use=['p1', 'p2'])
+
+        res = sensitivities_model.make_hybrid_solver_states(hybrid=False, njitted=False)()
+
+        voltages = np.array([voltage_func(t) for t in times])
+        p = sensitivities_model.get_default_parameters()
+        I_out_sens = sensitivities_model.auxiliary_function(res.T, p, voltages)[:, 0, :].T
+
+        plt.plot(times, I_out_sens, label=['p1', 'p2'])
+        plt.savefig(os.path.join(self.output_dir, 'model3_sensitivities'))
+        plt.clf()
 

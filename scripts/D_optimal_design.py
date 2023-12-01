@@ -44,6 +44,8 @@ def main():
     parser.add_argument("--hybrid", action='store_true')
     parser.add_argument("--mode", default='spread')
     parser.add_argument("--wells", nargs='+', default=[])
+    parser.add_argument("--protocols", nargs='+', default=[])
+    parser.add_argument("--sweeps", nargs='+', default=['1', '2'])
     parser.add_argument("--ignore_protocols", nargs='+', default=['longap'])
     parser.add_argument("--n_sample_starting_points", type=int)
     parser.add_argument("-c", "--no_cpus", type=int, default=1)
@@ -72,6 +74,8 @@ def main():
         fitting_df = pd.read_csv(args.fitting_df)
         if args.wells:
             fitting_df = fitting_df[fitting_df.well.isin(args.wells)]
+        if args.protocols:
+            fitting_df = fitting_df[fitting_df.protocol.isin(args.protocols)]
         fitting_df = fitting_df[~fitting_df.protocol.isin(args.ignore_protocols)]
         fitting_df = get_best_params(fitting_df)
         param_labels = model.get_parameter_labels()
@@ -80,7 +84,8 @@ def main():
     else:
         params = model.get_default_parameters()[None, :]
 
-    s_model = SensitivitiesMarkovModel(model)
+    s_model = SensitivitiesMarkovModel(model,
+                                       parameters_to_use=param_labels)
 
     solver = s_model.make_hybrid_solver_states(hybrid=args.hybrid, njitted=True)
 
@@ -163,7 +168,7 @@ def main():
         best_scores = []
         iteration = 0
 
-        # Stop optimising if we've used up the majority of the time
+        # Stop optimising if we've used up almost all of the time
         if args.steps_at_a_time != int(x0.shape[0]/2)\
            and previous_d[:steps_fitted*2:2].sum() >= 0.95 * max_time:
             break
@@ -171,7 +176,7 @@ def main():
         def get_t_range(d):
             if args.steps_at_a_time == int(x0.shape[0] / 2):
                 return (0, 0)
-            t_end = d[1::2][steps_fitted: steps_fitted +
+            t_end = d[1::2][: steps_fitted +
                             steps_to_fit].sum() + leak_ramp_length
 
             t_range = (0, t_end)
@@ -339,7 +344,7 @@ def opt_func(x, ax=None):
                                    ax=ax, solver=solver, t_range=t_range,
                                    use_parameters=parameters_to_use))
     utils = np.array(utils)
-    util = np.min(utils)
+    util = np.mean(utils)
 
     return -util + penalty
 

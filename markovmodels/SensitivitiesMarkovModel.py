@@ -20,7 +20,7 @@ class SensitivitiesMarkovModel(ODEModel):
             self.parameters_to_use = parameters_to_use
 
         self.rates_dict = markov_model.rates_dict
-        self.p = sp.sympify(self.parameters_to_use)
+        self.p = sp.sympify(self.markov_model.get_parameter_labels())
         self.v = markov_model.v
         self.E_rev = self.markov_model.E_rev
 
@@ -37,11 +37,10 @@ class SensitivitiesMarkovModel(ODEModel):
         self.voltage = markov_model.voltage
 
         self.protocol_description = markov_model.protocol_description
+        self.parameter_labels = markov_model.get_parameter_labels()
 
         self.setup_sensitivities()
         self.compute_steady_state_expressions()
-
-        self.parameter_labels = markov_model.get_parameter_labels()
 
     def get_default_parameters(self):
         return self.default_parameters.copy()
@@ -106,26 +105,39 @@ class SensitivitiesMarkovModel(ODEModel):
     def setup_sensitivities(self):
         inputs = (list(self.markov_model.y), self.p, self.v)
         n_state_vars = self.get_no_state_vars()
+
+        if self.parameters_to_use:
+            n_params_in_use = len(self.parameters_to_use)
+            parameters_to_use = self.parameters_to_use
+        else:
+            n_params_in_use = len(self.p)
+            parameters_to_use = self.get_parameter_labels()
+
+        use_indices = [self.get_parameter_labels().index(lab) for lab in
+                       parameters_to_use]
+
         # Create symbols for 1st order sensitivities
-        dydp = [[sp.symbols(f"dy{i}_dp{j}") for j in range(self.n_params)]
-                for i in range(len(self.markov_model.y))]
+        dydp = [[sp.symbols(f"dy{i}_dp{j}") for j in
+                 range(len(parameters_to_use)) if j in use_indices] for i in
+                range(len(self.markov_model.y))]
+
 
         y = self.markov_model.y
 
         # Append 1st order sensitivities to inputs
         for i in range(len(dydp)):
-            for j in range(self.n_params):
+            for j in range(n_params_in_use):
                 inputs[0].append(dydp[i][j])
 
         self.y = inputs[0]
 
-        S = sp.Matrix([[dydp[i][j] for j in range(self.n_params)]
+        S = sp.Matrix([[dydp[i][j] for j in range(n_params_in_use)]
                        for i in range(len(self.markov_model.y))])
 
         # Create 1st order sensitivities function
         J = self.markov_model.rhs_expr.jacobian(self.markov_model.y)
 
-        F = sp.Matrix([[sp.diff(f, p) for f in self.markov_model.rhs_expr] for p in self.p]).T
+        F = sp.Matrix([[sp.diff(f, p) for f in self.markov_model.rhs_expr] for p in parameters_to_use]).T
         dS = J @ S + F
 
         # The sensitivity of the auxiliary function wrt the state variables
@@ -133,10 +145,10 @@ class SensitivitiesMarkovModel(ODEModel):
 
         self.auxiliary_expression = sp.Matrix([sum([self.dIdo[y] * S[i, j] for
                                                     i, y in enumerate(y)]) for j, p
-                                               in enumerate(self.p)])
+                                               in enumerate(parameters_to_use)])
 
         self.auxiliary_expression += sp.Matrix([sp.diff(self.markov_model.auxiliary_expression, p)
-                                                for p in self.p])
+                                                for p in parameters_to_use])
 
         self.auxiliary_expression = self.auxiliary_expression.subs({'E_Kr': self.E_rev})
 

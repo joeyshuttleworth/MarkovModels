@@ -618,7 +618,7 @@ class fitting_boundaries(pints.Boundaries):
 def infer_reversal_potential_with_artefact(protocol, times, data,
                                            model_class_name,
                                            default_parameters, E_rev,
-                                           forward_sim_output_dir,
+                                           forward_sim_output_dir=None,
                                            removal_duration=0, **kwargs):
     voltage_func, _, protocol_desc = get_ramp_protocol_from_csv(protocol)
     voltages = np.array([voltage_func(t) for t in times])
@@ -641,7 +641,8 @@ def infer_reversal_potential_with_artefact(protocol, times, data,
     # Rough estimate of conductance
     # Maybe make it so this only looks at the reversal ramp, or leak step
     def find_conductance_func(g):
-        p = forward_sim_params.copy()
+        p = forward_sim_params.copy().flatten()
+        print(p)
         p[-8] = g
         return np.sum((a_solver(p)[indices] - data[indices])**2)
 
@@ -660,20 +661,22 @@ def infer_reversal_potential_with_artefact(protocol, times, data,
     axs[0].plot(times, normalised_current)
 
     a_state_solver = model.make_hybrid_solver_states(hybrid=False, njitted=False)
+
     # plot Vm
     axs[1].plot(times, a_state_solver(forward_sim_params)[:, -1])
 
-    if not os.path.exists(forward_sim_output_dir):
-        os.makedirs(forward_sim_output_dir)
+    if forward_sim_output_dir:
+        if not os.path.exists(forward_sim_output_dir):
+            os.makedirs(forward_sim_output_dir)
 
-    fig.savefig(os.path.join(forward_sim_output_dir,
-                             "infer_reversal_potential_forward_sim"))
-    plt.close(fig)
+        fig.savefig(os.path.join(forward_sim_output_dir,
+                                "infer_reversal_potential_forward_sim"))
+        plt.close(fig)
 
-    voltages = model.make_hybrid_solver_states(hybrid=False)(forward_sim_params)[:, -1]
+        voltages = model.make_hybrid_solver_states(hybrid=False)(forward_sim_params)[:, -1]
 
-    return infer_reversal_potential(protocol, data, times, voltages=voltages,
-                                    **kwargs)
+        return infer_reversal_potential(protocol, data, times, voltages=voltages,
+                                        **kwargs)
 
 
 def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
