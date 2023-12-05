@@ -241,8 +241,7 @@ def main():
 
     np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
 
-    xopt = es.result.xbest
-    found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt.copy())
+    found_desc = previous_d
 
     default_params = model.get_default_parameters()
     # Check D_optimality of design vs staircase

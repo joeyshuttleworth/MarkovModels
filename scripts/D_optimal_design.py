@@ -43,7 +43,7 @@ def main():
     parser.add_argument("--steps_at_a_time", type=int)
     parser.add_argument("--hybrid", action='store_true')
     parser.add_argument("--mode", default='spread')
-    parser.add_argument("--wells", nargs='+', default=[])
+    parser.add_argument("-w-", "--wells", nargs='+', default=[])
     parser.add_argument("--protocols", nargs='+', default=[])
     parser.add_argument("--sweeps", nargs='+', default=['1', '2'])
     parser.add_argument("--ignore_protocols", nargs='+', default=['longap'])
@@ -92,7 +92,7 @@ def main():
     sc_voltages = np.array([voltage_func(t) for t in sc_times])
 
     global output_dir
-    output_dir = markovmodels.utilities.setup_output_directory(None, 'D_opt')
+    output_dir = markovmodels.utilities.setup_output_directory(args.output, 'D_opt')
 
     n_steps = 64 - 13
     x0 = np.zeros(n_steps*2).astype(np.float64)
@@ -230,10 +230,9 @@ def main():
 
     np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
 
-    xopt = es.result.xbest
-    s_model.set_tolerances(1e-6, 1e-6)
+    found_desc = previous_d
 
-    found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt.copy())
+    s_model.set_tolerances(1e-6, 1e-6)
 
     model.protocol_description = found_desc
     model.times = np.arange(0, found_desc[-1][0], .5)

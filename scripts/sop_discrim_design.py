@@ -43,6 +43,7 @@ def main():
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
     parser.add_argument('--sweeps', '-s', type=str, default=[], nargs='+')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
+    parser.add_arguments('-w', '--wells', nargs='+')
     parser.add_argument('--ignore_protocols', type=str, default=['longap'], nargs='+')
     parser.add_argument('--selection_file')
     parser.add_argument('--model_classes', default=('model3', 'Wang'), nargs=2)
@@ -60,7 +61,18 @@ def main():
 
     for i in range(len(fitting_dfs)):
         fitting_dfs[i].score = fitting_dfs[i].score.astype(np.float64)
+
+        if args.wells:
+            fitting_dfs[i] = fitting_dfs[i][fitting_dfs[i].well.isin(args.wells)]
+
+        if args.protocols:
+            fitting_dfs[i] = fitting_dfs[i][fitting_dfs[i].well.isin(args.protocols)]
+
+        if args.sweeps:
+            fitting_dfs[i] = fitting_dfs[i][fitting_dfs[i].well.isin(args.sweep)]
+
         fitting_dfs[i] = fitting_dfs[i].sort_values('score', ascending=True)
+
 
     if args.selection_file:
         with open(args.selection_file) as fin:
@@ -83,7 +95,6 @@ def main():
                                     voltage_func, protocol_description=desc)
 
     solvers = [m.make_hybrid_solver_current(hybrid=False, njitted=True) for m in models]
-
     sc_voltages = np.array([voltage_func(t) for t in sc_times])
 
     global output_dir
@@ -203,6 +214,7 @@ def main():
                 modified_d_list = d_list
             x = [(d, models, params, solvers, get_t_range(d)) for d in
                  modified_d_list]
+
             res = np.array([opt_func(pars) for pars in x])
 
             best_scores.append(res.min())
@@ -247,7 +259,6 @@ def main():
 
     np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
 
-    xopt = es.result.xbest
     s_model = SensitivitiesMarkovModel(model,
                                        parameters_to_use=model.get_parameter_labels())
 
@@ -259,7 +270,7 @@ def main():
                                                               removal_duration=args.removal_duration)
     print(f"u_D of staircase = {u_D_staircase}")
 
-    found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt)
+    found_desc = previous_d
     u_D_found = markovmodels.optimal_design.D_opt_utility(found_desc,
                                                           default_params,
                                                           s_model,
