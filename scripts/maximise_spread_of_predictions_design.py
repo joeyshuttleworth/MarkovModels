@@ -189,7 +189,7 @@ def main():
                    'CMA_stds': stds,
                    'bounds': bounds,
                    'tolx': 2,
-                   'tolfun': 1,
+                   'tolfun': 1e-3,
                    'popsize': 15,
                    'seed': seed
                    }
