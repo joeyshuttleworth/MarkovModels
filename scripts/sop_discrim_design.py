@@ -259,10 +259,6 @@ def main():
 
     np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
 
-    xopt = es.result.xbest
-    if args.steps_at_a_time != x0.shape[0] / 2:
-        np.put(xopt, previos_d, ind)
-
     s_model = SensitivitiesMarkovModel(model,
                                        parameters_to_use=model.get_parameter_labels())
 
@@ -274,7 +270,7 @@ def main():
                                                               removal_duration=args.removal_duration)
     print(f"u_D of staircase = {u_D_staircase}")
 
-    found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt)
+    found_desc = previous_d
     u_D_found = markovmodels.optimal_design.D_opt_utility(found_desc,
                                                           default_params,
                                                           s_model,
