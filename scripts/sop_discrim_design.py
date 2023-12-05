@@ -83,7 +83,6 @@ def main():
                                     voltage_func, protocol_description=desc)
 
     solvers = [m.make_hybrid_solver_current(hybrid=False, njitted=True) for m in models]
-
     sc_voltages = np.array([voltage_func(t) for t in sc_times])
 
     global output_dir
@@ -203,6 +202,7 @@ def main():
                 modified_d_list = d_list
             x = [(d, models, params, solvers, get_t_range(d)) for d in
                  modified_d_list]
+
             res = np.array([opt_func(pars) for pars in x])
 
             best_scores.append(res.min())
@@ -248,6 +248,9 @@ def main():
     np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
 
     xopt = es.result.xbest
+    if args.steps_at_a_time != x0.shape[0] / 2:
+        np.put(xopt, previos_d, ind)
+
     s_model = SensitivitiesMarkovModel(model,
                                        parameters_to_use=model.get_parameter_labels())
 

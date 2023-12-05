@@ -282,7 +282,6 @@ def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
         params = params.astype(np.float64)
 
         solver = solvers[i]
-
         predictions[i] = np.vstack([solver(p.flatten(), times=times,
                                            protocol_description=desc).flatten()
                                     for p in params])[:, indices][:, istart:iend]

@@ -231,6 +231,10 @@ def main():
     np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
 
     xopt = es.result.xbest
+
+    if args.steps_at_a_time != x0.shape[0] / 2:
+        np.put(xopt, previos_d, ind)
+
     s_model.set_tolerances(1e-6, 1e-6)
 
     found_desc = markovmodels.voltage_protocols.design_space_to_desc(xopt.copy())
