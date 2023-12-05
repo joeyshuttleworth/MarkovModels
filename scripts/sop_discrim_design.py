@@ -43,6 +43,7 @@ def main():
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
     parser.add_argument('--sweeps', '-s', type=str, default=[], nargs='+')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
+    parser.add_arguments('-w', '--wells', nargs='+')
     parser.add_argument('--ignore_protocols', type=str, default=['longap'], nargs='+')
     parser.add_argument('--selection_file')
     parser.add_argument('--model_classes', default=('model3', 'Wang'), nargs=2)
@@ -60,7 +61,18 @@ def main():
 
     for i in range(len(fitting_dfs)):
         fitting_dfs[i].score = fitting_dfs[i].score.astype(np.float64)
+
+        if args.wells:
+            fitting_dfs[i] = fitting_dfs[i][fitting_dfs[i].well.isin(args.wells)]
+
+        if args.protocols:
+            fitting_dfs[i] = fitting_dfs[i][fitting_dfs[i].well.isin(args.protocols)]
+
+        if args.sweeps:
+            fitting_dfs[i] = fitting_dfs[i][fitting_dfs[i].well.isin(args.sweep)]
+
         fitting_dfs[i] = fitting_dfs[i].sort_values('score', ascending=True)
+
 
     if args.selection_file:
         with open(args.selection_file) as fin:
