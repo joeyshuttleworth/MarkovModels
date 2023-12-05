@@ -202,7 +202,7 @@ def main():
                 d = modified_d_list[0]
                 desc = markovmodels.voltage_protocols.design_space_to_desc(d)
                 times = np.arange(0, desc[-1, 0], 0.5)
-                initial_score = opt_func([d, s_model, params, solver, None], ax=axs[0])
+                initial_score = opt_func([d, s_model, params, solver], ax=axs[0])
                 axs[1].plot(times, [sc_func(t, protocol_description=desc) for t in times])
                 axs[0].axvspan(*get_t_range(d), alpha=.25, color='grey')
                 axs[1].axvspan(*get_t_range(d), alpha=.25, color='grey')
