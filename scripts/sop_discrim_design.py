@@ -43,7 +43,7 @@ def main():
     parser.add_argument('--wells', '-w', type=str, default=[], nargs='+')
     parser.add_argument('--sweeps', '-s', type=str, default=[], nargs='+')
     parser.add_argument('--protocols', type=str, default=[], nargs='+')
-    parser.add_arguments('-w', '--wells', nargs='+')
+    parser.add_argument('-w', '--wells', nargs='+')
     parser.add_argument('--ignore_protocols', type=str, default=['longap'], nargs='+')
     parser.add_argument('--selection_file')
     parser.add_argument('--model_classes', default=('model3', 'Wang'), nargs=2)
