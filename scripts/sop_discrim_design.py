@@ -21,7 +21,7 @@ from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.BeattieModel import BeattieModel
 from markovmodels.fitting import infer_reversal_potential_with_artefact
 from markovmodels.SensitivitiesMarkovModel import SensitivitiesMarkovModel
-from markovmodels.voltage_protocols import detect_spikes, remove_spikes
+from markovmodels.voltage_protocols import detect_spikes, remove_spikes, get_design_space_representation
 from markovmodels.fitting import infer_reversal_potential_with_artefact
 from markovmodels.utilities import get_data, put_copy
 from numba import njit, jit
@@ -103,7 +103,14 @@ def main():
     protocols = fitting_dfs[0].protocol.unique()
 
     if args.wells:
-        passed_wells = [well for well in passed_wells if well in args.wells]
+        if passed_wells:
+            passed_wells = [well for well in passed_wells if well in args.wells]
+        else:
+            passed_wells = args.wells
+
+    if not args.wells and not passed_wells:
+        passed_wells = list(fitting_dfs[1].well.unique()) \
+            + list(fitting_dfs[0].well.unique())
 
     df_rows = []
 
@@ -156,11 +163,20 @@ def main():
     fig = plt.figure()
     axs = fig.subplots(2)
 
+    print('initial score: ', opt_func([x0, models, params, solvers], ax=axs[0]))
+
+    print('sc score: ', opt_func([get_design_space_representation(sc_desc),
+                                  models, params, solvers], ax=axs[1]))
+
+    fig.savefig(os.path.join(output_dir, 'initial_design_staircase_compare'))
+
+    for ax in axs:
+        ax.cla()
+
     n_steps = 64 - 13
 
     step_group = 0
     while steps_fitted < n_steps:
-        print('initial score: ', opt_func([x0, models, params, solvers]))
         stds = np.empty(args.steps_at_a_time * 2)
         stds[::2] = .25 * (60 + 120)
         stds[1::2] = .25 * 1000
