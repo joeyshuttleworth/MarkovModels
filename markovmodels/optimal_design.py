@@ -218,6 +218,7 @@ def entropy_weighted_A_opt_utility(desc, params, s_model,
     aux_func = s_model.define_auxiliary_function()
     sens = aux_func(states.T, params,
                     voltages).reshape([times.shape[0], -1])
+
     sens = sens * s_model.get_default_parameters()[None, :]
     sens = sens[:, include_params]
 

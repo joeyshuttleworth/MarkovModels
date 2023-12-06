@@ -178,12 +178,10 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,
 
             sub_Q = sub_Q[permutation, permutation]
             matrix = sub_Q.T
-
             shape = matrix.shape
 
             M = sp.eye(shape[0])
             replacement_row = np.full(shape[0], -1)
-
             M[-1, :] = replacement_row[None, :]
 
             A_matrix = matrix @ M
