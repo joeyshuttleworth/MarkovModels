@@ -50,6 +50,7 @@ def main():
     parser.add_argument("--n_sample_starting_points", type=int)
     parser.add_argument("-c", "--no_cpus", type=int, default=1)
     parser.add_argument("--use_artefact_model", action='store_true')
+    parser.add_argument("--sampling_rate", type=float, default=2)
 
     global args
     args = parser.parse_args()
@@ -151,7 +152,9 @@ def main():
         else:
             steps_to_fit = args.steps_at_a_time
 
-        l_bounds = [-120 if (i % 2) == 0 else 1 for i in range(steps_to_fit * 2)]
+        l_bounds = [-120 if (i % 2) == 0 else 1/args.sampling_rate\
+                    for i in range(steps_to_fit * 2)]
+
         u_bounds = [60 if (i % 2) == 0 else 2000 for i in range(steps_to_fit * 2)]
 
         bounds = [l_bounds, u_bounds]
@@ -205,7 +208,7 @@ def main():
             if iteration % 10 == 0:
                 d = modified_d_list[0]
                 desc = markovmodels.voltage_protocols.design_space_to_desc(d)
-                times = np.arange(0, desc[-1, 0], 0.5)
+                times = np.arange(0, desc[-1, 0], 1/args.sampling_rate)
                 initial_score = opt_func([d, s_model, params, solver], ax=axs[0])
                 axs[1].plot(times, [sc_func(t, protocol_description=desc) for t in times])
                 axs[0].axvspan(*get_t_range(d), alpha=.25, color='grey')
@@ -239,7 +242,7 @@ def main():
     s_model.set_tolerances(1e-6, 1e-6)
 
     model.protocol_description = found_desc
-    model.times = np.arange(0, found_desc[-1][0], .5)
+    model.times = np.arange(0, found_desc[-1][0], 1/args.sampling_rate)
 
     output = model.make_hybrid_solver_current(njitted=False, hybrid=False)()
 
@@ -266,7 +269,7 @@ def main():
 
     # Plot phase diagram for the new design (first two states)
     model.protocol_description = found_desc
-    times = np.arange(0, found_desc[-1, 0], .5)
+    times = np.arange(0, found_desc[-1, 0], 1/args.sampling_rate)
     model.times = times
     states = model.make_hybrid_solver_states(njitted=False, hybrid=False,
                                              protocol_description=found_desc)()
@@ -304,7 +307,7 @@ def main():
     axs = fig.subplots(4)
 
     found_score = opt_func([xopt, s_model, params, solver], ax=axs[0])
-    found_times = np.arange(0, found_desc[-1][0], .5)
+    found_times = np.arange(0, found_desc[-1][0], 1/args.sampling_rate)
     found_voltages = np.array([model.voltage(t, protocol_description=found_desc)\
                                for t in found_times])
 
@@ -337,7 +340,7 @@ def opt_func(x, ax=None):
         penalty = (protocol_length - max_time) * 1e3
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
-    times = np.arange(0, desc[-1, 0], .5)
+    times = np.arange(0, desc[-1, 0], 1/args.sampling_rate)
     s_model.times = times
 
     utils = []
