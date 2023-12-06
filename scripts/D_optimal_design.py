@@ -76,6 +76,10 @@ def main():
             fitting_df = fitting_df[fitting_df.well.isin(args.wells)]
         if args.protocols:
             fitting_df = fitting_df[fitting_df.protocol.isin(args.protocols)]
+
+        if args.sweeps:
+            fitting_df = fitting_df[fitting_df.sweep.isin(args.sweeps)]
+
         fitting_df = fitting_df[~fitting_df.protocol.isin(args.ignore_protocols)]
         fitting_df = get_best_params(fitting_df)
         param_labels = model.get_parameter_labels()
@@ -101,7 +105,7 @@ def main():
 
     if args.n_sample_starting_points:
         starting_guesses = np.random.uniform(size=(args.n_sample_starting_points, x0.shape[0]))
-        starting_guesses[:, ::2] = (starting_guesses[:, ::2]*160) - 120
+        starting_guesses[:, ::2] = (starting_guesses[:, ::2]*180) - 120
         starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
 
         scores = [opt_func([d, s_model, params, solver]) for d in starting_guesses]
