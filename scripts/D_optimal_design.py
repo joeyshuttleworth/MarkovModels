@@ -92,7 +92,7 @@ def main():
             fitting_df = fitting_df[fitting_df.protocol.isin(args.protocols)]
 
         if args.sweeps:
-            fitting_df = fitting_df[fitting_df.sweep.isin(args.sweeps)]
+            fitting_df = fitting_df[fitting_df.sweep.astype(str).isin(args.sweeps)]
 
         fitting_df = fitting_df[~fitting_df.protocol.isin(args.ignore_protocols)]
         fitting_df = get_best_params(fitting_df)
