@@ -183,6 +183,8 @@ def main():
     model.voltage = found_voltage_func
     model.times = np.arange(0, found_desc[-1][0], .5)
     output = model.make_hybrid_solver_states(njitted=False, hybrid=False)()
+
+
     axs[0].plot(model.times, output)
     axs[1].plot(model.times, [model.voltage(t) for t in model.times])
 

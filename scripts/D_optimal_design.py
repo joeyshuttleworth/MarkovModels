@@ -68,12 +68,15 @@ def main():
             raise ValueError()
         default_parameters = \
             np.loadtxt(args.use_parameter_file).flatten().astype(np.float64)
+
+        model = make_model_of_class(args.model_class, sc_times, voltage_func,
+                                    protocol_description=desc,
+                                    default_parameters=default_parameters)
     else:
         default_parameters = None
+        model = make_model_of_class(args.model_class, sc_times, voltage_func,
+                                    protocol_description=desc)
 
-    model = make_model_of_class(args.model_class, sc_times, voltage_func,
-                                protocol_description=desc,
-                                default_parameters=default_parameters)
 
     global parameters_to_use
     parameters_to_use = model.get_parameter_labels()
