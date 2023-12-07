@@ -266,9 +266,7 @@ def opt_func(x):
 
     desc = markovmodels.voltage_protocols.design_space_to_desc(d)
 
-    # ignore Vm state
-    kinetic_indices = [i for i in range(model.get_no_state_vars() - 1)]
-    util = entropy_utility(desc, params, model, include_vars=kinetic_indices,
+    util = entropy_utility(desc, params, model,
                            removal_duration=args.removal_duration,
                            solver=solver)
     return -util + penalty
