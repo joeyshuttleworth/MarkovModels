@@ -67,10 +67,8 @@ def D_opt_utility(desc, params, s_model, hybrid=False, solver=None,
 
 def entropy_utility(desc, params, model, hybrid=False, removal_duration=5,
                     include_vars=None, cfunc=None, n_skip=10, t_range=(0, 0),
-                    n_voxels_per_variable=10):
+                    n_voxels_per_variable=10, solver=None):
     """ Evaluate the D-optimality of design, d for a certain parameter vector"""
-    model.protocol_description = desc
-    model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
     # output = model.make_hybrid_solver_current(njitted=False, hybrid=hybrid)
     times = np.arange(0, desc[-1, 0], .5)
     model.times = times
@@ -88,7 +86,12 @@ def entropy_utility(desc, params, model, hybrid=False, removal_duration=5,
         iend = None
 
     params = params.astype(np.float64)
-    states = model.make_hybrid_solver_states(njitted=False, hybrid=False, crhs=cfunc)(params)
+    if solver is None:
+        model.protocol_description = desc
+        model.voltage = markovmodels.voltage_protocols.make_voltage_function_from_description(desc)
+        solver = model.make_hybrid_solver_states()
+
+    states = solver(params, times, protocol_description=desc)
     n_voxels_per_variable = n_voxels_per_variable
 
     if include_vars is not None:

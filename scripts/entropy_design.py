@@ -147,7 +147,7 @@ def main():
                                               times=times, E_rev=args.reversal,
                                               protocol_description=desc)
 
-                solver = c_model.make_forward_solver_current(njitted=False)
+                solver = c_model.make_forward_solver_current(njitted=True)
                 default_parameters = c_model.get_default_parameters()
 
                 # Remove observations within 5ms of a spike
@@ -210,7 +210,7 @@ def main():
     params = model.get_default_parameters()
     while not es.stop():
         d_list = es.ask()
-        x = [(d, model, params) for d in d_list]
+        x = [(d, model, params, solver) for d in d_list]
         res = list(map(opt_func, x))
         es.tell(d_list, res)
         if iteration % 10 == 0:
@@ -305,7 +305,7 @@ def main():
 
 
 def opt_func(x):
-    d, model, params = x
+    d, model, params, solver = x
 
     # constrain total length
     protocol_length = d[1::2].sum()
@@ -319,7 +319,7 @@ def opt_func(x):
     util = entropy_utility(desc,
                            params,
                            model, include_vars=kinetic_indices,
-                           removal_duration=args.removal_duration)
+                           removal_duration=args.removal_duration, solver=solver)
     return -util + penalty
 
 
