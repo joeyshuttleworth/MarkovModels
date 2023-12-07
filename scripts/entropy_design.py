@@ -49,6 +49,7 @@ def main():
     parser.add_argument("--removal_duration", default=5.0, type=float)
     parser.add_argument("--n_voxels_per_variable", type=int, default=10)
     parser.add_argument("--n_skip", type=int, default=10)
+    parser.add_argument("--n_sample_starting_points", type=int)
     parser.add_argument("-c", "--no_cpus", type=int, default=1)
 
     global args
@@ -82,7 +83,7 @@ def main():
                                 protocol_description=desc,
                                 default_parameters=default_parameters)
 
-    solver = model.make_hybrid_solver_current(hybrid=False)
+    solver = model.make_hybrid_solver_states(hybrid=False)
 
     params = model.get_default_parameters()
     voltages = np.array([voltage_func(t) for t in times])
@@ -132,11 +133,29 @@ def main():
                'seed': seed
                }
 
+    s_model = SensitivitiesMarkovModel(model,
+                                       parameters_to_use=model.get_parameter_labels())
+
+    if args.n_sample_starting_points:
+        starting_guesses = np.random.uniform(size=(args.n_sample_starting_points, x0.shape[0]))
+        starting_guesses[:, ::2] = (starting_guesses[:, ::2]*180) - 120
+        starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
+
+        scores = [opt_func([d, s_model, params, solver]) for d in starting_guesses]
+        print(scores)
+
+        scores = [s for s in scores if np.isfinite(s)]
+
+        best_guess_index = np.argmin(scores)
+        x0 = starting_guesses[best_guess_index, :].flatten()
+
     es = cma.CMAEvolutionStrategy(x0, 1, options)
 
     with open(os.path.join('pycma_seed.txt'), 'w') as fout:
         fout.write(str(seed))
         fout.write('\n')
+
+    print('x0', x0)
 
     iteration = 0
     params = model.get_default_parameters()
@@ -153,9 +172,6 @@ def main():
         iteration += 1
 
     xopt = es.result[0]
-
-    s_model = SensitivitiesMarkovModel(model,
-                                       parameters_to_use=model.get_parameter_labels())
 
     # Check D_optimality of design vs staircase
     default_params = model.get_default_parameters()
@@ -243,6 +259,8 @@ def opt_func(x):
 
     # constrain total length
     protocol_length = d[1::2].sum()
+
+    penalty = 0
     if protocol_length > max_time:
         penalty = (protocol_length - max_time)**2 * 1e3
 
@@ -250,10 +268,9 @@ def opt_func(x):
 
     # ignore Vm state
     kinetic_indices = [i for i in range(model.get_no_state_vars() - 1)]
-    util = entropy_utility(desc,
-                           params,
-                           model, include_vars=kinetic_indices,
-                           removal_duration=args.removal_duration, solver=solver)
+    util = entropy_utility(desc, params, model, include_vars=kinetic_indices,
+                           removal_duration=args.removal_duration,
+                           solver=solver)
     return -util + penalty
 
 
