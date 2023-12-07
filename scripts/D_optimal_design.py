@@ -100,7 +100,7 @@ def main():
         params = model.get_default_parameters()[None, :]
 
     s_model = SensitivitiesMarkovModel(model,
-                                       parameters_to_use=param_labels)
+                                       parameters_to_use=parameters_to_use)
 
     solver = s_model.make_hybrid_solver_states(hybrid=args.hybrid, njitted=True)
 
