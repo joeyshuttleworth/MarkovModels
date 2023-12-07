@@ -33,7 +33,6 @@ max_time = 15_000
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument('data_directory')
     parser.add_argument('--reversal', type=float, default=-91.71)
     parser.add_argument('-o', '--output')
     parser.add_argument('--subtraction_df_file')
@@ -83,6 +82,8 @@ def main():
                                 protocol_description=desc,
                                 default_parameters=default_parameters)
 
+    solver = model.make_hybrid_solver_current(hybrid=False)
+
     params = model.get_default_parameters()
     voltages = np.array([voltage_func(t) for t in times])
 
@@ -97,84 +98,15 @@ def main():
         qc_df = qc_df[qc_df.drug == 'before']
         # qc_df = qc_df.set_index(['well', 'protocol', 'sweep'])
 
-    # optimise one step (8th from last)
-    protocols = subtraction_df.protocol.unique()
-
     if args.protocols:
-        subtraction_df = subtraction_df[(subtraction_df.protocol.isin(args.protocols))]
         qc_df = qc_df[(qc_df.protocol.isin(args.protocols))]
 
     if args.wells:
-        subtraction_df = subtraction_df[(subtraction_df.well.isin(args.wells))]
         qc_df = qc_df[(qc_df.well.isin(args.wells))]
         passed_wells = [well for well in passed_wells if well in args.wells]
 
     if args.sweeps:
-        subtraction_df = subtraction_df[(subtraction_df.sweep.astype(str).isin(args.sweeps))]
         qc_df = qc_df[qc_df.sweep.astype(str).isin(args.sweeps)]
-
-    df_rows = []
-    for well in passed_wells:
-        for protocol in protocols:
-            for sweep in subtraction_df[(subtraction_df.well == well) & \
-                                        (subtraction_df.protocol == protocol)]['sweep'].unique():
-                leak_row = subtraction_df[(subtraction_df.well == well) &\
-                                          (subtraction_df.protocol == protocol) \
-                                          & (subtraction_df.sweep == sweep)]
-
-                gleak = leak_row['pre-drug leak conductance'].values[0]
-                Eleak = leak_row['pre-drug leak reversal'].values[0]
-                qc_row = qc_df[(qc_df.well == well) & (qc_df.protocol == protocol) \
-                               & (qc_df.sweep == sweep)][['Rseries', 'Cm']]
-                Rseries = qc_row['Rseries'].values[0] * 1e-9
-                Cm = qc_row['Cm'].values[0] * 1e9
-                data = get_data(well, protocol, args.data_directory,
-                                args.experiment_name, label=None, sweep=sweep)
-
-                times_df = pd.read_csv(os.path.join(args.data_directory,
-                                                    f"{args.experiment_name}-{protocol}-times.csv"))
-                times = times_df['time'].to_numpy().flatten()
-
-                E_obs = leak_row['fitted_E_rev'].values[0]
-                V_off = E_obs - args.reversal
-                param_set = np.concatenate((model.get_default_parameters(),
-                                           np.array([gleak, Eleak, 0, 0, V_off, Rseries, Cm])))
-
-                prot_func, _, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
-                voltages = np.array([prot_func(t) for t in times])
-
-                c_model = make_model_of_class(args.model_class, voltage=prot_func,
-                                              times=times, E_rev=args.reversal,
-                                              protocol_description=desc)
-
-                solver = c_model.make_forward_solver_current(njitted=True)
-                default_parameters = c_model.get_default_parameters()
-
-                # Remove observations within 5ms of a spike
-                removal_duration = args.removal_duration
-                spike_times, _ = detect_spikes(times, voltages, window_size=0)
-                _, _, indices = remove_spikes(times, voltages, spike_times, removal_duration)
-
-                # @njit
-                def min_func(g_kr):
-                    p = default_parameters.copy()
-                    p[-1] = g_kr
-                    return np.sum((solver(p)[indices] - data[indices]) ** 2)
-
-                # Minimise SSE to find best conductance
-                res = scipy.optimize.minimize_scalar(min_func, method='bounded', bounds=[0, 1e5])
-                gkr = res.x
-                row = [well, protocol, sweep] + list(param_set)
-                row[-8] = gkr
-                df_rows.append(row)
-
-    # params = pd.DataFrame(df_rows,
-    #                       columns=['well', 'protocol', 'sweep'] + \
-    #                       ArtefactModel(model).get_parameter_labels(),
-    #                       )
-    # params = params.set_index(['well', 'protocol', 'sweep'])
-
-    # a_model = ArtefactModel(model)
 
     x0 = markovmodels.voltage_protocols.get_design_space_representation(sc_desc).flatten()
     x0[1::2] = x0[1::2] / 2
@@ -250,7 +182,7 @@ def main():
     model.protocol_description = found_desc
     model.voltage = found_voltage_func
     model.times = np.arange(0, found_desc[-1][0], .5)
-    output = model.make_hybrid_solver_current(njitted=False, hybrid=False)()
+    output = model.make_hybrid_solver_states(njitted=False, hybrid=False)()
     axs[0].plot(model.times, output)
     axs[1].plot(model.times, [model.voltage(t) for t in model.times])
 
