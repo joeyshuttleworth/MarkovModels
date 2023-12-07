@@ -51,6 +51,7 @@ def main():
     parser.add_argument("-c", "--no_cpus", type=int, default=1)
     parser.add_argument("--use_artefact_model", action='store_true')
     parser.add_argument("--sampling_rate", type=float, default=2)
+    parser.add_argument('--use_parameter_file')
 
     global args
     args = parser.parse_args()
@@ -62,8 +63,17 @@ def main():
     protocol = 'staircaseramp1'
     voltage_func, sc_times, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
 
+    if args.use_parameter_file:
+        if args.fitting_df:
+            raise ValueError()
+        default_parameters = \
+            np.loadtxt(args.use_parameter_file).flatten().astype(np.float64)
+    else:
+        default_parameters = None
+
     model = make_model_of_class(args.model_class, sc_times, voltage_func,
-                                protocol_description=desc)
+                                protocol_description=desc,
+                                default_parameters=default_parameters)
 
     global parameters_to_use
     parameters_to_use = model.get_parameter_labels()
