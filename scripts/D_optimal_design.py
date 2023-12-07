@@ -86,6 +86,10 @@ def main():
 
     if args.fitting_df:
         fitting_df = pd.read_csv(args.fitting_df)
+
+        print(fitting_df)
+
+        fitting_df = get_best_params(fitting_df)
         if args.wells:
             fitting_df = fitting_df[fitting_df.well.isin(args.wells)]
         if args.protocols:
@@ -95,7 +99,6 @@ def main():
             fitting_df = fitting_df[fitting_df.sweep.astype(str).isin(args.sweeps)]
 
         fitting_df = fitting_df[~fitting_df.protocol.isin(args.ignore_protocols)]
-        fitting_df = get_best_params(fitting_df)
         param_labels = model.get_parameter_labels()
         params = fitting_df[param_labels].values.astype(np.float64)
 
