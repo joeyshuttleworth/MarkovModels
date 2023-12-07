@@ -7,9 +7,10 @@ from markovmodels.voltage_protocols import detect_spikes, remove_spikes
 
 def D_opt_utility(desc, params, s_model, hybrid=False, solver=None,
                   removal_duration=0, ax=None, t_range=None, rescale=True,
-                  use_parameters=None):
+                  use_parameters=None, times=None):
     """ Evaluate the D-optimality of design, d for a certain parameter vector"""
-    times = np.arange(0, desc[-1, 0], .5)
+    if times is None:
+        times = np.arange(0, desc[-1, 0], .5)
     s_model.times = times
 
     if solver is None:

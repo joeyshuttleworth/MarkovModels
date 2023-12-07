@@ -45,7 +45,7 @@ def main():
     parser.add_argument("--mode", default='spread')
     parser.add_argument("-w-", "--wells", nargs='+', default=[])
     parser.add_argument("--protocols", nargs='+', default=[])
-    parser.add_argument("--sweeps", nargs='+', default=['1', '2'])
+    parser.add_argument("--sweeps", nargs='+', default=['1', '2'], type=str)
     parser.add_argument("--ignore_protocols", nargs='+', default=['longap'])
     parser.add_argument("--n_sample_starting_points", type=int)
     parser.add_argument("-c", "--no_cpus", type=int, default=1)
@@ -86,12 +86,11 @@ def main():
 
     if args.fitting_df:
         fitting_df = pd.read_csv(args.fitting_df)
-
-        print(fitting_df)
-
         fitting_df = get_best_params(fitting_df)
+
         if args.wells:
             fitting_df = fitting_df[fitting_df.well.isin(args.wells)]
+
         if args.protocols:
             fitting_df = fitting_df[fitting_df.protocol.isin(args.protocols)]
 
@@ -126,8 +125,6 @@ def main():
         starting_guesses[:, 1::2] = (starting_guesses[:, 1::2]*500) + 1
 
         scores = [opt_func([d, s_model, params, solver]) for d in starting_guesses]
-        print(scores)
-
         scores = [s for s in scores if np.isfinite(s)]
 
         best_guess_index = np.argmin(scores)
@@ -344,6 +341,9 @@ def opt_func(x, ax=None):
 
     d, s_model, params, solver, t_range = x
 
+    if params is None:
+        raise Exception()
+
     # Force positive durations
     d = d.copy()
     d[1::2] = np.abs(d[1::2])
@@ -364,7 +364,9 @@ def opt_func(x, ax=None):
         utils.append(D_opt_utility(desc, param_set.flatten(), s_model,
                                    removal_duration=args.removal_duration,
                                    ax=ax, solver=solver, t_range=t_range,
-                                   use_parameters=parameters_to_use))
+                                   use_parameters=parameters_to_use,
+                                   times=times))
+
     utils = np.array(utils)
     util = np.mean(utils)
 
