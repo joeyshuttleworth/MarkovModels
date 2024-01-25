@@ -14,5 +14,6 @@ dependencies:
   - regex
   - cmake
   - pip:
-      - .
+      - -e .
   - conda-forge::sundials
+  - conda-forge::graphviz
