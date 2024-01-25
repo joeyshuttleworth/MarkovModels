@@ -188,7 +188,7 @@ def main():
         best_scores = []
         iteration = 0
 
-        # Stop optimising if we've used up almost all of the time
+        # Terminate if we've used up almost all of the time
         if args.steps_at_a_time != int(x0.shape[0]/2)\
            and previous_d[:steps_fitted*2:2].sum() >= 0.95 * max_time:
             break
@@ -250,12 +250,12 @@ def main():
 
     np.savetxt(os.path.join('best_scores_from_generations'), np.array(best_scores))
 
-    found_desc = previous_d
+    found_desc = markovmodels.voltage_protocols.design_space_to_desc(previous_d)
 
     s_model.set_tolerances(1e-6, 1e-6)
 
     model.protocol_description = found_desc
-    model.times = np.arange(0, found_desc[-1][0], 1/args.sampling_rate)
+    model.times = np.arange(0, found_desc[-1, 0], 1/args.sampling_rate)
 
     output = model.make_hybrid_solver_current(njitted=False, hybrid=False)()
 
@@ -319,6 +319,7 @@ def main():
     fig.clf()
     axs = fig.subplots(4)
 
+    xopt = previous_d
     found_score = opt_func([xopt, s_model, params, solver], ax=axs[0])
     found_times = np.arange(0, found_desc[-1][0], 1/args.sampling_rate)
     found_voltages = np.array([model.voltage(t, protocol_description=found_desc)\

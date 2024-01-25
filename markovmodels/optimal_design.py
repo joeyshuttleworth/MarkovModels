@@ -256,16 +256,17 @@ def entropy_weighted_A_opt_utility(desc, params, s_model,
 def discriminate_spread_of_predictions_utility(desc, params1, params2, model1,
                                                model2, removal_duration=0,
                                                sigma2=100, hybrid=False, solver1=None,
-                                               solver2=None, ax=None, t_range=(0, 0)):
+                                               solver2=None, ax=None, t_range=(0, 0),
+                                               use_hyrbrid_solver=False):
 
     means = [0, 0]
     varis = [0, 0]
     predictions = [0, 0]
 
     if solver1 is None:
-        solver1 = model1.make_hybrid_solver_current()
+        solver1 = model1.make_hybrid_solver_current(hybrid=use_hyrbrid_solver)
     if solver2 is None:
-        solver2 = model2.make_hybrid_solver_current()
+        solver2 = model2.make_hybrid_solver_current(hybrid=use_hyrbrid_solver)
 
     solvers = [solver1, solver2]
 

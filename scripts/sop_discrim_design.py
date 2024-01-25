@@ -22,7 +22,7 @@ from markovmodels.BeattieModel import BeattieModel
 from markovmodels.fitting import infer_reversal_potential_with_artefact
 from markovmodels.SensitivitiesMarkovModel import SensitivitiesMarkovModel
 from markovmodels.voltage_protocols import detect_spikes, remove_spikes, get_design_space_representation
-from markovmodels.fitting import infer_reversal_potential_with_artefact, get_best_params
+from markovmodels.fitting import infer_reversal_potential_with_artefact
 from markovmodels.utilities import get_data, put_copy
 from numba import njit, jit
 from markovmodels.optimal_design import D_opt_utility, discriminate_spread_of_predictions_utility
@@ -70,7 +70,7 @@ def main():
         if args.sweeps:
             fitting_dfs[i] = fitting_dfs[i][fitting_dfs[i].well.isin(args.sweep)]
 
-        fitting_dfs[i] = get_best_params(fitting_dfs[i])
+        fitting_dfs[i] = fitting_dfs[i].sort_values('score', ascending=True)
 
 
     if args.selection_file:
@@ -97,7 +97,7 @@ def main():
     sc_voltages = np.array([voltage_func(t) for t in sc_times])
 
     global output_dir
-    output_dir = markovmodels.utilities.setup_output_directory(args.output, 'sop_discriminate')
+    output_dir = markovmodels.utilities.setup_output_directory(None, 'sop_discriminate')
 
     # optimise one step (8th from last)
     protocols = fitting_dfs[0].protocol.unique()
@@ -112,11 +112,10 @@ def main():
         passed_wells = list(fitting_dfs[1].well.unique()) \
             + list(fitting_dfs[0].well.unique())
 
-    df_rows = []
 
     params = []
     for model, fitting_df in zip(models, fitting_dfs):
-
+        df_rows = []
         for well in passed_wells:
             for protocol in protocols:
                 if protocol in args.ignore_protocols:
