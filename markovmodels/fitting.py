@@ -156,8 +156,11 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                                     fix_parameters, is_artefact_model=use_artefact_model)
 
     if randomise_initial_guess:
-        initial_guess_dist = fitting_boundaries(starting_parameters, mm,
-                                                fix_parameters, is_artefact_model=use_artefact_model)
+        voltage = mm.get_voltages()
+        initial_guess_dist = fitting_boundaries(starting_parameters, mm, data,
+                                                voltage, subset_indices, rng
+                                                fix_parameters,
+                                                is_artefact_model=use_artefact_model)
         starting_parameter_sets = []
 
     scores, parameter_sets, iterations, times_taken = [], [], [], []
@@ -603,6 +606,8 @@ class fitting_boundaries(pints.Boundaries):
     def _sample_once(self, min_log_p, max_log_p):
         nrg = self.nrg
 
+        # Reject samples that don't lie in the boundaries
+        # try 1000 times before giving up. This should be plenty
         for i in range(1000):
             p = np.empty(self.full_parameters.shape)
             p[self.mm.GKr_index] = 10 ** nrg.uniform(*np.log10([self.min_conductance,
