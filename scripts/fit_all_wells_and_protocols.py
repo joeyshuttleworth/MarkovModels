@@ -230,7 +230,6 @@ def main():
     params_df = get_best_params(fitting_df)
     params_df.to_csv(os.path.join(output_dir, f"{prefix}best_fitting.csv"))
 
-    print(params_df)
     if args.compute_predictions:
         predictions_df = compute_predictions_df(params_df, output_dir,
                                                 f"{prefix}predictions",

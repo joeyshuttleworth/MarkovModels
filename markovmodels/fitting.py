@@ -537,7 +537,8 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
 
 
 class fitting_boundaries(pints.Boundaries):
-    def __init__(self, full_parameters, model, fix_parameters=[], is_artefact_model=False):
+    def __init__(self, full_parameters, model, current, voltages, indices, rng,
+                 fix_parameters=[], is_artefact_model=False):
         self.is_artefact_model = is_artefact_model
 
         if is_artefact_model:
@@ -549,6 +550,14 @@ class fitting_boundaries(pints.Boundaries):
             self.fix_parameters = fix_parameters
             self.full_parameters = full_parameters
             self.mm = model
+
+
+        conductances = (current / (voltages - self.mm.E_rev))[indices]
+
+        self.max_conductance = np.abs(conductances.max()) * 100
+        self.min_conductance = np.abs(conductances.max()) * 0.01
+
+        self.rng = rng
 
     def check(self, parameters):
         parameters = parameters.copy()
@@ -577,6 +586,12 @@ class fitting_boundaries(pints.Boundaries):
         if min([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) < 1e-7:
             return False
 
+        if parameters[self.mm.Gkr_index] > self.max_conductance:
+            return False
+
+        if parameters[self.mm.Gkr_index] < self.min_conductance:
+            return False
+
         # Ensure that all parameters > 0
         return np.all(parameters > 0)
 
@@ -586,10 +601,14 @@ class fitting_boundaries(pints.Boundaries):
             else self.mm.get_no_parameters()
 
     def _sample_once(self, min_log_p, max_log_p):
+        nrg = self.nrg
+
         for i in range(1000):
             p = np.empty(self.full_parameters.shape)
-            p[-1] = self.full_parameters[-1]
-            p[:-1] = 10**np.random.uniform(min_log_p, max_log_p,
+            p[self.mm.GKr_index] = 10 ** nrg.uniform(*np.log10([self.min_conductance,
+                                                                self.max_conductance]))
+
+            p[:self.mm.GKr_index - 1] = 10**nrg.uniform(min_log_p, max_log_p,
                                            self.full_parameters[:-1].shape)
 
             if len(self.fix_parameters) != 0:
