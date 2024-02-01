@@ -79,7 +79,7 @@ def main():
     parser.add_argument('--figsize', '-f', help='mcmc chains to run', type=int)
     parser.add_argument('--use_parameter_file')
     parser.add_argument('--artefact_default_kinetic_param_file')
-    parser.add_argument('--dont_refit', action='store_true')
+    parser.add_argument('--refit', action='store_true')
     parser.add_argument('--dont_infer_Erev', action='store_true')
     parser.add_argument('--solver_type', default='hybrid')
     parser.add_argument('--selection_file')
@@ -182,7 +182,7 @@ def main():
         else:
             starting_parameters = None
 
-        if args.dont_refit:
+        if not args.refit:
             prefix = ''
         else:
             prefix = 'prelim_'
@@ -268,7 +268,7 @@ def main():
             task[6] = ''
             task[5] = False
 
-        if not args.dont_refit:
+        if args.refit:
             with multiprocessing.Pool(pool_size, **pool_kws) as pool:
                 res = pool.starmap(fit_func, tasks)
 

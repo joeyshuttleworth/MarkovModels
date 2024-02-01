@@ -642,7 +642,6 @@ def infer_reversal_potential_with_artefact(protocol, times, data,
     # Maybe make it so this only looks at the reversal ramp, or leak step
     def find_conductance_func(g):
         p = forward_sim_params.copy().flatten()
-        print(p)
         p[-8] = g
         return np.sum((a_solver(p)[indices] - data[indices])**2)
 

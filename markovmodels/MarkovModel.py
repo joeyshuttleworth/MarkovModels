@@ -106,7 +106,7 @@ class MarkovModel(ODEModel):
 
         self.compute_steady_state_expressions()
 
-        self.auxiliary_function = self.define_auxiliary_function()
+        self.auxiliary_function = njit(self.define_auxiliary_function())
 
     def compute_steady_state_expressions(self):
         self.rhs_inf_expr_rates = -self.A.LUsolve(self.B)
