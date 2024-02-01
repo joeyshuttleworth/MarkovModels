@@ -332,7 +332,7 @@ class ODEModel:
                                            atol=atol, rtol=rtol, hybrid=hybrid,
                                            crhs=crhs)
 
-        auxiliary_function = njit(self.define_auxiliary_function(**kwargs))
+        auxiliary_function = self.auxiliary_function
         times = self.times
         atol, rtol = self.solver_tolerances
         voltage_func = self.voltage
@@ -383,9 +383,6 @@ class ODEModel:
         times = self.times
         default_parameters = self.get_default_parameters()
         auxiliary_function = self.auxiliary_function
-
-        if njitted:
-            auxiliary_function = njit(auxiliary_function)
 
         def forward_solver(p=default_parameters, times=times,
                            voltages=voltages, atol=atol, rtol=rtol,
