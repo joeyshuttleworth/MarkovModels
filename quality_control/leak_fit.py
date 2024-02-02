@@ -176,25 +176,11 @@ def fit_leak_lr(staircase_protocol, current, V_full=[-120, -80],
     # ramp_start: starting time of the ramp that matches the input protocol
     # ramp_end: ending time of the ramp that matches the input protocol
     # dt: duration of each time step to work out the index in the input protocol
-    # ramp_end  -= (ramp_end-ramp_start)*(0.005*percentage_to_remove)
     rampi, rampf = int(ramp_start / dt), int(ramp_end / dt)
 
-    print(rampi, rampf)
-
     n_samples = rampf - rampi
-    # idxi = int(np.abs(np.float(V_win[0] - V_full[0]))\
-    #         / np.abs(np.float(V_full[1] - V_full[0]))\
-    #         * n_samples)
-    # idxf = int(np.abs(np.float(V_win[1] - V_full[0]))\
-    #         / np.abs(np.float(V_full[1] - V_full[0]))\
-    #         * n_samples)
-    # idxi = 0
-    # idxf = -1
-    # Assumed V_win, V_full where given correctly!!
     x = staircase_protocol[rampi:rampf]
     y = current[rampi:rampf]
-
-    print(x, y)
 
     slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
 
