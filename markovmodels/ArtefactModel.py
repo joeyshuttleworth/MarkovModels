@@ -17,7 +17,7 @@ class ArtefactModel(MarkovModel):
     def __init__(self, channel_model, E_leak=0, g_leak=0, C_m=5e-3, R_series=5e-3,
                  g_leak_leftover=0, E_leak_leftover=0, V_off=0, ignore_states=[]):
 
-        # Membrane capacitance )
+        # Membrane capacitance
         self.C_m = C_m
 
         # Series resistance (GOhm)
@@ -58,7 +58,7 @@ class ArtefactModel(MarkovModel):
         self.solver_tolerances = channel_model.solver_tolerances
         self.E_rev = channel_model.E_rev
         self.channel_model.compute_steady_state_expressions()
-        self.auxiliary_function = self.define_auxiliary_function()
+        self.auxiliary_function = njit(self.define_auxiliary_function())
 
         self.transformations = self.channel_model.transformations + \
             [pints.IdentityTransformation(1)] * no_artefact_parameters

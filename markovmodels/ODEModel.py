@@ -356,7 +356,8 @@ class ODEModel:
 
     def make_forward_solver_current(self, voltages=None, njitted=True,
                                     protocol_description=None,
-                                    solver_type='lsoda', atol=None, rtol=None):
+                                    solver_type='lsoda', atol=None, rtol=None,
+                                    **kws):
 
         if protocol_description is None:
             protocol_description = self.protocol_description
@@ -364,7 +365,8 @@ class ODEModel:
         solver_states = self.make_hybrid_solver_states(njitted=njitted,
                                                        protocol_description=protocol_description,
                                                        atol=atol, rtol=rtol,
-                                                       hybrid=False)
+                                                       hybrid=False,
+                                                       **kws)
         return self.make_solver_current(solver_states, voltages=voltages,
                                         atol=atol, rtol=rtol, njitted=njitted,
                                         protocol_description=protocol_description)

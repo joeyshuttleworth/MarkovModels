@@ -42,9 +42,6 @@ class MarkovModel(ODEModel):
         if state_labels:
             self.state_labels = state_labels
 
-        if GKr_index:
-            self.GKr_index = GKr_index
-
         if open_state_index is not None:
             self.open_state_index = open_state_index
 
@@ -53,6 +50,11 @@ class MarkovModel(ODEModel):
 
         if default_parameters is not None:
             self.default_parameters = default_parameters
+
+        if GKr_index is None:
+            # assume the last parameter is GKr (conductance)
+            GKr_index = len(self.default_parameters - 1)
+        self.GKr_index = GKr_index
 
         if parameter_labels:
             self.parameter_labels = parameter_labels

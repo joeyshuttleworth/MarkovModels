@@ -50,6 +50,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     returns: A pair containing the optimal parameters and the corresponding sum of square errors.
 
     """
+
     if not times:
         times = mm.times
 
@@ -57,12 +58,17 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         rng = np.random.default_rng()
 
     if log_transform:
-        # Assume that the conductance is the last parameter and that the parameters are arranged included
+        # Assume that the conductance is the last parameter and that the
+        # parameters are arranged included
 
         if mm.transformations:
             transformations = [t for i, t in enumerate(mm.transformations)
-                               if (i % len(starting_parameters)) not in fix_parameters]
-            transformation = pints.ComposedTransformation(*transformations)
+                               if i not in fix_parameters]
+
+            if use_artefact_model:
+                id_transforms = [pints.IdentityTransformation(1)
+                                 for i in range(len(starting_parameters) - len(transformations))]
+                transformations = transformations + id_transforms
 
         elif not use_artefact_model:
             # Use a-space transformation (Four Ways to Fit...)
@@ -76,6 +82,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                                for w in (u, v)]\
                                    + [pints.IdentityTransformation(1)]
 
+        if transformations:
             transformations = [t for i, t in enumerate(transformations) if i not in fix_parameters]
             transformation = pints.ComposedTransformation(*transformations)
 
@@ -87,6 +94,9 @@ def fit_model(mm, data, times=None, starting_parameters=None,
 
     if starting_parameters is None:
         starting_parameters = mm.get_default_parameters()
+
+    if transformations:
+        assert len(transformations) == len(starting_parameters) - len(fix_parameters)
 
     if max_iterations == 0:
         return starting_parameters, np.inf
@@ -152,15 +162,12 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         unfixed_indices = list(range(len(starting_parameters)))
         params_not_fixed = starting_parameters
 
-    boundaries = fitting_boundaries(starting_parameters, mm,
-                                    fix_parameters, is_artefact_model=use_artefact_model)
+    boundaries = fitting_boundaries(starting_parameters, mm, data,
+                                    mm.GetVoltage(), rng, fix_parameters,
+                                    is_artefact_model=use_artefact_model)
 
     if randomise_initial_guess:
-        voltage = mm.get_voltages()
-        initial_guess_dist = fitting_boundaries(starting_parameters, mm, data,
-                                                voltage, subset_indices, rng
-                                                fix_parameters,
-                                                is_artefact_model=use_artefact_model)
+        initial_guess_dist = boundaries
         starting_parameter_sets = []
 
     scores, parameter_sets, iterations, times_taken = [], [], [], []
@@ -170,7 +177,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             starting_parameter_sets.append(initial_guess)
             params_not_fixed = initial_guess
 
-        if not boundaries.check(params_not_fixed):
+        if np.any(~np.isfinite(params_not_fixed)):
             raise ValueError(f"starting parameter lie outside boundary: {params_not_fixed}")
 
         controller = pints.OptimisationController(error, params_not_fixed,
@@ -205,17 +212,18 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     best_parameters = parameter_sets[best_index]
 
     if not np.all(np.isfinite(model.simulate(found_parameters, mm.times))):
-        best_parameters = mm.get_default_parameters()
+        best_parameters = [p for i, p in enumerate(mm.get_default_parameters())
+                           if i not in fix_parameters]
         best_score = np.inf
 
     if output_dir:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        point2 = [p for i, p in enumerate(mm.get_default_parameters()) if i not
-                  in fix_parameters]
+        point_2 = [p for i, p in enumerate(mm.get_default_parameters()) if i not
+                   in fix_parameters]
         fig, axes = pints.plot.function_between_points(error,
                                                        point_1=best_parameters,
-                                                       point_2=point2,
+                                                       point_2=point_2,
                                                        padding=0.1,
                                                        evaluations=100)
 
@@ -277,7 +285,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                   parallel=False, solver_type=None, sweep=None,
                   scale_conductance=True, no_conductance_boundary=False,
                   use_artefact_model=False, artefact_default_kinetic_parameters=None,
-                  fix_parameters=[], data_label=None):
+                  fix_parameters=[], data_label=None, tolerance=None):
 
     if default_parameters is None or len(default_parameters) == 0:
         default_parameters = make_model_of_class(model_class_name).get_default_parameters()
@@ -311,16 +319,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
 
             if use_artefact_model:
                 # Use the artefact to forward simulate the voltages (using literature kinetics)
-                model = make_model_of_class(model_class_name, voltage=voltage_func,
-                                            times=times,
-                                            E_rev=E_rev,
-                                            protocol_description=protocol_desc)
-
-                model = ArtefactModel(model)
-
                 params_for_Erev = default_parameters.copy()
-                no_kinetic_params = len(parameter_labels) - 1
-                params_for_Erev[:no_kinetic_params] = artefact_default_kinetic_parameters[:no_kinetic_params]
 
                 E_obs = infer_reversal_potential_with_artefact(protocol, times, data,
                                                                'model3',
@@ -350,18 +349,16 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
             print(str(exc))
             pass
 
-    model = make_model_of_class(model_class_name, voltage=voltage_func,
-                                times=times,
-                                E_rev=E_rev,
-                                protocol_description=protocol_desc)
+    m_model = make_model_of_class(model_class_name, voltage=voltage_func,
+                                  times=times,
+                                  E_rev=E_rev,
+                                  protocol_description=protocol_desc,
+                                  tolerances=tolerance)
 
     if use_artefact_model:
-        model = ArtefactModel(model)
+        model = ArtefactModel(m_model)
 
-    if default_parameters is not None:
-        initial_params = default_parameters.copy()
-    else:
-        model.default_parameters = default_parameters.copy()
+    initial_params = default_parameters.flatten()
 
     columns = model.get_parameter_labels()
 
@@ -372,14 +369,22 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         raise Exception('solver and solver type provided')
 
     if solver is None:
+        strict = not use_artefact_model
         try:
-            solver = model.make_forward_solver_of_type(solver_type)
+            solver = model.make_forward_solver_of_type(solver_type,
+                                                       strict=strict)
             solver()
         except numba.core.errors.TypingError as exc:
             logging.warning(f"unable to make nopython forward solver {str(exc)}")
-            solver = model.make_forward_solver_of_type(solver_type, njitted=False)
+            solver = model.make_forward_solver_of_type(solver_type, njitted=False,
+                                                       strict=strict)
 
-    if not np.all(np.isfinite(solver())):
+    if not np.all(np.isfinite(solver(initial_params.flatten()))):
+        print(initial_params)
+        print()
+        if use_artefact_model:
+            print(model.SimulateForwardModel(initial_params))
+
         raise Exception('Default parameters gave non-finite output')
 
     fitted_params, score, fitting_df = fit_model(model, data, solver=solver,
@@ -540,13 +545,17 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
 
 
 class fitting_boundaries(pints.Boundaries):
-    def __init__(self, full_parameters, model, current, voltages, indices, rng,
+    def __init__(self, full_parameters, model, current, voltages, rng,
                  fix_parameters=[], is_artefact_model=False):
         self.is_artefact_model = is_artefact_model
 
         if is_artefact_model:
             self.mm = model.channel_model
-            self.fix_parameters = [i for i in fix_parameters if ((i % len(full_parameters)) < self.mm.get_no_parameters())]
+
+            self.fix_parameters = [
+                i for i in fix_parameters
+                if (i % len(full_parameters)) < self.mm.get_no_parameters()]
+
             self.full_parameters = full_parameters[:self.mm.get_no_parameters()].copy()
 
         else:
@@ -554,11 +563,13 @@ class fitting_boundaries(pints.Boundaries):
             self.full_parameters = full_parameters
             self.mm = model
 
-
+        indices = np.argwhere(voltages - -120.0 < 1e-5)[10:200]
         conductances = (current / (voltages - self.mm.E_rev))[indices]
 
         self.max_conductance = np.abs(conductances.max()) * 100
         self.min_conductance = np.abs(conductances.max()) * 0.01
+
+        self.rates_func = njit(self.mm.get_rates_func(njitted=False))
 
         self.rng = rng
 
@@ -566,21 +577,14 @@ class fitting_boundaries(pints.Boundaries):
         parameters = parameters.copy()
         if len(self.fix_parameters) != 0:
             for i in np.unique(self.fix_parameters):
-                parameters = np.insert(parameters, i, self.full_parameters[i])
+                # TODO repeated calls to insert are inefficient. Replace with
+                # something better
+                if i < len(self.full_parameters) - 1:
+                    parameters = np.insert(parameters, i, self.full_parameters[i])
 
-        # rates function
-        rates_func = self.mm.get_rates_func(njitted=False)
+        parameters = parameters[:self.mm.GKr_index + 1].flatten()
 
-        Vs = [-120, 60]
-        rates_1 = rates_func(parameters, Vs[0])
-        rates_2 = rates_func(parameters, Vs[1])
-
-        max_transition_rates = np.max(np.vstack([rates_1, rates_2]), axis=0)
-
-        if not np.all(max_transition_rates < 1e3):
-            return False
-
-        if not np.all(max_transition_rates > 1.67e-5):
+        if np.any(parameters[:self.mm.GKr_index + 1] < 0):
             return False
 
         if max([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) > 1e5:
@@ -589,14 +593,26 @@ class fitting_boundaries(pints.Boundaries):
         if min([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) < 1e-7:
             return False
 
-        if parameters[self.mm.Gkr_index] > self.max_conductance:
+        if parameters[self.mm.GKr_index] > self.max_conductance:
             return False
 
-        if parameters[self.mm.Gkr_index] < self.min_conductance:
+        if parameters[self.mm.GKr_index] < self.min_conductance:
             return False
 
-        # Ensure that all parameters > 0
-        return np.all(parameters > 0)
+        Vs = [-120, 60]
+        rates_func = self.rates_func
+        rates_1 = rates_func(parameters, Vs[0]).flatten()
+        rates_2 = rates_func(parameters, Vs[1]).flatten()
+
+        max_transition_rates = np.max(np.vstack([rates_1, rates_2]), axis=0)
+
+        if np.any(max_transition_rates > 1e3):
+            return False
+
+        if np.any(max_transition_rates < 1.67e-5):
+            return False
+
+        return True
 
     def n_parameters(self):
         return self.mm.get_no_parameters() - \
@@ -604,26 +620,32 @@ class fitting_boundaries(pints.Boundaries):
             else self.mm.get_no_parameters()
 
     def _sample_once(self, min_log_p, max_log_p):
-        nrg = self.nrg
+        rng = self.rng
 
         # Reject samples that don't lie in the boundaries
         # try 1000 times before giving up. This should be plenty
         for i in range(1000):
             p = np.empty(self.full_parameters.shape)
-            p[self.mm.GKr_index] = 10 ** nrg.uniform(*np.log10([self.min_conductance,
-                                                                self.max_conductance]))
 
-            p[:self.mm.GKr_index - 1] = 10**nrg.uniform(min_log_p, max_log_p,
-                                           self.full_parameters[:-1].shape)
-
+            p[:self.mm.GKr_index] = 10**rng.uniform(min_log_p, max_log_p,
+                                                        self.full_parameters.shape[0] - 1)
+            p[self.mm.GKr_index] = 0.5 * (self.min_conductance + self.max_conductance)
             if len(self.fix_parameters) != 0:
                 p = p[[i for i in range(len(self.full_parameters)) if i not in
                        self.fix_parameters]]
+
             # Check this lies in boundaries
             if self.check(p):
+                if self.mm.GKr_index not in self.fix_parameters:
+                    gkr_index = self.mm.GKr_index - np.sum(np.array(self.fix_parameters)\
+                                                           < self.mm.GKr_index)
+
+                p[gkr_index] = 10 ** (rng.uniform(np.log10(self.min_conductance),
+                                                  np.log10(self.max_conductance)))
                 return p
+
         logging.warning("Couldn't sample from boundaries")
-        return np.NaN
+        return np.full(p.shape, np.nan)
 
     def sample(self, n=1):
         min_log_p, max_log_p = [-7, 1]
@@ -655,35 +677,52 @@ def infer_reversal_potential_with_artefact(protocol, times, data,
                                 E_rev=E_rev,
                                 protocol_description=protocol_desc)
 
+    gkr_index = model.GKr_index
     model = ArtefactModel(model)
+
     forward_sim_params = default_parameters.copy()
 
     # Set V_off to 0
     forward_sim_params[-3] = 0
-    a_solver = model.make_hybrid_solver_current(njitted=False, hybrid=False)
+
+    a_state_solver = model.make_hybrid_solver_states(hybrid=False, njitted=False,
+                                                     strict=False)
 
     # Rough estimate of conductance
     # Maybe make it so this only looks at the reversal ramp, or leak step
-    def find_conductance_func(g):
-        p = forward_sim_params.copy().flatten()
-        p[-8] = g
-        return np.sum((a_solver(p)[indices] - data[indices])**2)
 
-    res = scipy.optimize.minimize_scalar(find_conductance_func,
-                                         bounds=(data[indices].max()*1e-4, data[indices].max()*1e1))
+    # Find reference trace which we will use to scale and find g
+    r_trace = model.SimulateForwardModel() / forward_sim_params[gkr_index]
+
+    def find_conductance_func(g):
+        return np.sum((r_trace[indices] * g - data[indices])**2)
+
+    # Try a few different starting points, starting with the most restrictive
+    for start_scale, end_scale in reversed([[0, 20], [0, 10], [0.5, 10], [0.5, 5]]):
+        # Take max current from step down from +40mV to -120mV
+        v_indices = np.argwhere(voltages - 120 < 1e-5)[5:200]
+        res = scipy.optimize.minimize_scalar(find_conductance_func,
+                                             bracket=(data[v_indices].max()*start_scale,
+                                                      data[v_indices].max()*end_scale))
+        if res.success:
+            break
+
     found_conductance = res.x
 
     # set conductance parameter
-    forward_sim_params[-8] = found_conductance
+    forward_sim_params[gkr_index] = found_conductance
 
     fig = plt.figure()
     axs = fig.subplots(2)
 
-    normalised_current = a_solver(forward_sim_params)   # plot current
+    auxiliary_function = model.define_auxiliary_function()
+    normalised_current = auxiliary_function(a_state_solver(forward_sim_params).T,
+                                            forward_sim_params,
+                                            voltages).flatten()
+    # plot current
     axs[0].plot(times, data, color='grey', alpha=.5)
-    axs[0].plot(times, normalised_current)
-
-    a_state_solver = model.make_hybrid_solver_states(hybrid=False, njitted=False)
+    axs[0].plot(times, normalised_current, label='current used for Erev')
+    axs[0].plot(times, r_trace * res.x, label='scaled reference trace')
 
     # plot Vm
     axs[1].plot(times, a_state_solver(forward_sim_params)[:, -1])
@@ -897,7 +936,6 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
                 data = full_data[indices]
 
                 for i, protocol_fitted in enumerate(params_df['protocol'].unique()):
-                    print(protocol_fitted)
                     for fitting_sweep in params_df[params_df.protocol == protocol_fitted].sweep:
                         # Get parameters
                         df = params_df[params_df.well == well]

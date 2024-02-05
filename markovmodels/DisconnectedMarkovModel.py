@@ -10,9 +10,9 @@ from markovmodels.MarkovModel import MarkovModel
 class DisconnectedMarkovModel(MarkovModel):
 
     def __init__(self, symbols, A, B, Qs, As, Bs, ys, connected_components,
-                 rates_dict, times, parameter_labels,
-                 auxiliary_expression, analytic_solution_funcs=None,
-                 *args, **kwargs):
+                 rates_dict, times, parameter_labels, auxiliary_expression,
+                 analytic_solution_funcs=None, GKr_index: int = None, *args,
+                 **kwargs):
 
         self.analytic_solution_funcs = analytic_solution_funcs
 
@@ -29,7 +29,8 @@ class DisconnectedMarkovModel(MarkovModel):
 
         self.y = [var for y in ys for var in y]
 
-        super().__init__(symbols, A, B, rates_dict, times, *args, **kwargs)
+        super().__init__(symbols, A, B, rates_dict, times, GKr_index=GKr_index,
+                         *args, **kwargs)
         self.n_state_vars = sum([len(y) for y in self.ys])
         self.auxiliary_function = njit(self.define_auxiliary_function())
 

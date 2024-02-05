@@ -96,13 +96,14 @@ def main():
         if well not in passed_wells:
             continue
 
-        gleak = leak_row['pre-drug leak conductance'] #* 1e-3
+        gleak = leak_row['pre-drug leak conductance']
         Eleak = leak_row['pre-drug leak reversal']
         qc_row = qc_df.loc[protocol, well, sweep][['Rseries', 'Cm']]
         Rseries = qc_row['Rseries'].values[0] * 1e-9
         Cm = qc_row['Cm'].values[0] * 1e9
         E_obs = leak_row['fitted_E_rev']
-        noise, gkr = estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries, Cm, E_obs)
+        noise, gkr = estimate_noise_and_conductance(well, protocol, sweep,
+                                                    gleak, Eleak, Rseries, Cm, E_obs)
 
         if args.no_noise:
             noise = 0
@@ -442,6 +443,7 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
 
     protocol_voltages = np.array([prot_func(t) for t in times])
     dt = times[1] - times[0]
+    print(dt)
 
     g_leak_before, E_leak_before, _, _, _, x, y = fit_leak_lr(
         protocol_voltages, before_trace, dt=dt,
@@ -456,12 +458,11 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
     )
 
     before_corrected = before_trace - g_leak_before * (protocol_voltages - E_leak_before)
+
     after_corrected = after_trace - g_leak_after * (protocol_voltages - E_leak_after)
     subtracted_trace = before_corrected - after_corrected
 
     noise = before_trace[:200].std()
-
-    prot_func, _times, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
 
     c_model = make_model_of_class(args.model,
                                   voltage=prot_func, times=times, E_rev=args.reversal,

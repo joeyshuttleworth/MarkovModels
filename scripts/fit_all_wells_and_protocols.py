@@ -27,9 +27,6 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
 
     infer_E_rev = not args.dont_infer_Erev
 
-    if args.dont_infer_Erev and args.use_artefact_model:
-        raise Exception()
-
     fix_parameters = []
     if args.use_artefact_model:
         fix_parameters = [-1, -2, -3, -4, -5, -6, -7]
@@ -39,6 +36,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
         model_class, well, protocol,
         args.data_directory,
         args.max_iterations,
+        tolerance=args.tolerance,
         output_dir=this_output_dir,
         default_parameters=default_parameters,
         removal_duration=args.removal_duration,
@@ -85,13 +83,14 @@ def main():
     parser.add_argument('--selection_file')
     parser.add_argument('--ignore_protocols', nargs='+', default=[])
     parser.add_argument('--ignore_wells', nargs='+', default=[])
-    parser.add_argument('--sweeps', nargs='+', default=None)
+    parser.add_argument('--sweeps', nargs='+', type=int)
     parser.add_argument('--use_artefact_model', action='store_true')
     parser.add_argument('--subtraction_df_file')
     parser.add_argument('--qc_df_file')
     parser.add_argument('--data_label')
     parser.add_argument('--compute_predictions', action='store_true')
     parser.add_argument('--reversal', type=float)
+    parser.add_argument('--tolerance', nargs=2, type=float, default=(1e-8, 1e-8))
     parser.add_argument('-o', '--output')
 
     global args
@@ -188,9 +187,12 @@ def main():
             prefix = 'prelim_'
 
         sweep = int(groups[2])
+
+        if args.sweeps:
+            if int(sweep) not in args.sweeps:
+                continue
+
         if args.use_artefact_model:
-            print(qc_df[(qc_df.well == well) & (qc_df.protocol == protocol)
-                        & (qc_df.sweep == sweep)])
             row = qc_df[(qc_df.well == well) & (qc_df.protocol == protocol) &
                         (qc_df.sweep == sweep)]
             # assert(row.shape[0] == 1)
