@@ -291,12 +291,13 @@ def subtract_leak(well, protocol, args, output_dir=None):
         protocol_axs, before_axs, after_axs, corrected_axs, subtracted_ax, \
             long_protocol_ax = setup_subtraction_grid(fig, nsweeps)
 
-    protocol_func, _, desc = get_ramp_protocol_from_csv(protocol,
-                                                     data_directory=args.data_directory)
+    protocol_func, _, desc = get_ramp_protocol_from_csv(protocol)
 
     # TODO
     # Find ramp start and end from desc
-    # ramp_start_step = min([])
+    leak_ramp = [line for line in desc if line[2] != line[3]][0]
+    ramp_start = leak_ramp[0]
+    ramp_end = leak_ramp[1]
 
     observation_times = pd.read_csv(os.path.join(
         args.data_directory, f"{args.experiment_name}-{protocol}-times.csv")).to_numpy()[:, -1].flatten()*1e3
