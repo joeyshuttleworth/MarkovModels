@@ -166,7 +166,7 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None,
     return protocol_func, times, protocol
 
 
-def make_voltage_function_from_description(desc, holding_potential=-80):
+def make_voltage_function_from_description(desc, holding_potential=-80.0):
 
     @njit
     def protocol_func(t: np.float64, offset=0.0,
@@ -179,13 +179,15 @@ def make_voltage_function_from_description(desc, holding_potential=-80):
 
         for row in desc:
             if t < row[1]:
-                # ramp_start = desc[i][0]
-                if row[3] - row[2] != 0:
-                    return row[2] + (t - row[0])\
-                        * (row[3] - row[2]) / \
-                        (row[1] - row[0])
+                tstart, tend, vstart, vend = row.flatten()
+                if vend != vstart:
+                    return vstart + (t - tstart)\
+                        * (vend - vstart) / \
+                        (tend - tstart)
                 else:
-                    return row[3]
+                    return vend
+
+        return holding_potential
 
     return protocol_func
 
@@ -289,8 +291,8 @@ def design_space_to_desc(d, t_step=.1):
     # Add steps from the design
     for dur, v in zip(durations, voltages):
         if dur <= 0:
-            print("WARNING: negative duration")
-            dur = 0
+           print("WARNING: negative duration")
+           dur = 0
 
         lines.append([t_cur, t_cur + dur, v, v])
         t_cur += dur + t_step

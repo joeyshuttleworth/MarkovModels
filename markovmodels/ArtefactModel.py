@@ -96,6 +96,8 @@ class ArtefactModel(MarkovModel):
             self.voltage(0))
 
     def define_steady_state_function(self, tend=5000):
+        # Assume a holding potential of -80mV and simulate forwards for 5 seconds
+        # start from -80mV steady state of the Markov model and Vm=-80mV 
         atol, rtol = self.solver_tolerances
         p = self.get_default_parameters()
 

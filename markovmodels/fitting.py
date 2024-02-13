@@ -18,7 +18,9 @@ import markovmodels
 from markovmodels.model_generation import make_model_of_class
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
 from markovmodels.utilities import get_data
-from markovmodels.voltage_protocols import remove_spikes, detect_spikes
+from markovmodels.voltage_protocols import remove_spikes, detect_spikes,\
+    make_voltage_function_from_description
+
 from markovmodels.ArtefactModel import ArtefactModel
 
 
@@ -50,6 +52,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     returns: A pair containing the optimal parameters and the corresponding sum of square errors.
 
     """
+
 
     if not times:
         times = mm.times
@@ -133,10 +136,10 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                     return sol
             else:
                 def simulate(p, times):
-                    try:
-                        return solver(p)[subset_indices]
-                    except Exception:
-                        return np.full(times.shape, np.inf)
+                    # try:
+                    return solver(p)[subset_indices]
+                    # except Exception:
+                    #     return np.full(times.shape, np.inf)
 
             self.simulate = simulate
 
@@ -297,14 +300,15 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         df['score'] = np.inf
         return df
 
-    # Ignore files that have been commented out
-    voltage_func, times, protocol_desc = get_ramp_protocol_from_csv(protocol)
+    data, voltage_protocol = get_data(well, protocol, data_directory, experiment_name,
+                                      label=data_label, sweep=sweep)
+    protocol_desc = voltage_protocol.get_all_sections()
 
-    data = get_data(well, protocol, data_directory, experiment_name,
-                    label=data_label, sweep=sweep)
+    voltage_func = make_voltage_function_from_description(protocol_desc)
 
     times = pd.read_csv(os.path.join(data_directory, f"{experiment_name}-{protocol}-times.csv"),
-                        float_precision='round_trip')['time'].values
+                        float_precision='round_trip').values.flatten()
+
 
     voltages = np.array([voltage_func(t) for t in times])
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
@@ -359,6 +363,8 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
 
     if use_artefact_model:
         model = ArtefactModel(m_model)
+    else:
+        model = m_model
 
     initial_params = default_parameters.flatten()
 
