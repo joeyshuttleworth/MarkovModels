@@ -241,6 +241,9 @@ def do_scatterplots(df, qc_df):
     df[r'$\hat g_\mathrm{leak}$'] = df['pre-drug leak conductance']
     df[r'$\hat E_\mathrm{leak}$'] = df['pre-drug leak reversal']
 
+    df[r'$\hat{E_\text{obs}}$'] = df['fitted_E_rev']
+    df[r'$E_\text{obs}$'] = qc_df['fitted_E_rev']
+
     sns.scatterplot(data=df, x='pre-drug leak conductance',
                     y=r'$\hat g_\mathrm{leak}$', ax=ax)
 
@@ -254,8 +257,13 @@ def do_scatterplots(df, qc_df):
     ax.plot(xs, xs, '--', color='grey')
     fig.savefig(os.path.join(output_dir, "E_leak_scatterplot"))
 
-    # Now do matrix scatteplot
+    sns.scatterplot(data=df, x=r'$E_\text{obs}$',
+                    y=r'$\hat{E_\text{obs}}$', ax=ax)
+    xs = np.quantile(df['pre-drug leak reversal'], (0, 1))
+    ax.plot(xs, xs, '--', color='grey')
+    fig.savefig(os.path.join(output_dir, "E_leak_scatterplot"))
 
+    # Now do matrix scatterplot
     df = df[['gleak', 'Eleak', 'Rseries', 'Cm', 'gkr']]
 
     df['passed QC'] = df.index.get_level_values('well').isin(passed_wells)
