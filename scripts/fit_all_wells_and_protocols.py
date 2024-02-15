@@ -26,7 +26,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
              randomise_initial_guess=True, prefix='', sweep=None):
     this_output_dir = os.path.join(output_dir, f"{prefix}{protocol}_{well}_sweep{sweep}")
 
-    infer_E_rev = not args.dont_infer_Erev
+    _E_rev = not args.dont_infer_Erev
 
     fix_parameters = []
     if args.use_artefact_model:
@@ -42,7 +42,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
         default_parameters=default_parameters,
         removal_duration=args.removal_duration,
         repeats=args.repeats,
-        infer_E_rev=infer_E_rev,
+        infer_E_rev=not args.dont_infer_Erev,
         experiment_name=args.experiment_name,
         E_rev=E_rev,
         randomise_initial_guess=randomise_initial_guess,
@@ -84,7 +84,7 @@ def main():
     parser.add_argument('--selection_file')
     parser.add_argument('--ignore_protocols', nargs='+', default=[])
     parser.add_argument('--ignore_wells', nargs='+', default=[])
-    parser.add_argument('--sweeps', nargs='+', type=int)
+    parser.add_argument('--sweeps', nargs='+', type=int, default=[0])
     parser.add_argument('--use_artefact_model', action='store_true')
     parser.add_argument('--subtraction_df_file')
     parser.add_argument('--qc_df_file')
@@ -120,7 +120,7 @@ def main():
 
     if args.qc_df_file:
         qc_df = pd.read_csv(args.qc_df_file)
-        qc_df = qc_df[qc_df.drug == 'before']
+       # qc_df = qc_df[qc_df.drug == 'before']
 
     if args.subtraction_df_file:
         subtraction_df = pd.read_csv(args.subtraction_df_file)
@@ -129,6 +129,8 @@ def main():
         args.output,
         f"fitting_{args.experiment_name}_{args.model}"
     )
+
+    args.sweeps = list(set(args.sweeps))
 
     if len(args.wells) == 0:
         args.wells = markovmodels.utilities.get_all_wells_in_directory(args.data_directory, experiment_name)
@@ -157,10 +159,7 @@ def main():
     tasks = []
     protocols_list = []
 
-    if args.sweeps:
-        regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z|0-9]*)-sweep([0-9]).csv$")
-    else:
-        regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z|0-9]*).csv$")
+    regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z|0-9]*)-sweep([0-9])-subtracted.csv$")
 
     param_labels = make_model_of_class(args.model).get_parameter_labels()
     for f in filter(regex.match, os.listdir(args.data_directory)):
@@ -193,7 +192,7 @@ def main():
         if args.use_artefact_model:
             row = qc_df[(qc_df.well == well) & (qc_df.protocol == protocol) &
                         (qc_df.sweep == sweep)]
-            # assert(row.shape[0] == 1)
+            assert(row.shape[0] == 1)
 
             Rseries, Cm = row.iloc[0][['Rseries', 'Cm']]
 
@@ -202,7 +201,7 @@ def main():
 
             row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol)
                                  & (subtraction_df.sweep == sweep)].iloc[0]
-            gleak, Eleak = row[['pre-drug leak conductance', 'pre-drug leak reversal']]
+            gleak, Eleak = row[['gleak_before', 'E_leak_before']]
             gleak = float(gleak)
             Eleak = float(Eleak)
 
@@ -223,6 +222,8 @@ def main():
         future_res = [pool.submit(fit_func, *args) for args in tasks]
         loky.wait(future_res)
         res = [x.res() for x in future_res]
+
+    print(res)
 
     fitting_df = pd.concat(res, ignore_index=True)
 

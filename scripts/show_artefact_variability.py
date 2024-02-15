@@ -87,6 +87,7 @@ def use_qc_estimates(qc_df, leak_df, passed_wells):
                                          sweep][['pre-drug leak conductance',
                                                  'pre-drug leak reversal']]
         except KeyError:
+            discrepancies.append(np.nan)
             continue
 
         p = artefact_model.get_default_parameters()
@@ -105,7 +106,7 @@ def use_qc_estimates(qc_df, leak_df, passed_wells):
 
     # Well with biggest error
     qc_df['discrepancy'] = discrepancies
-    worst_trace = qc_df.iloc[qc_df.discrepancy.idxmax()]
+    worst_trace = qc_df.loc[qc_df.discrepancy.idxmax()]
     print(f"worst trace is {worst_trace}")
 
     axs[1].set_ylim(ylim_2)
@@ -127,27 +128,32 @@ def use_literature_range():
     artefact_model = ArtefactModel(c_model)
 
     _p = artefact_model.get_default_parameters()
+
+    # Convert current to pA
+    _p[-8] *= 1e3
+
     p = _p.copy()
-    p[-8] *= 1e3
+
+    c_p = p.copy()[:c_model.get_default_parameters().shape[0]]
 
     fig = plt.figure(figsize=args.figsize)
     axs = fig.subplots(2, 2)
 
-    axs[0, 0].plot(times*1e-3, c_model.SimulateForwardModel(), color='grey')
+    axs[0, 0].plot(times*1e-3, c_model.SimulateForwardModel(c_p), color='grey')
     axs[0, 0].set_title('no artefacts')
-    axs[0, 1].plot(times*1e-3, c_model.SimulateForwardModel(), color='grey')
-    axs[1, 0].plot(times*1e-3, c_model.SimulateForwardModel(), color='grey')
-    axs[1, 1].plot(times*1e-3, c_model.SimulateForwardModel(), color='grey')
+    axs[0, 1].plot(times*1e-3, c_model.SimulateForwardModel(c_p), color='grey')
+    axs[1, 0].plot(times*1e-3, c_model.SimulateForwardModel(c_p), color='grey')
+    axs[1, 1].plot(times*1e-3, c_model.SimulateForwardModel(c_p), color='grey')
 
-    axs[0, 1].plot(times*1e-3, artefact_model.SimulateForwardModel())
+    axs[0, 1].plot(times*1e-3, artefact_model.SimulateForwardModel(_p))
     axs[0, 1].set_title(f"C_m={p[-2]}, R_s={p[-1]}")
 
     p = _p.copy()
     p[-1] = 20e-3 #MOhm
     p[-2] = 20e-3
+    p[-7] = 2 # uS
     axs[1, 0].plot(times*1e-3, artefact_model.SimulateForwardModel(p))
     axs[1, 0].set_title(f"C_m={p[-2]}nF, R_s={p[-1]}GOhm")
-    p[-7] = 2e-3 #gS
 
     axs[1, 1].plot(times*1e-3, artefact_model.SimulateForwardModel(p))
     axs[1, 1].set_title(f"C_m={p[-2]}nF, R_s={p[-1]}GOhm, " \
@@ -172,11 +178,11 @@ def use_literature_range():
     axs[0, 1].set_title(f"C_m={p[-2]}nF, R_s={p[-1]}GOhm")
 
     p = _p.copy()
-    p[-1] = 20e-3 #MOhm
-    p[-2] = 20e-3
+    p[-1] = 20e-3 #GOhm
+    p[-2] = 20e-3 # nF
+    p[-7] = 2 # uS
     axs[1, 0].plot(times*1e-3, a_solver(p)[:, -1])
     axs[1, 0].set_title(f"C_m={p[-2]}nF, R_s={p[-1]}MOhm")
-    p[-7] = 2e-3 #gS
 
     axs[1, 1].plot(times*1e-3, a_solver(p)[:, -1])
     axs[1, 1].set_title(f"C_m={p[-2]}nF, R_s={p[-1]}MOhm, " \

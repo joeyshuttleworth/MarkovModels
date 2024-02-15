@@ -5,10 +5,13 @@ import os
 import subprocess
 import sys
 import uuid
+import json
 
 import numpy as np
 import pandas as pd
 import regex as re
+
+from pcpostprocess.voltage_protocols import VoltageProtocol
 
 
 def calculate_reversal_potential(T=293, K_in=120, K_out=5):
@@ -31,8 +34,11 @@ def calculate_reversal_potential(T=293, K_in=120, K_out=5):
     return E * 1e3
 
 
-def get_data(well, protocol, data_directory, experiment_name='newtonrun4',
-             label=None, sweep=None):
+def get_data(well, protocol, data_directory, experiment_name='',
+             label='', sweep=None):
+
+    if not label:
+        label = ''
 
     # Find data
     if sweep:
@@ -40,18 +46,30 @@ def get_data(well, protocol, data_directory, experiment_name='newtonrun4',
             label = label + '-'
         else:
             label = ''
-        regex = re.compile(f"^{experiment_name}-{protocol}-{well}-{label}sweep{sweep}.csv$")
-    else:
-        if label:
-            label = '-' + label
-        else:
-            label = ''
-        regex = re.compile(f"^{experiment_name}-{protocol}-{well}{label}.csv$")
+
+    regex = re.compile(f"^{experiment_name}-{protocol}-{well}-{label}sweep{sweep}-subtracted.csv$")
+
+    print(regex, data_directory)
 
     fname = next(filter(regex.match, os.listdir(data_directory)))
     data = pd.read_csv(os.path.join(data_directory, fname),
-                       float_precision='round_trip')['current'].values
-    return data
+                       float_precision='round_trip').values
+
+    if len(data.T) > 1:
+        raise ValueError(f"shape of values is {data.shape} when it should be 1d")
+
+    v_regex = re.compile(f"^{experiment_name}-{protocol}.json$")
+    protocols_dir = os.path.join(data_directory, 'protocols')
+    print(v_regex, protocols_dir)
+
+    fname = next(filter(v_regex.match, os.listdir(protocols_dir)))
+
+    with open(os.path.join(protocols_dir, fname), 'r') as fin:
+        json_contents = json.load(fin)
+
+    voltage_protocol = VoltageProtocol.from_json(json_contents)
+
+    return data.flatten(), voltage_protocol
 
 
 def get_all_wells_in_directory(data_dir, experiment_name='newtonrun4'):

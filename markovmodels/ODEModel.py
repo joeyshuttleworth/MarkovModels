@@ -7,6 +7,8 @@ from numbalsoda import lsoda, lsoda_sig
 
 from markovmodels.utilities import calculate_reversal_potential
 
+_lsoda_n_max_steps = 1000
+
 
 class ODEModel:
     """
@@ -173,8 +175,6 @@ class ODEModel:
         p = self.get_default_parameters()
         eps = np.finfo(float).eps
 
-        start_times = protocol_description[:, 0].flatten()
-
         def hybrid_forward_solve(p=p, times=times, atol=atol, rtol=rtol,
                                  strict=strict, hybrid=hybrid,
                                  protocol_description=protocol_description):
@@ -250,13 +250,15 @@ class ODEModel:
                                                                 step_times[start_int:end_int] - step_times[0],
                                                                 data=data, rtol=rtol,
                                                                 atol=atol,
-                                                                exit_on_warning=True)
+                                                                exit_on_warning=strict,
+                                                                mxstep=_lsoda_n_max_steps)
                     else:
                         end_int = 0
                         step_sol[start_int:], _ = lsoda(crhs_ptr, y0,
                                                         step_times[start_int:] - step_times[0],
                                                         data=data, rtol=rtol,
-                                                        atol=atol, exit_on_warning=True)
+                                                        atol=atol, exit_on_warning=strict,
+                                                        mxstep=_lsoda_n_max_steps)
 
                 if not np.all(np.isfinite(step_sol[start_int:end_int])):
                     return np.full(solution.shape, np.nan)

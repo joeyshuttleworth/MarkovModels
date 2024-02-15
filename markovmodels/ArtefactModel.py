@@ -17,7 +17,7 @@ class ArtefactModel(MarkovModel):
     def __init__(self, channel_model, E_leak=0, g_leak=0, C_m=5e-3, R_series=5e-3,
                  g_leak_leftover=0, E_leak_leftover=0, V_off=0, ignore_states=[]):
 
-        # Membrane capacitance
+        # Membrane capacitance (nF)
         self.C_m = C_m
 
         # Series resistance (GOhm)
@@ -96,6 +96,8 @@ class ArtefactModel(MarkovModel):
             self.voltage(0))
 
     def define_steady_state_function(self, tend=5000):
+        # Assume a holding potential of -80mV and simulate forwards for 5 seconds
+        # start from -80mV steady state of the Markov model and Vm=-80mV 
         atol, rtol = self.solver_tolerances
         p = self.get_default_parameters()
 

@@ -45,6 +45,7 @@ def main():
     parser.add_argument('--sampling_frequency', default=0.1, type=float)
     parser.add_argument('--figsize', type=int, nargs=2, default=[8, 12])
     parser.add_argument('--no_noise', action='store_true')
+    parser.add_argument('--dont_correct_post', action='store_true')
 
     global args
     args = parser.parse_args()
@@ -109,6 +110,7 @@ def main():
             noise = 0
         tasks.append((protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev))
 
+    print(f"tasks are {tasks}")
     with multiprocessing.Pool(args.cpus) as pool:
         res = pool.starmap(generate_data, tasks)
 
@@ -443,7 +445,6 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
 
     protocol_voltages = np.array([prot_func(t) for t in times])
     dt = times[1] - times[0]
-    print(dt)
 
     g_leak_before, E_leak_before, _, _, _, x, y = fit_leak_lr(
         protocol_voltages, before_trace, dt=dt,

@@ -18,7 +18,9 @@ import markovmodels
 from markovmodels.model_generation import make_model_of_class
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
 from markovmodels.utilities import get_data
-from markovmodels.voltage_protocols import remove_spikes, detect_spikes
+from markovmodels.voltage_protocols import remove_spikes, detect_spikes,\
+    make_voltage_function_from_description
+
 from markovmodels.ArtefactModel import ArtefactModel
 
 
@@ -50,6 +52,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     returns: A pair containing the optimal parameters and the corresponding sum of square errors.
 
     """
+
 
     if not times:
         times = mm.times
@@ -133,10 +136,10 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                     return sol
             else:
                 def simulate(p, times):
-                    try:
-                        return solver(p)[subset_indices]
-                    except Exception:
-                        return np.full(times.shape, np.inf)
+                    # try:
+                    return solver(p)[subset_indices]
+                    # except Exception:
+                    #     return np.full(times.shape, np.inf)
 
             self.simulate = simulate
 
@@ -297,14 +300,15 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         df['score'] = np.inf
         return df
 
-    # Ignore files that have been commented out
-    voltage_func, times, protocol_desc = get_ramp_protocol_from_csv(protocol)
+    data, voltage_protocol = get_data(well, protocol, data_directory, experiment_name,
+                                      label=data_label, sweep=sweep)
+    protocol_desc = voltage_protocol.get_all_sections()
 
-    data = get_data(well, protocol, data_directory, experiment_name,
-                    label=data_label, sweep=sweep)
+    voltage_func = make_voltage_function_from_description(protocol_desc)
 
     times = pd.read_csv(os.path.join(data_directory, f"{experiment_name}-{protocol}-times.csv"),
-                        float_precision='round_trip')['time'].values
+                        float_precision='round_trip').values.flatten()
+
 
     voltages = np.array([voltage_func(t) for t in times])
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
@@ -312,42 +316,44 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                   removal_duration)
 
     if infer_E_rev:
-        try:
-            if output_dir:
-                plot = True
-                output_path = os.path.join(output_dir, 'infer_reversal_potential.png')
+        if output_dir:
+            plot = True
+            reversal_dir = os.path.join('reversal_plots')
+            try:
+                os.makedirs(reversal_dir)
+            except FileExistsError:
+                pass
 
-            if use_artefact_model:
-                # Use the artefact to forward simulate the voltages (using literature kinetics)
-                params_for_Erev = default_parameters.copy()
+            output_path = os.path.join(reversal_dir,
+                                        'infer_reversal_potential.png')
 
-                E_obs = infer_reversal_potential_with_artefact(protocol, times, data,
-                                                               'model3',
-                                                               params_for_Erev,
-                                                               E_rev,
-                                                               removal_duration=removal_duration,
-                                                               plot=True,
-                                                               output_path=output_dir,
-                                                               forward_sim_output_dir=output_dir,
-                                                               )
+        if use_artefact_model:
+            # Use the artefact to forward simulate the voltages (using literature kinetics)
+            params_for_Erev = default_parameters.copy()
 
-            else:
-                voltages = None
-                E_obs = infer_reversal_potential(protocol, data, times, plot=plot,
-                                                 output_path=output_path, voltages=voltages)
-            if use_artefact_model:
-                inferred_E_rev = E_rev
-                V_off = E_rev - E_obs
-                default_parameters[-3] = V_off
-            else:
-                inferred_E_rev = E_obs
+            E_obs = infer_reversal_potential_with_artefact(protocol, times, data,
+                                                           'model3',
+                                                           params_for_Erev,
+                                                           E_rev,
+                                                           removal_duration=removal_duration,
+                                                           plot=True,
+                                                           output_path=output_path,
+                                                           forward_sim_output_dir=output_dir,
+                                                           )
 
-            if inferred_E_rev < -50 or inferred_E_rev > -100:
-                E_rev = inferred_E_rev
+        else:
+            voltages = None
+            E_obs = infer_reversal_potential(protocol, data, times, plot=plot,
+                                             output_path=output_path, voltages=voltages)
+        if use_artefact_model:
+            inferred_E_rev = E_rev
+            V_off = E_rev - E_obs
+            default_parameters[-3] = V_off
+        else:
+            inferred_E_rev = E_obs
 
-        except Exception as exc:
-            print(str(exc))
-            pass
+        if inferred_E_rev < -50 or inferred_E_rev > -100:
+            E_rev = inferred_E_rev
 
     m_model = make_model_of_class(model_class_name, voltage=voltage_func,
                                   times=times,
@@ -357,6 +363,8 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
 
     if use_artefact_model:
         model = ArtefactModel(m_model)
+    else:
+        model = m_model
 
     initial_params = default_parameters.flatten()
 
@@ -380,12 +388,11 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                                        strict=strict)
 
     if not np.all(np.isfinite(solver(initial_params.flatten()))):
-        print(initial_params)
-        print()
         if use_artefact_model:
             print(model.SimulateForwardModel(initial_params))
 
-        raise Exception('Default parameters gave non-finite output')
+        raise Exception("Default parameters gave non-finite output \n"
+                        f"{well} {protocol} {sweep} {initial_params} {E_rev}")
 
     fitted_params, score, fitting_df = fit_model(model, data, solver=solver,
                                                  starting_parameters=initial_params,
@@ -675,7 +682,8 @@ def infer_reversal_potential_with_artefact(protocol, times, data,
     model = make_model_of_class(model_class_name, voltage=voltage_func,
                                 times=times,
                                 E_rev=E_rev,
-                                protocol_description=protocol_desc)
+                                protocol_description=protocol_desc,
+                                tolerances=(1e-6, 1e-6))
 
     gkr_index = model.GKr_index
     model = ArtefactModel(model)
@@ -686,26 +694,31 @@ def infer_reversal_potential_with_artefact(protocol, times, data,
     forward_sim_params[-3] = 0
 
     a_state_solver = model.make_hybrid_solver_states(hybrid=False, njitted=False,
-                                                     strict=False)
+                                                     strict=True)
 
     # Rough estimate of conductance
     # Maybe make it so this only looks at the reversal ramp, or leak step
 
     # Find reference trace which we will use to scale and find g
-    r_trace = model.SimulateForwardModel() / forward_sim_params[gkr_index]
+    r_trace = model.SimulateForwardModel()[indices] / forward_sim_params[gkr_index]
 
     def find_conductance_func(g):
-        return np.sum((r_trace[indices] * g - data[indices])**2)
+        return np.sum((r_trace * g - data[indices])**2)
 
-    # Try a few different starting points, starting with the most restrictive
-    for start_scale, end_scale in reversed([[0, 20], [0, 10], [0.5, 10], [0.5, 5]]):
-        # Take max current from step down from +40mV to -120mV
-        v_indices = np.argwhere(voltages - 120 < 1e-5)[5:200]
-        res = scipy.optimize.minimize_scalar(find_conductance_func,
-                                             bracket=(data[v_indices].max()*start_scale,
-                                                      data[v_indices].max()*end_scale))
-        if res.success:
-            break
+    # # Take max current from step down from +40mV to -120mV
+    # v_indices = np.argwhere(voltages - 120 < 1e-5)[5:200]
+
+    # # Do a brute-force search first
+    # g_vals = np.linspace(0, data[v_indices].max(), 100)
+    # f_vals = np.array([find_conductance_func(g) for g in g_vals])
+
+    # low_bound_i = max(0, np.argmin(f_vals) - 1)
+    # upper_bound_i = min(np.argmin(f_vals) + 1, len(f_vals) - 1)
+
+    res = scipy.optimize.minimize_scalar(find_conductance_func,
+                                         bounds=(0, r_trace[np.isfinite(r_trace)].max() * 1e2))
+    if not res.success:
+        logging.error(f"{protocol} {res}")
 
     found_conductance = res.x
 
@@ -722,7 +735,7 @@ def infer_reversal_potential_with_artefact(protocol, times, data,
     # plot current
     axs[0].plot(times, data, color='grey', alpha=.5)
     axs[0].plot(times, normalised_current, label='current used for Erev')
-    axs[0].plot(times, r_trace * res.x, label='scaled reference trace')
+    axs[0].plot(times[indices], r_trace * res.x, label='scaled reference trace')
 
     # plot Vm
     axs[1].plot(times, a_state_solver(forward_sim_params)[:, -1])
@@ -732,13 +745,11 @@ def infer_reversal_potential_with_artefact(protocol, times, data,
             os.makedirs(forward_sim_output_dir)
 
         fig.savefig(os.path.join(forward_sim_output_dir,
-                                "infer_reversal_potential_forward_sim"))
+                                 "infer_reversal_potential_forward_sim"))
         plt.close(fig)
 
-        voltages = model.make_hybrid_solver_states(hybrid=False)(forward_sim_params)[:, -1]
-
-        return infer_reversal_potential(protocol, data, times, voltages=voltages,
-                                        **kwargs)
+    return infer_reversal_potential(protocol, data, times, voltages=voltages,
+                                    **kwargs)
 
 
 def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
