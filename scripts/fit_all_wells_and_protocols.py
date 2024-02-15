@@ -1,4 +1,5 @@
 import logging
+import loky
 import multiprocessing
 import os
 
@@ -132,10 +133,7 @@ def main():
     if len(args.wells) == 0:
         args.wells = markovmodels.utilities.get_all_wells_in_directory(args.data_directory, experiment_name)
 
-    if len(args.protocols) == 0:
-        protocols = markovmodels.voltage_protocols.get_protocol_list()
-    else:
-        protocols = args.protocols
+    protocols = args.protocols
 
     if args.selection_file:
         args.wells = [well for well in args.wells if well in selected_wells]
@@ -169,7 +167,7 @@ def main():
         groups = re.search(regex, f).groups()
         protocol = groups[0]
         well = groups[1]
-        if protocol not in protocols or well not in args.wells:
+        if (protocols and protocol not in protocols) or well not in args.wells:
             continue
         if protocol in args.ignore_protocols or well in args.ignore_wells:
             continue
@@ -220,8 +218,11 @@ def main():
     protocols_list = np.unique(protocols_list)
     pool_size = min(args.cores, len(tasks))
 
-    with multiprocessing.Pool(pool_size, **pool_kws) as pool:
-        res = pool.starmap(fit_func, tasks)
+    with loky.get_reusable_executor(pool_size, timeout=None,
+                                    **pool_kws) as pool:
+        future_res = [pool.submit(fit_func, *args) for args in tasks]
+        loky.wait(future_res)
+        res = [x.res() for x in future_res]
 
     fitting_df = pd.concat(res, ignore_index=True)
 
