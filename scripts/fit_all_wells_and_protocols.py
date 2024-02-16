@@ -19,7 +19,7 @@ from markovmodels.fitting import infer_reversal_potential_with_artefact
 from markovmodels.fitting import compute_predictions_df, get_best_params
 
 matplotlib.use('agg')
-pool_kws = {'maxtasksperchild': 1}
+# pool_kws = {'maxtasksperchild': 1}
 
 
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
@@ -217,11 +217,10 @@ def main():
     protocols_list = np.unique(protocols_list)
     pool_size = min(args.cores, len(tasks))
 
-    with loky.get_reusable_executor(pool_size, timeout=None,
-                                    **pool_kws) as pool:
+    with loky.get_reusable_executor(pool_size, timeout=None) as pool:
         future_res = [pool.submit(fit_func, *args) for args in tasks]
         loky.wait(future_res)
-        res = [x.res() for x in future_res]
+        res = [x.result() for x in future_res]
 
     print(res)
 
