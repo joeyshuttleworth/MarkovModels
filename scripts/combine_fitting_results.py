@@ -21,7 +21,7 @@ def main():
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
     parser.add_argument('--model_class')
 
-    global args 
+    global args
     args = parser.parse_args()
 
     glob_string = f"*/{args.filename}"
