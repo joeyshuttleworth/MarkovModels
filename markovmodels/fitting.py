@@ -318,7 +318,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
     if infer_E_rev:
         if output_dir:
             plot = True
-            reversal_dir = os.path.join('reversal_plots')
+            reversal_dir = os.path.join(output_dir, 'reversal_plots')
             try:
                 os.makedirs(reversal_dir)
             except FileExistsError:
@@ -326,19 +326,20 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
 
             output_path = os.path.join(reversal_dir,
                                         'infer_reversal_potential.png')
+        else:
+            output_path = None
+            reversal_dir = None
 
         if use_artefact_model:
             # Use the artefact to forward simulate the voltages (using literature kinetics)
             params_for_Erev = default_parameters.copy()
 
-            E_obs = infer_reversal_potential_with_artefact(protocol, times, data,
-                                                           'model3',
-                                                           params_for_Erev,
-                                                           E_rev,
+            V_off = infer_reversal_potential_with_artefact(protocol, times,
+                                                           data, 'model3',
+                                                           default_parameters, E_rev,
+                                                           forward_sim_output_dir=reversal_dir,
                                                            removal_duration=removal_duration,
-                                                           plot=True,
-                                                           output_path=output_path,
-                                                           forward_sim_output_dir=output_dir,
+                                                           output_path=output_path
                                                            )
 
         else:
@@ -347,7 +348,6 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                              output_path=output_path, voltages=voltages)
         if use_artefact_model:
             inferred_E_rev = E_rev
-            V_off = E_rev - E_obs
             default_parameters[-3] = V_off
         else:
             inferred_E_rev = E_obs
@@ -668,16 +668,57 @@ class fitting_boundaries(pints.Boundaries):
         return ret_vec
 
 
-def infer_reversal_potential_with_artefact(protocol, times, data,
+def _find_conductance(solver, data, indices, aux_func, voltages, p, Erev, gkr_index=-8,
+                      bounds=None):
+
+    if bounds is None:
+        # Look at -120 step
+        b_indices = np.argwhere(np.abs(voltages + 120)<1e-2)
+        bounds = np.unique([0, (data[b_indices]/(voltages[b_indices] - Erev)).max() * 20])
+
+    def find_g_opt(g):
+        _p = p.copy()
+        _p[gkr_index] = g
+        states = solver(_p)
+
+        if not np.all(np.isfinite(states)):
+            return np.inf
+
+        prediction = aux_func(states.T, _p, voltages).flatten()
+        score = np.sqrt(np.mean((prediction[indices] - data[indices])**2))
+        return score
+
+    # Find conductance
+    res = scipy.optimize.minimize_scalar(find_g_opt,
+                                         bounds=bounds)
+
+    if res.success:
+        return res.x
+    return np.nan
+
+
+
+def infer_voltage_offset_with_artefact(protocol, times, data,
                                            model_class_name,
                                            default_parameters, E_rev,
                                            forward_sim_output_dir=None,
-                                           removal_duration=0, **kwargs):
+                                           removal_duration=0,
+                                           output_path=None):
+
     voltage_func, _, protocol_desc = get_ramp_protocol_from_csv(protocol)
+    voltages = np.array([voltage_func(t) for t in times])
+
     voltages = np.array([voltage_func(t) for t in times])
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   removal_duration)
+
+    # Only use the last part of the protocol for guessing the conductance
+    # Find last +40 step
+    start_step = [line for line in protocol_desc if
+                  line[2] == line[3] and line[2] == +40.0][-1]
+    start_t = start_step[0]
+    indices = indices[np.argwhere(times[indices] > start_t)]
 
     model = make_model_of_class(model_class_name, voltage=voltage_func,
                                 times=times,
@@ -688,73 +729,148 @@ def infer_reversal_potential_with_artefact(protocol, times, data,
     gkr_index = model.GKr_index
     model = ArtefactModel(model)
 
-    forward_sim_params = default_parameters.copy()
+    a_solver = model.make_hybrid_solver_states(hybrid=False, njitted=True,
+                                               strict=False)
 
-    # Set V_off to 0
-    forward_sim_params[-3] = 0
+    aux_func = model.define_auxiliary_function()
+    step = next(filter(lambda x: x[2] >= -74, reversed(protocol_desc)))
 
-    a_state_solver = model.make_hybrid_solver_states(hybrid=False, njitted=False,
-                                                     strict=True)
+    if step[1] - step[0] > 200 or step[1] - step[0] < 50:
+        raise Exception("Failed to find reversal ramp in protocol")
+    else:
+        step = step[0:2]
 
-    # Rough estimate of conductance
-    # Maybe make it so this only looks at the reversal ramp, or leak step
+    # Next extract steps
+    istart = np.argmax(times >= step[0])
+    iend = np.argmax(times > step[1])
 
-    # Find reference trace which we will use to scale and find g
-    r_trace = model.SimulateForwardModel()[indices] / forward_sim_params[gkr_index]
+    p = default_parameters.copy()
+    p[-3] = 0.0
+    states = a_solver(p)
 
-    def find_conductance_func(g):
-        return np.sum((r_trace * g - data[indices])**2)
+    initial_gkr = _find_conductance(a_solver, data, indices, aux_func,
+                                    voltages, p, E_rev, gkr_index)
+    E_obs = infer_reversal_potential(protocol_desc, data, times)
 
-    # # Take max current from step down from +40mV to -120mV
-    # v_indices = np.argwhere(voltages - 120 < 1e-5)[5:200]
+    def opt_V_off_func(V_off):
+        p = default_parameters.copy()
 
-    # # Do a brute-force search first
-    # g_vals = np.linspace(0, data[v_indices].max(), 100)
-    # f_vals = np.array([find_conductance_func(g) for g in g_vals])
+        p[gkr_index] = initial_gkr
 
-    # low_bound_i = max(0, np.argmin(f_vals) - 1)
-    # upper_bound_i = min(np.argmin(f_vals) + 1, len(f_vals) - 1)
+        gkr = _find_conductance(a_solver, data, indices, aux_func, voltages, p,
+                                E_rev, gkr_index)
 
-    res = scipy.optimize.minimize_scalar(find_conductance_func,
-                                         bounds=(0, r_trace[np.isfinite(r_trace)].max() * 1e2))
-    if not res.success:
-        logging.error(f"{protocol} {res}")
+        p[gkr_index] = gkr
 
-    found_conductance = res.x
+        if not np.isfinite(gkr):
+            return np.inf
 
-    # set conductance parameter
-    forward_sim_params[gkr_index] = found_conductance
+        p[-3] = V_off
+        states = a_solver(p)
+        trace = aux_func(states.T, p, voltages).flatten()
 
-    fig = plt.figure()
-    axs = fig.subplots(2)
+        # Get voltage where current first crosses 0 in the reversal ramp
+        expected_E_obs = voltages[istart:iend][np.argmax(trace[istart:iend] < 0)]
 
-    auxiliary_function = model.define_auxiliary_function()
-    normalised_current = auxiliary_function(a_state_solver(forward_sim_params).T,
-                                            forward_sim_params,
-                                            voltages).flatten()
-    # plot current
-    axs[0].plot(times, data, color='grey', alpha=.5)
-    axs[0].plot(times, normalised_current, label='current used for Erev')
-    axs[0].plot(times[indices], r_trace * res.x, label='scaled reference trace')
+        if np.any(~np.isfinite(trace)):
+            return np.inf
 
-    # plot Vm
-    axs[1].plot(times, a_state_solver(forward_sim_params)[:, -1])
+        # try:
+        #     fitted_poly = poly.Polynomial.fit(voltages[istart:iend],
+        #                                       trace[istart:iend], 4)
 
-    if forward_sim_output_dir:
-        if not os.path.exists(forward_sim_output_dir):
-            os.makedirs(forward_sim_output_dir)
+        # except np.linalg.LinAlgError as ex:
+        #     print(ex)
+        #     return np.inf
 
-        fig.savefig(os.path.join(forward_sim_output_dir,
-                                 "infer_reversal_potential_forward_sim"))
+        # roots = np.unique([np.real(root) for root in fitted_poly.roots()
+        #                    if root > np.min(voltages) and root < np.max(voltages)])
+
+        # expected_E_obs = sorted(roots)[0]
+
+        if expected_E_obs > voltages.max() or expected_E_obs < voltages.min():
+            return np.inf
+
+        score = (E_obs - expected_E_obs)**2
+        print('V_off=', V_off, 'opt_V_off_score', np.sqrt(score))
+        return score
+
+    # Set bounds for optimisation
+
+    E_obs = infer_reversal_potential(protocol_desc, data, times,
+                                     voltages=voltages)
+
+    E_rev_error = E_obs - E_rev
+    bounds = np.unique([-E_rev_error*2, 0])
+    print(f"bounds are {bounds}")
+    res = scipy.optimize.minimize_scalar(opt_V_off_func,
+                                         bounds=bounds,
+                                         tol=1e-5,
+                                         method='bounded')
+    if res.success:
+        found_V_off = res.x
+    else:
+        return np.inf
+
+    p[-3] = found_V_off
+    gkr = _find_conductance(a_solver, data, indices, aux_func, voltages, p,
+                            E_rev, gkr_index)
+    p[gkr_index] = gkr
+
+    if output_path:
+        fig = plt.figure()
+        ax = fig.subplots()
+
+        states = a_solver(p)
+        V_m = states[:, -1]
+        trace = aux_func(states.T, p, voltages)
+
+        ax.scatter(V_m[istart:iend], data[istart:iend], marker='x', color='grey')
+        ax.scatter(voltages[istart:iend], data[istart:iend], marker='x', color='pink', alpha=.5)
+        ax.plot(V_m[istart:iend], trace[istart:iend])
+        ax.axvline(E_rev)
+
+        if res.success:
+            ax.axvline(E_rev - found_V_off)
+
+        ax.axhline(0, linestyle='--', color='orange')
+
+        fig.savefig(output_path)
         plt.close(fig)
 
-    return infer_reversal_potential(protocol, data, times, voltages=voltages,
-                                    **kwargs)
+    if forward_sim_output_dir and res.success:
+        fig = plt.figure()
+        axs = fig.subplots(2)
+
+        # Find conductance
+        gkr = _find_conductance(a_solver, data, indices, aux_func, voltages, p,
+                                E_rev, gkr_index)
+
+        p[-3] = found_V_off
+        p[gkr_index] = gkr
+        states = a_solver(p)
+
+        prediction = aux_func(states.T, p, voltages)
+
+        axs[0].plot(times, data, color='grey', alpha=.5, label='data')
+        axs[0].plot(times, prediction, label='forward_sim')
+
+        Vm = states[:, -1].flatten()
+
+        axs[1].plot(times, voltages, label='Vcmd')
+        axs[1].plot(times, Vm, label='Vm')
+
+        fig.savefig(os.path.join(forward_sim_output_dir, 'simulation.png'))
+        plt.close(fig)
+
+    if res.success:
+        return found_V_off
+
+    return np.nan
 
 
-def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
+def infer_reversal_potential(protocol_desc: np.array, current: np.array, times, ax=None,
                              output_path=None, plot=None, known_Erev=None, voltages=None):
-
     if output_path:
         dirname = os.path.dirname(output_path)
         if not os.path.exists(dirname):
@@ -763,10 +879,9 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
     if (ax or output_path) and plot is not False:
         plot = True
 
-    protocol_func, _, protocol_desc = get_ramp_protocol_from_csv(protocol)
-
     # First, find the reversal ramp. Search backwards along the protocol until we find a >= 40mV step
     step = next(filter(lambda x: x[2] >= -74, reversed(protocol_desc)))
+
 
     if step[1] - step[0] > 200 or step[1] - step[0] < 50:
         raise Exception("Failed to find reversal ramp in protocol")
@@ -782,8 +897,10 @@ def infer_reversal_potential(protocol: str, current: np.array, times, ax=None,
 
     full_times = times
 
+    protocol_func = make_voltage_function_from_description(protocol_desc)
     if voltages is None:
         voltages = np.array([protocol_func(t) for t in times])
+
     times = times[istart:iend]
     current = current[istart:iend]
 
@@ -930,17 +1047,17 @@ def compute_predictions_df(params_df, output_dir, label='predictions',
 
                     gleak, Eleak, V_off, Rseries, Cm = param_row[['gleak, Eleak, V_off, Rseries, Cm']]
                     forward_sim_parameters[[-7, -6, -5, -4, -3, -2, -1]] = gleak, Eleak, 0, 0, V_off, Rseries, Cm
-                    E_obs = \
-                        infer_reversal_potential_with_artefact(sim_protocol,
-                                                               full_times,
-                                                               full_data,
-                                                               'model3',
-                                                               args.reversal,
-                                                               plot=True,
-                                                               output_path=sub_dir,
-                                                               forward_sim_output_dir=sub_dir,
-                                                               )
-                    V_off = args.reversal - E_obs
+                    V_off = \
+                        infer_voltage_offset_with_artefact(sim_protocol,
+                                                           full_times,
+                                                           full_data,
+                                                           'model3',
+                                                           args.reversal,
+                                                           plot=True,
+                                                           output_path=sub_dir,
+                                                           forward_sim_output_dir=sub_dir,
+                                                           )
+                    model.default_parameters[-3] = V_off
 
                 # Probably not worth compiling solver
                 solver = model.make_forward_solver_of_type(args.solver_type, njitted=False)
