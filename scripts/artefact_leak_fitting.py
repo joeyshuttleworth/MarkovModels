@@ -17,6 +17,7 @@ import seaborn as sns
 # from numba import njit
 from quality_control.leak_fit import fit_leak_lr
 from markovmodels.fitting import infer_reversal_potential
+import markovmodels.utilities as utilities
 
 import matplotlib
 matplotlib.use('Agg')
@@ -24,16 +25,13 @@ matplotlib.use('Agg')
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("qc_estimates_file")
-    parser.add_argument("subtraction_results_file")
-    parser.add_argument("selection_file")
-    parser.add_argument('traces_directory')
-    parser.add_argument('subtracted_traces_directory')
+    parser.add_argument('postprocess_data_dir')
     parser.add_argument('--ramp_start', type=float, default=300)
     parser.add_argument('--ramp_end', type=float, default=900)
     parser.add_argument("--experiment_name")
     parser.add_argument("--parameters", default=None)
     parser.add_argument("-w", "--wells", nargs='+')
+    parser.add_argument("--sweeps", nargs='+', default=[])
     parser.add_argument("--model", default='model3')
     parser.add_argument("--output", "-o", default=None)
     parser.add_argument("--no_plot", action='store_true')
@@ -68,25 +66,19 @@ def main():
     else:
         parameters = model.get_default_parameters()
 
-    with open(os.path.join(args.selection_file)) as fin:
+    selection_file = os.path.join(args.postprocess_data_dir, 'passed_wells.txt')
+    with open(os.path.join(selection_file)) as fin:
         global passed_wells
         passed_wells = fin.read().splitlines()
 
-    qc_df = pd.read_csv(args.qc_estimates_file)
-    qc_df = qc_df[(qc_df.drug == 'before')
-                  & (qc_df.protocol.isin(['staircaseramp1', 'staircaseramp2']))
-                  & (qc_df.well.isin(passed_wells))
-                  ][['Rseries', 'Cm', 'protocol', 'sweep', 'well']]
+    subtraction_results_file = os.path.join(args.postprocess_data_dir,
+                                            'subtraction_qc.csv')
 
-    leak_df = pd.read_csv(args.subtraction_results_file)
-    leak_df = leak_df[(leak_df.protocol.isin(['staircaseramp1']))
-                      & (leak_df.well.isin(passed_wells))][['pre-drug leak conductance',
-                                                            'pre-drug leak reversal',
-                                                            'protocol', 'sweep', 'well',
-                                                            'fitted_E_rev']]
+    qc_df = pd.read_csv(subtraction_results_file)
+    qc_df = qc_df[(qc_df.protocol.isin(['staircaseramp1']))
+                      & (qc_df.well.isin(passed_wells))]
 
-    leak_df = leak_df.set_index(['protocol', 'well', 'sweep']).sort_index()
-    qc_df = qc_df.set_index(['protocol', 'well', 'sweep']).sort_index()
+    leak_df = qc_df.set_index(['protocol', 'well', 'sweep']).sort_index()
 
     tasks = []
     for (index, leak_row) in leak_df.iterrows():
@@ -97,12 +89,14 @@ def main():
         if well not in passed_wells:
             continue
 
-        gleak = leak_row['pre-drug leak conductance']
-        Eleak = leak_row['pre-drug leak reversal']
-        qc_row = qc_df.loc[protocol, well, sweep][['Rseries', 'Cm']]
-        Rseries = qc_row['Rseries'].values[0] * 1e-9
-        Cm = qc_row['Cm'].values[0] * 1e9
-        E_obs = leak_row['fitted_E_rev']
+        if str(sweep) not in args.sweeps:
+            continue
+
+        gleak = leak_row['gleak_before']
+        Eleak = leak_row['E_leak_before']
+        Rseries = leak_row['Rseries'] * 1e-9
+        Cm = leak_row['Cm'] * 1e9
+        E_obs = leak_row['E_rev']
         noise, gkr = estimate_noise_and_conductance(well, protocol, sweep,
                                                     gleak, Eleak, Rseries, Cm, E_obs)
 
@@ -129,8 +123,8 @@ def main():
         df['Rseries'] = Rseries
         df['Cm'] = Cm
         df['Erev'] = Erev
-        if sweep not in df:
-            df['sweep'] = 1
+        if 'sweep' not in df:
+            df['sweep'] = 0
         dfs.append(df)
 
     df = pd.concat(dfs, ignore_index=True)
@@ -139,10 +133,10 @@ def main():
     plot_overlaid_traces(df)
     do_scatterplots(df, leak_df)
 
-    compare_synth_real_postprocessed_data(df, leak_df)
+    compare_synth_real_postprocess_data(df, leak_df)
 
 
-def compare_synth_real_postprocessed_data(df, leak_df):
+def compare_synth_real_postprocess_data(df, leak_df):
     fig = plt.figure(figsize=args.figsize)
     ax = fig.subplots()
 
@@ -156,7 +150,7 @@ def compare_synth_real_postprocessed_data(df, leak_df):
     for protocol in df.protocol.unique():
         times_df = pd.read_csv(os.path.join(output_dir, 'subtracted_traces',
                                             f"{args.experiment_name}-{protocol}-times.csv"))
-        times = times_df['time'].to_numpy().flatten()
+        times = times_df.to_numpy().flatten()
 
         all_synth_traces = []
         all_real_traces = []
@@ -180,22 +174,24 @@ def compare_synth_real_postprocessed_data(df, leak_df):
 
                 # Get synth trace
                 synth_sub_trace = pd.read_csv(os.path.join(output_dir, "subtracted_traces",
-                                                           f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv"))['current'].to_numpy()
-                real_sub_trace = pd.read_csv(os.path.join(args.subtracted_traces_directory,
-                                                          f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv"))['current'].to_numpy()
+                                                           f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv")).to_numpy()
+
+                subtracted_traces_dir = os.path.join(args.postprocess_data_dir, 'traces')
+                real_sub_trace = pd.read_csv(os.path.join(subtracted_traces_dir,
+                                                          f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv")).to_numpy()
 
                 # Plot both traces normalised
                 ax.plot(times, synth_sub_trace/synth_sub_trace.std(), alpha=.5, label='synth data')
 
                 times_filename = f"{args.experiment_name}-staircaseramp1-times.csv"
-                real_times = pd.read_csv(os.path.join(args.subtracted_traces_directory, times_filename))['time'].to_numpy().flatten()
+                real_times = pd.read_csv(os.path.join(subtracted_traces_dir, times_filename))['time'].to_numpy().flatten()
                 ax.plot(real_times, real_sub_trace/real_sub_trace.std(), alpha=.5, label='real data')
 
                 ax.set_ylabel('normalised post-processed current')
                 ax.set_xlabel('times (ms)')
                 ax.legend()
 
-                fig.savefig(os.path.join(plot_dir, f"{protocol}-{well}-sweep{sweep}-postprocessed"))
+                fig.savefig(os.path.join(plot_dir, f"{protocol}-{well}-sweep{sweep}-postprocess"))
                 ax.cla()
                 label = f"{protocol}-{well}-{sweep}"
                 labels.append(label)
@@ -292,15 +288,15 @@ def plot_overlaid_traces(df):
 
         # Plot original subtracted trace
         subtracted_trace = pd.read_csv(os.path.join(output_dir, "subtracted_traces",
-                                                    f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv"))['current'].to_numpy()
+                                                    f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv")).to_numpy()
         times_df = pd.read_csv(os.path.join(output_dir, 'subtracted_traces',
                                             f"{args.experiment_name}-{protocol}-times.csv"))
-        times = times_df['time'].to_numpy().flatten()
+        times = times_df.to_numpy().flatten()
 
         _parameters = parameters.copy()
         _parameters[-1] = gkr
 
-        prot_func, _, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
+        prot_func, desc = get_protocol(protocol)
 
         c_model = make_model_of_class(args.model,
                                       voltage=prot_func, times=times, E_rev=Erev,
@@ -324,7 +320,7 @@ def plot_overlaid_traces(df):
 
         before_trace = pd.read_csv(os.path.join(output_dir,
                                                 f"{args.experiment_name}-{protocol}"
-                                                f"-{well}-before-sweep{sweep}.csv"))['current'].to_numpy().flatten()
+                                                f"-{well}-before-sweep{sweep}.csv")).to_numpy().flatten()
 
         before_corrected_Vm = before_trace - gleak * (Vm - Eleak)
 
@@ -333,11 +329,12 @@ def plot_overlaid_traces(df):
         Vm = solver(p)[:, -1].flatten()
         after_trace = pd.read_csv(os.path.join(output_dir,
                                                f"{args.experiment_name}-{protocol}"
-                                               f"-{well}-after-sweep{sweep}.csv"))['current'].to_numpy().flatten()
+                                               f"-{well}-after-sweep{sweep}.csv")).to_numpy().flatten()
         after_corrected_Vm = after_trace - gleak_after * (Vm - Eleak_after)
 
         subtracted_Vm = before_corrected_Vm - after_corrected_Vm
 
+        times = times.flatten()
         protocol_voltages = np.array([prot_func(t) for t in times])
         ideal_current_known_leak = c_model.SimulateForwardModel()
 
@@ -367,16 +364,16 @@ def plot_overlaid_traces(df):
 
         # Plot original subtracted trace
         subtracted_trace = pd.read_csv(os.path.join(output_dir, "subtracted_traces",
-                                                    f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv"))['current'].to_numpy()
+                                                    f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv")).to_numpy()
 
-        times_df = pd.read_csv(os.path.join(output_dir, 'subtracted_traces',
-                                            f"{args.experiment_name}-{protocol}-times.csv"))
-        times = times_df['time'].to_numpy().flatten()
+        times_df = np.loadtxt(os.path.join(output_dir, 'subtracted_traces',
+                                           f"{args.experiment_name}-{protocol}-times.csv"))
+        times = times_df.to_numpy().flatten()
 
         _parameters = parameters.copy()
         _parameters[-1] = gkr
 
-        prot_func, _, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
+        prot_func, desc = get_protocol(protocol)
 
         voltages = np.array([prot_func(t) for t in times])
 
@@ -410,7 +407,7 @@ def plot_overlaid_traces(df):
             colour = seaborn_palette[index]
 
             subtracted_trace = pd.read_csv(os.path.join(output_dir, "subtracted_traces",
-                                                        f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv"))['current'].to_numpy()
+                                                        f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv")).to_numpy()
 
             I_Kr = c_model.define_auxiliary_function()(states[:, :-1].T, _parameters, Vm)
             I_Kr = I_Kr / I_Kr.std()
@@ -429,19 +426,20 @@ def plot_overlaid_traces(df):
 
 
 def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries, Cm, E_obs):
+    traces_dir = os.path.join(args.postprocess_data_dir, 'traces')
     # get data
+    # TODO Add .csv to the end of these filenames
     before_filename = f"{args.experiment_name}-{protocol}-{well}-before-sweep{sweep}.csv"
-    before_trace_df = pd.read_csv(os.path.join(args.traces_directory, before_filename))
-    before_trace = before_trace_df[before_trace_df.columns[-1]].to_numpy().flatten().astype(np.float64)
+    before_trace = np.loadtxt(os.path.join(traces_dir, before_filename)).flatten()
 
     after_filename = f"{args.experiment_name}-{protocol}-{well}-after-sweep{sweep}.csv"
-    after_trace_df = pd.read_csv(os.path.join(args.traces_directory, after_filename))
-    after_trace = after_trace_df[after_trace_df.columns[-1]].to_numpy().flatten().astype(np.float64)
+    after_trace = np.loadtxt(os.path.join(traces_dir, after_filename)).flatten()
 
     times_filename = f"{args.experiment_name}-{protocol}-times.csv"
-    times = pd.read_csv(os.path.join(args.traces_directory, times_filename))['time'].to_numpy()
+    times = np.loadtxt(os.path.join(traces_dir, times_filename)).to_numpy().flatten()
     times = times * 1e3
-    prot_func, _, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
+
+    prot_func, desc = get_protocol(protocol)
 
     protocol_voltages = np.array([prot_func(t) for t in times])
     dt = times[1] - times[0]
@@ -509,15 +507,17 @@ def generate_data(protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, 
     if Erev is None:
         Erev = markovmodels.utilities.calculate_reversal_potential()
 
-    prot_func, _times, desc = markovmodels.voltage_protocols.get_ramp_protocol_from_csv(protocol)
+    prot_func, desc = get_protocol(protocol)
 
-    times_df = pd.read_csv(os.path.join(args.subtracted_traces_directory,
-                                        f"{args.experiment_name}-{protocol}-times.csv"))
-    times = times_df['time'].to_numpy().flatten()
+    traces_dir = os.path.join(args.postprocess_data_dir, 'traces')
+
+    times_df = np.loadtxt(os.path.join(traces_dir,
+                                       f"{args.experiment_name}-{protocol}-times.csv"))
+    times = times_df.to_numpy().flatten()
 
     if not os.path.exists(os.path.join(output_dir, f"{args.experiment_name}-{protocol}-times.csv")):
-        times_df = pd.DataFrame(times.T*1e-3, columns=('time',))
-        times_df.to_csv(os.path.join(output_dir, f"{args.experiment_name}-{protocol}-times.csv"))
+        np.savetxt(os.path.join(output_dir, f"{args.experiment_name}-{protocol}-times.csv"),
+                   times)
 
     _parameters = parameters.copy()
     _parameters[-1] = gkr
@@ -567,6 +567,19 @@ def generate_data(protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, 
 
     # return the filename for convinience
     return out_fname
+
+def get_protocol(protocol_name):
+    trace_dir = os.path.join(args.postprocess_data_dir,
+                            'traces')
+
+    well = None
+    data, voltage_protocol = utilities.get_data(well, protocol_name,
+                                                trace_dir,
+                                                args.experiment_name)
+
+    desc = voltage_protocol.get_all_sections()
+
+    return markovmodels.voltage_protocols.make_voltage_function_from_description(desc), desc
 
 
 if __name__ == "__main__":
