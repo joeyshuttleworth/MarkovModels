@@ -7,7 +7,7 @@ from numbalsoda import lsoda, lsoda_sig
 
 from markovmodels.utilities import calculate_reversal_potential
 
-_lsoda_n_max_steps = 1000
+_lsoda_n_max_steps = 10_000
 
 
 class ODEModel:
@@ -474,14 +474,14 @@ class ODEModel:
     def voltage(self, t):
         raise NotImplementedError
 
-    def SimulateForwardModel(self, p=None, times=None):
+    def SimulateForwardModel(self, p=None, times=None, **kws):
         if p is None:
             p = self.get_default_parameters()
         p = np.array(p)
 
         if times is None:
             times = self.times
-        return self.make_forward_solver_current(njitted=False)(p, times)
+        return self.make_forward_solver_current(njitted=False, **kws)(p, times)
 
     def GetVoltage(self, times=None):
         """

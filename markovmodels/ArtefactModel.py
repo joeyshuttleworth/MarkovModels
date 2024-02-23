@@ -97,32 +97,35 @@ class ArtefactModel(MarkovModel):
 
     def define_steady_state_function(self, tend=5000):
         # Assume a holding potential of -80mV and simulate forwards for 5 seconds
-        # start from -80mV steady state of the Markov model and Vm=-80mV 
+        # start from -80mV steady state of the Markov model and Vm=-80mV
         atol, rtol = self.solver_tolerances
         p = self.get_default_parameters()
 
         crhs = self.get_cfunc_rhs()
         crhs_ptr = crhs.address
 
-        y0 = np.full(self.channel_model.get_no_state_vars(), .0)
+        y0 = np.full(self.channel_model.get_no_state_vars(), 0)
         y0[0] = 1.0
         y0 = np.append(y0, -80.0)
+        crhs_inf = self.channel_model.rhs_inf
 
         n_max_steps = 64
+        desc = self.protocol_description
 
         @njit
-        def rhs_inf(p=p, v=-80):
+        def rhs_inf(p=p, v=-80.0):
             data = np.append(p, 0.0)
-            data = np.concatenate((data, np.full(n_max_steps*2, np.inf)))
+            data = np.append(data, desc.flatten())
 
             res, _ = lsoda(crhs_ptr, y0,
                            np.array((-tend, .0)),
                            data=data,
                            rtol=rtol,
                            atol=atol,
-                           exit_on_warning=True)
+                           exit_on_warning=False)
 
             return res[-1, :].flatten()
+
         return rhs_inf
 
     def get_default_parameters(self):
@@ -215,7 +218,7 @@ class ArtefactModel(MarkovModel):
         channel_rhs = self.channel_model.get_rhs_func(njitted=True)
 
         # States are:
-        # [channel model], V_m
+        # [channel model] + [V_m]
 
         # Eliminate one state and add equation for V_m
         ny = self.channel_model.get_no_state_vars() + 1
@@ -247,7 +250,7 @@ class ArtefactModel(MarkovModel):
             V_cmd = prot_func(t, offset=t_offset,
                               protocol_description=desc)
 
-            I_leak = (V_m - V_off - E_leak) * g_leak
+            I_leak = (V_m - E_leak) * g_leak
             I_leak_leftover = (V_m - E_leak_leftover) * g_leak_leftover
 
             I_Kr = channel_auxiliary_function(y[:-1], p[:-no_artefact_parameters], V_m)
@@ -272,3 +275,14 @@ class ArtefactModel(MarkovModel):
     def get_state_labels(self):
         return np.append(self.channel_model.get_state_labels(),
                          'V_m')
+
+    def SimulateForwardModel(self, p=None, times=None, **kws):
+        if p is None:
+            p = self.get_default_parameters()
+        p = np.array(p)
+
+        if times is None:
+            times = self.times
+        return self.make_hybrid_solver_current(njitted=False, hybrid=False,
+                                               **kws)(p, times)
+
