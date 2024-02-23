@@ -32,15 +32,9 @@ class MarkovModel(ODEModel):
 
     def __init__(self, symbols, A, B, rates_dict, times=None, voltage=None,
                  tolerances=(1e-8, 1e-8), Q=None, protocol_description=None,
-                 name=None, E_rev=None, default_parameters=None,
-                 parameter_labels=None, GKr_index: int = None,
-                 open_state_index: int = None, transformations=None,
-                 state_labels: str = None):
+                 name=None, E_rev=None, GKr_index: int=None, open_state_index:
+                 int = None, default_parameters=None, **kws):
 
-        self.name = name
-
-        if state_labels:
-            self.state_labels = state_labels
 
         if open_state_index is not None:
             self.open_state_index = open_state_index
@@ -48,28 +42,13 @@ class MarkovModel(ODEModel):
         self.n_states = A.shape[0] + 1
         self.n_state_vars = A.shape[0]
 
-        if default_parameters is not None:
-            self.default_parameters = default_parameters
-
         if GKr_index is None:
             # assume the last parameter is GKr (conductance)
-            GKr_index = len(self.default_parameters) - 1
+            GKr_index = len(default_parameters) - 1
+
         self.GKr_index = GKr_index
 
-        if parameter_labels:
-            self.parameter_labels = parameter_labels
-
-        if E_rev is None:
-            self.E_rev = calculate_reversal_potential()
-        else:
-            self.E_rev = E_rev
-
         self.Q = sp.sympify(Q)
-
-        self.transformations = transformations
-
-        if voltage is not None:
-            self.holding_potential = voltage(0)
 
         self.model_name = name
 
@@ -80,16 +59,11 @@ class MarkovModel(ODEModel):
         self.y = symbols['y']
         self.p = symbols['p']
         self.v = symbols['v']
-
         self.initial_condition = np.full(len(self.y), .0)
 
         self.rates_dict = rates_dict
 
-        # (atol, rtol)
-        self.solver_tolerances = tuple(tolerances)
-
         self.symbols = symbols
-        # The timesteps we want to output at
 
         self.times = times
         self.A = A
@@ -97,18 +71,10 @@ class MarkovModel(ODEModel):
 
         self.rhs_expr = (A @ sp.Matrix(self.y[:A.shape[0], :]) + B).subs(rates_dict)
 
-        if voltage is not None:
-            self.voltage = voltage
+        super().__init__(symbols, times, voltage, tolerances,
+                         protocol_description, name, E_rev,
+                         default_parameters=default_parameters, **kws)
 
-        self.func_rhs = sp.lambdify((self.y, self.p, self.v), self.rhs_expr, cse=True)
-
-        # Create Jacobian of the RHS function
-        jrhs = sp.Matrix(self.rhs_expr).jacobian(self.y)
-        self.jfunc_rhs = sp.lambdify((self.y, self.p, self.v), jrhs)
-
-        self.compute_steady_state_expressions()
-
-        self.auxiliary_function = njit(self.define_auxiliary_function())
 
     def compute_steady_state_expressions(self):
         self.rhs_inf_expr_rates = -self.A.LUsolve(self.B)
@@ -273,8 +239,10 @@ class MarkovModel(ODEModel):
 
         By default, there is a timestep every millisecond up to self.tmax
         """
-        if times is None:
+        if times is None and self.times is not None:
             times = self.times
+        else:
+            return np.array([np.nan])
 
         v = np.array([self.voltage(t) for t in times])
         return v

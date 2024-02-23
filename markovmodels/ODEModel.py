@@ -57,9 +57,6 @@ class ODEModel:
 
         self.transformations = transformations
 
-        if voltage is not None:
-            self.holding_potential = voltage(0)
-
         self.model_name = name
 
         self.protocol_description = protocol_description
@@ -83,6 +80,14 @@ class ODEModel:
 
         if voltage is not None:
             self.voltage = voltage
+        else:
+            @njit
+            def voltage(t, offset=0.0, protocol_description=None):
+                return np.nan
+            self.voltage = voltage
+
+        if voltage is not None:
+            self.holding_potential = voltage(0)
 
         inputs = list(self.y) + list(self.p) + [self.v]
         # Create Jacobian of the RHS function
@@ -363,6 +368,9 @@ class ODEModel:
 
         if protocol_description is None:
             protocol_description = self.protocol_description
+
+        if protocol_description is None:
+            protocol_description = np.array([[.0, .0, .0, .0]])
 
         solver_states = self.make_hybrid_solver_states(njitted=njitted,
                                                        protocol_description=protocol_description,
