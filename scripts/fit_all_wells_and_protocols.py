@@ -56,7 +56,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
 
     res_df['well'] = well
     res_df['protocol'] = protocol
-    res_df['sweep'] = sweep if sweep else -1
+    res_df['sweep'] = sweep if sweep is not None else -1
 
     return res_df
 
@@ -87,8 +87,6 @@ def main():
     parser.add_argument('--sweeps', nargs='+', type=int, default=[0])
     parser.add_argument('--use_artefact_model', action='store_true')
     parser.add_argument('--subtraction_df_file')
-    parser.add_argument('--qc_df_file')
-    parser.add_argument('--data_label')
     parser.add_argument('--compute_predictions', action='store_true')
     parser.add_argument('--reversal', type=float)
     parser.add_argument('--tolerance', nargs=2, type=float, default=(1e-8, 1e-8))
@@ -112,15 +110,11 @@ def main():
     global default_artefact_kinetic_parameters
     default_artefact_kinetic_parameters = np.loadtxt(args.artefact_default_kinetic_param_file).flatten().astype(np.float64)
 
-    if args.use_artefact_model and not (args.qc_df_file and args.subtraction_df_file):
+    if args.use_artefact_model and not args.subtraction_df_file:
         raise Exception('Cannot use artefact model without qc file')
 
     if args.use_artefact_model and not args.reversal:
         raise Exception('Nernst potential must be provided when using an artefact model')
-
-    if args.qc_df_file:
-        qc_df = pd.read_csv(args.qc_df_file)
-       # qc_df = qc_df[qc_df.drug == 'before']
 
     if args.subtraction_df_file:
         subtraction_df = pd.read_csv(args.subtraction_df_file)
@@ -189,9 +183,11 @@ def main():
             if int(sweep) not in args.sweeps:
                 continue
 
+        print(protocol, well, sweep)
+
         if args.use_artefact_model:
-            row = qc_df[(qc_df.well == well) & (qc_df.protocol == protocol) &
-                        (qc_df.sweep == sweep)]
+            row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol) &
+                        (subtraction_df.sweep == sweep)]
             assert(row.shape[0] == 1)
 
             Rseries, Cm = row.iloc[0][['Rseries', 'Cm']]
@@ -219,10 +215,9 @@ def main():
 
     with loky.get_reusable_executor(pool_size, timeout=None) as pool:
         future_res = [pool.submit(fit_func, *args) for args in tasks]
+
         loky.wait(future_res)
         res = [x.result() for x in future_res]
-
-    print(res)
 
     fitting_df = pd.concat(res, ignore_index=True)
 

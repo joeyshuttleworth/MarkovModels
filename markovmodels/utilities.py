@@ -47,20 +47,21 @@ def get_data(well, protocol, data_directory, experiment_name='',
         else:
             label = ''
 
-    regex = re.compile(f"^{experiment_name}-{protocol}-{well}-{label}sweep{sweep}-subtracted.csv$")
+    if well is not None:
+        regex = re.compile(f"^{experiment_name}-{protocol}-{well}-{label}sweep{sweep}-subtracted.csv$")
 
-    print(regex, data_directory)
+        fname = next(filter(regex.match, os.listdir(data_directory)))
 
-    fname = next(filter(regex.match, os.listdir(data_directory)))
-    data = pd.read_csv(os.path.join(data_directory, fname),
-                       float_precision='round_trip').values
-
-    if len(data.T) > 1:
-        raise ValueError(f"shape of values is {data.shape} when it should be 1d")
+        data = pd.read_csv(os.path.join(data_directory, fname),
+                           float_precision='round_trip').values
+        if len(data.T) > 1:
+            raise ValueError(f"shape of values is {data.shape} when it should be 1d")
+        data = data.flatten()
+    else:
+        data = None
 
     v_regex = re.compile(f"^{experiment_name}-{protocol}.json$")
     protocols_dir = os.path.join(data_directory, 'protocols')
-    print(v_regex, protocols_dir)
 
     fname = next(filter(v_regex.match, os.listdir(protocols_dir)))
 
@@ -69,7 +70,7 @@ def get_data(well, protocol, data_directory, experiment_name='',
 
     voltage_protocol = VoltageProtocol.from_json(json_contents)
 
-    return data.flatten(), voltage_protocol
+    return data, voltage_protocol
 
 
 def get_all_wells_in_directory(data_dir, experiment_name='newtonrun4'):
