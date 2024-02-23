@@ -35,7 +35,7 @@ def calculate_reversal_potential(T=293, K_in=120, K_out=5):
 
 
 def get_data(well, protocol, data_directory, experiment_name='',
-             label='', sweep=None):
+             label='', sweep=None, no_headers=True):
 
     if not label:
         label = ''
@@ -49,11 +49,17 @@ def get_data(well, protocol, data_directory, experiment_name='',
 
     if well is not None:
         regex = re.compile(f"^{experiment_name}-{protocol}-{well}-{label}sweep{sweep}-subtracted.csv$")
-
+        print(regex)
         fname = next(filter(regex.match, os.listdir(data_directory)))
 
+        if no_headers:
+            header=None
+        else:
+            header = 'infer'
+
         data = pd.read_csv(os.path.join(data_directory, fname),
-                           float_precision='round_trip').values
+                           float_precision='round_trip',
+                           header=header).values
         if len(data.T) > 1:
             raise ValueError(f"shape of values is {data.shape} when it should be 1d")
         data = data.flatten()
