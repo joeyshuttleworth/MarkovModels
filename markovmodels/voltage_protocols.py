@@ -3,6 +3,8 @@ import os
 import numpy as np
 import pandas as pd
 import regex as re
+import json
+from pcpostprocess.voltage_protocols import VoltageProtocol
 from numba import njit
 
 
@@ -109,6 +111,19 @@ def get_protocol_from_csv(protocol_name: str, directory=None, holding_potential=
         return np.interp([t], times, voltages)[0] if t < times[-1] and t > times[0] else holding_potential
 
     return protocol_safe, times
+
+
+def get_ramp_protocol_from_json(protocol_name: str, directory: str,
+                                experiment_name: str, holding_potential=-80.0):
+    """
+
+    """
+    with open(os.path.join(directory, f"{experiment_name}-{protocol_name}.json")) as fin:
+        json_protocol = json.load(fin)
+    desc = VoltageProtocol.from_json(json_protocol).get_all_sections()
+    prot_func = make_voltage_function_from_description(desc, holding_potential)
+
+    return prot_func, desc
 
 
 def get_ramp_protocol_from_csv(protocol_name: str, directory=None,
