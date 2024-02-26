@@ -14,13 +14,15 @@ from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.model_generation import make_model_of_class
 from subtract_leak import subtract_leak
 import seaborn as sns
-# from numba import njit
+from numba import njit
 from quality_control.leak_fit import fit_leak_lr
-from markovmodels.fitting import infer_reversal_potential
+from markovmodels.fitting import infer_reversal_potential, infer_reversal_potential_with_artefact
 
 import matplotlib
 matplotlib.use('Agg')
 
+# params_for_Erev = np.loadtxt(os.path.join('data', 'Beattie_Sinusoidal_params.csv'),
+#                              delimiter=', ').flatten().astype(np.float64)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -34,6 +36,7 @@ def main():
     parser.add_argument("--experiment_name")
     parser.add_argument("--parameters", default=None)
     parser.add_argument("-w", "--wells", nargs='+')
+    parser.add_argument("-s", "--sweeps", nargs='+')
     parser.add_argument("--model", default='model3')
     parser.add_argument("--output", "-o", default=None)
     parser.add_argument("--no_plot", action='store_true')
@@ -97,6 +100,10 @@ def main():
         if well not in passed_wells:
             continue
 
+        if str(sweep) not in args.sweeps:
+            print(sweep)
+            continue
+
         gleak = leak_row['pre-drug leak conductance']
         Eleak = leak_row['pre-drug leak reversal']
         qc_row = qc_df.loc[protocol, well, sweep][['Rseries', 'Cm']]
@@ -119,9 +126,10 @@ def main():
         protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev = task
         if well not in args.wells and args.wells:
             continue
-        _args = args
+        _args = parser.parse_args()
         _args.data_directory = output_dir
         _args.Erev = _args.reversal
+        print(_args)
         df = subtract_leak(well, protocol, _args, output_dir)
         df['noise'] = noise
         df['gkr'] = gkr
@@ -257,12 +265,6 @@ def do_scatterplots(df, qc_df):
     ax.plot(xs, xs, '--', color='grey')
     fig.savefig(os.path.join(output_dir, "E_leak_scatterplot"))
 
-    sns.scatterplot(data=df, x=r'$E_\text{obs}$',
-                    y=r'$\hat{E_\text{obs}}$', ax=ax)
-    xs = np.quantile(df['pre-drug leak reversal'], (0, 1))
-    ax.plot(xs, xs, '--', color='grey')
-    fig.savefig(os.path.join(output_dir, "E_leak_scatterplot"))
-
     # Now do matrix scatterplot
     df = df[['gleak', 'Eleak', 'Rseries', 'Cm', 'gkr']]
 
@@ -318,17 +320,32 @@ def plot_overlaid_traces(df):
         model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm, R_series=Rseries)
 
         solver = model.make_hybrid_solver_states(hybrid=False)
-        states = solver()
+        states = solver(_parameters)
         Vm = states[:, -1].flatten()
 
         # Plot reversal estimation with V=Vm
-        infer_reversal_potential('staircaseramp1', subtracted_trace, times,
-                                 output_path=os.path.join(output_dir, 'reversal_plots',
-                                                          f"{protocol}-{well}-sweep{sweep}_Vm"),
-                                 known_Erev=Erev,
-                                 voltages=Vm)
+        infer_reversal_potential_with_artefact('staircaseramp1', times, subtracted_trace,
+                                               'model3', model.get_default_parameters(), Erev,
+                                               removal_duration=5,
+                                               output_path=os.path.join(output_dir, 'reversal_plots',
+                                                                        f"{protocol}-{well}-sweep{sweep}_Vm"),
+                                               plot=True)
 
-        true_IKr = c_model.define_auxiliary_function()(states[:, :-1].T, _parameters, Vm)
+        # Plot reversal estimate again but with gKr = 0
+        no_g_p = model.get_default_parameters()
+        gkr_index = c_model.GKr_index
+        no_g_p[gkr_index] = .0
+        Vm2 = solver(no_g_p)[:, -1].flatten()
+
+        print('voltage with gkr=0', Vm2)
+
+        E_rev_g_0 = infer_reversal_potential('staircaseramp1', subtracted_trace, times,
+                                             output_path=os.path.join(output_dir, 'reversal_plots',
+                                                                      f"{protocol}-{well}-sweep{sweep}_Vm_gkr=0"),
+                                             known_Erev=Erev,
+                                             voltages=Vm2)
+
+        true_IKr = model.define_auxiliary_function()(states.T, model.get_default_parameters(), Vm)
 
         before_trace = pd.read_csv(os.path.join(output_dir,
                                                 f"{args.experiment_name}-{protocol}"
@@ -336,8 +353,9 @@ def plot_overlaid_traces(df):
 
         before_corrected_Vm = before_trace - gleak * (Vm - Eleak)
 
+        gkr_index = c_model.GKr_index
         p = model.get_default_parameters()
-        p[-8] = 0.0
+        p[gkr_index] = 0.0
         Vm = solver(p)[:, -1].flatten()
         after_trace = pd.read_csv(os.path.join(output_dir,
                                                f"{args.experiment_name}-{protocol}"
@@ -478,23 +496,19 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
                                   default_parameters=parameters,
                                   protocol_description=desc)
 
-    V_off = E_obs - args.reversal
+    solver = c_model.make_forward_solver_current(njitted=False)
 
-    model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm,
-                          R_series=Rseries, V_off=V_off)
-    solver = c_model.make_forward_solver_current(njitted=True)
-    default_parameters = c_model.get_default_parameters()
+    reference_trace = solver() / c_model.get_default_parameters()[-1]
 
-    # @njit
+    @njit
     def min_func(g_kr):
-        p = default_parameters.copy()
-        p[-1] = g_kr
-        return np.sum((solver(p) - subtracted_trace) ** 2)
+        return np.sum((g_kr * reference_trace - subtracted_trace) ** 2)
 
     # Minimise SSE to find best conductance
     res = scipy.optimize.minimize_scalar(min_func, method='bounded', bounds=[0, 1e5])
 
     gkr = res.x
+    print('gkr is', gkr)
 
     # Plot stuff
     if not args.no_plot:
@@ -504,7 +518,7 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
         ax.plot(times, subtracted_trace, label='subtracted trace', color='grey')
         p = c_model.get_default_parameters()
         p[-1] = gkr
-        ax.plot(times, solver(p))
+        ax.plot(times, solver(p), label='ideal current')
 
     if not os.path.exists(os.path.join(output_dir, "conductance_estimation")):
         os.makedirs(os.path.join(output_dir, "conductance_estimation"))
@@ -534,12 +548,15 @@ def generate_data(protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, 
                                   voltage=prot_func, times=times, E_rev=Erev,
                                   default_parameters=_parameters,
                                   protocol_description=desc)
-    V_off = args.reversal - E_obs
+    # V_off = args.reversal - E_obs
+    V_off = 0
 
     model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm,
                           R_series=Rseries, V_off=V_off)
 
-    solver = model.make_forward_solver_current(njitted=False)
+    # Output Iout
+    model.auxiliary_function = njit(model.define_auxiliary_function(return_var = 'I_post'))
+    solver = model.make_forward_solver_current(njitted=True)
     I_out = solver()
     # voltages = np.array([prot_func(t) for t in times])
     # I_leak = gleak * (voltages - Eleak)
@@ -551,10 +568,20 @@ def generate_data(protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, 
     out_fname = os.path.join(output_dir, f"{args.experiment_name}-{protocol}-{well}-before-sweep1.csv")
     pd.DataFrame(data.T, columns=('current',)).to_csv(out_fname)
 
+    gkr_index = len(c_model.get_default_parameters()) - 1
     # Assume 0 conductance after drug addition
-    p = model.get_default_parameters()
-    p[-8] = 0
-    data_after = np.random.normal(solver(p), noise, times.shape)
+    _p = model.get_default_parameters()
+    _p[gkr_index] = 0.0
+    print(_p)
+    state_solver = model.make_hybrid_solver_states(hybrid=False,
+                                                   njitted=True)
+    Vm2 = state_solver(_p)[:, -1].flatten()
+    print(Vm2)
+
+    V_m = state_solver()[:, -1]
+    print(V_m)
+
+    data_after = np.random.normal(solver(_p), noise, times.shape)
     out_fname = os.path.join(output_dir, f"{args.experiment_name}-{protocol}-{well}-after-sweep1.csv")
     pd.DataFrame(data_after.T, columns=('current',)).to_csv(out_fname)
 
@@ -564,12 +591,19 @@ def generate_data(protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, 
         axs[0].plot(times, mean, label='mean')
         axs[0].plot(times, data, label='data', color='grey', alpha=0.5)
         axs[0].legend()
-        V_m = model.make_hybrid_solver_states(hybrid=False)()[:, -1]
         axs[1].plot(times, V_m, label='Vm')
+        axs[1].plot(times, Vm2, label='Vm2')
         axs[1].set_xlabel('time / ms')
         axs[1].set_ylabel('Vm / mV')
+        command_V = [model.voltage(t) for t in times]
+        axs[1].plot(times, command_V, label='command voltage (mV)')
+        axs[1].legend()
         axs[0].set_ylabel('current / pA')
-        axs[2].plot(times, [model.voltage(t) for t in times], label='voltage / mV')
+        axs[2].plot(times, np.abs(V_m - command_V), label='error in Vm')
+        axs[2].plot(times, np.abs(Vm2 - command_V), label='error in Vm2')
+        axs[2].plot(times, np.abs(Vm2 - V_m), label='Vm2 - Vm')
+        axs[2].set_yscale('log')
+        axs[2].legend()
         fig.savefig(os.path.join(output_dir, f"plot-{protocol}plot-{well}.png"))
         plt.close(fig)
 

@@ -705,16 +705,6 @@ def infer_reversal_potential_with_artefact(protocol, times, data,
     def find_conductance_func(g):
         return np.sum((r_trace * g - data[indices])**2)
 
-    # # Take max current from step down from +40mV to -120mV
-    # v_indices = np.argwhere(voltages - 120 < 1e-5)[5:200]
-
-    # # Do a brute-force search first
-    # g_vals = np.linspace(0, data[v_indices].max(), 100)
-    # f_vals = np.array([find_conductance_func(g) for g in g_vals])
-
-    # low_bound_i = max(0, np.argmin(f_vals) - 1)
-    # upper_bound_i = min(np.argmin(f_vals) + 1, len(f_vals) - 1)
-
     res = scipy.optimize.minimize_scalar(find_conductance_func,
                                          bounds=(0, r_trace[np.isfinite(r_trace)].max() * 1e2))
     if not res.success:
