@@ -272,6 +272,9 @@ class ArtefactModel(MarkovModel):
     def get_analytic_solution_func(self, njitted=None, cond_threshold=None):
         raise NotImplementedError()
 
+    def get_model_name(self):
+        return self.channel_model.get_model_name()
+
     def get_state_labels(self):
         return np.append(self.channel_model.get_state_labels(),
                          'V_m')

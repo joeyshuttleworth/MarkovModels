@@ -15,6 +15,7 @@ from matplotlib import rc
 import markovmodels
 from markovmodels.model_generation import make_model_of_class
 from markovmodels.fitting import get_best_params
+from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.utilities import setup_output_directory, get_data, get_all_wells_in_directory
 from markovmodels.voltage_protocols import get_protocol_list, get_ramp_protocol_from_json, make_voltage_function_from_description
 
@@ -132,7 +133,6 @@ def main():
             current, vp = get_data(well, prediction_protocol, args.data_directory,
                                         args.experiment_name, sweep=sweep)
             desc = vp.get_all_sections()
-            print(desc)
             prot_func = make_voltage_function_from_description(desc)
 
             current = current * 1e-3
@@ -143,6 +143,10 @@ def main():
 
             model = make_model_of_class(args.model_class, voltage=prot_func, times=times,
                                         protocol_description=desc, E_rev=args.E_rev)
+            if args.use_artefact_model:
+                model = ArtefactModel(model)
+                param_labels = model.get_parameter_labels()
+
             solver = model.make_forward_solver_current()
             state_solver = model.make_hybrid_solver_states(hybrid=False)
 
@@ -164,7 +168,8 @@ def main():
 
             if args.use_artefact_model:
                 axs[1].set_ylabel(r'$V$ (mV)')
-                axs[1].plot(times*1e-3, state_solver(fit_params, protocol_description=desc)[:, -1],
+                axs[1].plot(times*1e-3, state_solver(fit_params,
+                                                     protocol_description=desc)[:, -1],
                             label=r'$V_\text{m}$')
                 axs[1].plot(times*1e-3, voltages, label=r'$V_\text{cmd}$')
                 axs[1].legend()
@@ -197,13 +202,11 @@ def main():
                                                               args.reversal)
 
             if args.use_artefact_model:
-                model = ArtefactModel(model)
-                model.default_parameters[-3] = V_off
+                model.channel_model.default_parameters[-3] = V_off
 
             predictions =[]
 
             for i, protocol in enumerate(args.protocols):
-                print(protocol)
                 if params_df is not None:
                     if protocol not in params_df.protocol.unique():
                         continue
@@ -224,11 +227,11 @@ def main():
                     label = f"{protocol} fit"
 
                 if model:
-                    if args.use_artefact_model:
-                        params_from_fitted_trace = params_df[(params_df.well==well)
-                                                                & (params_df.protocol == prediction_protocol)].head(1)[artefact_param_labels].values_flatten()
+                    # if args.use_artefact_model:
+                    #     params_from_fitted_trace = params_df[(params_df.well==well)
+                    #                                             & (params_df.protocol == prediction_protocol)].head(1)[param_labels].values_flatten()
 
-                        params[-7:] = params_from_fitted_trace[artefact_params]
+                    #     params[-7:] = params_from_fitted_trace[artefact_params]
 
                     prediction = solver(parameters, protocol_description=desc, times=times)
                     prediction = prediction * 1e-3
@@ -241,14 +244,21 @@ def main():
             if not args.use_artefact_model:
                 axs[1].plot(times*1e-3, voltages, linewidth=lw)
                 axs[1].set_xlabel('time (ms)')
-                axs[1].set_ylabel(r'$V$ (mV)')
-            else:
-                axs[1].set_xlabel('time (ms)')
                 axs[1].set_ylabel(r'$V_\text{cmd}$ (mV)')
+            else:
+                print('voltages', voltages)
+                axs[1].set_ylabel(r'$V$ (mV)')
+                axs[1].plot(times*1e-3, voltages, linewidth=lw, label=r'$V_\text{cmd}$')
+                Vm = state_solver(parameters, protocol_description=desc,
+                                  times=times)[:, -1]
+                axs[1].plot(times*1e-3, Vm, label=r'$V_\text{m}$')
+                axs[1].set_xlabel('time (ms)')
+
+                axs[1].legend()
 
             data_alpha = 1 if model is None else .5
             axs[0].plot(times*1e-3, current, color='grey', label='data', alpha=data_alpha, linewidth=lw)
-            axs[0].set_ylabel(r'$I_{Kr}$ / nA')
+            axs[0].set_ylabel(r'$I_{Kr}$ (nA)')
 
             if predictions:
                 predictions = np.stack(predictions)
@@ -316,7 +326,7 @@ def main():
                 data_alpha = .5
                 axs[0].plot(times*1e-3, data, color='grey', label='data', alpha=data_alpha, linewidth=.5)
                 axs[0].plot(times*1e-3, fit,)
-                axs[0].set_ylabel(r'$I_{Kr}$ / nA')
+                axs[0].set_ylabel(r'$I_{Kr}$ (nA)')
 
                 colour = 'green'
                 axs[0].plot(times*1e-3, fit, color=colour, linewidth=lw)
