@@ -5,11 +5,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import pints
 from matplotlib.gridspec import GridSpec
 
 import markovmodels
 
-from markovmodels.fitting import infer_reversal_potential
+from markovmodels.fitting import infer_reversal_potential, get_best_params
 from markovmodels.utilities import setup_output_directory
 from markovmodels.model_generation import make_model_of_class
 
@@ -66,7 +67,9 @@ def main():
         df['prediction_sweep'] = df['sweep']
 
 
-    df = markovmodels.fitting.get_best_params(df)
+    df[df.protocol.isin(['staircase', 'staircaseramp1', 'staircaseramp2', 'staircaseramp', 'staircaseramp_2'])]['protocol'] = 'staircaseramp'
+
+    df = get_best_params(df)
     df = df.drop_duplicates(subset=['well', 'fitting_protocol',
                                     'validation_protocol', 'fitting_sweep',
                                     'prediction_sweep'], keep='first')
@@ -74,22 +77,66 @@ def main():
     df = df[~df.protocol.isin(args.ignore_protocols)]
     df = df[~df.fitting_protocol.isin(args.ignore_protocols)]
 
+    df = df.reset_index()
+
     if args.wells:
         df = df[df.well.isin(args.wells)]
 
     if args.protocols:
         df = df[df.fitting_protocol.isin(args.protocols)]
 
+    global param_labels
     param_labels = make_model_of_class(args.model).get_parameter_labels()
     df[param_labels] = df[param_labels].astype(np.float64)
 
+
+    if args.log_a:
+        ts = make_model_of_class(args.model).transformations
+        for i, t in enumerate(ts[:-1]):
+            if type(t) is pints.LogTransformation:
+                df[param_labels[i]] = np.log10(df[param_labels[i]])
+
+    # Drop conductance parameter
+    df = df.drop(param_labels[-1], axis='columns')
+    param_labels = param_labels[:-1]
+
     global output_dir
     output_dir = setup_output_directory(args.output_dir, 'scatterplots')
+
+    beta, ll = do_multivariate_regression(df, param_labels)
+
+    with np.printoptions(threshold=np.inf):
+        print(beta.T)
+        print(f"log likelihood is {ll}")
+
+    no_protocols = len(df.protocol.unique())
+    no_wells = len(df.well.unique())
+
+    beta_p, ll_p = do_multivariate_regression(df, param_labels, no_well_effect=True)
+    beta_w, ll_w = do_multivariate_regression(df, param_labels, no_protocol_effect=True)
+
+    with open(os.path.join(output_dir, 'likelihood_ratio_test.txt'), 'w') as fout:
+        out_str = f"Likelihood ratio of well effect & protocol effect vs just protocol effect: {ll - ll_p}"
+
+        fout.write(out_str)
+        fout.write('\n')
+        print(out_str)
+
+        out_str = f"Likelihood ratio of well effect & protocol effect vs just well effect: {ll - ll_w}"
+        fout.write(out_str)
+        fout.write('\n')
+        print(out_str)
 
     print(df.protocol.unique())
 
     param_combinations = [(p1, p2) for i, p1 in enumerate(param_labels[:-1])
                           for j, p2 in enumerate(param_labels[:-1]) if p1 != p2 and j < i]
+
+    for protocol in df.protocol.unique():
+        for p1, p2 in param_combinations:
+            do_per_cell_plots(protocol, df, p1, p2,
+                              output_dir, beta=beta)
+
 
     for p1, p2 in param_combinations:
         do_per_plots(df, p1, p2, output_dir, per_variable='protocol')
@@ -99,19 +146,12 @@ def main():
         do_per_plots(df, p1, p2, output_dir, per_variable='well', normalised=False,
                      normalise_var='protocol')
 
-    for protocol in df.protocol.unique():
-        print(args.ignore_protocols)
-        print(f"plotting {protocol}")
-        do_per_cell_plots(protocol, df, 'p1', 'p2', output_dir)
-
-    var_names = make_model_of_class(args.model).get_parameter_labels()
-
     markers = ['+', 'x', '1', '2', '3'] + list(range(12))
     marker_dict = {p: markers[i] for i, p in enumerate(df.protocol.unique())}
     markers = [marker_dict[p] for p in df.protocol]
 
     # Do pairplot
-    sns.pairplot(data=df, hue=args.hue, vars=var_names)
+    sns.pairplot(data=df, hue=args.hue, vars=param_labels)
     plt.savefig(os.path.join(output_dir, 'pairplot.pdf'))
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
@@ -133,12 +173,6 @@ def main():
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     axes = create_axes(fig, 5)
-
-    if args.log_a:
-        # TODO Implement for all models
-        for var in ['p1', 'p3', 'p5', 'p7']:
-            df[var] = np.log10(df[var])
-
 
     plt.close(fig)
 
@@ -190,16 +224,16 @@ def main():
         ax1.set_ylim((ymin, ymax))
         ax2.set_ylim((ymin, ymax))
 
-    ax1 = axes[0][-1]
-    sns.scatterplot(df, x='p9', y='p4',
-                    hue=args.hue, legend=args.legend, style=style,
-                    ax=ax1)
+    # ax1 = axes[0][-1]
+    # sns.scatterplot(df, x='p9', y='p4',
+    #                 hue=args.hue, legend=args.legend, style=style,
+    #                 ax=ax1)
 
-    if args.adjust_kinetics:
-        ax2 = axes[1][-1]
-        sns.scatterplot(df, x='p9', y='p4',
-                        hue=args.hue, legend=args.legend, style=style,
-                        ax=ax2)
+    # if args.adjust_kinetics:
+    #     ax2 = axes[1][-1]
+    #     sns.scatterplot(df, x='p9', y='p4',
+    #                     hue=args.hue, legend=args.legend, style=style,
+    #                     ax=ax2)
 
     xmin = min(ax1.get_xlim()[0], ax2.get_xlim()[0])
     xmax = max(ax1.get_xlim()[1], ax2.get_xlim()[1])
@@ -289,9 +323,17 @@ def main():
     fig.savefig(os.path.join(output_dir, "scatterplot_figure2.pdf"))
 
 
-def do_per_cell_plots(protocol, df, p1, p2, output_dir):
+def do_per_cell_plots(protocol, df, p1, p2, output_dir, beta=None):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     axs = setup_per_cell_figure(fig, len(df.well.unique()))
+
+    protocols = sorted(df.protocol.unique())
+    wells = sorted(df.well.unique())
+
+    p1_index = param_labels.index(p1)
+    p2_index = param_labels.index(p2)
+
+    no_protocols = len(protocols)
 
     for well, ax in zip(df.well.unique(), axs):
         sub_df = df[df.well == well]
@@ -300,6 +342,25 @@ def do_per_cell_plots(protocol, df, p1, p2, output_dir):
         ax.scatter(sub_df[p1].values, sub_df[p2].values, marker='x', color='red')
         ax.set_title(well)
 
+        # Plot well/protocol effects from linear model
+        protocol_index = protocols.index(protocol) - 1
+        well_index = wells.index(well)
+
+        if beta is not None:
+            w_effect_index = no_protocols - 1 + well_index
+
+            well_effects = beta[no_protocols - 1+ well_index,
+                                [p1_index, p2_index]]
+
+            if protocol_index >= 0:
+                protocol_effects = beta[protocol_index, [p1_index,
+                                                         p2_index]]
+            else:
+                protocol_effects = np.array([[0, 0]])
+
+            ax.scatter(*(well_effects).T, color='gold', marker='s')
+            ax.scatter(*(well_effects + protocol_effects).T, color='gold', marker='*')
+
     output_dir = os.path.join(output_dir, 'per_cell_plots')
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -307,7 +368,7 @@ def do_per_cell_plots(protocol, df, p1, p2, output_dir):
     fig.savefig(os.path.join(output_dir, f"per_cell_{p1}_{p2}_{protocol}"))
     plt.close(fig)
 
-def do_per_plots(df, p1, p2, output_dir, normalised=True, per_variable='protocol', normalise_var='well'):
+def do_per_plots(df, p1, p2, output_dir, normalised=True, per_variable='protocol', normalise_var='well', beta=None):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     axs = setup_per_cell_figure(fig, len(df[per_variable].unique()))
     for n_var in df[normalise_var].unique():
@@ -351,6 +412,107 @@ def setup_per_cell_figure(fig, no_cells):
     axs = fig.subplots(h_cells, w_cells)
 
     return axs.flatten()
+
+
+def do_multivariate_regression(params_df, param_labels,
+                               no_protocol_effect=False, no_well_effect=False):
+    """
+    Set up a linear model for the parameter estimates with well-effects and protocol-effects
+
+    @Returns:
+    - a matrix of estimated well-effects and a matrix of estimated protocol-effects
+    - the log_likelihood score
+    """
+
+    X, Y = setup_linear_model_coding(params_df, param_labels,
+                                     no_protocol_effect=no_protocol_effect,
+                                     no_well_effect=no_well_effect)
+
+    no_protocols = len(params_df.protocol.unique())
+
+    if no_protocol_effect and no_well_effect:
+        return np.array([[]]).astype(np.float64)
+
+    # Do regression
+    beta = np.linalg.inv(X.T @ X) @ X.T @ Y
+
+    print('determinant', np.linalg.slogdet(X.T@X))
+
+    residuals = Y - (X @ beta)
+
+    n = params_df.values.shape[0]
+
+    sigma_ests = residuals.std(axis=0)
+
+    log_likelihood = 0
+
+    for i in range(len(param_labels)):
+        log_likelihood += - (n / 2.0) *  np.log(2*np.pi*sigma_ests[i]**2) - (1.0/2*sigma_ests[i]**2) * np.sum(residuals[:, i]**2)
+
+    return beta, log_likelihood
+
+
+def setup_linear_model_coding(params_df, param_labels,
+                              no_protocol_effect=False, no_well_effect=False):
+    """
+    Set-up the design matrxi for the linear parameter estimates model
+    """
+
+    no_protocols = len(params_df.protocol.unique())
+    no_wells = len(params_df.well.unique())
+
+    # Number of parameters (excluding conductance)
+    no_parameters = len(param_labels)
+
+    # Design matrix
+    X = np.full((params_df.index.size, no_wells + no_protocols), 0).astype(int)
+    # Create two 'views' of X for the protocol part and the well part
+    Xp = X[:, :no_protocols]
+    Xw = X[:, no_protocols:]
+
+    assert(Xw.shape[1] == no_wells)
+
+    # Data
+    # Each row is a parameter estimate vector
+    Y = params_df[param_labels].values
+
+    # sort alphabetically
+    protocols = sorted(list(params_df.protocol.unique()))
+    wells = sorted(list(params_df.well.unique()))
+
+    for c, row in params_df.iterrows():
+        protocol = row['protocol']
+        well = row['well']
+
+        protocol_index = protocols.index(protocol)
+        well_index = wells.index(well)
+
+        Xp[c, protocol_index] = 1
+        Xw[c, well_index] = 1
+
+        assert X[c, :].sum() == 2
+
+    if no_protocol_effect and no_well_effect:
+        return np.array([[]]).astype(np.float64), Y
+
+    if no_protocol_effect:
+        X = Xw
+
+    elif no_well_effect:
+        X = Xp
+
+    else:
+        # Drop one of the protocol effects
+        # X = X
+        print(Xp, Xw)
+        X = X[:, 1:]
+
+    return X, Y
+
+
+def likelihood_ratio_tests(params_df, param_labels):
+    pass
+
 
 
 if __name__ == "__main__":

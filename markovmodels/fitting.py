@@ -16,7 +16,7 @@ from numba import njit
 import markovmodels
 
 from markovmodels.model_generation import make_model_of_class
-from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
+from markovmodels.voltage_protocols import get_ramp_protocol_from_csv, make_voltage_function_from_description
 from markovmodels.utilities import get_data
 from markovmodels.voltage_protocols import remove_spikes, detect_spikes,\
     make_voltage_function_from_description
@@ -698,7 +698,7 @@ def _find_conductance(solver, data, indices, aux_func, voltages, p, Erev, gkr_in
 
 
 
-def infer_voltage_offset_with_artefact(protocol, times, data,
+def find_V_off(protocol, times, data,
                                            model_class_name,
                                            default_parameters, E_rev,
                                            forward_sim_output_dir=None,
@@ -761,7 +761,6 @@ def infer_voltage_offset_with_artefact(protocol, times, data,
                                 E_rev, gkr_index)
 
         p[gkr_index] = gkr
-
         if not np.isfinite(gkr):
             return np.inf
 
@@ -993,6 +992,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict,
     for sim_protocol in np.unique(protocols_list):
 
         desc, full_times = protocol_dict[sim_protocol]
+        prot_func = make_voltage_function_from_description(desc)
         voltages = np.array([prot_func(t) for t in full_times])
 
         spike_times, spike_indices = markovmodels.voltage_protocols.detect_spikes(full_times, voltages,
@@ -1005,12 +1005,17 @@ def compute_predictions_df(params_df, output_dir, protocol_dict,
 
         for well in params_df['well'].unique():
             for predict_sweep in params_df[params_df.protocol == sim_protocol].sweep.unique():
+                data_label = ''
+                if args:
+                    if 'data_label' in args:
+                        data_label = args.data_label
                 try:
-                    full_data = markovmodels.utilities.get_data(well, sim_protocol,
-                                                                args.data_directory,
-                                                                experiment_name=args.experiment_name,
-                                                                label=args.data_label,
-                                                                sweep=predict_sweep)
+                    full_data, _ = markovmodels.utilities.get_data(well,
+                                                                   sim_protocol,
+                                                                   args.data_directory,
+                                                                   experiment_name=args.experiment_name,
+                                                                   label=data_label,
+                                                                   sweep=predict_sweep)
                 except (FileNotFoundError, StopIteration) as exc:
                     print(str(exc))
                     continue
@@ -1019,13 +1024,15 @@ def compute_predictions_df(params_df, output_dir, protocol_dict,
                     if predict_sweep is not None else f"{well}_{sim_protocol}_predictions"
                 sub_dir = os.path.join(predictions_dir, subdir_name)
 
+                if not os.path.exists(sub_dir):
+                    os.makedirs(sub_dir)
+
                 if not args.use_artefact_model:
                     E_obs = \
-                        markovmodels.infer_reversal_potential(sim_protocol,
-                                                              full_data,
-                                                              full_times,
-                                                              forward_sim_output_dir=sub_dir
-                                                              )
+                        infer_reversal_potential(desc,
+                                                 full_data,
+                                                 full_times,
+                                                 )
 
                     model = make_model_of_class(model_class,
                                                 voltage=prot_func,
@@ -1073,16 +1080,13 @@ def compute_predictions_df(params_df, output_dir, protocol_dict,
                         params = df.iloc[0][param_labels].values\
                                                          .astype(np.float64)\
                                                          .flatten()
-                        try:
-                            fitting_data = pd.read_csv(
-                                os.path.join(args.data_directory,
-                                             f"{args.experiment_name}-{protocol_fitted}-{well}-sweep{fitting_sweep}.csv"))
-                        except FileNotFoundError as e:
-                            print(str(e))
-                            continue
+                        fitting_current, _ = get_data(well, protocol_fitted,
+                                                        args.data_directory,
+                                                        sweep=predict_sweep, label='',
+                                                        experiment_name=args.experiment_name)
 
-                        fitting_current = fitting_data['current'].values.flatten()
-                        fitting_times = fitting_data['time'].values.flatten()
+                        fitting_times = protocol_dict[protocol_fitted][1]
+
                         if not os.path.exists(sub_dir):
                             os.makedirs(sub_dir)
 
@@ -1090,7 +1094,9 @@ def compute_predictions_df(params_df, output_dir, protocol_dict,
                         if args.use_artefact_model:
                             params[-3] = V_off
 
-                        full_prediction = solver(params, times=times,
+
+                        print(params)
+                        full_prediction = solver(params, times=full_times,
                                                  protocol_description=desc)
 
                         prediction = full_prediction[indices]
@@ -1101,8 +1107,8 @@ def compute_predictions_df(params_df, output_dir, protocol_dict,
                                                * params))
 
                         if not np.all(np.isfinite(prediction)):
-                            logging.warning(f"running {sim_protocol} with parameters\
-                            from {protocol_fitted} gave non-finite values")
+                            logging.warning(f"running {sim_protocol} with parameters"
+                                            f"from {protocol_fitted} gave non-finite values")
                         else:
                             # Output trace
                             trace_axs[0].plot(full_times, full_prediction, label='prediction')

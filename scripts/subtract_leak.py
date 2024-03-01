@@ -435,15 +435,14 @@ def subtract_leak(well, protocol, args, output_dir=None):
         if after_trace is not None:
             if not args.dont_correct_post:
                 after_corrected = after_trace - (g_leak_after * (protocol_voltages - E_leak_after))
-
-            else:
-                after_corrected = np.full(after_trace.shape, 0)
-
-            infer_reversal_potential(protocol, after_corrected,
+                infer_reversal_potential(protocol, after_corrected,
                                      observation_times,
                                      output_path=os.path.join(reversal_plot_dir,
                                                               f"{protocol}_{well}_after_drug_leak_corrected"),
                                      plot=not args.no_plot)
+
+            else:
+                after_corrected = np.full(after_trace.shape, 0)
 
         if before_trace is not None and after_trace is not None:
             subtracted_trace = before_corrected - after_corrected

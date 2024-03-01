@@ -37,6 +37,7 @@ def main():
     parser.add_argument('--show_uncertainty', action='store_true')
     parser.add_argument('--ignore_protocols', nargs='+', default=['longap'])
     parser.add_argument('--shared_plot_limits', action='store_true')
+    parser.add_argument('--removal_duration', default=5.0, type=float)
     parser.add_argument('--no_voltage', action='store_true')
     parser.add_argument('--file_format', default='')
     parser.add_argument('--reversal', default=-91.71, type=float)
@@ -67,7 +68,7 @@ def main():
         model = ArtefactModel(model)
 
     for protocol in np.unique(list(params_df.protocol) + args.additional_protocols):
-        desc, _ = get_ramp_protocol_from_json(protocol, os.path.join(args.data_directory, 'protocols'),
+        v_func, desc = get_ramp_protocol_from_json(protocol, os.path.join(args.data_directory, 'protocols'),
                                               args.experiment_name)
 
         times = np.loadtxt(os.path.join(args.data_directory,
@@ -84,10 +85,15 @@ def main():
         params_df = adjust_kinetics(args.model_class, params_df, E_rev_df,
                                     args.E_rev)
 
-    model = make_model_of_class(args.model_class)
+    params_df.sweep = [int(x) if int(x) >=0 else 0 for x in params_df.sweep]
+
     prediction_df = compute_predictions_df(params_df, output_dir,
-                                           protocol_dict, solver=solver,
+                                           protocol_dict, model_class=args.model_class,
+                                           solver=solver,
                                            args=args)
+
+    # Output predictions dataframe
+    predictions_df.to_csv(os.path.join(output_dir, 'predictions_df.csv'))
 
     plot_heatmap(ax, prediction_df)
 

@@ -75,6 +75,9 @@ class MarkovModel(ODEModel):
                          protocol_description, name, E_rev,
                          default_parameters=default_parameters, **kws)
 
+    def set_E_rev(self, E_rev):
+        self.E_rev = E_rev
+        self.auxiliary_function = njit(self.define_auxiliary_function())
 
     def compute_steady_state_expressions(self):
         self.rhs_inf_expr_rates = -self.A.LUsolve(self.B)

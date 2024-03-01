@@ -19,7 +19,7 @@ from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.utilities import setup_output_directory, get_data, get_all_wells_in_directory
 from markovmodels.voltage_protocols import get_protocol_list, get_ramp_protocol_from_json, make_voltage_function_from_description
 
-rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 12})
+rc('font', **{'size': 12})
 # rc('text', usetex=True)
 rc('figure', dpi=400, facecolor=[0]*4)
 rc('axes', facecolor=[0]*4)
@@ -48,7 +48,7 @@ def main():
     parser.add_argument('--shared_plot_limits', action='store_true')
     parser.add_argument('--no_voltage', action='store_true')
     parser.add_argument('--file_format', default='')
-    parser.add_argument('--E_rev', default=-91.71, type=float)
+    parser.add_argument('--reversal', default=-91.71, type=float)
 
     global args
     args = parser.parse_args()
@@ -127,9 +127,6 @@ def main():
             if prediction_protocol in args.ignore_protocols:
                 continue
 
-            print(params_df.well)
-            print(params_df.protocol)
-            print(params_df.sweep)
             current, vp = get_data(well, prediction_protocol, args.data_directory,
                                         args.experiment_name, sweep=sweep)
             desc = vp.get_all_sections()
@@ -142,13 +139,35 @@ def main():
 
 
             model = make_model_of_class(args.model_class, voltage=prot_func, times=times,
-                                        protocol_description=desc, E_rev=args.E_rev)
+                                        protocol_description=desc, E_rev=args.reversal)
             if args.use_artefact_model:
                 model = ArtefactModel(model)
                 param_labels = model.get_parameter_labels()
 
             solver = model.make_forward_solver_current()
             state_solver = model.make_hybrid_solver_states(hybrid=False)
+
+            V_off = 0
+            # TODO get reversal potential automatically
+            E_rev = args.reversal
+            if args.use_artefact_model and args.infer_reversal_potential:
+                V_off = \
+                    markovmodels.fitting.find_V_off(prediction_protocol, times,
+                                                    current, 'model3', default_parameters=infer_reversal_params,
+                                                    E_rev=args.reversal)
+            elif args.infer_reversal_potential:
+                _, pred_desc = get_ramp_protocol_from_json(prediction_protocol,
+                                                           protocol_directory,
+                                                           args.experiment_name
+                                                           )
+                E_rev = \
+                markovmodels.fitting.infer_reversal_potential(pred_desc,
+                                                              current,
+                                                              times,
+                                                              known_Erev=args.reversal)
+                model.set_E_rev(E_rev)
+                solver = model.make_forward_solver_current()
+                state_solver = model.make_hybrid_solver_states(hybrid=False)
 
             fit_params = params_df[(params_df.well==well)\
                                    & (params_df.protocol == prediction_protocol)
@@ -184,22 +203,6 @@ def main():
             for ax in axs:
                 ax.cla()
 
-            V_off = 0
-            # TODO get reversal potential automatically
-            E_rev = args.E_rev
-            if args.use_artefact_model and args.infer_reversal_potential:
-                V_off = \
-                    markovmodels.fitting.infer_reversal_potential_with_artefact(prediction_protocol,
-                                                                                times, current, 'model3',
-                                                                                default_parameters=infer_reversal_params,
-                                                                                E_rev=args.reversal)
-            elif args.infer_reversal_potential:
-                E_rev = \
-                markovmodels.fitting.infer_reversal_potential(prediction_protocol,
-                                                              times,
-                                                              current,
-                                                              'model3',
-                                                              args.reversal)
 
             if args.use_artefact_model:
                 model.channel_model.default_parameters[-3] = V_off
@@ -233,7 +236,10 @@ def main():
 
                     #     params[-7:] = params_from_fitted_trace[artefact_params]
 
-                    prediction = solver(parameters, protocol_description=desc, times=times)
+                    prediction = model.SimulateForwardModel(parameters,
+                                                            protocol_description=desc,
+                                                            times=times)
+                    print(model.E_rev)
                     prediction = prediction * 1e-3
                     color = 'red'
                     axs[0].plot(times*1e-3, prediction, color=color,
@@ -251,7 +257,8 @@ def main():
                 axs[1].plot(times*1e-3, voltages, linewidth=lw, label=r'$V_\text{cmd}$')
                 Vm = state_solver(parameters, protocol_description=desc,
                                   times=times)[:, -1]
-                axs[1].plot(times*1e-3, Vm, label=r'$V_\text{m}$')
+                axs[1].plot(times*1e-3, Vm, label=r'$V_\text{m}$', lw=lw,
+                            color='red', linestyle='--')
                 axs[1].set_xlabel('time (ms)')
 
                 axs[1].legend()
@@ -302,74 +309,74 @@ def main():
             current_range = None
             voltage_range = None
 
-        for well in wells:
-            for protocol in args.protocols:
-                data, voltages, fit, times = get_data_voltages_fit_times(protocol, well, params_df, model_class)
-                if not args.no_voltage:
-                    axs[1].plot(times, voltages, linewidth=lw)
-                    axs[1].set_xlabel('time (ms)')
-                    axs[1].set_ylabel(r'$V_{in}$ (mV)')
+        # for well in wells:
+        #     for protocol in args.protocols:
+        #         data, voltages, fit, times = get_data_voltages_fit_times(protocol, well, params_df, model_class)
+        #         if not args.no_voltage:
+        #             axs[1].plot(times, voltages, linewidth=lw)
+        #             axs[1].set_xlabel('time (ms)')
+        #             axs[1].set_ylabel(r'$V_{in}$ (mV)')
 
 
-                # Set plot limits
-                if time_range is not None:
-                    axs[0].set_xlim(time_range)
-                    if not args.no_voltage:
-                        axs[1].set_xlim(time_range)
+        #         # Set plot limits
+        #         if time_range is not None:
+        #             axs[0].set_xlim(time_range)
+        #             if not args.no_voltage:
+        #                 axs[1].set_xlim(time_range)
 
-                if current_range is not None:
-                    axs[0].set_ylim(current_range)
+        #         if current_range is not None:
+        #             axs[0].set_ylim(current_range)
 
-                if voltage_range is not None and not args.no_voltage:
-                    axs[1].set_ylim(voltage_range)
+        #         if voltage_range is not None and not args.no_voltage:
+        #             axs[1].set_ylim(voltage_range)
 
-                data_alpha = .5
-                axs[0].plot(times*1e-3, data, color='grey', label='data', alpha=data_alpha, linewidth=.5)
-                axs[0].plot(times*1e-3, fit,)
-                axs[0].set_ylabel(r'$I_{Kr}$ (nA)')
+        #         data_alpha = .5
+        #         axs[0].plot(times*1e-3, data, color='grey', label='data', alpha=data_alpha, linewidth=.5)
+        #         axs[0].plot(times*1e-3, fit,)
+        #         axs[0].set_ylabel(r'$I_{Kr}$ (nA)')
 
-                colour = 'green'
-                axs[0].plot(times*1e-3, fit, color=colour, linewidth=lw)
+        #         colour = 'green'
+        #         axs[0].plot(times*1e-3, fit, color=colour, linewidth=lw)
 
-                axs[0].set_title(args.fig_title)
-                # fig.tight_layout()
-                fig.savefig(os.path.join(output_dir,
-                                         f"{protocol}_{well}_fit.pdf"), dpi=args.dpi)
-                for ax in axs:
-                    ax.cla()
+        #         axs[0].set_title(args.fig_title)
+        #         # fig.tight_layout()
+        #         fig.savefig(os.path.join(output_dir,
+        #                                  f"{protocol}_{well}_fit.pdf"), dpi=args.dpi)
+        #         for ax in axs:
+        #             ax.cla()
 
 
-def get_data_voltages_fit_times(protocol, well, params_df, model_class):
-    sweep = 0
-    if os.path.exists(os.path.join(args.data_directory,
-                                   f"{args.experiment_name}-{protocol}-times.csv")):
-        current, prot_desc = get_data(well, protocol, args.data_directory,
-                                      args.experiment_name, sweep=sweep)
-        times = np.loadtxt(os.path.join(args.data_directory,
-                                        f"{args.experiment_name}-{protocol}-times.csv")).astype(np.float64).flatten()
-        voltages = np.array([prot_func(t) for t in times])
+# def get_data_voltages_fit_times(protocol, well, params_df, model_class):
+#     sweep = 0
+#     if os.path.exists(os.path.join(args.data_directory,
+#                                    f"{args.experiment_name}-{protocol}-times.csv")):
+#         current, prot_desc = get_data(well, protocol, args.data_directory,
+#                                       args.experiment_name, sweep=sweep)
+#         times = np.loadtxt(os.path.join(args.data_directory,
+#                                         f"{args.experiment_name}-{protocol}-times.csv")).astype(np.float64).flatten()
+#         voltages = np.array([prot_func(t) for t in times])
 
-        fit = None
+#         fit = None
 
-        if params_df is not None:
-            model = make_model_of_class(args.model_class)
-            param_labels = model.get_parameter_labels()
-            parameters = params_df[(params_df.well == well) &
-                                   (params_df.protocol == protocol)].head(1)[param_labels].values.flatten()
-            model = make_model_of_class(args.model_class, voltage=prot_func,
-                                        times=times, parameters=parameters,
-                                        protocol_description=desc)
-            fit = model.SimulateForwardModel()
+#         if params_df is not None:
+#             model = make_model_of_class(args.model_class)
+#             param_labels = model.get_parameter_labels()
+#             parameters = params_df[(params_df.well == well) &
+#                                    (params_df.protocol == protocol)].head(1)[param_labels].values.flatten()
+#             model = make_model_of_class(args.model_class, voltage=prot_func,
+#                                         times=times, parameters=parameters,
+#                                         protocol_description=desc)
+#             fit = model.SimulateForwardModel()
 
-        else:
-            fit = None
-    else:
-        raise Exception('could not open data')
+#         else:
+#             fit = None
+#     else:
+#         raise Exception('could not open data')
 
-    times = times * 1e-3
-    current = current * 1e-3
+#     times = times * 1e-3
+#     current = current * 1e-3
 
-    return current, voltages, fit, times
+#     return current, voltages, fit, times
 
 
 
