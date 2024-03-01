@@ -86,6 +86,7 @@ def main():
     parser.add_argument('--sweeps', nargs='+', type=int, default=[0])
     parser.add_argument('--use_artefact_model', action='store_true')
     parser.add_argument('--subtraction_df_file')
+    parser.add_argument('--data_label')
     parser.add_argument('--compute_predictions', action='store_true')
     parser.add_argument('--reversal', type=float)
     parser.add_argument('--tolerance', nargs=2, type=float, default=(1e-8, 1e-8))
