@@ -15,7 +15,6 @@ from argparse import ArgumentParser
 from markovmodels.model_generation import make_model_of_class
 from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.BeattieModel import BeattieModel
-from markovmodels.fitting import infer_reversal_potential_with_artefact
 from markovmodels.fitting import compute_predictions_df, get_best_params
 
 matplotlib.use('agg')

@@ -334,13 +334,13 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
             # Use the artefact to forward simulate the voltages (using literature kinetics)
             params_for_Erev = default_parameters.copy()
 
-            V_off = infer_reversal_potential_with_artefact(protocol, times,
-                                                           data, 'model3',
-                                                           default_parameters, E_rev,
-                                                           forward_sim_output_dir=reversal_dir,
-                                                           removal_duration=removal_duration,
-                                                           output_path=output_path
-                                                           )
+            V_off = find_V_off(protocol, times,
+                               data, 'model3',
+                               default_parameters, E_rev,
+                               forward_sim_output_dir=reversal_dir,
+                               removal_duration=removal_duration,
+                               output_path=output_path
+                               )
 
         else:
             voltages = None
@@ -1057,15 +1057,16 @@ def compute_predictions_df(params_df, output_dir, protocol_dict,
                     gleak, Eleak, V_off, Rseries, Cm = param_row[['gleak, Eleak, V_off, Rseries, Cm']]
                     forward_sim_parameters[[-7, -6, -5, -4, -3, -2, -1]] = gleak, Eleak, 0, 0, V_off, Rseries, Cm
                     V_off = \
-                        infer_voltage_offset_with_artefact(sim_protocol,
-                                                           full_times,
-                                                           full_data,
-                                                           'model3',
-                                                           args.reversal,
-                                                           plot=True,
-                                                           output_path=sub_dir,
-                                                           forward_sim_output_dir=sub_dir,
-                                                           )
+                        with_V_off(sim_protocol,
+                                   full_times,
+                                   full_data,
+                                   'model3',
+                                   args.reversal,
+                                   plot=True,
+                                   output_path=sub_dir,
+                                   forward_sim_output_dir=sub_dir,
+                                   )
+
                     model.default_parameters[-3] = V_off
 
                 data = full_data[indices]
