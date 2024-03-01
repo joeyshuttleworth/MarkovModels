@@ -49,7 +49,6 @@ def get_data(well, protocol, data_directory, experiment_name='',
 
     if well is not None:
         regex = re.compile(f"^{experiment_name}-{protocol}-{well}-{label}sweep{sweep}-subtracted.csv$")
-        print(regex)
         fname = next(filter(regex.match, os.listdir(data_directory)))
 
         if no_headers:
