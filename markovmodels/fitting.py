@@ -683,15 +683,15 @@ def _find_conductance(solver, data, indices, aux_func, voltages, p, Erev, gkr_in
 
         if not np.all(np.isfinite(states)):
             return np.inf
-
         prediction = aux_func(states.T, _p, voltages).flatten()
         score = np.sqrt(np.mean((prediction[indices] - data[indices])**2))
         return score
 
+    options = {'xatol': bounds.max() * 1e-5}
     # Find conductance
     res = scipy.optimize.minimize_scalar(find_g_opt,
                                          bounds=bounds,
-                                         xtol=bounds.max() * 1e-5)
+                                         options=options)
 
     if res.success:
         return res.x
@@ -788,9 +788,10 @@ def find_V_off(protocol, times, data,
 
     E_rev_error = E_obs - E_rev
     bounds = np.unique([-E_rev_error*2, 0])
+    options = {'xatol': 1e-5}
+
     res = scipy.optimize.minimize_scalar(opt_V_off_func,
                                          bounds=bounds,
-                                         xtol=1e-5,
                                          method='bounded')
     if res.success:
         found_V_off = res.x

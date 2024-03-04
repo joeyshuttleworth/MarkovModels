@@ -218,7 +218,7 @@ class ArtefactModel(MarkovModel):
         return solver
 
     def get_cfunc_rhs(self):
-        channel_rhs = self.channel_model.get_rhs_func(njitted=True)
+        channel_rhs = self.channel_model.get_rhs_func()
 
         # States are:
         # [channel model] + [V_m]

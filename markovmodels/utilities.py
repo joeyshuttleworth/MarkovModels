@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import regex as re
 
-from pcpostprocess.voltage_protocols import VoltageProtocol
+from syncropatch_export.voltage_protocols import VoltageProtocol
 
 
 def calculate_reversal_potential(T=293, K_in=120, K_out=5):

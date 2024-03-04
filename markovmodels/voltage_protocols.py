@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import regex as re
 import json
-from pcpostprocess.voltage_protocols import VoltageProtocol
+from syncropatch_export.voltage_protocols import VoltageProtocol
 from numba import njit
 
 
