@@ -14,8 +14,7 @@ dependencies:
   - regex
   - cmake
   - pip:
-    - ../syncropatch_export
-  - pip:
       - .
+      - -e ../syncropatch_export
   - conda-forge::sundials
   - conda-forge::graphviz
