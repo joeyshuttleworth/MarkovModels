@@ -193,14 +193,15 @@ def make_voltage_function_from_description(desc, holding_potential=-80.0):
             return holding_potential
 
         for row in desc:
-            if t < row[1]:
-                tstart, tend, vstart, vend = row.flatten()
-                if vend != vstart:
-                    return vstart + (t - tstart)\
-                        * (vend - vstart) / \
-                        (tend - tstart)
-                else:
-                    return vend
+            if t >= row[1]:
+                continue
+            tstart, tend, vstart, vend = row.flatten()
+            if vend != vstart:
+                return vstart + (t - tstart)\
+                    * (vend - vstart) / \
+                    (tend - tstart)
+            else:
+                return vend
 
         return holding_potential
 

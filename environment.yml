@@ -15,6 +15,6 @@ dependencies:
   - cmake
   - pip:
       - .
-      - -e ../syncropatch_export
+      - ./syncropatch_export
   - conda-forge::sundials
   - conda-forge::graphviz

@@ -165,7 +165,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         unfixed_indices = list(range(len(starting_parameters)))
         params_not_fixed = starting_parameters
 
-    voltages = mm.GetVoltage()
+    voltages = mm.GetVoltage().flatten()
     boundaries = fitting_boundaries(starting_parameters, mm, data,
                                     voltages, rng, fix_parameters,
                                     is_artefact_model=use_artefact_model)
@@ -305,6 +305,9 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                       label=data_label, sweep=sweep)
     protocol_desc = voltage_protocol.get_all_sections()
 
+    # Temporary solver hack
+    protocol_desc = np.vstack((protocol_desc, [[protocol_desc[-1, 1], np.inf, -80.0, -80.0]]))
+
     voltage_func = make_voltage_function_from_description(protocol_desc)
 
     times = pd.read_csv(os.path.join(data_directory, f"{experiment_name}-{protocol}-times.csv"),
@@ -334,7 +337,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
             # Use the artefact to forward simulate the voltages (using literature kinetics)
             params_for_Erev = default_parameters.copy()
 
-            V_off = find_V_off(protocol, times,
+            V_off = find_V_off(protocol_desc, times,
                                data, 'model3',
                                default_parameters, E_rev,
                                forward_sim_output_dir=reversal_dir,
@@ -344,7 +347,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
 
         else:
             voltages = None
-            E_obs = infer_reversal_potential(protocol, data, times, plot=plot,
+            E_obs = infer_reversal_potential(protocol_desc, data, times, plot=plot,
                                              output_path=output_path, voltages=voltages)
         if use_artefact_model:
             inferred_E_rev = E_rev
@@ -377,7 +380,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         raise Exception('solver and solver type provided')
 
     if solver is None:
-        strict = not use_artefact_model
+        strict = False
         try:
             solver = model.make_forward_solver_of_type(solver_type,
                                                        strict=strict)
@@ -390,6 +393,16 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
     if not np.all(np.isfinite(solver(initial_params.flatten()))):
         if use_artefact_model:
             print(model.SimulateForwardModel(initial_params))
+
+        bad_indices = np.argwhere(~np.isfinite(solver(initial_params.flatten())))
+
+        print(times[bad_indices])
+        print(voltages[bad_indices])
+
+        print(len(times))
+
+        state_solver = model.make_hybrid_solver_states(hybrid=False, njitted=False)
+        print(state_solver()[bad_indices, :])
 
         raise Exception("Default parameters gave non-finite output \n"
                         f"{well} {protocol} {sweep} {initial_params} {E_rev}")

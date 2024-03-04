@@ -44,7 +44,7 @@ class MarkovModel(ODEModel):
 
         if GKr_index is None:
             # assume the last parameter is GKr (conductance)
-            GKr_index = len(default_parameters) - 1
+            GKr_index = len(symbols['p'].flatten()) - 1
 
         self.GKr_index = GKr_index
 

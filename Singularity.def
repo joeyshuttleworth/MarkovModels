@@ -4,6 +4,7 @@ From: mambaorg/micromamba
 %files
 ./markovmodels/* /markovmodels/
 ./markovmodels/protocols/* /markovmodels/protocols
+../syncropatch_export syncropatch_export
 setup.py setup.py
 README.md README.md
 MANIFEST.in MANIFEST.in

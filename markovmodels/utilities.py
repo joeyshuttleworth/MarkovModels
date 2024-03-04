@@ -73,7 +73,7 @@ def get_data(well, protocol, data_directory, experiment_name='',
     with open(os.path.join(protocols_dir, fname), 'r') as fin:
         json_contents = json.load(fin)
 
-    voltage_protocol = VoltageProtocol.from_json(json_contents)
+    voltage_protocol = VoltageProtocol.from_json(json_contents, -80.0)
 
     return data, voltage_protocol
 
