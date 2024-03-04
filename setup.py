@@ -59,6 +59,7 @@ setup(
         'markov_builder @ git+https://git@github.com/CardiacModelling/Markov-builder@thirty_models',
         'numbalsoda @ git+https://git@github.com/NicholasWogan/numbalsoda@main',
         'scikit-build>=0.16.7',
+        'syncropatch_export>=0.0.1'
     ],
     extras_require={
         'test': [
