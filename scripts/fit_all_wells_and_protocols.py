@@ -1,5 +1,5 @@
 import logging
-import loky
+# import loky
 import multiprocessing
 import os
 
@@ -18,12 +18,19 @@ from markovmodels.BeattieModel import BeattieModel
 from markovmodels.fitting import compute_predictions_df, get_best_params
 
 matplotlib.use('agg')
-# pool_kws = {'maxtasksperchild': 1}
+pool_kws = {'maxtasksperchild': 1}
 
 
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
-             randomise_initial_guess=True, prefix='', sweep=None):
-    this_output_dir = os.path.join(output_dir, f"{prefix}{protocol}_{well}_sweep{sweep}")
+             randomise_initial_guess=True, prefix='', sweep=None,
+             output_dir=None, args=None, default_kinetic_parameters=None):
+
+    assert args is not None
+
+    if output_dir:
+        this_output_dir = os.path.join(output_dir, f"{prefix}{protocol}_{well}_sweep{sweep}")
+    else:
+        this_output_dir = None
 
     _E_rev = not args.dont_infer_Erev
 
@@ -50,7 +57,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
         use_artefact_model=args.use_artefact_model,
         fix_parameters=fix_parameters,
         data_label=args.data_label,
-        artefact_default_kinetic_parameters=default_artefact_kinetic_parameters
+        artefact_default_kinetic_parameters=default_kinetic_parameters
     )
 
     res_df['well'] = well
@@ -95,9 +102,6 @@ def main():
     global args
     args = parser.parse_args()
 
-    global output_dir
-    output_dir = args.output
-
     global experiment_name
     experiment_name = args.experiment_name
 
@@ -108,7 +112,7 @@ def main():
         selected_wells = None
 
     global default_artefact_kinetic_parameters
-    default_artefact_kinetic_parameters = np.loadtxt(args.artefact_default_kinetic_param_file).flatten().astype(np.float64)
+    default_artefact_kinetic_parameters = np.loadtxt(args.artefact_default_kinetic_param_file).flatten().astype(np.float64) if args.artefact_default_kinetic_param_file else None
 
     if args.use_artefact_model and not args.subtraction_df_file:
         raise Exception('Cannot use artefact model without qc file')
@@ -119,6 +123,7 @@ def main():
     if args.subtraction_df_file:
         subtraction_df = pd.read_csv(args.subtraction_df_file)
 
+    global output_dir
     output_dir = markovmodels.utilities.setup_output_directory(
         args.output,
         f"fitting_{args.experiment_name}_{args.model}"
@@ -183,8 +188,6 @@ def main():
             if int(sweep) not in args.sweeps:
                 continue
 
-        print(protocol, well, sweep)
-
         if args.use_artefact_model:
             row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol) &
                         (subtraction_df.sweep == sweep)]
@@ -204,7 +207,8 @@ def main():
             default_parameters = markovmodels.model_generation.make_model_of_class(args.model).get_default_parameters()
             starting_parameters = np.append(default_parameters, [gleak, Eleak, 0, 0, 0, Cm, Rseries])
         tasks.append([protocol, well, args.model, starting_parameters, args.reversal,
-                      not args.dont_randomise_initial_guess, prefix, sweep])
+                      not args.dont_randomise_initial_guess, prefix, sweep, output_dir, args,
+                      default_artefact_kinetic_parameters])
 
         protocols_list.append(protocol)
 
@@ -213,11 +217,14 @@ def main():
     protocols_list = np.unique(protocols_list)
     pool_size = min(args.cores, len(tasks))
 
-    with loky.get_reusable_executor(pool_size, timeout=None) as pool:
-        future_res = [pool.submit(fit_func, *args) for args in tasks]
+    # with loky.get_reusable_executor(pool_size, timeout=None) as pool:
+    #     future_res = [pool.submit(fit_func, *args) for args in tasks]
 
-        loky.wait(future_res)
-        res = [x.result() for x in future_res]
+    #     loky.wait(future_res)
+    #     res = [x.result() for x in future_res]
+
+    with multiprocessing.Pool(pool_size, **pool_kws) as pool:
+        res = pool.starmap(fit_func, tasks)
 
     fitting_df = pd.concat(res, ignore_index=True)
 
@@ -240,7 +247,6 @@ def main():
 
         # Select best parameters for each protocol
         best_params_df_rows = []
-        print(predictions_df)
         for well in predictions_df.well.unique():
             for validation_protocol in predictions_df['validation_protocol'].unique():
                 sub_df = predictions_df[(predictions_df.validation_protocol ==
@@ -250,41 +256,6 @@ def main():
                 best_params_df_rows.append(best_param_row)
 
         best_params_df = pd.concat(best_params_df_rows, ignore_index=True)
-        print(best_params_df)
-
-        for task in tasks:
-            if args.sweeps:
-                protocol, well, model_class, default_parameters, Erev, randomise, _, sweep = task
-            else:
-                protocol, well, model_class, default_parameters, Erev, randomise, _ = task
-            best_params_row = best_params_df[(best_params_df.well == well)
-                                            & (best_params_df.validation_protocol == protocol)].head(1)
-            param_labels = make_model_of_class(model_class).get_parameter_labels()
-            best_params = best_params_row[param_labels].astype(np.float64).values.flatten()
-            task[3] = best_params
-            task[6] = ''
-            task[5] = False
-
-        if args.refit:
-            with multiprocessing.Pool(pool_size, **pool_kws) as pool:
-                res = pool.starmap(fit_func, tasks)
-
-                fitting_df = pd.concat(res + [fitting_df], ignore_index=True)
-                fitting_df.to_csv(os.path.join(output_dir, "fitting.csv"))
-
-                if args.compute_predictions:
-                    predictions_df = compute_predictions_df(params_df, output_dir,
-                                                            model_class=model_class,
-                                                            args=args,
-                                                            default_artefact_kinetic_paramets=default_artefact_kinetic_parameters)
-
-                    predictions_df.to_csv(os.path.join(output_dir, "predictions_df.csv"))
-
-                    best_params_df = get_best_params(predictions_df, protocol_label='validation_protocol')
-                    print(best_params_df)
-
-                    best_params_df['protocol'] = best_params_df['validation_protocol']
-                    best_params_df.to_csv(os.path.join(output_dir, 'best_fitting.csv'))
 
 
 if __name__ == "__main__":

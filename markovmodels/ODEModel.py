@@ -89,10 +89,13 @@ class ODEModel:
         if voltage is not None:
             self.holding_potential = voltage(0)
 
-        inputs = list(self.y) + list(self.p) + [self.v]
+        inputs = [self.y, self.p, self.v]
         # Create Jacobian of the RHS function
         jrhs = sp.Matrix(self.rhs_expr).jacobian(self.y)
         self.jfunc_rhs = sp.lambdify(inputs, jrhs)
+
+        self.func_rhs = njit(sp.lambdify(inputs, self.rhs_expr))
+
         # Set the initial conditions of the model and the initial sensitivities
         # by finding the steady state of the model
 
@@ -299,7 +302,7 @@ class ODEModel:
         return solver
 
     def get_cfunc_rhs(self):
-        rhs = nb.njit(self.func_rhs)
+        rhs = self.func_rhs
         voltage = self.voltage
 
         ny = self.get_no_state_vars()
