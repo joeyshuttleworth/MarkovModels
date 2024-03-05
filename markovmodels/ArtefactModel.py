@@ -102,13 +102,13 @@ class ArtefactModel(MarkovModel):
         p = self.get_default_parameters()
 
         crhs = self.get_cfunc_rhs()
+
         crhs_ptr = crhs.address
 
         n_channel_state_vars = self.channel_model.get_no_state_vars()
         y0 = np.full(n_channel_state_vars, .0)
         y0[0] = 1.0
         y0 = np.append(y0, -80.0)
-        crhs_inf = self.channel_model.rhs_inf
 
         n_max_steps = 64
         desc = self.protocol_description
@@ -116,7 +116,7 @@ class ArtefactModel(MarkovModel):
         @njit
         def rhs_inf(p=p, v=-80.0):
             data = np.append(p, 0.0)
-            data = np.concatenate((data, np.full(n_max_steps*4, np.nan))).flatten()
+            data = np.concatenate((data, np.full(n_max_steps*4, 0))).flatten()
             _y0 = y0.copy()
             _y0[-1] = v
 
