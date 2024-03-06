@@ -77,6 +77,7 @@ class WangModel(MarkovModel):
 
             pints.LogTransformation(1)
         ]
+        assert len(self.transformations) == self.n_params
 
     def CreateSymbols(self):
         """
