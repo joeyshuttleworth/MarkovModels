@@ -158,7 +158,7 @@ def main():
     tasks = []
     protocols_list = []
 
-    regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z|0-9]*)-sweep([0-9])-subtracted.csv$")
+    regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9|_]*)-([A-Z|0-9]*)-sweep([0-9])-subtracted.csv$")
 
     param_labels = make_model_of_class(args.model).get_parameter_labels()
     for f in filter(regex.match, os.listdir(args.data_directory)):
