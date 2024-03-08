@@ -337,9 +337,19 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
             # Use the artefact to forward simulate the voltages (using literature kinetics)
             params_for_Erev = default_parameters.copy()
 
+            V_off_model_class = 'model3'
+
+            if artefact_default_kinetic_parameters is not None:
+                V_off_initial_params = \
+                    np.append(artefact_default_kinetic_parameters, default_parameters[-7:])
+            else:
+                V_off_initial_params = \
+                    np.append(make_model_of_class(V_off_model_class).get_default_parameters(),
+                              default_parameters[-7: ])
+
             V_off = find_V_off(protocol_desc, times,
-                               data, 'model3',
-                               default_parameters, E_rev,
+                               data, V_off_model_class,
+                               V_off_initial_params, E_rev,
                                forward_sim_output_dir=reversal_dir,
                                removal_duration=removal_duration,
                                output_path=output_path
@@ -681,7 +691,7 @@ class fitting_boundaries(pints.Boundaries):
         return ret_vec
 
 
-def _find_conductance(solver, data, indices, aux_func, voltages, p, Erev, gkr_index=-8,
+def _find_conductance(solver, data, indices, aux_func, voltages, p, Erev, gkr_index,
                       bounds=None):
 
     if bounds is None:
@@ -691,7 +701,8 @@ def _find_conductance(solver, data, indices, aux_func, voltages, p, Erev, gkr_in
 
     def find_g_opt(g):
         _p = p.copy()
-        _p[gkr_index] = g
+        _p[gkr_index] = float(g)
+
         states = solver(_p)
 
         if not np.all(np.isfinite(states)):
@@ -712,17 +723,16 @@ def _find_conductance(solver, data, indices, aux_func, voltages, p, Erev, gkr_in
 
 
 
-def find_V_off(protocol, times, data,
-                                           model_class_name,
-                                           default_parameters, E_rev,
-                                           forward_sim_output_dir=None,
-                                           removal_duration=0,
-                                           output_path=None):
+def find_V_off(protocol_desc, times, data,
+               model_class_name,
+               default_parameters, E_rev,
+               forward_sim_output_dir=None,
+               removal_duration=0,
+               output_path=None):
 
-    voltage_func, _, protocol_desc = get_ramp_protocol_from_csv(protocol)
+    voltage_func = make_voltage_function_from_description(protocol_desc)
     voltages = np.array([voltage_func(t) for t in times])
 
-    voltages = np.array([voltage_func(t) for t in times])
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   removal_duration)
@@ -743,7 +753,7 @@ def find_V_off(protocol, times, data,
     gkr_index = model.GKr_index
     model = ArtefactModel(model)
 
-    a_solver = model.make_hybrid_solver_states(hybrid=False, njitted=True,
+    a_solver = model.make_hybrid_solver_states(hybrid=False, njitted=False,
                                                strict=False)
 
     aux_func = model.define_auxiliary_function()

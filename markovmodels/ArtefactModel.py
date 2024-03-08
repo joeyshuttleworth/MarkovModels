@@ -156,6 +156,8 @@ class ArtefactModel(MarkovModel):
         def auxiliary_func(x, p, _):
             g_leak, E_leak, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
             V_m = x[-1, :]
+            p = p.astype(np.float64)
+
             I_Kr = channel_auxiliary_function(x[:-1], p[:-no_artefact_parameters], V_m)
 
             I_leak = g_leak * (V_m - V_off - E_leak)
