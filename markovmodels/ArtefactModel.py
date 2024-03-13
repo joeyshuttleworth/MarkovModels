@@ -153,7 +153,7 @@ class ArtefactModel(MarkovModel):
     def define_auxiliary_function(self, return_var='I_Kr', **kwargs):
         channel_auxiliary_function = njit(self.channel_model.define_auxiliary_function())
 
-        def auxiliary_func(x, p, _):
+        def auxiliary_func(x, p, _, return_var=return_var):
             g_leak, E_leak, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
             V_m = x[-1, :]
             p = p.astype(np.float64)

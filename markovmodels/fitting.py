@@ -352,7 +352,8 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                V_off_initial_params, E_rev,
                                forward_sim_output_dir=reversal_dir,
                                removal_duration=removal_duration,
-                               output_path=output_path
+                               output_path=output_path,
+                               data_label=data_label
                                )
 
         else:
@@ -392,8 +393,13 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
     if solver is None:
         strict = False
         try:
-            solver = model.make_forward_solver_of_type(solver_type,
-                                                       strict=strict)
+            if use_artefact_model and data_label == 'before':
+                assert solver_type is None or solver_type=='default'
+                solver = model.make_hybrid_solver_current(strict=strict, return_var='I_Kr',
+                                                          hybrid=False)
+            else:
+                solver = model.make_forward_solver_of_type(solver_type,
+                                                           strict=strict)
             solver()
         except numba.core.errors.TypingError as exc:
             logging.warning(f"unable to make nopython forward solver {str(exc)}")
@@ -692,7 +698,7 @@ class fitting_boundaries(pints.Boundaries):
 
 
 def _find_conductance(solver, data, indices, aux_func, voltages, p, Erev, gkr_index,
-                      bounds=None):
+                      bounds=None, return_var='I_Kr'):
 
     if bounds is None:
         # Look at -120 step
@@ -707,7 +713,9 @@ def _find_conductance(solver, data, indices, aux_func, voltages, p, Erev, gkr_in
 
         if not np.all(np.isfinite(states)):
             return np.inf
+
         prediction = aux_func(states.T, _p, voltages).flatten()
+
         score = np.sqrt(np.mean((prediction[indices] - data[indices])**2))
         return score
 
@@ -728,7 +736,8 @@ def find_V_off(protocol_desc, times, data,
                default_parameters, E_rev,
                forward_sim_output_dir=None,
                removal_duration=0,
-               output_path=None):
+               output_path=None,
+               data_label=''):
 
     voltage_func = make_voltage_function_from_description(protocol_desc)
     voltages = np.array([voltage_func(t) for t in times])
@@ -756,7 +765,9 @@ def find_V_off(protocol_desc, times, data,
     a_solver = model.make_hybrid_solver_states(hybrid=False, njitted=False,
                                                strict=False)
 
-    aux_func = model.define_auxiliary_function()
+    return_var = 'I_out' if data_label == 'before' else None
+
+    aux_func = model.define_auxiliary_function(return_var=return_var)
     step = next(filter(lambda x: x[2] >= -74, reversed(protocol_desc)))
 
     if step[1] - step[0] > 200 or step[1] - step[0] < 50:
@@ -772,9 +783,17 @@ def find_V_off(protocol_desc, times, data,
     p[-3] = 0.0
     states = a_solver(p)
 
+
+    if data_label == 'before':
+        gleak, Eleak = p[-7:-5]
+        s_data = data - gleak * (voltages - Eleak)
+    else:
+        s_data = data
+
+
     initial_gkr = _find_conductance(a_solver, data, indices, aux_func,
                                     voltages, p, E_rev, gkr_index)
-    E_obs = infer_reversal_potential(protocol_desc, data, times)
+    E_obs = infer_reversal_potential(protocol_desc, s_data, times)
 
     def opt_V_off_func(V_off):
         p = default_parameters.copy()
@@ -792,8 +811,16 @@ def find_V_off(protocol_desc, times, data,
         states = a_solver(p)
         trace = aux_func(states.T, p, voltages).flatten()
 
+        # Do leak subtraction if handling raw trace
+        if data_label == 'before':
+            gleak, Eleak = p[-7:-5]
+            s_trace = trace - gleak * (voltages - Eleak)
+        else:
+            # Leave trace untouched otherwise
+            s_trace = trace
+
         # Get voltage where current first crosses 0 in the reversal ramp
-        expected_E_obs = voltages[istart:iend][np.argmax(trace[istart:iend] < 0)]
+        expected_E_obs = voltages[istart:iend][np.argmax(s_trace[istart:iend] < 0)]
 
         if np.any(~np.isfinite(trace)):
             return np.inf
@@ -806,11 +833,13 @@ def find_V_off(protocol_desc, times, data,
 
     # Set bounds for optimisation
 
-    E_obs = infer_reversal_potential(protocol_desc, data, times,
+    E_obs = infer_reversal_potential(protocol_desc, s_data, times,
                                      voltages=voltages)
 
     E_rev_error = E_obs - E_rev
     bounds = np.unique([-E_rev_error*2, 0])
+    print(bounds)
+
     options = {'xatol': 1e-5}
 
     res = scipy.optimize.minimize_scalar(opt_V_off_func,
@@ -833,10 +862,20 @@ def find_V_off(protocol_desc, times, data,
         states = a_solver(p)
         V_m = states[:, -1]
         trace = aux_func(states.T, p, voltages)
+        # Do leak subtraction if handling raw trace
+        if data_label == 'before':
+            gleak, Eleak = p[-7:-5]
+            s_trace = trace - gleak * (V_m - Eleak)
+        else:
+            # Leave trace untouched otherwise
+            s_trace = trace
 
-        ax.scatter(V_m[istart:iend], data[istart:iend], marker='x', color='grey')
-        ax.scatter(voltages[istart:iend], data[istart:iend], marker='x', color='pink', alpha=.5)
-        ax.plot(V_m[istart:iend], trace[istart:iend])
+
+        ax.scatter(V_m[istart:iend], s_data[istart:iend], marker='x', color='grey',
+                   s=5)
+        ax.scatter(voltages[istart:iend], s_data[istart:iend], marker='x', color='pink', alpha=.5,
+                   s=5)
+        ax.scatter(V_m[istart:iend], s_trace[istart:iend], marker='x', s=5)
         ax.axvline(E_rev)
 
         if res.success:
@@ -861,7 +900,12 @@ def find_V_off(protocol_desc, times, data,
 
         prediction = aux_func(states.T, p, voltages)
 
-        axs[0].plot(times, data, color='grey', alpha=.5, label='data')
+        if data_label == 'before':
+            gleak, Eleak = p[-7:-5]
+            print(gleak, Eleak)
+            prediction = prediction - gleak * (voltages - Eleak)
+
+        axs[0].plot(times, s_data, color='grey', alpha=.5, label='data')
         axs[0].plot(times, prediction, label='forward_sim')
 
         Vm = states[:, -1].flatten()

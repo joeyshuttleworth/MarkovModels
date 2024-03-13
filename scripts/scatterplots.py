@@ -67,8 +67,6 @@ def main():
         df['prediction_sweep'] = df['sweep']
 
 
-    df[df.protocol.isin(['staircase', 'staircaseramp1', 'staircaseramp2', 'staircaseramp', 'staircaseramp_2'])]['protocol'] = 'staircaseramp'
-
     df = get_best_params(df)
     df = df.drop_duplicates(subset=['well', 'fitting_protocol',
                                     'validation_protocol', 'fitting_sweep',
@@ -76,8 +74,18 @@ def main():
 
     df = df[~df.protocol.isin(args.ignore_protocols)]
     df = df[~df.fitting_protocol.isin(args.ignore_protocols)]
-
     df = df.reset_index()
+
+    # df.protocol = [p if p not in ['staircase', 'staircaseramp1', 'staircaseramp2',
+    #                               'staircaseramp', 'staircaseramp_2'] else 'staircaseramp'
+    #                for p in df.protocol]
+
+    # Sort protocols but leave staircaseramp at the front
+    global protocols
+    protocols = ['staircaseramp1'] + [p for p in df.protocol.unique() if p != 'staircaseramp1']
+
+    # protocols = list(sorted([p for p in df.protocol.unique() if p != 'staircaseramp']))\
+        # + ['staircaseramp']
 
     if args.wells:
         df = df[df.well.isin(args.wells)]
@@ -106,7 +114,6 @@ def main():
     beta, ll = do_multivariate_regression(df, param_labels)
 
     with np.printoptions(threshold=np.inf):
-        print(beta.T)
         print(f"log likelihood is {ll}")
 
     no_protocols = len(df.protocol.unique())
@@ -126,8 +133,6 @@ def main():
         fout.write(out_str)
         fout.write('\n')
         print(out_str)
-
-    print(df.protocol.unique())
 
     param_combinations = [(p1, p2) for i, p1 in enumerate(param_labels[:-1])
                           for j, p2 in enumerate(param_labels[:-1]) if p1 != p2 and j < i]
@@ -327,7 +332,6 @@ def do_per_cell_plots(protocol, df, p1, p2, output_dir, beta=None):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     axs = setup_per_cell_figure(fig, len(df.well.unique()))
 
-    protocols = sorted(df.protocol.unique())
     wells = sorted(df.well.unique())
 
     p1_index = param_labels.index(p1)
@@ -343,7 +347,7 @@ def do_per_cell_plots(protocol, df, p1, p2, output_dir, beta=None):
         ax.set_title(well)
 
         # Plot well/protocol effects from linear model
-        protocol_index = protocols.index(protocol) - 1
+        protocol_index = protocols.index(protocol)
         well_index = wells.index(well)
 
         if beta is not None:
@@ -352,7 +356,7 @@ def do_per_cell_plots(protocol, df, p1, p2, output_dir, beta=None):
             well_effects = beta[no_protocols - 1+ well_index,
                                 [p1_index, p2_index]]
 
-            if protocol_index >= 0:
+            if protocol_index < len(protocols) - 1:
                 protocol_effects = beta[protocol_index, [p1_index,
                                                          p2_index]]
             else:
@@ -428,15 +432,13 @@ def do_multivariate_regression(params_df, param_labels,
                                      no_protocol_effect=no_protocol_effect,
                                      no_well_effect=no_well_effect)
 
-    no_protocols = len(params_df.protocol.unique())
+    no_protocols = len(protocols)
 
     if no_protocol_effect and no_well_effect:
         return np.array([[]]).astype(np.float64)
 
     # Do regression
     beta = np.linalg.inv(X.T @ X) @ X.T @ Y
-
-    print('determinant', np.linalg.slogdet(X.T@X))
 
     residuals = Y - (X @ beta)
 
@@ -458,8 +460,9 @@ def setup_linear_model_coding(params_df, param_labels,
     Set-up the design matrxi for the linear parameter estimates model
     """
 
-    no_protocols = len(params_df.protocol.unique())
-    no_wells = len(params_df.well.unique())
+    no_protocols = len(protocols)
+    wells = sorted(list(params_df.well.unique()))
+    no_wells = len(wells)
 
     # Number of parameters (excluding conductance)
     no_parameters = len(param_labels)
@@ -476,9 +479,6 @@ def setup_linear_model_coding(params_df, param_labels,
     # Each row is a parameter estimate vector
     Y = params_df[param_labels].values
 
-    # sort alphabetically
-    protocols = sorted(list(params_df.protocol.unique()))
-    wells = sorted(list(params_df.well.unique()))
 
     for c, row in params_df.iterrows():
         protocol = row['protocol']
@@ -492,20 +492,22 @@ def setup_linear_model_coding(params_df, param_labels,
 
         assert X[c, :].sum() == 2
 
+    assert np.all(np.any(Xp > 0, axis=0))
+    assert np.all(np.any(Xw > 0, axis=0))
+
     if no_protocol_effect and no_well_effect:
         return np.array([[]]).astype(np.float64), Y
 
     if no_protocol_effect:
-        X = Xw
+        X = Xw[:, :-1]
 
     elif no_well_effect:
-        X = Xp
+        X = Xp[:, :-1]
 
     else:
         # Drop one of the protocol effects
-        # X = X
-        print(Xp, Xw)
-        X = X[:, 1:]
+        Xp = Xp[:, :-1]
+        X = np.hstack([Xp, Xw])
 
     return X, Y
 

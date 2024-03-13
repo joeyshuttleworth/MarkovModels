@@ -41,24 +41,35 @@ def get_data(well, protocol, data_directory, experiment_name='',
         label = ''
 
     # Find data
-    if sweep:
-        if label:
-            label = label + '-'
-        else:
+    if sweep is not None:
+        if label is None:
             label = ''
 
     if well is not None:
-        regex = re.compile(f"^{experiment_name}-{protocol}-{well}-{label}sweep{sweep}-subtracted.csv$")
+        if label == '':
+            # Grab subtracted trace
+            r_string = f"^{experiment_name}-{protocol}-{well}-sweep{sweep}-subtracted.csv$"
+        else:
+            r_string = f"^{experiment_name}-{protocol}-{well}-{label}-sweep{sweep}.csv$"
+
+        regex = re.compile(r_string)
         fname = next(filter(regex.match, os.listdir(data_directory)))
 
         if no_headers:
-            header=None
-        else:
-            header = 'infer'
+            header = None
+
+        # Check if first line is a header
+        with open(os.path.join(data_directory, fname)) as fin:
+            first_line = fin.readline()
+            try:
+                float(first_line.rstrip()[-1])
+            except ValueError:
+                header = 0
 
         data = pd.read_csv(os.path.join(data_directory, fname),
                            float_precision='round_trip',
                            header=header).values
+
         if len(data.T) > 1:
             raise ValueError(f"shape of values is {data.shape} when it should be 1d")
         data = data.flatten()

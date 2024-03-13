@@ -34,6 +34,12 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
 
     _E_rev = not args.dont_infer_Erev
 
+    if args.use_artefact_model and not args.data_label:
+        data_label = 'before'
+    else:
+        data_label = ''
+
+
     fix_parameters = []
     if args.use_artefact_model:
         fix_parameters = [-1, -2, -3, -4, -5, -6, -7]
@@ -56,7 +62,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
         sweep=sweep,
         use_artefact_model=args.use_artefact_model,
         fix_parameters=fix_parameters,
-        data_label=args.data_label,
+        data_label=data_label,
         artefact_default_kinetic_parameters=default_kinetic_parameters
     )
 
