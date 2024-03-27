@@ -91,7 +91,7 @@ def get_data(well, protocol, data_directory, experiment_name='',
 
 def get_all_wells_in_directory(data_dir, experiment_name='newtonrun4'):
 
-    regex = f"^{experiment_name}-([a-z|A-Z|0-9]*)-([A-Z]|0-9]*)"
+    regex = f"^{experiment_name}-([a-z|A-Z|0-9|_]*)-([A-Z][0-9][0-9])"
     regex = re.compile(regex)
     wells = []
     group = 1

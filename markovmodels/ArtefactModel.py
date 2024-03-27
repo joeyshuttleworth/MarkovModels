@@ -52,9 +52,6 @@ class ArtefactModel(MarkovModel):
 
         self.protocol_description = channel_model.protocol_description
 
-        if self.protocol_description is None:
-            raise ValueError()
-
         self.solver_tolerances = channel_model.solver_tolerances
         self.E_rev = channel_model.E_rev
         self.channel_model.compute_steady_state_expressions()
@@ -153,7 +150,7 @@ class ArtefactModel(MarkovModel):
     def define_auxiliary_function(self, return_var='I_Kr', **kwargs):
         channel_auxiliary_function = njit(self.channel_model.define_auxiliary_function())
 
-        def auxiliary_func(x, p, _, return_var=return_var):
+        def auxiliary_func(x, p, _):
             g_leak, E_leak, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
             V_m = x[-1, :]
             p = p.astype(np.float64)
@@ -202,6 +199,9 @@ class ArtefactModel(MarkovModel):
                                    strict=True, cond_threshold=None, atol=None,
                                    rtol=None, hybrid=True, return_var='I_Kr',
                                    cfunc=None):
+
+        af_kws = {'return_var': return_var}
+
         if hybrid:
             raise NotImplementedError()
         else:
@@ -211,7 +211,7 @@ class ArtefactModel(MarkovModel):
                 analytic_solver=analytic_solver,
                 strict=strict,
                 cond_threshold=cond_threshold,
-                atol=atol, rtol=rtol, return_var=return_var,
+                atol=atol, rtol=rtol, af_kws=af_kws,
                 hybrid=False, cfunc=cfunc
             )
 

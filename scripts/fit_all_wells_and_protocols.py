@@ -2,6 +2,7 @@ import logging
 # import loky
 import multiprocessing
 import os
+import string
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -138,7 +139,10 @@ def main():
     args.sweeps = list(set(args.sweeps))
 
     if len(args.wells) == 0:
-        args.wells = markovmodels.utilities.get_all_wells_in_directory(args.data_directory, experiment_name)
+        # If no wells are specified, use all wells
+        args.wells = \
+            all_wells = [row + str(i).zfill(2) for row in string.ascii_uppercase[:16]
+                         for i in range(1, 25)]
 
     protocols = args.protocols
 

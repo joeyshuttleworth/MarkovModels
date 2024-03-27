@@ -64,6 +64,9 @@ class TestSensitivities(unittest.TestCase):
         I_Kr_sens = sensitivities_model.auxiliary_function(res.T, p, voltages)[:, 0, :].T
 
         mk_model = markov_builder.models.thirty_models.model_03().generate_myokit_model()
+
+        myokit.save(os.path.join(self.output_dir, f"{model_name}.mmt"), mk_model)
+
         voltages = np.array([voltage_func(t) for t in times])
         mk_protocol = myokit.TimeSeriesProtocol(times, voltages)
 
@@ -156,3 +159,7 @@ class TestSensitivities(unittest.TestCase):
         plt.savefig(os.path.join(self.output_dir, 'model3_sensitivities'))
         plt.clf()
 
+
+if __name__ == "__main__":
+    logging.getLogger().setLevel(logging.INFO)
+    unittest.main()

@@ -330,7 +330,7 @@ class ODEModel:
     def make_hybrid_solver_current(self, protocol_description=None,
                                    njitted=True, strict=True,
                                    cond_threshold=None, atol=None, rtol=None,
-                                   hybrid=True, crhs=None, **kwargs):
+                                   hybrid=True, crhs=None, af_kws={}, **kwargs):
 
         if protocol_description is None:
             protocol_description = self.protocol_description
@@ -342,7 +342,7 @@ class ODEModel:
                                            atol=atol, rtol=rtol, hybrid=hybrid,
                                            crhs=crhs)
 
-        auxiliary_function = self.auxiliary_function
+        auxiliary_function = njit(self.define_auxiliary_function(**af_kws))
         times = self.times
         atol, rtol = self.solver_tolerances
         voltage_func = self.voltage

@@ -294,9 +294,14 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
     if default_parameters is None or len(default_parameters) == 0:
         default_parameters = make_model_of_class(model_class_name).get_default_parameters()
 
-    parameter_labels = make_model_of_class(model_class_name).get_parameter_labels()
+    if not use_artefact_model:
+        parameter_labels = make_model_of_class(model_class_name).get_parameter_labels()
 
-    if max_iterations == 0:
+    else:
+        parameter_labels = ArtefactModel(make_model_of_class(model_class_name))\
+            .get_parameter_labels()
+
+    if max_iterations == 0 or not np.all(np.isfinite(default_parameters)):
         df = pd.DataFrame(default_parameters[None, :], columns=parameter_labels)
         df['score'] = np.inf
         return df
@@ -347,14 +352,20 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                     np.append(make_model_of_class(V_off_model_class).get_default_parameters(),
                               default_parameters[-7: ])
 
-            V_off = find_V_off(protocol_desc, times,
-                               data, V_off_model_class,
-                               V_off_initial_params, E_rev,
-                               forward_sim_output_dir=reversal_dir,
-                               removal_duration=removal_duration,
-                               output_path=output_path,
-                               data_label=data_label
-                               )
+            try:
+                V_off = find_V_off(protocol_desc, times,
+                                   data, V_off_model_class,
+                                   V_off_initial_params, E_rev,
+                                   forward_sim_output_dir=reversal_dir,
+                                   removal_duration=removal_duration,
+                                   output_path=output_path,
+                                   data_label=data_label
+                                   )
+            except ValueError:
+                # Possibly non data or non-finite values in data
+                df = pd.DataFrame(default_parameters[None, :], columns=parameter_labels)
+                df['score'] = np.inf
+                return df
 
         else:
             voltages = None
@@ -395,7 +406,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         try:
             if use_artefact_model and data_label == 'before':
                 assert solver_type is None or solver_type=='default'
-                solver = model.make_hybrid_solver_current(strict=strict, return_var='I_Kr',
+                solver = model.make_hybrid_solver_current(strict=strict, return_var='I_out',
                                                           hybrid=False)
             else:
                 solver = model.make_forward_solver_of_type(solver_type,
@@ -719,7 +730,7 @@ def _find_conductance(solver, data, indices, aux_func, voltages, p, Erev, gkr_in
         score = np.sqrt(np.mean((prediction[indices] - data[indices])**2))
         return score
 
-    options = {'xatol': bounds.max() * 1e-5}
+    options = {'xatol': bounds.max() * 1e-8}
     # Find conductance
     res = scipy.optimize.minimize_scalar(find_g_opt,
                                          bounds=bounds,
@@ -750,8 +761,13 @@ def find_V_off(protocol_desc, times, data,
     # Find last +40 step
     start_step = [line for line in protocol_desc if
                   line[2] == line[3] and line[2] == +40.0][-1]
-    start_t = start_step[0]
-    indices = indices[np.argwhere(times[indices] > start_t)]
+    start_t = start_step[1]
+
+    # Find end of reversal ramp
+    end_ramp = [line for line in protocol_desc if line[2] != line[3]][-1]
+    end_t = end_ramp[1] + 200
+
+    indices = indices[np.argwhere((times[indices] > start_t) & (times[indices] <= end_t))]
 
     model = make_model_of_class(model_class_name, voltage=voltage_func,
                                 times=times,
@@ -809,6 +825,7 @@ def find_V_off(protocol_desc, times, data,
 
         p[-3] = V_off
         states = a_solver(p)
+        V_m = states[:, -1]
         trace = aux_func(states.T, p, voltages).flatten()
 
         # Do leak subtraction if handling raw trace
@@ -838,15 +855,15 @@ def find_V_off(protocol_desc, times, data,
 
     E_rev_error = E_obs - E_rev
     bounds = np.unique([-E_rev_error*2, 0])
-    print(bounds)
 
-    options = {'xatol': 1e-5}
+    options = {'xatol': 1e-8}
 
     res = scipy.optimize.minimize_scalar(opt_V_off_func,
                                          bounds=bounds,
                                          method='bounded')
     if res.success:
         found_V_off = res.x
+
     else:
         return np.inf
 
@@ -861,27 +878,37 @@ def find_V_off(protocol_desc, times, data,
 
         states = a_solver(p)
         V_m = states[:, -1]
-        trace = aux_func(states.T, p, voltages)
-        # Do leak subtraction if handling raw trace
+        trace = aux_func(states.T, p, voltages).flatten()
+        # s_trace = aux_func_IKr(states.T, p, _)
+        # Do leak subtraction if handling raw tra wce
         if data_label == 'before':
             gleak, Eleak = p[-7:-5]
-            s_trace = trace - gleak * (V_m - Eleak)
+            s_data = data - gleak * (voltages - Eleak)
+            s_trace = trace - gleak * (voltages - Eleak)
         else:
             # Leave trace untouched otherwise
             s_trace = trace
-
+            s_data = data
 
         ax.scatter(V_m[istart:iend], s_data[istart:iend], marker='x', color='grey',
-                   s=5)
-        ax.scatter(voltages[istart:iend], s_data[istart:iend], marker='x', color='pink', alpha=.5,
-                   s=5)
-        ax.scatter(V_m[istart:iend], s_trace[istart:iend], marker='x', s=5)
-        ax.axvline(E_rev)
+                   s=5, label=r'$V_\text{m}$ reversal ramp')
+        ax.scatter(voltages[istart:iend], s_data[istart:iend], marker='x',
+                   color='pink', alpha=.5, s=5, label=r'$V_\text{cmd}$ reversal ramp')
+        ax.scatter(V_m[istart:iend], s_trace[istart:iend], marker='x', s=5,
+                   label=r'reference model $V_\text{m}$ reversal ramp')
+
+        ax.scatter(voltages[istart:iend], s_trace[istart:iend], marker='x', s=5,
+                   label=r'reference model with $V_\text{cmd}$ during reversal ramp')
+
+        ax.axvline(E_rev, color='grey', linestyle='--', label=r'$E_\text{Nernst}$')
 
         if res.success:
-            ax.axvline(E_rev - found_V_off)
+            ax.axvline(E_rev - found_V_off, label=r'$E_\text{Kr} - V_\text{off}$',
+                       color='red', ls='--')
 
         ax.axhline(0, linestyle='--', color='orange')
+
+        ax.legend()
 
         fig.savefig(output_path)
         plt.close(fig)
@@ -902,7 +929,6 @@ def find_V_off(protocol_desc, times, data,
 
         if data_label == 'before':
             gleak, Eleak = p[-7:-5]
-            print(gleak, Eleak)
             prediction = prediction - gleak * (voltages - Eleak)
 
         axs[0].plot(times, s_data, color='grey', alpha=.5, label='data')
@@ -1150,7 +1176,6 @@ def compute_predictions_df(params_df, output_dir, protocol_dict,
                             params[-3] = V_off
 
 
-                        print(params)
                         full_prediction = solver(params, times=full_times,
                                                  protocol_description=desc)
 
@@ -1270,3 +1295,4 @@ def adjust_kinetics(model_class, params_df, E_rev_df, E_rev):
     new_dict = pd.DataFrame.from_dict(new_row, orient='index')
 
     return new_dict
+
