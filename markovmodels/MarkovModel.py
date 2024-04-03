@@ -85,13 +85,9 @@ class MarkovModel(ODEModel):
         self.rhs_inf = nb.njit(sp.lambdify((self.p, self.v), self.rhs_inf_expr,
                                            modules='numpy', cse=True))
         self.auxiliary_expression = self.p[self.GKr_index] * \
-            self.y[self.open_state_index] * (self.v - self.E_rev)
+            self.y[self.open_state_index] * (self.v - self.E_Kr_symb)
 
-        self.current_inf_expr = self.auxiliary_expression.subs(self.y, self.rhs_inf)
-        self.current_inf = lambda p: np.array(self.current_inf_expr.subs(
-            dict(zip(self.p, p))).evalf()).astype(np.float64)
-
-        return self.rhs_inf, self.rhs_inf_expr, self.current_inf, self.current_inf_expr
+        return self.rhs_inf, self.rhs_inf_expr
 
     def rhs(self, t, y, p):
         """ Evaluates the RHS of the model (including sensitivities)

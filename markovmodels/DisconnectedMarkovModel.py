@@ -39,8 +39,6 @@ class DisconnectedMarkovModel(MarkovModel):
         self.rhs_inf_expr_rates = []
         self.rhs_inf_expr = []
         self.rhs_infs = []
-        self.current_inf_expr = []
-        self.current_inf = []
 
         for A, B, Q in zip(self.As, self.Bs, self.Qs):
             rhs_inf_expr_rates = -A.LUsolve(B)
@@ -49,9 +47,6 @@ class DisconnectedMarkovModel(MarkovModel):
             rhs_inf_expr = rhs_inf_expr_rates.subs(self.rates_dict)
             self.rhs_inf_expr.append(rhs_inf_expr)
             self.rhs_infs.append(njit(sp.lambdify((self.p, self.v), rhs_inf_expr)))
-
-        self.current_inf_expr = self.auxiliary_expression.subs(self.y, self.rhs_inf_expr)
-        self.current_inf = nb.njit(sp.lambdify((self.y, self.p), self.current_inf_expr))
 
         # Generate function for entire RHS (all components)
         rhs_inf_expr_rates = sp.Matrix.vstack(*[expr for expr in self.rhs_inf_expr])
@@ -157,9 +152,11 @@ class DisconnectedMarkovModel(MarkovModel):
     def make_solver_states(self, protocol_description=None, njitted=False,
                            strict=True, hybrid=True, solver_type='lsoda',
                            atol=None, rtol=None, cond_threshold=None, crhs=None):
+
         if protocol_description is None:
             if self.protocol_description is None:
-                raise Exception("No protocol description has been provided")
+                # raise Exception("No protocol description has been provided")
+                protocol_description = np.array([[0.0, np.inf, -80.0, -80.0]]).astype(np.float64)
             else:
                 protocol_description = self.protocol_description
 
@@ -183,6 +180,7 @@ class DisconnectedMarkovModel(MarkovModel):
                                            times=times, atol=atol, rtol=rtol,
                                            strict=strict, hybrid=hybrid, crhs=None,
                                            protocol_description=protocol_description):
+
             y0 = rhs_inf(p, voltage(.0)).flatten()
             no_states = y0.shape[0]
             solution = np.full((len(times), no_states), np.nan)
@@ -196,14 +194,16 @@ class DisconnectedMarkovModel(MarkovModel):
                               np.full(64 * 4 - flat_desc.shape[0],
                                       np.inf))
 
+            flat_desc = np.append(flat_desc, (flat_desc[-3], np.inf, -80.0, -80.0))
+
             start_times = protocol_description[:, 0]
-            for i in range(len(protocol_description) - 1):
+            for i in range(len(protocol_description)):
 
                 start_int = 0
                 end_int = 0
 
                 tstart = protocol_description[i, 0]
-                tend = protocol_description[i + 1, 0]
+                tend = protocol_description[i + 1, 0] if i + 1 < len(protocol_description) else np.inf
 
                 if i == len(start_times) - 1:
                     tend = times[-1] + 1
@@ -409,11 +409,6 @@ class DisconnectedMarkovModel(MarkovModel):
 
     def make_ida_residual_func():
         raise NotImplementedError()
-
-    def define_auxiliary_function(self):
-        y = [var for y in self.ys for var in y]
-        aux_expr = self.auxiliary_expression.subs({'E_Kr': self.E_rev})
-        return sp.lambdify((y, self.p, self.v), aux_expr)
 
     def get_no_state_vars(self):
         return sum([len(y) for y in self.ys])

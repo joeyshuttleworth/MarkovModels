@@ -15,7 +15,7 @@ from numba import njit
 
 import markovmodels
 
-from markovmodels.model_generation import make_model_of_class
+from markovmodels.model_generation import make_model_of_class, setup_model_for_fitting_case
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv, make_voltage_function_from_description
 from markovmodels.utilities import get_data
 from markovmodels.voltage_protocols import remove_spikes, detect_spikes,\
@@ -260,7 +260,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             parameter_sets = np.vstack(parameter_sets)
         fitting_df = pd.DataFrame(parameter_sets,
                                   columns=mm.get_parameter_labels()[:parameter_sets.shape[1]])
-        fitting_df['RMSE'] = scores
+        fitting_df['RMSE'] = scores / len(indices)
         fitting_df['iterations'] = iterations
         fitting_df['CPU_time'] = times_taken
 
@@ -316,7 +316,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
     voltage_func = make_voltage_function_from_description(protocol_desc)
 
     times = pd.read_csv(os.path.join(data_directory, f"{experiment_name}-{protocol}-times.csv"),
-                        float_precision='round_trip', header=None).values.flatten()
+                        header=None).values.flatten()
 
     voltages = np.array([voltage_func(t) for t in times])
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
@@ -1041,13 +1041,11 @@ def infer_reversal_potential(protocol_desc: np.array, current: np.array, times, 
     return roots[-1]
 
 
-def compute_predictions_df(params_df, output_dir, protocol_dict,
-                           label='predictions',
-                           model_class=None, fix_EKr=None,
-                           default_artefact_kinetic_parameters=None,
-                           args=None, solver=None):
+def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E_rev,
+                           label='predictions', model_class=None,
+                           default_artefact_kinetic_parameters=None, args=None,
+                           subtractions_df=None, data_label=''):
 
-    assert(not (fix_EKr is not None and adjust_kinetic_parameters))
     param_labels = make_model_of_class(model_class).get_parameter_labels()
     params_df = get_best_params(params_df, protocol_label='protocol')
     predictions_dir = os.path.join(output_dir, label)
@@ -1064,16 +1062,26 @@ def compute_predictions_df(params_df, output_dir, protocol_dict,
     all_models_fig = plt.figure(figsize=args.figsize)
     all_models_axs = all_models_fig.subplots(2)
 
+    use_artefacts = True if fitting_case in ['I', 'II'] else False
 
-    # Probably not worth compiling solver
-    if not solver:
-        solver = model.make_forward_solver_of_type(args.solver_type, njitted=False)
+    model = make_model_of_class(model_class)
+    solver = None
 
     for sim_protocol in np.unique(protocols_list):
 
         desc, full_times = protocol_dict[sim_protocol]
+
+        # Temporary solver hack
+        desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
+
         prot_func = make_voltage_function_from_description(desc)
         voltages = np.array([prot_func(t) for t in full_times])
+
+        if solver is None:
+            solver = model.make_hybrid_solver_current(hybrid=False,
+                                                      njitted=False,
+                                                      strict=False,
+                                                      protocol_description=desc)
 
         spike_times, spike_indices = markovmodels.voltage_protocols.detect_spikes(full_times, voltages,
                                                                                   threshold=10)
@@ -1090,7 +1098,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict,
                     if 'data_label' in args:
                         data_label = args.data_label
                 try:
-                    full_data, _ = markovmodels.utilities.get_data(well,
+                    full_data, vp = markovmodels.utilities.get_data(well,
                                                                    sim_protocol,
                                                                    args.data_directory,
                                                                    experiment_name=args.experiment_name,
@@ -1107,76 +1115,89 @@ def compute_predictions_df(params_df, output_dir, protocol_dict,
                 if not os.path.exists(sub_dir):
                     os.makedirs(sub_dir)
 
-                if not args.use_artefact_model:
-                    E_obs = \
-                        infer_reversal_potential(desc,
-                                                 full_data,
-                                                 full_times,
-                                                 )
+                if fitting_case in ['I', 'II']:
+                   forward_sim_parameters = default_artefact_kinetic_parameters.copy()
+                   param_row = params_df[(params_df.well == well) &
+                                         (params_df.protocol == sim_protocol) &\
+                                         (params_df.sweep == predict_sweep)].iloc[0]
 
-                    model = make_model_of_class(model_class,
-                                                voltage=prot_func,
-                                                times=full_times,
-                                                E_rev=E_obs if not fix_EKr else fix_EKr,
-                                                protocol_description=desc)
+                   gleak, Eleak, V_off, Rseries, Cm = param_row[['gleak, Eleak, V_off, Rseries, Cm']]
+                   forward_sim_parameters[[-8, -7, -6, -5, -4, -3, -2, -1]] = E_rev, gleak, Eleak, 0, 0, V_off, Rseries, Cm
+                   artefact_params = forward_sim_parameters[-7:]
+                   V_off = \
+                       with_V_off(sim_protocol,
+                                  full_times,
+                                  full_data,
+                                  'model3',
+                                  args.reversal,
+                                  plot=True,
+                                  output_path=sub_dir,
+                                  forward_sim_output_dir=sub_dir,
+                                  )
 
-                    # Create dir for plot
-                else:
-                    # Use the artefact to forward simulate the voltages (using literature kinetics)
-                    model = make_model_of_class(model_class, voltage=prot_func,
-                                                times=times,
-                                                E_rev=args.reversal,
-                                                protocol_description=desc)
-
-                    model = ArtefactModel(model)
-                    forward_sim_parameters = default_artefact_kinetic_parameters.copy()
-                    param_row = params_df[(params_df.well == well) &
-                                          (params_df.protocol == sim_protocol) &\
-                                          (params_df.sweep == predict_sweep)].iloc[0]
-
-                    gleak, Eleak, V_off, Rseries, Cm = param_row[['gleak, Eleak, V_off, Rseries, Cm']]
-                    forward_sim_parameters[[-7, -6, -5, -4, -3, -2, -1]] = gleak, Eleak, 0, 0, V_off, Rseries, Cm
-                    V_off = \
-                        with_V_off(sim_protocol,
-                                   full_times,
-                                   full_data,
-                                   'model3',
-                                   args.reversal,
-                                   plot=True,
-                                   output_path=sub_dir,
-                                   forward_sim_output_dir=sub_dir,
-                                   )
-
-                    model.default_parameters[-3] = V_off
+                   model.default_parameters[-3] = V_off
 
                 data = full_data[indices]
 
-                for i, protocol_fitted in enumerate(params_df['protocol'].unique()):
-                    for fitting_sweep in params_df[params_df.protocol == protocol_fitted].sweep:
+                inferred_E_rev = infer_reversal_potential(vp.get_all_sections(),
+                                                          full_data, full_times)
+                if fitting_case == '0c':
+                    adjusted_params_df = adjust_kinetics(model_class, df, subtractions_df,
+                                                         E_rev, inferred_E_rev)[param_labels]\
+                                                         .values.flatten()
+
+                else:
+                    adjusted_params_df = params_df
+
+                for i, protocol_fitted in enumerate(adjusted_params_df['protocol'].unique()):
+                    for fitting_sweep in adjusted_params_df[adjusted_params_df.protocol == protocol_fitted].sweep:
                         # Get parameters
-                        df = params_df[params_df.well == well]
+                        df = adjusted_params_df[adjusted_params_df.well == well]
                         df = df[(df.protocol == protocol_fitted) & (df.sweep == fitting_sweep)]
                         if df.empty:
                             continue
+
                         params = df.iloc[0][param_labels].values\
                                                          .astype(np.float64)\
                                                          .flatten()
+
                         fitting_current, _ = get_data(well, protocol_fitted,
-                                                        args.data_directory,
-                                                        sweep=predict_sweep, label='',
-                                                        experiment_name=args.experiment_name)
+                                                      args.data_directory,
+                                                      sweep=predict_sweep, label=data_label,
+                                                      experiment_name=args.experiment_name)
 
                         fitting_times = protocol_dict[protocol_fitted][1]
 
                         if not os.path.exists(sub_dir):
                             os.makedirs(sub_dir)
 
-                        # Set V_offset
-                        if args.use_artefact_model:
-                            params[-3] = V_off
+                        # Set artefact_paramsoffset
+                        if use_artefacts:
+                            params[-7:] = artefact_params
 
+                        pred_E_rev = inferred_E_rev
 
-                        full_prediction = solver(params, times=full_times,
+                        if fitting_case in ['0a', 'I']:
+                            pred_E_rev = E_rev
+
+                        # model = make_model_of_class(model_class,
+                        #                             times=full_times,
+                        #                             protocol_description=desc,
+                        #                             voltage=prot_func,
+                        #                             E_rev=pred_E_rev)
+
+                        # solver = model.make_hybrid_solver_current(hybrid=False,
+                        #                                           njitted=False,
+                        #                                           strict=False,
+                        #                                           protocol_description=desc,
+                        #                                           E_rev=pred_E_rev)
+
+                        if not np.all(np.isfinite(solver())):
+                            print("error with solver")
+                            raise Exception("Solver error")
+
+                        full_prediction = solver(params,
+                                                 times=full_times,
                                                  protocol_description=desc)
 
                         prediction = full_prediction[indices]
@@ -1187,8 +1208,9 @@ def compute_predictions_df(params_df, output_dir, protocol_dict,
                                                * params))
 
                         if not np.all(np.isfinite(prediction)):
-                            logging.warning(f"running {sim_protocol} with parameters"
+                            logging.warning(f"running {sim_protocol} with parameters "
                                             f"from {protocol_fitted} gave non-finite values")
+                            print(times[~np.isfinite(prediction)])
                         else:
                             # Output trace
                             trace_axs[0].plot(full_times, full_prediction, label='prediction')
@@ -1268,25 +1290,45 @@ def get_best_params(fitting_df, protocol_label='protocol'):
                 best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
 
     if not best_params:
-        raise Exception()
+        raise Exception(f"Couldn't find any valid parameters {fitting_df}")
 
     return pd.concat(best_params, ignore_index=True)
 
 
-def adjust_kinetics(model_class, params_df, E_rev_df, E_rev):
+def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None):
+    # Assume that params_df is a datafram of parameter estimates that were
+    # found under the assumption that E_obs = E_Nernst. Then adjust the
+    # kinetics parameters such that E_obs = E_Nernst - V_off, instead.
+
     model = make_model_of_class(model_class)
 
-    param_labels = model.get_parameter_labels
+    tranformations = model.transformations
+    assert transformations is not None
+
+    param_labels = sorted(model.get_parameter_labels())
+    param_pairs = list(zip(param_labels[:-3:2], param_labels[1:-1:2]))
+
+    if model.name == 'WangModel':
+        param_pairs = [['a_a0_a', 'a_a0_b'],
+                       ['b_a0_a', 'b_a0_b'],
+                       ['a_a1_a', 'a_a1_b'],
+                       ['b_a1_a', 'b_a1_b'],
+                       ['a_1_a', 'a_1_b'],
+                       ['b_1_a', 'b_1_b']]
 
     # Assume that parameters listed like a1, b1, a1, b2, ..., gkr with k_i=a_i e^{b_i V}
     new_rows = {}
     for index, row in params_df.iterrows():
         inferred_E_rev = E_rev_df[(protocol, well, sweep)].values[0]
 
-        V_off = E_rev - inferred_E_rev
+        if not new_E_rev:
+            V_off = E_rev - inferred_E_rev
+        else:
+            V_off = inferred_E_rev - new_E_rev
+
 
         params = row[param_labels]
-        for a, b in zip(params_labels[::2], params_labels[1:-1:2]):
+        for a, b in zip(param_labels[:-3:2], param_labels[1:-1:2]):
             row[a] = row[b] * np.exp(row[b] * V_off)
 
         new_rows[index] = row
@@ -1295,4 +1337,3 @@ def adjust_kinetics(model_class, params_df, E_rev_df, E_rev):
     new_dict = pd.DataFrame.from_dict(new_row, orient='index')
 
     return new_dict
-
