@@ -371,6 +371,9 @@ class ODEModel:
 
         auxiliary_function = njit(self.define_auxiliary_function(**af_kws))
         times = self.times
+        if times is None:
+            times = np.linspace(0, 15000, 30000)
+
         atol, rtol = self.solver_tolerances
         voltage_func = self.voltage
 

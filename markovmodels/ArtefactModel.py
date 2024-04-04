@@ -9,7 +9,7 @@ import sympy as sp
 from markovmodels.MarkovModel import MarkovModel
 import markovmodels
 
-no_artefact_parameters = 7
+no_artefact_parameters = 8
 
 
 # TODO Description
@@ -79,7 +79,7 @@ class ArtefactModel(MarkovModel):
                      'E_leak': p[-6],
                      'g_leak': p[-7],
                      'I_out': I_out_expr,
-                     'E_Kr': self.E_rev}
+                     'E_Kr': p[-8]}
 
         artefact_rhs_expr = artefact_rhs_expr.subs(subs_dict).subs(subs_dict)
 
@@ -110,8 +110,10 @@ class ArtefactModel(MarkovModel):
         n_max_steps = 64
         desc = self.protocol_description
 
+        E_rev = self.channel_model.E_rev
+
         @njit
-        def rhs_inf(p=p, v=-80.0):
+        def rhs_inf(p=p, v=-80.0, E_rev=E_rev):
             data = np.append(p, 0.0)
             data = np.concatenate((data, np.full(n_max_steps*4, 0))).flatten()
             _y0 = y0.copy()
@@ -131,17 +133,21 @@ class ArtefactModel(MarkovModel):
     def get_default_parameters(self):
         channel_parameters = self.channel_model.get_default_parameters()
         # g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
-        default_artefact_parameters = np.array([self.g_leak, self.E_leak,
+        default_artefact_parameters = np.array([self.E_rev,
+                                                self.g_leak, self.E_leak,
                                                 self.g_leak_leftover,
                                                 self.E_leak_leftover,
                                                 self.V_off, self.C_m,
                                                 self.R_s]).astype(np.float64)
 
-        return np.concatenate((channel_parameters,
-                               default_artefact_parameters)).astype(np.float64).flatten()
+        ret_vec = np.concatenate((channel_parameters,
+                                  default_artefact_parameters)).astype(np.float64).flatten()
+        return ret_vec
+
 
     def get_parameter_labels(self):
-        return self.channel_model.get_parameter_labels() + ['g_leak', 'E_leak',
+        return self.channel_model.get_parameter_labels() + ['E_Kr',
+                                                            'g_leak', 'E_leak',
                                                             'g_leak_leftover',
                                                             'E_leak_leftover',
                                                             'V_off', 'C_m',
@@ -149,13 +155,14 @@ class ArtefactModel(MarkovModel):
 
     def define_auxiliary_function(self, return_var='I_Kr', **kwargs):
         channel_auxiliary_function = njit(self.channel_model.define_auxiliary_function())
-
-        def auxiliary_func(x, p, _):
-            g_leak, E_leak, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
+        E_rev = self.E_rev
+        def auxiliary_func(x, p, _, E_rev=E_rev):
+            E_Kr, g_leak, E_leak, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
             V_m = x[-1, :]
             p = p.astype(np.float64)
 
-            I_Kr = channel_auxiliary_function(x[:-1], p[:-no_artefact_parameters], V_m)
+            I_Kr = channel_auxiliary_function(x[:-1], p[:-no_artefact_parameters], V_m,
+                                              E_rev)
 
             I_leak = g_leak * (V_m - V_off - E_leak)
             I_leak_leftover = g_leak_leftover * (V_m - E_leak_leftover)
@@ -249,7 +256,7 @@ class ArtefactModel(MarkovModel):
             desc = data[n_p + 1:].reshape((-1, 4))
 
             #  get artefact parameters
-            g_leak, E_leak, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
+            E_Kr, g_leak, E_leak, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
 
             V_m = y[-1]
             V_cmd = prot_func(t, offset=t_offset,
@@ -259,6 +266,7 @@ class ArtefactModel(MarkovModel):
             I_leak_leftover = (V_m - E_leak_leftover) * g_leak_leftover
 
             I_Kr = channel_auxiliary_function(y[:-1], p[:-no_artefact_parameters], V_m)
+                                              # E_rev=E_Kr)
 
             I_out = I_Kr + I_leak + I_leak_leftover
 
