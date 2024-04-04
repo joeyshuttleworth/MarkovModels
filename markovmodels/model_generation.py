@@ -214,3 +214,37 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,
                                        name=mc.name, GKr_index=len(parameter_labels) - 1,
                                        voltage=voltage, **kwargs,
                                        state_labels=state_labels)
+
+
+def setup_model_for_fitting_case(model_class, fitting_case,
+                                 desc, current, times, voltage,
+                                 Enernst):
+    # Case describing how was the was model fitted
+    if fitting_case == '0a':
+        infer_reversal_potential = False
+        use_artefact_model = False
+    elif fitting_case == '0b':
+        infer_reversal_potential = True
+        use_artefact_model = False
+    elif fitting_case == '0c':
+        infer_reversal_potential = True
+        use_artefact_model = False
+    elif fitting_case == 'I':
+        infer_reversal_potential = False
+        use_artefact_model = True
+    elif case == 'II':
+        infer_reversal_potential = False
+        use_artefact_model = True
+
+    if infer_reversal_potential:
+        infer_reversal_potential(desc, current, times)
+    else:
+        Erev = Enernst
+
+    model = make_model_of_class(model_class, times=times, voltage=voltage, E_rev=Erev,
+                                protocol_description=desc)
+
+    if use_artefact_model:
+        model = ArtefactModel(model)
+
+    return model

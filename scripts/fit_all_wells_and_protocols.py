@@ -40,10 +40,9 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
     else:
         data_label = ''
 
-
     fix_parameters = []
     if args.use_artefact_model:
-        fix_parameters = [-1, -2, -3, -4, -5, -6, -7]
+        fix_parameters = [-1, -2, -3, -4, -5, -6, -7, -8]
         fix_parameters = [i % len(default_parameters) for i in fix_parameters]
 
     res_df = markovmodels.fitting.fit_well_data(
@@ -170,6 +169,8 @@ def main():
 
     regex = re.compile(f"^{experiment_name}-([a-z|A-Z|0-9|_]*)-([A-Z|0-9]*)-sweep([0-9])-subtracted.csv$")
 
+    subtraction_df['sweep'] = [max(0, sweep) for sweep in subtraction_df.sweep]
+
     param_labels = make_model_of_class(args.model).get_parameter_labels()
     for f in filter(regex.match, os.listdir(args.data_directory)):
         groups = re.search(regex, f).groups()
@@ -194,6 +195,9 @@ def main():
 
         sweep = int(groups[2])
 
+        # sweep can't be negative
+        sweep = max(0, sweep)
+
         if args.sweeps:
             if int(sweep) not in args.sweeps:
                 continue
@@ -215,7 +219,9 @@ def main():
             Eleak = float(Eleak)
 
             default_parameters = markovmodels.model_generation.make_model_of_class(args.model).get_default_parameters()
-            starting_parameters = np.append(default_parameters, [gleak, Eleak, 0, 0, 0, Cm, Rseries])
+            starting_parameters = np.append(default_parameters,
+                                            [args.reversal, gleak, Eleak, 0, 0, 0, Cm, Rseries])
+
         tasks.append([protocol, well, args.model, starting_parameters, args.reversal,
                       not args.dont_randomise_initial_guess, prefix, sweep, output_dir, args,
                       default_artefact_kinetic_parameters])

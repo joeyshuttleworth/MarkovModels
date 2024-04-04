@@ -1,10 +1,11 @@
-# Example command: python3 scripts/thesis/chapter4/optimisation_results.py ~/data/25112022_MW_FF_processed/traces 0a ~/data/sydney_fitting/25112022MW/Case0a/model3/combine_fitting_results/combined_fitting_results.csv model3 -w B09 --experiment_name 25112022_MW --sweep 1 --output tmp 
+# Example command: python3 scripts/thesis/chapter4/optimisation_results.py ~/data/25112022_MW_FF_processed/traces 0a ~/data/sydney_fitting/25112022MW/Case0a/model3/combine_fitting_results/combined_fitting_results.csv model3 -w B09 --experiment_name 25112022_MW --sweep 1 --output tmp
 
 
 import argparse
 import os
 
 import matplotlib
+import multiprocessing
 import matplotlib.pyplot as plt
 import numpy as np
 from numba import njit
@@ -14,30 +15,39 @@ import matplotlib as mpl
 from matplotlib import gridspec
 from matplotlib.gridspec import GridSpec
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset
+from matplotlib.ticker import FormatStrFormatter
 
 from matplotlib import rc
 
 import markovmodels
 from markovmodels.model_generation import make_model_of_class
-from markovmodels.fitting import get_best_params
+from markovmodels.fitting import get_best_params, infer_reversal_potential
 from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.utilities import setup_output_directory, get_data, get_all_wells_in_directory
 from markovmodels.voltage_protocols import get_protocol_list, get_ramp_protocol_from_json, make_voltage_function_from_description
 from markovmodels.voltage_protocols import remove_spikes, detect_spikes
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
+cutoff_threshold = 1.1
 
-mpl.rcParams['axes.formatter.useoffset'] = False
+mpl.rcParams['axes.formatter.useoffset'] = True
+plt.rcParams["axes.formatter.use_mathtext"] = True
+
+# Threshold to add offset
+plt.rcParams["axes.formatter.offset_threshold"] = 2
 
 
 rc('font', **{'size': 12})
 # rc('text', usetex=True)
 # rc('figure', dpi=400, facecolor=[0]*4)
 # rc('axes', facecolor=[0]*4)
-rc('savefig', facecolor=[0]*4)
+# rc('savefig', facecolor=[0]*4)
 rc('figure', autolayout=True)
 
 _colours = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+multiprocessing_kws = {'maxtasksperchild': 1}
+
 
 def main():
 
@@ -47,6 +57,8 @@ def main():
     parser.add_argument('fitting_case', type=str)
     parser.add_argument('fitting_results', type=str)
     parser.add_argument('model_class')
+    parser.add_argument('--plot_wip', action='store_true')
+    parser.add_argument('--no_cpus', '-c', type=int, default=1)
     parser.add_argument('--E_rev', type=float, default=-91.71)
     parser.add_argument('--default_parameters_file')
     parser.add_argument('--infer_reversal_potential', action='store_true')
@@ -72,9 +84,13 @@ def main():
 
     output_dir = setup_output_directory(args.output, 'chapter_4_optimisation_results')
 
-    params_df = pd.read_csv(args.fitting_results)
-
+    fitting_results_fname = args.fitting_results
+    params_df = pd.read_csv(fitting_results_fname)
     params_df.sweep = [max(0, sweep) for sweep in params_df.sweep]
+
+    params_df['protocol'] = ['staircaseramp1_2' if protocol ==
+                              'staircaseramp2' else protocol for
+                              protocol in params_df.protocol]
 
     # Case describing how was the was model fitted
     if args.fitting_case == '0a':
@@ -107,15 +123,6 @@ def main():
 
     param_labels = make_model_of_class(args.model_class).get_parameter_labels()
 
-    fig = plt.figure(figsize=args.figsize, constrained_layout=True)
-    axs = setup_grid(fig)
-
-    for ax in axs:
-        spines = ['top', 'right']
-        ax.spines[spines].set_visible(False)
-
-    current_ax, protocol_ax, rank_ax, scatter_ax, baseline_profile_ax = axs
-
     if not args.wells:
         args.wells = list(params_df.well.unique())
     if not args.protocols:
@@ -123,23 +130,101 @@ def main():
     if not args.sweeps:
         args.sweeps = list(params_df.sweep.unique())
 
-    # Do all of our plots
+    tasks = []
     for well in args.wells:
         for protocol in args.protocols:
             for sweep in args.sweeps:
-                do_scatter_plot(scatter_ax, params_df, well, protocol,
-                                sweep)
-                fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
-                do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep)
-                fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
-                do_trace_plots(current_ax, protocol_ax, protocol, well, sweep, params_df)
-                fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
-                do_rank_plot(rank_ax, params_df, protocol, well, sweep)
-                fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
-                for ax in axs:
-                    ax.cla()
+                tasks.append([well, protocol, sweep, params_df.copy(), args, output_dir])
 
-def do_rank_plot(rank_ax, params_df, protocol, well, sweep):
+    with multiprocessing.Pool(min(len(tasks), args.no_cpus), **multiprocessing_kws) as pool:
+        pool.starmap(map_func, tasks)
+
+    best_params = get_best_params(params_df)
+    opt_results_df = []
+    # Iterate over (well, protocol, sweep) combinations
+    for (well, protocol, sweep), _ in best_params.set_index(['well', 'protocol', 'sweep']).sort_index().iterrows():
+
+        sub_df = params_df[(params_df.protocol == protocol)
+                           & (params_df.well == well)
+                           & (params_df.sweep == sweep)].copy()
+
+        times_fname = os.path.join(args.data_dir,
+                               f"{args.experiment_name}-{protocol}-times.csv")
+        sub_df = params_df[params_df.protocol == protocol]
+        no_obs = np.loadtxt(times_fname).flatten().shape[0]
+
+        sub_df['RMSE'] = np.sqrt(sub_df.score / no_obs)
+
+        min_score = sub_df['RMSE'].min()
+
+        cutoff = min_score * cutoff_threshold
+
+        success_rate = 2 * float(len(sub_df[sub_df.RMSE < cutoff].index)) / len(sub_df.index)
+
+        this_row = {
+            'well': well,
+            'protocol': protocol,
+            'sweep': sweep,
+            'opt_success_rate': success_rate
+            }
+
+        for param in param_labels:
+            this_row[f"{param}_std"] = sub_df[sub_df.RMSE < cutoff][param].values.std()
+            this_row[f"{param}_best"] = sub_df[sub_df.RMSE == sub_df.RMSE.values.min()][param].values[0]
+
+        opt_results_df.append(this_row)
+
+    opt_results_df = pd.DataFrame.from_records(opt_results_df)
+    opt_results_df['model'] = args.model_class
+    opt_results_df['case'] = args.fitting_case
+
+    opt_results_df.to_csv(os.path.join(output_dir, 'success_rates.csv'))
+
+
+def map_func(well, protocol, sweep, params_df, args, output_dir):
+    fig = plt.figure(figsize=args.figsize, constrained_layout=True)
+    axs = setup_grid(fig)
+    for ax in axs:
+        spines = ['top', 'right']
+        ax.spines[spines].set_visible(False)
+
+
+    if (well, protocol, sweep) not in params_df.set_index(['well', 'protocol', 'sweep']).sort_index().index:
+        return
+
+
+    current_ax, protocol_ax, rank_ax, scatter_ax, baseline_profile_ax = axs
+
+    title_font_size = 12
+    current_ax.set_title('a', fontweight='bold', fontsize=title_font_size,
+                         horizontalalignment='left')
+    protocol_ax.set_title('b', fontweight='bold', fontsize=title_font_size,
+                          horizontalalignment='left')
+    scatter_ax.set_title('c', fontweight='bold', fontsize=title_font_size,
+                         horizontalalignment='left')
+    rank_ax.set_title('d', fontweight='bold', fontsize=title_font_size,
+                      horizontalalignment='left')
+    baseline_profile_ax.set_title('e', fontweight='bold',
+                                  fontsize=title_font_size,
+                                  horizontalalignment='left')
+
+    do_scatter_plot(scatter_ax, params_df, well, protocol,
+                    sweep, args)
+
+    if args.plot_wip:
+        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
+    do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args)
+    if args.plot_wip:
+        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
+    do_trace_plots(current_ax, protocol_ax, protocol, well, sweep, params_df, args)
+    if args.plot_wip:
+        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
+    do_rank_plot(rank_ax, params_df, protocol, well, sweep, args)
+    fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
+    plt.close(fig)
+
+
+def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
     params_df = params_df[(params_df.well == well)
                           & (params_df.protocol == protocol)
                           & (params_df.sweep == sweep)].copy()
@@ -172,10 +257,11 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep):
     scores = np.sqrt(scores/len(indices))
 
     # Highlight 25% best results
-    lq = np.quantile(scores, .25)
-    highlight_indices = np.argwhere((scores <= lq) & (scores != scores.min()))
+    # lq = np.quantile(scores, .25)
+    cutoff = scores.min() * cutoff_threshold
+    highlight_indices = np.argwhere((scores <= cutoff) & (scores != scores.min()))
 
-    other_indices = np.argwhere(scores > lq)
+    other_indices = np.argwhere(scores > cutoff)
 
     rank_ax.scatter(np.array(ranks)[other_indices],
                     np.array(scores)[other_indices],
@@ -191,7 +277,7 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep):
     rank_ax.set_xlabel('Rank')
 
 
-def do_trace_plots(current_ax, protocol_ax, protocol, well, sweep, params_df):
+def do_trace_plots(current_ax, protocol_ax, protocol, well, sweep, params_df, args):
     # Load trace
     data_fname = os.path.join(args.data_dir,
                               f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}-subtracted.csv")
@@ -206,6 +292,8 @@ def do_trace_plots(current_ax, protocol_ax, protocol, well, sweep, params_df):
     desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
     prot_func = make_voltage_function_from_description(desc)
 
+    voltages = np.array([prot_func(t) for t in times])
+
     protocol_ax.plot(times*1e-3, [prot_func(t) for t in times])
     current_ax.plot(times*1e-3, trace, color='grey', alpha=.5)
 
@@ -213,15 +301,13 @@ def do_trace_plots(current_ax, protocol_ax, protocol, well, sweep, params_df):
 
     row = best_params.set_index(['well', 'protocol', 'sweep']).loc[(well, protocol, sweep)].copy()
 
+
     param_labels = make_model_of_class(args.model_class).get_parameter_labels()
     params = row[param_labels].values.flatten().astype(np.float64)
 
-    if args.adjust_kinetics:
-        params = adjust_parameters(params)
-
     if not args.infer_reversal_potential:
         E_rev = args.E_rev
-    elif not use_artefact_model:
+    elif not args.use_artefact_model:
         E_rev = infer_reversal_potential(desc, trace, times,
                                          voltages=voltages)
     else:
@@ -247,14 +333,14 @@ def do_trace_plots(current_ax, protocol_ax, protocol, well, sweep, params_df):
     protocol_ax.set_xlabel('$t$ (ms)')
 
 
-def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep):
+def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
     param_labels = make_model_of_class(args.model_class).get_parameter_labels()
     params_df = params_df[(params_df.well == well)
                           & (params_df.protocol == protocol)
                           & (params_df.sweep == sweep)].copy()
     params_df = params_df[np.isfinite(params_df.score.values)]
 
-    if len(params_df.index == 0):
+    if len(params_df.index) == 0:
         return
 
     best_params = get_best_params(params_df)
@@ -267,10 +353,11 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep):
 
 
     scores = params_df.score.values
-    lq = np.quantile(scores, .25)
-    highlight_indices = np.argwhere((scores <= lq) & (scores != scores.min()))
 
-    other_indices = np.argwhere(scores > lq)
+    cutoff = scores.min() * cutoff_threshold
+    highlight_indices = np.argwhere((scores <= cutoff) & (scores != scores.min()))
+
+    other_indices = np.argwhere(scores > cutoff)
 
     scatter_ax.scatter(params_df[param_labels[0]].values[other_indices],
                        params_df[param_labels[1]].values[other_indices],
@@ -282,47 +369,55 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep):
 
     scatter_ax.scatter([best_params[0]], [best_params[1]], color='gold', marker='s')
 
+    scatter_ax.set_yscale('log')
+    scatter_ax.set_xscale('log')
+
     inset_ax = inset_axes(scatter_ax,
-                          width="35%", # width = 30% of parent_bbox
-                          height="25%", # height : 1 inch
+                          width="25%",
+                          height="25%",
     )
 
-    xlims = inset_ax.get_xlim()
-    xlims = [xlims[0] - (xlims[1] - xlims[0]) * 0.2,
-             xlims[1] + (xlims[1] - xlims[0]) * 0.2]
+    # xlims = inset_ax.get_xlim()
+    # xlims = [xlims[0] - (xlims[1] - xlims[0]) * 0.2,
+    #          xlims[1] + (xlims[1] - xlims[0]) * 0.2]
 
-    ylims = inset_ax.get_ylim()
-    ylims = [ylims[0] - (ylims[1] - ylims[0]) * 0.2,
-             ylims[1] + (ylims[1] - ylims[0]) * 0.2]
+    # ylims = inset_ax.get_ylim()
+    # ylims = [ylims[0] - (ylims[1] - ylims[0]) * 0.2,
+    #          ylims[1] + (ylims[1] - ylims[0]) * 0.2]
 
     # inset_ax.set_xlim(xlims)
     # inset_ax.set_ylim(ylims)
 
-    scatter_ax.set_yscale('log')
-    scatter_ax.set_xscale('log')
+    mark_inset(scatter_ax, inset_ax, 2, 3, alpha=.4)
+
 
     scatter_ax.set_xlabel(r'$p_1$')
-    scatter_ax.set_xlabel(r'$p_2$')
+    scatter_ax.set_ylabel(r'$p_2$')
 
-    inset_ax.set_yscale('log')
-    inset_ax.set_xscale('log')
-
-    lq = np.quantile(scores, .25)
-    highlight_indices = np.argwhere(scores < lq)
+    cutoff = scores.min() * cutoff_threshold
+    highlight_indices = np.argwhere((scores <= cutoff) & (scores != scores.min()))
 
     inset_ax.scatter(params_df[param_labels[0]].values[highlight_indices],
                      params_df[param_labels[1]].values[highlight_indices],
                      color=_colours[0], marker='x')
 
-    mark_inset(scatter_ax, inset_ax, 2, 4)
-
     inset_ax.scatter([best_params[0]], [best_params[1]], color='gold', marker='s')
-    inset_ax.set_xticks([], minor=True)
-    inset_ax.set_yticks([], minor=True)
+    # inset_ax.xaxis.set_major_formatter(FormatStrFormatter('%.3E'))
+    # inset_ax.yaxis.set_major_formatter(FormatStrFormatter('%.3E'))
+    inset_ax.tick_params(axis='x', labelrotation=90, labelsize=8)
+    inset_ax.tick_params(axis='y', labelsize=8)
+
+    inset_ax.xaxis.get_offset_text().set_fontsize(8)
+    inset_ax.yaxis.get_offset_text().set_fontsize(8)
+
+    # inset_ax.set_yscale('log')
+    # inset_ax.set_xscale('log')
+    # inset_ax.set_xticks([], minor=True)
+    # inset_ax.set_yticks([], minor=True)
 
 
 
-def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep):
+def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args):
 
     times_fname = os.path.join(args.data_dir,
                                f"{args.experiment_name}-{protocol}-times.csv")
@@ -353,15 +448,9 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep):
     param_labels = make_model_of_class(args.model_class).get_parameter_labels()
     params = row[param_labels].values.flatten()
 
-    if args.adjust_kinetics:
-        # TODO Fix
-        params = adjust_parameters(args.model_class,
-                                   params_df, E_rev_df,
-                                   args.E_rev)
-
     if not args.infer_reversal_potential:
         E_rev = args.E_rev
-    elif not use_artefact_model:
+    elif not args.use_artefact_model:
         E_rev = infer_reversal_potential(desc, trace, times,
                                          voltages=voltages)
     else:
@@ -404,6 +493,8 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep):
     baseline_profile_ax.axvline(0, color='grey')
     baseline_profile_ax.axvline(1.0, color='grey')
 
+    baseline_profile_ax.set_xlabel(r'$\lambda$')
+
 
 def setup_grid(fig):
     no_columns = 2
@@ -413,11 +504,10 @@ def setup_grid(fig):
     current_ax = fig.add_subplot(gs[0, :])
     protocol_ax = fig.add_subplot(gs[1, :])
 
-    baseline_profile_ax = fig.add_subplot(gs[2, :])
+    baseline_profile_ax = fig.add_subplot(gs[3, 1])
 
     rank_ax = fig.add_subplot(gs[3, 0])
-    scatter_ax = fig.add_subplot(gs[3, 1])
-
+    scatter_ax = fig.add_subplot(gs[2, :])
 
     axs = current_ax, protocol_ax, rank_ax, scatter_ax, baseline_profile_ax
 

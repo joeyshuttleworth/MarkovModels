@@ -120,7 +120,8 @@ def get_ramp_protocol_from_json(protocol_name: str, directory: str,
     """
     with open(os.path.join(directory, f"{experiment_name}-{protocol_name}.json")) as fin:
         json_protocol = json.load(fin)
-    desc = VoltageProtocol.from_json(json_protocol).get_all_sections()
+    desc = VoltageProtocol.from_json(json_protocol,
+                                     holding_potential=holding_potential).get_all_sections()
     prot_func = make_voltage_function_from_description(desc, holding_potential)
 
     return prot_func, desc
@@ -186,7 +187,7 @@ def make_voltage_function_from_description(desc, holding_potential=-80.0):
     @njit
     def protocol_func(t: np.float64, offset=0.0,
                       protocol_description=desc):
-        desc = protocol_description.reshape(-1, 4)
+        desc = protocol_description.reshape(-1, 4).astype(np.float64)
         t = t + offset
 
         if t <= 0 or t >= desc[-1, 1]:

@@ -31,6 +31,7 @@ def main():
     parser.add_argument("input_file", help="CSV file listing model errors for each cell and protocol")
     parser.add_argument("--output_dir", "-o", help="Directory to output plots to.\
     By default a new directory will be generated", default=None)
+    parser.add_argument("--subtraction_df")
     parser.add_argument("--normalise_diagonal", action="store_true")
     parser.add_argument("--vmax", "-m", default=None, type=float)
     parser.add_argument("--share_limits", action='store_true')
@@ -181,25 +182,14 @@ def main():
 
     plt.close(fig)
 
-    # def adjust_rates(row):
-    #     protocol = row['fitting_protocol']
-    #     well = row['well']
-    #     sweep = row['sweep']
+    def adjust_rates(row):
+        raise NotImplementedError
 
-    #     inferred_E_rev = infer_reversal_potential(protocol,
-    #                                               data.current, data.time)
+    if args.adjust_kinetics:
+        assert args.subtraction_df
 
-    #     offset = inferred_E_rev - args.reversal
-
-    #     row[param_labels[0]] *= np.exp(row[param_labels[1]] * offset)
-    #     row[param_labels[2]] *= np.exp(-row[param_labels[3]] * offset)
-    #     row[param_labels[4]] *= np.exp(row[param_labels[5]] * offset)
-    #     row[param_labels[6]] *= np.exp(-row[param_labels[7]] * offset)
-
-    #     return row
-
-    # if args.adjust_kinetics:
-    #     adjusted_df = df.apply(adjust_rates, axis=1)
+        subtraction_df = pd.read_csv(args.subtraction_df)
+        params_df = adjust_kinetics(model_class, params_df, subtraction_df, args.reversal)
 
     style_dict = {p: i for i, p in enumerate(df.protocol.unique())}
     style = [style_dict[p] for p in df.protocol]

@@ -4,6 +4,7 @@ import os
 import itertools
 import matplotlib
 import matplotlib.pyplot as plt
+import multiprocessing
 import numpy as np
 from numba import njit
 import pandas as pd
@@ -21,18 +22,22 @@ from markovmodels.utilities import setup_output_directory, get_data, get_all_wel
 from markovmodels.voltage_protocols import get_protocol_list, get_ramp_protocol_from_json, make_voltage_function_from_description
 from markovmodels.voltage_protocols import remove_spikes, detect_spikes
 
+multiprocessing_kws = {'maxtasksperchild': 1}
+
+plt.rcParams["axes.formatter.use_mathtext"] = True
+
 rc('font', **{'size': 12})
 # rc('text', usetex=True)
-rc('figure', dpi=400, facecolor=[0]*4)
-rc('axes', facecolor=[0]*4)
-rc('savefig', facecolor=[0]*4)
+# rc('figure', dpi=400, facecolor=[0]*4)
+# rc('axes', facecolor=[0]*4)
+# rc('savefig', facecolor=[0]*4)
 rc('figure', autolayout=True)
 
 def main():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('data_dir', help='directory where data is stored')
+    parser.add_argument('data_directory', help='directory where data is stored')
     parser.add_argument('fitting_results', type=str)
     parser.add_argument('subtraction_df')
     parser.add_argument('--removal_duration', type=float, default=5.0)
@@ -48,30 +53,25 @@ def main():
     parser.add_argument('--no_voltage', action='store_true')
     parser.add_argument('--file_format', default='')
     parser.add_argument('--reversal', default=-91.71, type=float)
-    parser.add_argument('--output')
+    parser.add_argument('--output', '-o')
+    parser.add_argument('--no_cpus', '-c', default=1, type=int)
 
     global args
     args = parser.parse_args()
 
-    args.model_classes = ['model2', 'model3', 'model10', 'Wang']
+    args.model_classes = ['model2']
+    #, 'model3', 'model10', 'Wang']
 
     global output_dir
-    output_dir = setup_output_directory(args.output, 'chapter_4_optimisation_results')
-
-    subtraction_df = pd.read_csv(args.subtraction_df)
+    output_dir = setup_output_directory(args.output, 'chapter_4_heatmaps')
 
     if args.fontsize:
         matplotlib.rcParams.update({'font.size': args.fontsize})
 
     infer_reversal_params = np.loadtxt(os.path.join('data', 'BeattieModel_roomtemp_staircase_params.csv')).flatten().astype(np.float64)
 
-    fig = plt.figure(figsize=args.figsize, constrained_layout=True)
-    axs = setup_grid(fig)
-
-    well_fig = plt.figure(figsize=args.figsize, constrained_layout=True)
-    well_ax = fig.subplots()
-
-    cases = ['0a', '0b', '0c']
+    cases = ['0a']
+    #, '0b', '0c']
 
     # Get fitting results (dict of dicts)
     results_dict = {}
@@ -87,39 +87,65 @@ def main():
                                  "combined_fitting_results.csv")
 
             params_df = pd.read_csv(fname)
+
+            params_df['protocol'] = ['staircaseramp1_2' if protocol ==
+                                     'staircaseramp2' else protocol for
+                                     protocol in params_df.protocol]
+
             params_dfs.append(params_df)
             results_dict[model][case] = params_df
 
     protocol_dict = {}
     for protocol in np.unique(list(itertools.chain(*[list(params_df.protocol.unique()) for params_df in params_dfs])) + args.validation_protocols):
-        v_func, desc = get_ramp_protocol_from_json(protocol, os.path.join(args.data_dir, 'protocols'),
+        v_func, desc = get_ramp_protocol_from_json(protocol, os.path.join(args.data_directory, 'protocols'),
                                               args.experiment_name)
 
-        times = np.loadtxt(os.path.join(args.data_dir,
+        times = np.loadtxt(os.path.join(args.data_directory,
                                         f"{args.experiment_name}-{protocol}-times.csv")).astype(np.float64).flatten()
 
         protocol_dict[protocol] = desc, times
 
+
+    fig = plt.figure(figsize=args.figsize, constrained_layout=True)
+    axs = setup_grid(fig)
     model_axs, label_axs, colour_bar_ax = axs
 
+    tasks = []
     for i, model_class in enumerate(args.model_classes):
         for j, case in enumerate(cases):
-
             ax = model_axs[i, j]
             sub_df = results_dict[model_class][case]
-            do_heatmap(ax, model_class, case, params_df, subtraction_df)
+            tasks.append([model_class, case, sub_df, args, ax, output_dir,
+                          protocol_dict, case])
 
-            for well in params_df.well.unique():
-                do_heatmap(well_ax, model_class, case, sub_df,
-                           subtraction_df, well=well)
-
-                well_fig.savefig(os.path.join(output_dir,
-                                              f"{model_class}_{case}_{well}"))
-                well_ax.cla()
+    with multiprocessing.Pool(min(len(tasks), args.no_cpus), **multiprocessing_kws) as pool:
+        res = pool.starmap(map_func, tasks)
+        res = list(zip(tasks, res))
 
 
-    validation_protocols = args.validation_protocols + list(param_df.protocol.unique())
+    well_fig = plt.figure(figsize=args.figsize)
+    well_ax = well_fig.subplots()
 
+    for task, prediction_df in res:
+        model_class, case, sub_df, args, ax, output_dir, protocol_dict, fitting_case = task
+        do_heatmap(ax, model_class, case, sub_df, subtraction_df,
+                   protocol_dict, args, well=well, prediction_df=prediction_df)
+
+        for well in prediction_df.well.unique():
+            do_heatmap(well_ax, model_class, case, sub_df,
+                       subtraction_df, protocol_dict, args,
+                       well=well, prediction_df=prediction_df), protocol_dict
+            well_fig.savefig(os.path.join(output_dir,
+                                          f"{model_class}_{case}_{well}"))
+            well_ax.cla()
+
+    plt.close(well_fig)
+
+    with multiprocessing.Pool(min(no_tasks, args.cpus), **pool_kws):
+        pool.starmap(map_func, tasks)
+
+
+    # validation_protocols = args.validation_protocols + list(param_df.protocol.unique())
     # for i, model_class in enumerate(args.model_classes):
     #     for j, case in enumerate(cases):
     #         for protocol in validation_protocols:
@@ -140,16 +166,36 @@ def main():
     plt.close(fig)
 
 
+def map_func(model_class, case, params_df, args, _, output_dir, protocol_dict,
+             fitting_case):
+    subtraction_df = pd.read_csv(args.subtraction_df)
+    ax = None
+    prediction_df = compute_predictions_df(params_df, output_dir,
+                                            protocol_dict, fitting_case,
+                                            args.reversal,
+                                            model_class=model_class,
+                                            args=args)
+    return prediction_df
+
+
 def do_spread_of_predictions(ax, model_class, fitting_case, params_df,
                              subtraction_df, validation_protocol, well=None):
     pass
 
-def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df, well=None):
 
-    prediction_df = compute_predictions_df(params_df, output_dir,
-                                           protocol_dict, fitting_case,
-                                           args.reversal, model_class=args.model_class,
-                                           args=args)
+def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df, protocol_dict,
+               args, well=None, prediction_df=None):
+
+    if prediction_df is None:
+        prediction_df = compute_predictions_df(params_df, output_dir,
+                                               protocol_dict, fitting_case,
+                                               args.reversal, model_class=model_class,
+                                               args=args)
+
+    pd.save_csv(predictions_df, os.path.join(output_dir, f"{model_class}_Case{fitting_case}_predictions.csv"))
+
+    if ax is None:
+        return prediction_df
 
     if well is not None:
         sub_df = prediction_df[prediction_df.well == well]
@@ -178,6 +224,8 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df, well=No
     im = cax.imshow([[vmin, vmax]], cmap=cmap, norm=norm)
     im.set_visible(False)
     cax.plot([0], [0])
+
+    return prediction_df
 
 
 def setup_grid(fig):

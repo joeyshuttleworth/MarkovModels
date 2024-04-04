@@ -21,7 +21,7 @@ from markovmodels.utilities import get_data
 from markovmodels.voltage_protocols import remove_spikes, detect_spikes,\
     make_voltage_function_from_description
 
-from markovmodels.ArtefactModel import ArtefactModel
+from markovmodels.ArtefactModel import ArtefactModel, no_artefact_parameters
 
 
 def fit_model(mm, data, times=None, starting_parameters=None,
@@ -260,7 +260,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             parameter_sets = np.vstack(parameter_sets)
         fitting_df = pd.DataFrame(parameter_sets,
                                   columns=mm.get_parameter_labels()[:parameter_sets.shape[1]])
-        fitting_df['RMSE'] = scores / len(indices)
+        fitting_df['RMSE'] = np.array(scores) / len(subset_indices)
         fitting_df['iterations'] = iterations
         fitting_df['CPU_time'] = times_taken
 
@@ -323,6 +323,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   removal_duration)
 
+    V_off = 0.0
     if infer_E_rev:
         if output_dir:
             plot = True
@@ -346,11 +347,13 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
 
             if artefact_default_kinetic_parameters is not None:
                 V_off_initial_params = \
-                    np.append(artefact_default_kinetic_parameters, default_parameters[-7:])
+                    np.append(artefact_default_kinetic_parameters, default_parameters[-no_artefact_parameters:])
             else:
                 V_off_initial_params = \
                     np.append(make_model_of_class(V_off_model_class).get_default_parameters(),
-                              default_parameters[-7: ])
+                              default_parameters[-no_artefact_parameters:])
+
+                print(V_off_initial_params)
 
             try:
                 V_off = find_V_off(protocol_desc, times,
@@ -361,8 +364,9 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                    output_path=output_path,
                                    data_label=data_label
                                    )
-            except ValueError:
+            except ValueError as exc:
                 # Possibly non data or non-finite values in data
+                logging.warning("error whilst inferring V_off: ", str(exc))
                 df = pd.DataFrame(default_parameters[None, :], columns=parameter_labels)
                 df['score'] = np.inf
                 return df
@@ -374,6 +378,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         if use_artefact_model:
             inferred_E_rev = E_rev
             default_parameters[-3] = V_off
+            E_rev = E_rev
         else:
             inferred_E_rev = E_obs
 
@@ -1142,7 +1147,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                 inferred_E_rev = infer_reversal_potential(vp.get_all_sections(),
                                                           full_data, full_times)
                 if fitting_case == '0c':
-                    adjusted_params_df = adjust_kinetics(model_class, df, subtractions_df,
+                    adjusted_params_df = adjust_kinetics(model_class, params_df, subtractions_df,
                                                          E_rev, inferred_E_rev)[param_labels]\
                                                          .values.flatten()
 
@@ -1163,7 +1168,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
 
                         fitting_current, _ = get_data(well, protocol_fitted,
                                                       args.data_directory,
-                                                      sweep=predict_sweep, label=data_label,
+                                                      sweep=fitting_sweep, label=data_label,
                                                       experiment_name=args.experiment_name)
 
                         fitting_times = protocol_dict[protocol_fitted][1]
@@ -1171,41 +1176,28 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                         if not os.path.exists(sub_dir):
                             os.makedirs(sub_dir)
 
-                        # Set artefact_paramsoffset
+                        # Set artefact params
                         if use_artefacts:
-                            params[-7:] = artefact_params
+                            params[no_artefact_parameters:] = artefact_params
 
-                        pred_E_rev = inferred_E_rev
 
                         if fitting_case in ['0a', 'I']:
                             pred_E_rev = E_rev
-
-                        # model = make_model_of_class(model_class,
-                        #                             times=full_times,
-                        #                             protocol_description=desc,
-                        #                             voltage=prot_func,
-                        #                             E_rev=pred_E_rev)
-
-                        # solver = model.make_hybrid_solver_current(hybrid=False,
-                        #                                           njitted=False,
-                        #                                           strict=False,
-                        #                                           protocol_description=desc,
-                        #                                           E_rev=pred_E_rev)
-
-                        if not np.all(np.isfinite(solver())):
-                            print("error with solver")
-                            raise Exception("Solver error")
+                        else:
+                            pred_E_rev = inferred_E_rev
 
                         full_prediction = solver(params,
                                                  times=full_times,
-                                                 protocol_description=desc)
+                                                 protocol_description=desc,
+                                                 E_rev=pred_E_rev)
 
                         prediction = full_prediction[indices]
 
                         score = np.sqrt(np.mean((data - prediction)**2))
                         predictions_df.append((well, protocol_fitted,
                                                fitting_sweep, predict_sweep, sim_protocol, score,
-                                               * params))
+                                               E_rev,
+                                               *params))
 
                         if not np.all(np.isfinite(prediction)):
                             logging.warning(f"running {sim_protocol} with parameters "
@@ -1256,7 +1248,8 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                                                                      'fitting_sweep',
                                                                      'prediction_sweep',
                                                                      'validation_protocol',
-                                                                     'score'] +
+                                                                     'score',
+                                                                     'E_rev'] +
                                   param_labels)
     predictions_df['RMSE'] = predictions_df['score']
     predictions_df['sweep'] = predictions_df.fitting_sweep
@@ -1322,7 +1315,7 @@ def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None):
         inferred_E_rev = E_rev_df[(protocol, well, sweep)].values[0]
 
         if not new_E_rev:
-            V_off = E_rev - inferred_E_rev
+            V_off = inferred_E_rev - E_rev
         else:
             V_off = inferred_E_rev - new_E_rev
 

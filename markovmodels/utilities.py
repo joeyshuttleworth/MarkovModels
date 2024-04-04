@@ -53,7 +53,12 @@ def get_data(well, protocol, data_directory, experiment_name='',
             r_string = f"^{experiment_name}-{protocol}-{well}-{label}-sweep{sweep}.csv$"
 
         regex = re.compile(r_string)
-        fname = next(filter(regex.match, os.listdir(data_directory)))
+
+        fname = ''
+        try:
+            fname = next(filter(regex.match, os.listdir(data_directory)))
+        except StopIteration as exc:
+            raise Exception(f"Couldn't find file matching {r_string}\n{str(exc)}")
 
         if no_headers:
             header = None
@@ -79,7 +84,10 @@ def get_data(well, protocol, data_directory, experiment_name='',
     v_regex = re.compile(f"^{experiment_name}-{protocol}.json$")
     protocols_dir = os.path.join(data_directory, 'protocols')
 
-    fname = next(filter(v_regex.match, os.listdir(protocols_dir)))
+    try:
+        fname = next(filter(v_regex.match, os.listdir(protocols_dir)))
+    except StopIteration as exc:
+        raise Exception(f"Couldn't find file matching {r_string}\n{str(exc)}")
 
     with open(os.path.join(protocols_dir, fname), 'r') as fin:
         json_contents = json.load(fin)
