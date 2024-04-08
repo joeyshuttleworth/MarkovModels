@@ -2,6 +2,7 @@ import argparse
 import os
 
 import itertools
+import logging
 import matplotlib
 import matplotlib.pyplot as plt
 import multiprocessing
@@ -40,6 +41,11 @@ def main():
     parser.add_argument('data_directory', help='directory where data is stored')
     parser.add_argument('fitting_results', type=str)
     parser.add_argument('subtraction_df')
+    parser.add_argument('chrono_file')
+    parser.add_argument('--use_fake_results', action='store_true')
+    parser.add_argument('--use_raw_data', action='store_true')
+    parser.add_argument('--ignore_protocols', nargs='+', default=['longap'], type=str)
+    parser.add_argument('-w', '--wells', type=str, nargs='+')
     parser.add_argument('--removal_duration', type=float, default=5.0)
     parser.add_argument('--experiment_name', '-e', default='newtonrun4')
     parser.add_argument('--validation_protocols', default=['longap'], nargs='+')
@@ -59,8 +65,7 @@ def main():
     global args
     args = parser.parse_args()
 
-    args.model_classes = ['model2']
-    #, 'model3', 'model10', 'Wang']
+    args.model_classes = ['model2', 'model3', 'model10', 'Wang']
 
     global output_dir
     output_dir = setup_output_directory(args.output, 'chapter_4_heatmaps')
@@ -70,8 +75,9 @@ def main():
 
     infer_reversal_params = np.loadtxt(os.path.join('data', 'BeattieModel_roomtemp_staircase_params.csv')).flatten().astype(np.float64)
 
-    cases = ['0a']
-    #, '0b', '0c']
+    subtraction_df = pd.read_csv(args.subtraction_df)
+
+    cases = ['0c', '0b', '0a']
 
     # Get fitting results (dict of dicts)
     results_dict = {}
@@ -87,6 +93,9 @@ def main():
                                  "combined_fitting_results.csv")
 
             params_df = pd.read_csv(fname)
+
+            if args.wells:
+                params_df = params_df[params_df.well.isin(args.wells)].copy()
 
             params_df['protocol'] = ['staircaseramp1_2' if protocol ==
                                      'staircaseramp2' else protocol for
@@ -108,73 +117,147 @@ def main():
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     axs = setup_grid(fig)
-    model_axs, label_axs, colour_bar_ax = axs
+    model_axs, model_label_axs, case_label_axs, colour_bar_ax = axs
 
     tasks = []
     for i, model_class in enumerate(args.model_classes):
         for j, case in enumerate(cases):
-            ax = model_axs[i, j]
             sub_df = results_dict[model_class][case]
-            tasks.append([model_class, case, sub_df, args, ax, output_dir,
+            tasks.append([model_class, case, sub_df, args, output_dir,
                           protocol_dict, case])
 
-    with multiprocessing.Pool(min(len(tasks), args.no_cpus), **multiprocessing_kws) as pool:
+    with multiprocessing.Pool(min(len(tasks), args.no_cpus),
+                              **multiprocessing_kws) as pool:
         res = pool.starmap(map_func, tasks)
-        res = list(zip(tasks, res))
+    res = list(zip(tasks, res))
 
+    do_summary_statistics(res)
 
-    well_fig = plt.figure(figsize=args.figsize)
-    well_ax = well_fig.subplots()
+    vmax = max([df.RMSE.values.astype(np.float64).max() for _, df in res])
+    vmin = min([df.RMSE.values.astype(np.float64).min() for _, df in res])
+    vlim = (vmin, vmax)
 
+    cbar_kws = {
+        'orientation': 'horizontal',
+        'fraction': .75,
+        'drawedges': False,
+        'label': 'RMSE',
+    }
+
+    done_colour_bar = False
     for task, prediction_df in res:
-        model_class, case, sub_df, args, ax, output_dir, protocol_dict, fitting_case = task
-        do_heatmap(ax, model_class, case, sub_df, subtraction_df,
-                   protocol_dict, args, well=well, prediction_df=prediction_df)
+        model_class, case, sub_df, args, output_dir, protocol_dict, fitting_case = task
 
-        for well in prediction_df.well.unique():
-            do_heatmap(well_ax, model_class, case, sub_df,
-                       subtraction_df, protocol_dict, args,
-                       well=well, prediction_df=prediction_df), protocol_dict
-            well_fig.savefig(os.path.join(output_dir,
-                                          f"{model_class}_{case}_{well}"))
-            well_ax.cla()
+        if done_colour_bar:
+            cbar_ax = None
+        else:
+            cbar_ax = colour_bar_ax
+            done_colour_bar = True
 
-    plt.close(well_fig)
+        i = args.model_classes.index(model_class)
+        j = cases.index(case)
+        ax = model_axs[i, j]
 
-    with multiprocessing.Pool(min(no_tasks, args.cpus), **pool_kws):
-        pool.starmap(map_func, tasks)
+        hm = do_heatmap(ax, model_class, case, sub_df, subtraction_df,
+                        protocol_dict, vlim, args, prediction_df=prediction_df,
+                        cbar_ax=cbar_ax,
+                        cbar_kws=cbar_kws)
 
-
-    # validation_protocols = args.validation_protocols + list(param_df.protocol.unique())
-    # for i, model_class in enumerate(args.model_classes):
-    #     for j, case in enumerate(cases):
-    #         for protocol in validation_protocols:
-    #             ax = model_axs[i, j]
-    #             sub = params_dfs[model_class][case]
-
-    #             for well in params_df.well.unique():
-    #                 do_heatmap(well_ax, model_class, case, sub_df, well=well)
-
-    #                 well_fig.savefig(os.path.join(output_dir,
-    #                                               f"{model_class}_{case}_{well}"))
-    #                 well_ax.cla()
+    fig.savefig(os.path.join(output_dir, "averaged_well_heatmaps"))
+    fig.clf()
+    axs = setup_grid(fig)
+    model_axs, model_label_axs, case_label_axs, cbar_ax = axs
 
 
+    # Now iterate over each well
+    for well in subtraction_df.well.unique():
+        if args.wells:
+            if well not in args.wells:
+                continue
+        if well not in prediction_df.well.unique():
+            continue
 
-    fig.savefig(os.path.join(output_dir, "averaged_heatmaps.pdf"))
+        for task, prediction_df in res:
+            model_class, case, sub_df, args, output_dir, protocol_dict, fitting_case = task
+            i = args.model_classes.index(model_class)
+            j = cases.index(fitting_case)
+            ax = model_axs[i, j]
+            do_heatmap(ax, model_class, case, sub_df, subtraction_df,
+                       protocol_dict, vlim, args, well=well,
+                       prediction_df=prediction_df, cbar_ax=cbar_ax,
+                       cbar_kws=cbar_kws)
 
+        fig.savefig(os.path.join(output_dir,
+                                 f"{well}_heatmaps"))
+        fig.clf()
+        axs = setup_grid(fig)
+        model_axs, model_label_axs, case_label_axs, cbar_ax = axs
     plt.close(fig)
 
 
-def map_func(model_class, case, params_df, args, _, output_dir, protocol_dict,
+def do_summary_statistics(res):
+    """ Summarise the prediction data frame
+    - Average RMSE prediction error
+    - Min/Max RMSE prediction error across wells
+    - Min/Max RMSE prediction error across protocols
+    - Best/worst performing well
+    - Best/worst performing fitting protocol
+    """
+
+    rows = []
+    for task, prediction_df in res:
+        row = {}
+        model_class, case, sub_df, args, output_dir, protocol_dict, fitting_case = task
+        row['average_RMSE'] = prediction_df.RMSE.min()
+        row['best_well_score'] = prediction_df.groupby('well')['RMSE'].mean().min()
+        row['best_well'] = prediction_df.groupby('well')['RMSE'].mean().idxmin()
+        row['worst_well_score'] = prediction_df.groupby('well')['RMSE'].mean().max()
+        row['worst_well'] = prediction_df.groupby('well')['RMSE'].mean().idxmax()
+        row['best_protocol_score'] = prediction_df.groupby('fitting_protocol')['RMSE'].mean().min()
+        row['best_protocol'] = prediction_df.groupby('fitting_protocol')['RMSE'].mean().idxmin()
+        row['worst_protocol_score'] = prediction_df.groupby('fitting_protocol')['RMSE'].mean().max()
+        row['worst_protocol'] = prediction_df.groupby('fitting_protocol')['RMSE'].mean().idxmax()
+        row['fitting_case'] = fitting_case
+        row['model_class'] = model_class
+
+        rows.append(row)
+
+    df = pd.DataFrame.from_records(rows)
+    df.to_csv(os.path.join(output_dir, "cv_summary.csv"))
+
+    return df
+
+
+
+def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
              fitting_case):
     subtraction_df = pd.read_csv(args.subtraction_df)
     ax = None
-    prediction_df = compute_predictions_df(params_df, output_dir,
-                                            protocol_dict, fitting_case,
-                                            args.reversal,
-                                            model_class=model_class,
-                                            args=args)
+
+    if fitting_case in ['I', 'II'] or args.use_raw_data:
+        data_label = 'before'
+    else:
+        data_label = ''
+
+    if not args.use_fake_results:
+        prediction_df = compute_predictions_df(params_df, output_dir,
+                                               protocol_dict, fitting_case,
+                                               args.reversal, subtraction_df,
+                                               model_class=model_class,
+                                               args=args,
+                                               label=f"{model_class}_{case}_predictions",
+                                               data_label=data_label
+                                               )
+    else:
+        protocols = sorted(params_df.protocol.unique() )
+        print(f"protocols are {protocols}")
+
+        rows = [{'fitting_sweep': 0, 'prediction_sweep': 0, 'well': well,
+                 'fitting_protocol': f_p, 'validation_protocol': v_p, 'RMSE':
+                 np.random.uniform(3e2, 1e4)} for v_p in protocols for f_p in
+                protocols for well in ['Z01', 'Z02', 'Z03']]
+        prediction_df = pd.DataFrame.from_records(rows)
+
     return prediction_df
 
 
@@ -183,70 +266,138 @@ def do_spread_of_predictions(ax, model_class, fitting_case, params_df,
     pass
 
 
-def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df, protocol_dict,
-               args, well=None, prediction_df=None):
+def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
+               protocol_dict, vlim, args, well=None, prediction_df=None, **kws):
+
+    if fitting_case in ['I', 'II'] or args.use_raw_data:
+        data_label = 'before'
+    else:
+        data_label = ''
 
     if prediction_df is None:
         prediction_df = compute_predictions_df(params_df, output_dir,
                                                protocol_dict, fitting_case,
-                                               args.reversal, model_class=model_class,
+                                               args.reversal, subtractions_df,
+                                               model_class=model_class,
+                                               label=f"{model_class}_{fitting_case}_predictions",
+                                               data_label=data_label,
                                                args=args)
 
-    pd.save_csv(predictions_df, os.path.join(output_dir, f"{model_class}_Case{fitting_case}_predictions.csv"))
+    args.chrono_file
+
+    chrono_fname = os.path.join(args.chrono_file)
+    with open(chrono_fname, 'r') as fin:
+        lines = fin.read().splitlines()
+        protocol_order = [line.split(' ')[0] for line in lines]
+        protocol_order.insert(1, 'staircaseramp1_sweep2')
+        protocol_order.insert(-1, 'staircaseramp1_2_sweep2')
+
+    def rename_staircase_func(row):
+        f_protocol, v_protocol, f_sweep, v_sweep = [row[key] for key in ['fitting_protocol', 'validation_protocol', 'fitting_sweep', 'prediction_sweep']]
+
+        if f_protocol in ['staircaseramp1', 'staircaseramp1_2'] and f_sweep == 1:
+            row['fitting_protocol'] = str(protocol) + "_sweep2"
+
+        if v_protocol in ['staircaseramp1', 'staircaseramp1_2'] and v_sweep == 1:
+            row['validation_protocol'] = str(protocol) + "_sweep2"
+
+        return row
+
+    prediction_df = prediction_df[~prediction_df.fitting_protocol.isin(args.ignore_protocols)]
+    prediction_df = prediction_df.apply(rename_staircase_func, axis=1)
+    print("apply renaming =>", prediction_df)
+
+    prediction_df['fitting_protocol'] = pd.Categorical(prediction_df['fitting_protocol'],
+                                                       categories=protocol_order,
+                                                       ordered=True)
+
+    prediction_df['validation_protocol'] = pd.Categorical(prediction_df['validation_protocol'],
+                                                          categories=protocol_order,
+                                                          ordered=True)
+
+    # Reorder and relabel protocols
+    relabel_dict = {p: r"$d_{" f"{i+1}" r"}$" for i, p
+                    in enumerate(protocol_order)}
+
+    prediction_df.fitting_protocol = prediction_df.fitting_protocol.cat.rename_categories(relabel_dict)
+    prediction_df.validation_protocol = prediction_df.validation_protocol.cat.rename_categories(relabel_dict)
+
+    prediction_df.RMSE = prediction_df.RMSE.astype(np.float64)
+
+    prediction_df.to_csv(os.path.join(output_dir,
+                                      f"{model_class}_Case{fitting_case}_predictions.csv"))
 
     if ax is None:
         return prediction_df
 
     if well is not None:
         sub_df = prediction_df[prediction_df.well == well]
+        if len(sub_df.index) == 0:
+            # logging.warning(f"do_heatmap: No predictions found for well {well}")
+            return
 
     else:
         # Average across wells
-        sub_df = prediction_df.groupby([args.fixed_param, 'fitting_protocol', 'validation_protocol']).mean().reset_index()
+        agg_dict = {'RMSE': 'mean'}
+        sub_df = prediction_df.groupby(['fitting_protocol', 'validation_protocol']).agg(agg_dict).reset_index()
 
-    if args.vlim is None:
-        vmin, vmax = sub_df['RMSE'].min(), sub_df['RMSE'].max()
-    else:
-        vmin, vmax = args.vlim
+    sub_df.sort_index(inplace=True)
+
+    vmin, vmax = vlim
 
     cmap = sns.cm.mako_r
     norm = matplotlib.colors.LogNorm(vmin=vmin, vmax=vmax)
 
-    sub_df = sub_df[~sub_df.fitting_protocol.isin(args.ignore_protocols)]
-
     pivot_df = sub_df.pivot(columns='fitting_protocol',
                             index='validation_protocol', values='RMSE')
 
-    hm = sns.heatmap(pivot_df, ax=ax, square=True, cbar=False, norm=norm,
-                    cmap=cmap)
+    pivot_df.dropna(axis=0, inplace=True, how='all')
+    pivot_df.dropna(axis=1, inplace=True, how='all')
+
+    if 'cbar' not in kws:
+        kws['cbar'] = False
+        if 'cbar_ax' in kws:
+            if kws['cbar_ax'] is not None:
+                kws['cbar'] = True
+
+    hm = sns.heatmap(pivot_df, ax=ax, square=True, norm=norm,
+                     cmap=cmap, **kws)
     hm.set_yticklabels(hm.get_yticklabels(), rotation=0)
 
-    im = cax.imshow([[vmin, vmax]], cmap=cmap, norm=norm)
-    im.set_visible(False)
-    cax.plot([0], [0])
-
-    return prediction_df
+    return hm
 
 
 def setup_grid(fig):
-    # Row for each model then colorbar
-    no_rows = 5
+    # Row for each model, a colorbar, and case labels
+    no_rows = 6
 
-    # Row for each 'case' and labels
+    # Coumn for each 'case' and labels
     no_columns = 4
 
-    gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[1, 1, 1, 1, 0.15])
+    gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[.15, 1, 1, 1, 1, 0.25],
+                  width_ratios=[.5, 1, 1, 1])
 
-    current_ax = fig.add_subplot(gs[0, :])
-
-    label_axs = [fig.add_subplot(gs[:, i]) for i in range(no_rows - 1)]
-
+    model_label_axs = [fig.add_subplot(gs[i, 0]) for i in range(1, no_rows - 1)]
+    case_label_axs = [fig.add_subplot(gs[0, i]) for i in range(1, no_columns)]
     colour_bar_ax = fig.add_subplot(gs[-1, :])
-
     model_axs = np.array([[fig.add_subplot(gs[i, j]) for j in range(1, no_columns)]
-                          for i in range(no_rows - 1)])
+                          for i in range(1, no_rows - 1)])
 
-    return model_axs, label_axs, colour_bar_ax
+    model_labels = ['C-O-I', 'Beattie', 'Kemp', 'Wang']
+    for i, (label_ax, model_label) in enumerate(zip(model_label_axs, model_labels)):
+        label_ax.text(.5, .5, model_label, horizontalalignment='center',
+                      verticalalignment='center')
+
+    case_labels = ['Case I', 'Case II', 'Case III']
+    for i, (label_ax, case_label) in enumerate(zip(case_label_axs, case_labels)):
+        case_label = case_labels[i]
+        label_ax.text(.5, .5, case_label, horizontalalignment='center',
+                      verticalalignment='center')
+
+    for ax in list(model_axs.flatten()) + model_label_axs + case_label_axs:
+        ax.set_axis_off()
+
+    return model_axs, model_label_axs, case_label_axs, colour_bar_ax
 
 
 if __name__ == "__main__":

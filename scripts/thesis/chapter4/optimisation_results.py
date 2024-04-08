@@ -146,11 +146,11 @@ def main():
 
         sub_df = params_df[(params_df.protocol == protocol)
                            & (params_df.well == well)
-                           & (params_df.sweep == sweep)].copy()
+                           & (params_df.sweep == sweep)]
 
         times_fname = os.path.join(args.data_dir,
                                f"{args.experiment_name}-{protocol}-times.csv")
-        sub_df = params_df[params_df.protocol == protocol]
+        sub_df = sub_df[sub_df.protocol == protocol].copy()
         no_obs = np.loadtxt(times_fname).flatten().shape[0]
 
         sub_df['RMSE'] = np.sqrt(sub_df.score / no_obs)
@@ -170,7 +170,7 @@ def main():
 
         for param in param_labels:
             this_row[f"{param}_std"] = sub_df[sub_df.RMSE < cutoff][param].values.std()
-            this_row[f"{param}_best"] = sub_df[sub_df.RMSE == sub_df.RMSE.values.min()][param].values[0]
+            this_row[f"{param}_best"] = sub_df[sub_df.RMSE == sub_df.RMSE.min()][param].values[0]
 
         opt_results_df.append(this_row)
 
@@ -197,16 +197,16 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
 
     title_font_size = 12
     current_ax.set_title('a', fontweight='bold', fontsize=title_font_size,
-                         horizontalalignment='left')
+                         loc='left')
     protocol_ax.set_title('b', fontweight='bold', fontsize=title_font_size,
-                          horizontalalignment='left')
+                          loc='left')
     scatter_ax.set_title('c', fontweight='bold', fontsize=title_font_size,
-                         horizontalalignment='left')
+                         loc='left')
     rank_ax.set_title('d', fontweight='bold', fontsize=title_font_size,
-                      horizontalalignment='left')
+                      loc='left')
     baseline_profile_ax.set_title('e', fontweight='bold',
                                   fontsize=title_font_size,
-                                  horizontalalignment='left')
+                                  loc='left')
 
     do_scatter_plot(scatter_ax, params_df, well, protocol,
                     sweep, args)
