@@ -418,6 +418,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                 solver = model.make_forward_solver_of_type(solver_type,
                                                            strict=strict)
             solver()
+
         except numba.core.errors.TypingError as exc:
             logging.warning(f"unable to make nopython forward solver {str(exc)}")
             solver = model.make_forward_solver_of_type(solver_type, njitted=False,
@@ -1115,8 +1116,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
 
                 if fitting_case == '0c':
                     adjusted_params_df = adjust_kinetics(model_class, params_df, subtractions_df,
-                                                         E_rev, inferred_E_rev)[param_labels]\
-                                                         .values.flatten()
+                                                         E_rev, inferred_E_rev)
                 else:
                     adjusted_params_df = params_df
 
