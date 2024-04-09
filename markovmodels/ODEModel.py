@@ -13,6 +13,8 @@ from markovmodels.voltage_protocols import make_voltage_function_from_descriptio
 
 _lsoda_n_max_steps = 10_000
 
+n_max_protocol_steps = 128
+
 
 class ODEModel:
     """
@@ -219,11 +221,15 @@ class ODEModel:
 
             # pad protocol description to fill up 64 steps
             flat_desc = protocol_description.flatten().copy()
-            if flat_desc.shape[0] < 64 * 4:
+
+            if flat_desc.shape[0] < n_max_protocol_steps:
                 flat_desc = \
                     np.concatenate((flat_desc,
-                                    np.full(64 * 4 - flat_desc.shape[0],
+                                    np.full(n_max_protocol_steps * 4 - flat_desc.shape[0],
                                             np.inf)))
+
+            elif protocol_description.shape[0] > n_max_protocol_steps:
+                print("Warning: n_max_protocol_steps exceeded")
 
             start_times = protocol_description[:, 0]
             for i in range(len(protocol_description)):
@@ -335,14 +341,11 @@ class ODEModel:
         ny = self.get_no_state_vars()
         n_p = len(self.get_default_parameters())
 
-        # Maximum steps in protocol
-        n_max_steps = 64
-
         @cfunc(lsoda_sig)
         def crhs(t, y, dy, data):
             y = nb.carray(y, ny)
             dy = nb.carray(dy, ny)
-            data = nb.carray(data, int(n_p + 1 + n_max_steps * 4))
+            data = nb.carray(data, int(n_p + 1 + n_max_protocol_steps * 4))
             p = data[:n_p]
             t_offset = data[n_p]
 

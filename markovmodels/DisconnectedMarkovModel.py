@@ -4,7 +4,7 @@ import sympy as sp
 from numba import cfunc, njit
 from numbalsoda import lsoda, lsoda_sig
 
-from markovmodels.MarkovModel import MarkovModel
+from markovmodels.MarkovModel import MarkovModel, n_max_protocol_steps
 
 
 class DisconnectedMarkovModel(MarkovModel):
@@ -188,11 +188,13 @@ class DisconnectedMarkovModel(MarkovModel):
 
             # Flatten and pad out protocol description to 64 steps
             flat_desc = protocol_description.flatten().copy()
-            if protocol_description.shape[0] < 64 * 4:
+            if protocol_description.shape[0] < n_max_protocol_steps:
                 flat_desc = \
                     np.append(protocol_description,
-                              np.full(64 * 4 - flat_desc.shape[0],
+                              np.full(n_max_protocol_steps * 4 - flat_desc.shape[0],
                                       np.inf))
+            elif protocol_description.shape[0] > n_max_protocol_steps:
+                print("Warning: n_max_protocol_steps exceeded")
 
             flat_desc = np.append(flat_desc, (flat_desc[-3], np.inf, -80.0, -80.0))
 
@@ -378,16 +380,14 @@ class DisconnectedMarkovModel(MarkovModel):
         n_p = len(self.get_default_parameters())
         voltage = self.voltage
 
-        n_max_steps = 64
-
         @cfunc(lsoda_sig)
         def cfunc_rhs(t, y, dy, data):
             y = nb.carray(y, ny)
             dy = nb.carray(dy, ny)
             data = nb.carray(data, n_p + 1 + n_max_steps * 4)
             p = data[:-1 - n_max_steps*4]
-            t_offset = data[-1 - n_max_steps*4]
-            desc = data[-n_max_steps * 4:].reshape((-1, 4))
+            t_offset = data[-1 - n_max_protocol_steps*4]
+            desc = data[-n_max_protocol_steps * 4:].reshape((-1, 4))
 
             v = voltage(t, offset=t_offset, protocol_description=desc)
 
