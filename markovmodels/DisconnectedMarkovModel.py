@@ -4,7 +4,8 @@ import sympy as sp
 from numba import cfunc, njit
 from numbalsoda import lsoda, lsoda_sig
 
-from markovmodels.MarkovModel import MarkovModel, n_max_protocol_steps
+from markovmodels.MarkovModel import MarkovModel
+from markovmodels.ODEModel import n_max_protocol_steps
 
 
 class DisconnectedMarkovModel(MarkovModel):
