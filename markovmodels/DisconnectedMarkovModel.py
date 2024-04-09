@@ -385,8 +385,8 @@ class DisconnectedMarkovModel(MarkovModel):
         def cfunc_rhs(t, y, dy, data):
             y = nb.carray(y, ny)
             dy = nb.carray(dy, ny)
-            data = nb.carray(data, n_p + 1 + n_max_steps * 4)
-            p = data[:-1 - n_max_steps*4]
+            data = nb.carray(data, n_p + 1 + n_max_protocol_steps * 4)
+            p = data[:-1 - n_max_protocol_steps*4]
             t_offset = data[-1 - n_max_protocol_steps*4]
             desc = data[-n_max_protocol_steps * 4:].reshape((-1, 4))
 
