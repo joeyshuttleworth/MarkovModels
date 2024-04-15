@@ -156,7 +156,6 @@ class DisconnectedMarkovModel(MarkovModel):
 
         if protocol_description is None:
             if self.protocol_description is None:
-                # raise Exception("No protocol description has been provided")
                 protocol_description = np.array([[0.0, np.inf, -80.0, -80.0]]).astype(np.float64)
             else:
                 protocol_description = self.protocol_description
@@ -189,7 +188,7 @@ class DisconnectedMarkovModel(MarkovModel):
 
             # Flatten and pad out protocol description to 64 steps
             flat_desc = protocol_description.flatten().copy()
-            if protocol_description.shape[0] < n_max_protocol_steps:
+            if protocol_description.shape[0] < n_max_protocol_steps * 4:
                 flat_desc = \
                     np.append(protocol_description,
                               np.full(n_max_protocol_steps * 4 - flat_desc.shape[0],

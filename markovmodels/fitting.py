@@ -1162,6 +1162,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                         prediction = full_prediction[indices]
 
                         score = np.sqrt(np.mean((data - prediction)**2))
+                        n_score = score / np.sqrt(np.mean(data**2))
 
                         df = adjusted_params_df[adjusted_params_df.well == well]
                         df = df[(df.protocol == protocol_fitted) & (df.sweep == fitting_sweep)]
@@ -1179,8 +1180,9 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                             print(times[~np.isfinite(prediction)])
                         else:
                             predictions_df.append((well, protocol_fitted,
-                                                   fitting_sweep, predict_sweep,
-                                                   sim_protocol, score, E_rev,
+                                                   fitting_sweep,
+                                                   predict_sweep, sim_protocol,
+                                                   score, n_score, E_rev,
                                                    *params))
                             # Output trace
                             trace_axs[0].plot(full_times, full_prediction, label='prediction')
@@ -1229,7 +1231,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                                                                      'fitting_sweep',
                                                                      'prediction_sweep',
                                                                      'validation_protocol',
-                                                                     'score',
+                                                                     'score', 'n_score',
                                                                      'E_rev'] +
                                   param_labels)
     predictions_df['RMSE'] = predictions_df['score'].astype(np.float64)
@@ -1280,7 +1282,7 @@ def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None):
     assert transformations is not None
 
     param_labels = sorted(model.get_parameter_labels())
-    param_pairs = list(zip(param_labels[:-3:2], param_labels[1:-1:2]))
+    param_pairs = list(zip(param_labels[:-2:2], param_labels[1:-1:2]))
 
     E_rev_df = E_rev_df.set_index(['protocol', 'well', 'sweep'])
 
@@ -1307,13 +1309,10 @@ def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None):
         else:
             V_off = inferred_E_rev - new_E_rev
 
-
-        params = row[param_labels]
         for a, b in zip(param_labels[:-3:2], param_labels[1:-1:2]):
-            row[a] = row[b] * np.exp(row[b] * V_off)
+            row[a] = row[a] * np.exp(row[b] * V_off)
 
         new_rows.append(row)
-
 
     new_dict = pd.DataFrame.from_records(new_rows)
 
@@ -1322,15 +1321,20 @@ def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None):
 
 def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                     protocol_fitted, fitting_sweep, params_df, subtractions_df,
-                    fitting_case, E_rev, protocol_dict, full_data,
-                    voltages, label='', solver=None):
+                    fitting_case, E_rev, protocol_dict, full_data, voltages,
+                    label='', solver=None, do_spike_removal=True):
 
     if fitting_case in ['I', 'II']:
         use_artefacts = True
     else:
         use_artefacts = False
 
-    param_labels = make_model_of_class(model_class).get_parameter_labels()
+    model = make_model_of_class(model_class)
+
+    if use_artefacts:
+        model = ArtefactModel(model)
+
+    param_labels = model.get_parameter_labels()
 
     # Protocol we use for simulation
     desc, full_times = protocol_dict[sim_protocol]
@@ -1344,10 +1348,14 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                                                  strict=False,
                                                  protocol_description=desc)
 
-    spike_times, spike_indices = markovmodels.voltage_protocols.detect_spikes(full_times, voltages,
-                                                                                threshold=10)
-    _, _, indices = markovmodels.voltage_protocols.remove_spikes(full_times, voltages, spike_times,
-                                                time_to_remove=args.removal_duration)
+    if do_spike_removal:
+        _, _, indices = markovmodels.voltage_protocols.remove_spikes(full_times, voltages, spike_times,
+                                                                     time_to_remove=args.removal_duration)
+        spike_times, spike_indices = markovmodels.voltage_protocols.detect_spikes(full_times, voltages,
+                                                                              threshold=10)
+    else:
+        indices = np.array([i for i in range(len(full_times))]).astype(int)
+
     times = full_times[indices]
 
     if fitting_case in ['I', 'II']:
@@ -1357,8 +1365,8 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                                 (params_df.sweep == predict_sweep)].iloc[0]
 
         gleak, Eleak, V_off, Rseries, Cm = param_row[['gleak, Eleak, V_off, Rseries, Cm']]
-        forward_sim_parameters[[-8, -7, -6, -5, -4, -3, -2, -1]] = E_rev, gleak, Eleak, 0, 0, V_off, Rseries, Cm
-        artefact_params = forward_sim_parameters[-7:]
+        forward_sim_parameters[-8:] = E_rev, gleak, Eleak, 0, 0, V_off, Rseries, Cm
+        artefact_params = forward_sim_parameters[-no_artefact_parameters:]
         model.default_parameters[-3] = V_off
 
     data = full_data[indices]
@@ -1388,7 +1396,4 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     else:
         return solver(params, times=full_times, protocol_description=desc,
                       E_rev=pred_E_rev)
-
-
-
 

@@ -169,11 +169,11 @@ class ODEModel:
                                   rtol=None, hybrid=True, crhs=None):
 
         if protocol_description is None:
-            if self.protocol_description is None:
-                raise Exception("No protocol description has been provided")
+            # if self.protocol_description is None:
+                # raise Exception("No protocol description has been provided")
                 # protocol_description = np.array([[0.0, np.inf, -80.0, -80.0]]).astype(np.float64)
-            else:
-                protocol_description = self.protocol_description.copy()
+            # else:
+            protocol_description = np.array([[.0, 10000.0, -80.0, -80.0]])
 
         if crhs is None:
             crhs = self.get_cfunc_rhs()
@@ -222,7 +222,7 @@ class ODEModel:
             # pad protocol description to fill up 64 steps
             flat_desc = protocol_description.flatten().copy()
 
-            if flat_desc.shape[0] < n_max_protocol_steps:
+            if flat_desc.shape[0] < n_max_protocol_steps * 4:
                 flat_desc = \
                     np.concatenate((flat_desc,
                                     np.full(n_max_protocol_steps * 4 - flat_desc.shape[0],

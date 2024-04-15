@@ -46,7 +46,7 @@ class WangModel(MarkovModel):
         self.n_states = len(symbols['y']) + 1
         self.n_state_vars = self.n_states - 1
         self.GKr_index = self.n_params - 1
-        self.open_state_index = 0
+        self.open_state_index = labs.index('O')
 
         super().__init__(symbols, A, B, mc.rate_expressions, times=times,
                          voltage=voltage, Q=Q, *args, **kwargs,
