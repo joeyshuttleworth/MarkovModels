@@ -221,6 +221,11 @@ def do_summary_statistics(res):
         row = {}
         model_class, case, sub_df, args, output_dir, protocol_dict, fitting_case = task
         prediction_df.n_score = prediction_df.n_score.astype(np.float64)
+
+        for well in prediction_df.well.unique():
+            if not np.all(np.isfinite(prediction_df[prediction_df.well == well].n_score.values)):
+                logging.warning(f"{model_class} {case} well {well} contains NaN predictions")
+
         row['average_n_score'] = prediction_df['n_score'].min()
         row['best_well_score'] = prediction_df.groupby('well')['n_score'].mean().min()
         row['best_well'] = prediction_df.groupby('well')['n_score'].mean().idxmin()

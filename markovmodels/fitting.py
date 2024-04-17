@@ -408,7 +408,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         raise Exception('solver and solver type provided')
 
     if solver is None:
-        strict = False
+        strict = False if use_artefact_model else True
         try:
             if use_artefact_model and data_label == 'before':
                 assert solver_type is None or solver_type=='default'
@@ -1093,7 +1093,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
         if solver is None:
             solver = model.make_hybrid_solver_current(hybrid=False,
                                                       njitted=True,
-                                                      strict=False,
+                                                      strict=True,
                                                       protocol_description=desc,
                                                       voltage=prot_func)
 
@@ -1158,6 +1158,11 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                                                           full_data, voltages,
                                                           label=data_label,
                                                           solver=solver)
+
+                        if np.any(~np.isfinite(full_prediction)):
+                            logging.warning(f"Prediction failed {model_class} {fitting_case} \
+                            {well}, {sim_protocol} {predict_sweep} using \
+                            {protocol_fitting} {fitting_sweep}")
 
                         prediction = full_prediction[indices]
 
