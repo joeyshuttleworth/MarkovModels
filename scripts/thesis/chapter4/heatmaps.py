@@ -308,16 +308,17 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     with open(chrono_fname, 'r') as fin:
         lines = fin.read().splitlines()
         protocol_order = [line.split(' ')[0] for line in lines]
-        protocol_order.insert(1, 'staircaseramp1_sweep2')
-        protocol_order.insert(-1, 'staircaseramp1_2_sweep2')
+        protocol_order = protocol_order.insert(1, 'staircaseramp1_sweep2')
+        protocol_order = protocol_order.insert(-1, 'staircaseramp1_2_sweep2')
+        protocol_order = protocol_order.insert(-1, 'staircaseramp2_sweep2')
 
     def rename_staircase_func(row):
         f_protocol, v_protocol, f_sweep, v_sweep = [row[key] for key in ['fitting_protocol', 'validation_protocol', 'fitting_sweep', 'prediction_sweep']]
 
-        if f_protocol in ['staircaseramp1', 'staircaseramp1_2'] and f_sweep == 1:
+        if f_protocol in ['staircaseramp1', 'staircaseramp1_2', 'staircaseramp2'] and f_sweep == 1:
             row['fitting_protocol'] = str(protocol) + "_sweep2"
 
-        if v_protocol in ['staircaseramp1', 'staircaseramp1_2'] and v_sweep == 1:
+        if v_protocol in ['staircaseramp1', 'staircaseramp1_2', 'staircaseramp2'] and v_sweep == 1:
             row['validation_protocol'] = str(protocol) + "_sweep2"
 
         return row
@@ -350,7 +351,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
         return prediction_df
 
     if well is not None:
-        sub_df = prediction_df[prediction_df.well == well]
+        sub_df = prediction_df[prediction_df.well == well].copy()
         if len(sub_df.index) == 0:
             # logging.warning(f"do_heatmap: No predictions found for well {well}")
             return
