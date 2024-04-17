@@ -77,14 +77,14 @@ def main():
 
     subtraction_df = pd.read_csv(args.subtraction_df)
 
-    cases = ['0c', '0b', '0a']
+    cases = ['0a', '0b', '0c']
+    dirnames = ['Case0a', 'Case0b', 'Case0b']
 
     # Get fitting results (dict of dicts)
     results_dict = {}
     params_dfs = []
     for model in args.model_classes:
         results_dict[model] = {}
-        dirnames = ['Case0a', 'Case0b', 'Case0b']
         for case, dirname in zip(cases, dirnames):
             fname = os.path.join(args.fitting_results,
                                  dirname,
