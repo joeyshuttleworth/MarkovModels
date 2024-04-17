@@ -168,6 +168,8 @@ def main():
     axs = setup_grid(fig)
     model_axs, model_label_axs, case_label_axs, cbar_ax = axs
 
+    figure = plt.figure(figsize=args.figsize)
+    individual_ax = figure.subplots()
 
     # Now iterate over each well
     for well in subtraction_df.well.unique():
@@ -186,6 +188,16 @@ def main():
                        protocol_dict, vlim, args, well=well,
                        prediction_df=prediction_df, cbar_ax=cbar_ax,
                        cbar_kws=cbar_kws)
+
+            # Do heatmap on individual plot with heatmap
+            do_heatmap(individual_ax, model_class, case, sub_df, subtraction_df,
+                       protocol_dict, vlim, args, well=well,
+                       prediction_df=prediction_df, cbar_ax=cbar_ax,
+                       cbar_kws={'cbar': True})
+
+            fig.savefig(os.path.join(output_dir,
+                                     f"{well}_{case}_{model_class}_heatmap"))
+            ax.cla()
 
         fig.savefig(os.path.join(output_dir,
                                  f"{well}_heatmaps"))
