@@ -308,9 +308,9 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     with open(chrono_fname, 'r') as fin:
         lines = fin.read().splitlines()
         protocol_order = [line.split(' ')[0] for line in lines]
-        protocol_order = protocol_order.insert(1, 'staircaseramp1_sweep2')
-        protocol_order = protocol_order.insert(-1, 'staircaseramp1_2_sweep2')
-        protocol_order = protocol_order.insert(-1, 'staircaseramp2_sweep2')
+        protocol_order.insert(1, 'staircaseramp1_sweep2')
+        protocol_order.insert(-1, 'staircaseramp1_2_sweep2')
+        protocol_order.insert(-1, 'staircaseramp2_sweep2')
 
     def rename_staircase_func(row):
         f_protocol, v_protocol, f_sweep, v_sweep = [row[key] for key in ['fitting_protocol', 'validation_protocol', 'fitting_sweep', 'prediction_sweep']]

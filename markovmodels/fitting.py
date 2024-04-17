@@ -1347,7 +1347,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     if solver is None:
         solver= model.make_hybrid_solver_current(hybrid=False,
                                                  njitted=False,
-                                                 strict=False,
+                                                 strict=True,
                                                  protocol_description=desc)
 
     if do_spike_removal:
