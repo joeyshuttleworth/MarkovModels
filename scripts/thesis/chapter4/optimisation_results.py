@@ -305,6 +305,7 @@ def do_trace_plots(current_ax, protocol_ax, protocol, well, sweep, params_df, ar
     current, vp = get_data(well, protocol, args.data_dir, args.experiment_name,
                            sweep=sweep, label=args.data_label)
     desc = vp.get_all_sections()
+    desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
 
     protocol_dict = {protocol: (desc, times)}
 
