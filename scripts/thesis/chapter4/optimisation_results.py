@@ -324,6 +324,7 @@ def do_trace_plots(current_ax, protocol_ax, protocol, well, sweep, params_df, ar
     current_ax.set_ylabel(r'$I_\text{subtracted}$ (pA)')
     protocol_ax.set_ylabel(r'$V_\text{m}$ (mV)')
     protocol_ax.set_xlabel('$t$ (ms)')
+    protocol_ax.plot(times*1e-3, voltages, color='black')
 
 
 def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
