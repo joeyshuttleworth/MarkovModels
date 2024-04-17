@@ -147,7 +147,7 @@ def main():
 
     best_params = get_best_params(params_df)
 
-    best_params.to_csv(os.path.join(output_dir, "best_params_df"))
+    best_params.to_csv(os.path.join(output_dir, "best_params_df.csv"))
 
     opt_results_df = []
     # Iterate over (well, protocol, sweep) combinations

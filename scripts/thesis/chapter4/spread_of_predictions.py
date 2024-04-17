@@ -67,8 +67,8 @@ def main():
     global args
     args = parser.parse_args()
 
-    # args.model_classes = ['Wang', 'model2', 'model3', 'model10']
-    args.model_classes = ['model3', 'model10']
+    args.model_classes = ['Wang', 'model2', 'model3', 'model10']
+    # args.model_classes = ['model3', 'model10']
 
     global output_dir
     output_dir = setup_output_directory(args.output, 'chapter_4_sop')
