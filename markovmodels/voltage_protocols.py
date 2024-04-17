@@ -124,6 +124,7 @@ def get_ramp_protocol_from_json(protocol_name: str, directory: str,
                                      holding_potential=holding_potential).get_all_sections()
 
     prot_func = make_voltage_function_from_description(desc, holding_potential)
+    desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
 
     return prot_func, desc
 
