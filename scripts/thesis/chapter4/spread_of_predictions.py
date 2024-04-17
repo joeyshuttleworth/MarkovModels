@@ -211,7 +211,7 @@ def main():
                         ax.legend()
 
                         fig.savefig(os.path.join(output_dir,
-                                                 f"{well}_{case}_sweep{sweep}_protocols_sop.png"))
+                                                 f"{well}_{case}_sweep{sweep}_{protocol}_sop.png"))
                         ax.cla()
 
 
