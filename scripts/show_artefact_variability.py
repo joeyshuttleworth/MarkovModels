@@ -3,20 +3,20 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import logging
 
 from markovmodels.utilities import setup_output_directory
 from markovmodels.model_generation import make_model_of_class
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv
-from markovmodels.ArtefactModel import ArtefactModel
+from markovmodels.ArtefactModel import ArtefactModel, no_artefact_parameters
 
 
 def main():
     parser = argparse.ArgumentParser()
     # parser.add_argument('subtraction_summary_file')
     parser.add_argument('--figsize', default=[12, 9], nargs=2, type=int)
-    parser.add_argument('--output')
+    parser.add_argument('--output', '-o')
     parser.add_argument('--leak_subtraction_file')
-    parser.add_argument('--qc_estimates_file')
     parser.add_argument('--selection_file')
 
     global args
@@ -27,23 +27,22 @@ def main():
 
     use_literature_range()
 
-    if args.qc_estimates_file:
-        qc_estimates_df = pd.read_csv(args.qc_estimates_file)
+    if args.leak_subtraction_file:
         leak_subtraction_df = pd.read_csv(args.leak_subtraction_file)
         if args.selection_file:
             with open(args.selection_file) as fin:
                 selected_wells = fin.read().splitlines()
         else:
             selected_wells = None
-        use_qc_estimates(qc_estimates_df, leak_subtraction_df, selected_wells)
+        use_qc_estimates(leak_subtraction_df, selected_wells)
 
 
-def use_qc_estimates(qc_df, leak_df, passed_wells):
-    qc_df = qc_df[qc_df.drug == 'before']
-
+def use_qc_estimates(leak_df, passed_wells):
     leak_df = leak_df[leak_df.well.isin(passed_wells)]
 
-    leak_df = leak_df.set_index(['well', 'protocol', 'sweep'])
+    leak_df = leak_df[leak_df.well.isin(passed_wells) &\
+                      leak_df.protocol.isin(['staircaseramp1', 'staircaseramp2', 'staircaseramp1_2'])].reset_index()
+    leak_df = leak_df.set_index(['well', 'protocol', 'sweep']).sort_index()
 
     model_class = 'model3'
     protocol = 'staircaseramp1'
@@ -53,7 +52,7 @@ def use_qc_estimates(qc_df, leak_df, passed_wells):
                                   tolerances=(1e-7, 1e-7))
     artefact_model = ArtefactModel(c_model)
     p = artefact_model.get_default_parameters()
-    p[-8] *= 1e3
+    p[-no_artefact_parameters - 1] *= 1e3
     a_solver = artefact_model.make_hybrid_solver_states(hybrid=False, njitted=False)
     a_solver_i = artefact_model.make_forward_solver_current(njitted=False)
 
@@ -70,28 +69,26 @@ def use_qc_estimates(qc_df, leak_df, passed_wells):
     axs[1].plot(times*1e-3, [voltage_func(t) for t in times])
     ylim_2 = axs[1].get_ylim()
 
-    qc_df = qc_df[qc_df.well.isin(passed_wells) & qc_df.protocol.isin(['staircaseramp1', 'staircaseramp2'])].reset_index()
-
-    qc_df.Rseries = qc_df.Rseries*1e-9
-    qc_df.Cm = qc_df.Cm*1e9
+    leak_df.Rseries = leak_df.Rseries*1e-9
+    leak_df.Cm = leak_df.Cm*1e9
 
     discrepancies = []
-    for index, row in qc_df.iterrows():
-
-        well, protocol, sweep, R_s, C_m = row[['well', 'protocol', 'sweep',
-                                               'Rseries', 'Cm']]
+    for index, row in leak_df.iterrows():
+        well, protocol, sweep = index
+        R_s, C_m = row[['Rseries', 'Cm']]
         # Convert from base units
         try:
-            g_leak, E_leak = leak_df.loc[well,
+            g_leak, E_leak = leak_df.loc[(well,
                                          protocol,
-                                         sweep][['pre-drug leak conductance',
-                                                 'pre-drug leak reversal']]
+                                          sweep)][['gleak_before',
+                                                 'E_leak_before']]
         except KeyError:
             discrepancies.append(np.nan)
+            logging.warning(f"missing key {(well, protocol, sweep)}")
             continue
 
         p = artefact_model.get_default_parameters()
-        p[-7:] = .0, .0, .0, .0, .0, C_m, R_s
+        p[-no_artefact_parameters + 1:] = .0, .0, .0, .0, .0, C_m, R_s
 
         sol = a_solver(p)
         sol_i = a_solver_i(p)
@@ -105,9 +102,8 @@ def use_qc_estimates(qc_df, leak_df, passed_wells):
                     color='grey', alpha=.25)
 
     # Well with biggest error
-    qc_df['discrepancy'] = discrepancies
-    worst_trace = qc_df.loc[qc_df.discrepancy.idxmax()]
-    print(f"worst trace is {worst_trace}")
+    leak_df['discrepancy'] = discrepancies
+    worst_trace = leak_df.loc[leak_df.discrepancy.idxmax()]
 
     axs[1].set_ylim(ylim_2)
     axs[0].set_ylim(ylims_1)

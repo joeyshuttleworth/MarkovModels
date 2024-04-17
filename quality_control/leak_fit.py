@@ -192,8 +192,12 @@ def fit_leak_lr(staircase_protocol, current, V_full=[-120, -80],
 
     eps2 = (predictions - y)**2
 
-    s_beta = np.sqrt((1/(n-2) * eps2.sum())/((x - x.mean())**2).sum())
-    s_alpha = s_beta * np.sqrt((x**2).sum()/n)
+    try:
+        s_beta = np.sqrt((1/(n-2) * eps2.sum())/((x - x.mean())**2).sum())
+        s_alpha = s_beta * np.sqrt((x**2).sum()/n)
+    except ZeroDivisionError:
+        s_beta = 0
+        s_alpha = 0
 
     return g_leak, E_leak, r_value, s_alpha, s_beta, x, y
 

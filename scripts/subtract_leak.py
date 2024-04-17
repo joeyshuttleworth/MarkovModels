@@ -291,7 +291,8 @@ def subtract_leak(well, protocol, args, output_dir=None):
         protocol_axs, before_axs, after_axs, corrected_axs, subtracted_ax, \
             long_protocol_ax = setup_subtraction_grid(fig, nsweeps)
 
-    protocol_func, _, desc = get_ramp_protocol_from_csv(protocol)
+    protocol_dir = os.path.join(args.data_directory, 'protocols')
+    protocol_func, desc = get_ramp_protocol_from_json(protocol, protocol_dir)
 
     # TODO
     # Find ramp start and end from desc

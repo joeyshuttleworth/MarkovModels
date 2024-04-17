@@ -122,6 +122,7 @@ def get_ramp_protocol_from_json(protocol_name: str, directory: str,
         json_protocol = json.load(fin)
     desc = VoltageProtocol.from_json(json_protocol,
                                      holding_potential=holding_potential).get_all_sections()
+
     prot_func = make_voltage_function_from_description(desc, holding_potential)
 
     return prot_func, desc

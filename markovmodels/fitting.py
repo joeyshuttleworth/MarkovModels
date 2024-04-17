@@ -1339,9 +1339,6 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     # Protocol we use for simulation
     desc, full_times = protocol_dict[sim_protocol]
 
-    # Temporary solver hack
-    desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
-
     if solver is None:
         solver= model.make_hybrid_solver_current(hybrid=False,
                                                  njitted=False,
@@ -1349,10 +1346,10 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                                                  protocol_description=desc)
 
     if do_spike_removal:
-        _, _, indices = markovmodels.voltage_protocols.remove_spikes(full_times, voltages, spike_times,
-                                                                     time_to_remove=args.removal_duration)
         spike_times, spike_indices = markovmodels.voltage_protocols.detect_spikes(full_times, voltages,
                                                                               threshold=10)
+        _, _, indices = markovmodels.voltage_protocols.remove_spikes(full_times, voltages, spike_times,
+                                                                     time_to_remove=args.removal_duration)
     else:
         indices = np.array([i for i in range(len(full_times))]).astype(int)
 

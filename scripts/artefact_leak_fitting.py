@@ -10,7 +10,8 @@ import pandas as pd
 import scipy
 
 import markovmodels
-from markovmodels.ArtefactModel import ArtefactModel
+import pcpostprocess
+from markovmodels.ArtefactModel import ArtefactModel, no_artefact_parameters
 from markovmodels.model_generation import make_model_of_class
 from subtract_leak import subtract_leak
 import seaborn as sns
@@ -39,7 +40,7 @@ def main():
     parser.add_argument("--no_plot", action='store_true')
     parser.add_argument('-P', '--protocols', nargs='+', default=['staircaseramp'])
     parser.add_argument('--noise', default=0.00, type=float)
-    parser.add_argument('--reversal', '-e', type=float)
+    parser.add_argument('--reversal', '-e', type=float, default=-91.71)
     parser.add_argument('--cpus', '-c', default=1, type=int)
     parser.add_argument('--use_hybrid_solver', action='store_true')
     parser.add_argument('--sampling_frequency', default=0.1, type=float)
@@ -50,12 +51,15 @@ def main():
     global args
     args = parser.parse_args()
 
+    if not args.sweeps:
+        args.sweeps = ['0', '1']
+
     if not args.wells:
         args.wells = []
 
     Erev = calculate_reversal_potential()\
-        if args.reversal is None\
-        else args.reversal
+    if args.reversal is None\
+    else args.reversal
 
     global output_dir
     output_dir = markovmodels.utilities.setup_output_directory(args.output, 'artefact_leak_fitting_%s' % args.model)
@@ -83,7 +87,7 @@ def main():
     leak_df = qc_df.set_index(['protocol', 'well', 'sweep']).sort_index()
 
     tasks = []
-    for (index, leak_row) in leak_df.iterrows():
+    for index, leak_row in leak_df.iterrows():
         protocol, well, sweep = index
         if well not in args.wells and args.wells:
             continue
@@ -92,8 +96,8 @@ def main():
             continue
 
         if str(sweep) not in args.sweeps:
-            print(sweep)
             continue
+
         gleak = leak_row['gleak_before']
         Eleak = leak_row['E_leak_before']
         Rseries = leak_row['Rseries'] * 1e-9
@@ -104,7 +108,7 @@ def main():
 
         if args.no_noise:
             noise = 0
-        tasks.append((protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev))
+        tasks.append((protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev, args))
 
     print(f"tasks are {tasks}")
     with multiprocessing.Pool(args.cpus) as pool:
@@ -112,7 +116,7 @@ def main():
 
     dfs = []
     for fname, task in zip(res, tasks):
-        protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev = task
+        protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev, _ = task
         if well not in args.wells and args.wells:
             continue
         _args = parser.parse_args()
@@ -205,11 +209,8 @@ def compare_synth_real_postprocess_data(df, leak_df):
         if not os.path.exists(deflection_plot_dir):
             os.makedirs(deflection_plot_dir)
 
-        print(all_real_traces)
         all_real_traces = np.vstack(all_real_traces)
         all_synth_traces = np.vstack(all_synth_traces)
-
-        print(all_real_traces.shape)
 
         # Find the average normalised real trace
         average_real_trace = np.mean(all_real_traces.T / all_real_traces.std(axis=1), axis=1).T
@@ -301,7 +302,7 @@ def plot_overlaid_traces(df):
         _parameters = parameters.copy()
         _parameters[-1] = gkr
 
-        prot_func, desc = get_protocol(protocol)
+        prot_func, desc = get_protocol(protocol, args)
 
         c_model = make_model_of_class(args.model,
                                       voltage=prot_func, times=times, E_rev=Erev,
@@ -394,7 +395,7 @@ def plot_overlaid_traces(df):
         _parameters = parameters.copy()
         _parameters[-1] = gkr
 
-        prot_func, desc = get_protocol(protocol)
+        prot_func, desc = get_protocol(protocol, args)
 
         voltages = np.array([prot_func(t) for t in times])
 
@@ -451,18 +452,18 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
     # get data
     # TODO Add .csv to the end of these filenames
     before_filename = f"{args.experiment_name}-{protocol}-{well}-before-sweep{sweep}.csv"
-    before_trace = np.loadtxt(os.path.join(traces_dir, before_filename)).flatten()
+    before_trace = pd.read_csv(os.path.join(traces_dir, before_filename)).values.flatten()
 
     after_filename = f"{args.experiment_name}-{protocol}-{well}-after-sweep{sweep}.csv"
-    after_trace = np.loadtxt(os.path.join(traces_dir, after_filename)).flatten()
+    after_trace = pd.read_csv(os.path.join(traces_dir, after_filename)).values.flatten()
 
     times_filename = f"{args.experiment_name}-{protocol}-times.csv"
-    times = np.loadtxt(os.path.join(traces_dir, times_filename)).to_numpy().flatten()
-    times = times * 1e3
+    times = pd.read_csv(os.path.join(traces_dir, times_filename), header=None).values.flatten()
 
-    prot_func, desc = get_protocol(protocol)
+    print(times)
 
-    protocol_dir = os.path.join(args.data_dir, 'protocols')
+    protocol_dir = os.path.join(args.postprocess_data_dir, 'traces',
+                                'protocols')
 
     prot_func, desc = get_ramp_protocol_from_json(protocol, protocol_dir,
                                                   args.experiment_name)
@@ -498,16 +499,28 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
                                   default_parameters=parameters,
                                   protocol_description=desc)
 
-    solver = c_model.make_forward_solver_current(njitted=False)
+    model = ArtefactModel(c_model, R_series=Rseries, C_m=Cm, g_leak=g_leak_before,
+                          E_leak=E_leak_before)
+    default_parameters = model.get_default_parameters().flatten()
 
-    reference_trace = solver() / c_model.get_default_parameters()[-1]
+    print(default_parameters)
 
-    @njit
+    solver = model.make_forward_solver_current(njitted=False)
+
+    assert np.all(np.isfinite(solver()))
+
     def min_func(g_kr):
-        return np.sum((g_kr * reference_trace - subtracted_trace) ** 2)
+        p = default_parameters.copy()
+        p[-no_artefact_parameters - 1] = g_kr
+        pred = solver(p.flatten())
+        return np.sum((pred - subtracted_trace) ** 2)
 
     # Minimise SSE to find best conductance
-    res = scipy.optimize.minimize_scalar(min_func, method='bounded', bounds=[0, 1e5])
+    b_indices = np.argwhere(np.abs(protocol_voltages + 120)<1e-2)
+    bounds = np.unique([0, (subtracted_trace[b_indices]/(protocol_voltages[b_indices] - args.reversal)).max() * 10])
+
+    bounds[0] = bounds[1] / 100
+    res = scipy.optimize.minimize_scalar(min_func, method='bounded', bounds=bounds)
 
     gkr = res.x
     print('gkr is', gkr)
@@ -518,9 +531,12 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
         ax = fig.subplots()
 
         ax.plot(times, subtracted_trace, label='subtracted trace', color='grey')
-        p = c_model.get_default_parameters()
-        p[-1] = gkr
-        ax.plot(times, solver(p), label='ideal current')
+
+        p = default_parameters.copy()
+        p[-no_artefact_parameters - 1] = gkr
+
+        ax.plot(times, solver(p.flatten()), label='ideal current')
+        ax.legend()
 
     if not os.path.exists(os.path.join(output_dir, "conductance_estimation")):
         os.makedirs(os.path.join(output_dir, "conductance_estimation"))
@@ -529,14 +545,12 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
     return noise, gkr
 
 
-def generate_data(protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev=None):
+def generate_data(protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev, args):
     if Erev is None:
         Erev = markovmodels.utilities.calculate_reversal_potential()
 
-    prot_func, desc = get_protocol(protocol)
-
+    prot_func, desc = get_protocol(protocol, args)
     traces_dir = os.path.join(args.postprocess_data_dir, 'traces')
-
     times_df = np.loadtxt(os.path.join(traces_dir,
                                        f"{args.experiment_name}-{protocol}-times.csv"))
     times = times_df.to_numpy().flatten()
@@ -614,9 +628,9 @@ def generate_data(protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, 
     # return the filename for convinience
     return out_fname
 
-def get_protocol(protocol_name):
+def get_protocol(protocol_name, args):
     trace_dir = os.path.join(args.postprocess_data_dir,
-                            'traces')
+                             'traces')
 
     well = None
     data, voltage_protocol = utilities.get_data(well, protocol_name,
