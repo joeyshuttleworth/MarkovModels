@@ -21,7 +21,7 @@ from matplotlib import rc
 
 import markovmodels
 from markovmodels.model_generation import make_model_of_class
-from markovmodels.fitting import get_best_params, infer_reversal_potential
+from markovmodels.fitting import get_best_params, infer_reversal_potential, make_prediction
 from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.utilities import setup_output_directory, get_data, get_all_wells_in_directory
 from markovmodels.voltage_protocols import get_protocol_list, get_ramp_protocol_from_json, make_voltage_function_from_description
@@ -56,7 +56,9 @@ def main():
     parser.add_argument('data_dir', help='directory where data is stored')
     parser.add_argument('fitting_case', type=str)
     parser.add_argument('fitting_results', type=str)
+    parser.add_argument('subtraction_df', type=str)
     parser.add_argument('model_class')
+    parser.add_argument('--data_label', default='')
     parser.add_argument('--plot_wip', action='store_true')
     parser.add_argument('--no_cpus', '-c', type=int, default=1)
     parser.add_argument('--E_rev', type=float, default=-91.71)
@@ -92,6 +94,10 @@ def main():
                               'staircaseramp2' else protocol for
                               protocol in params_df.protocol]
 
+    if len(args.fitting_case) > 4:
+        if args.fitting_case[:4] == 'Case':
+            args.fitting_case = args.fitting_case[4:]
+
     # Case describing how was the was model fitted
     if args.fitting_case == '0a':
         args.adjust_kinetics = False
@@ -109,7 +115,7 @@ def main():
         args.adjust_kinetics = False
         args.infer_reversal_potential = False
         args.use_artefact_model = True
-    elif args.case == 'II':
+    elif args.fitting_case == 'II':
         args.adjust_kinetics = False
         args.infer_reversal_potential = False
         args.use_artefact_model = True
@@ -140,6 +146,9 @@ def main():
         pool.starmap(map_func, tasks)
 
     best_params = get_best_params(params_df)
+
+    best_params.to_csv(os.path.join(output_dir, "best_params_df"))
+
     opt_results_df = []
     # Iterate over (well, protocol, sweep) combinations
     for (well, protocol, sweep), _ in best_params.set_index(['well', 'protocol', 'sweep']).sort_index().iterrows():
@@ -208,18 +217,22 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
                                   fontsize=title_font_size,
                                   loc='left')
 
-    do_scatter_plot(scatter_ax, params_df, well, protocol,
-                    sweep, args)
+    do_trace_plots(current_ax, protocol_ax, protocol, well, sweep, params_df, args)
+
+    if args.plot_wip:
+        do_scatter_plot(scatter_ax, params_df, well, protocol,
+                        sweep, args)
 
     if args.plot_wip:
         fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
     do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args)
     if args.plot_wip:
         fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
-    do_trace_plots(current_ax, protocol_ax, protocol, well, sweep, params_df, args)
     if args.plot_wip:
         fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
     do_rank_plot(rank_ax, params_df, protocol, well, sweep, args)
+
+    # Plot everything
     fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
     plt.close(fig)
 
@@ -281,50 +294,28 @@ def do_trace_plots(current_ax, protocol_ax, protocol, well, sweep, params_df, ar
     # Load trace
     data_fname = os.path.join(args.data_dir,
                               f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}-subtracted.csv")
+
+    subtraction_df = pd.read_csv(args.subtraction_df)
+
     times_fname = os.path.join(args.data_dir,
                                f"{args.experiment_name}-{protocol}-times.csv")
     times = np.loadtxt(times_fname).flatten()
     trace = np.loadtxt(data_fname).flatten()
 
-    current, vp = get_data(well, protocol, args.data_dir,
-                                args.experiment_name, sweep=sweep)
+    current, vp = get_data(well, protocol, args.data_dir, args.experiment_name,
+                           sweep=sweep, label=args.data_label)
     desc = vp.get_all_sections()
-    desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
-    prot_func = make_voltage_function_from_description(desc)
+
+    protocol_dict = {protocol: (desc, times)}
+
+    prot_func = make_voltage_function_from_description(vp.get_all_sections())
 
     voltages = np.array([prot_func(t) for t in times])
 
-    protocol_ax.plot(times*1e-3, [prot_func(t) for t in times])
-    current_ax.plot(times*1e-3, trace, color='grey', alpha=.5)
-
-    best_params = get_best_params(params_df)
-
-    row = best_params.set_index(['well', 'protocol', 'sweep']).loc[(well, protocol, sweep)].copy()
-
-
-    param_labels = make_model_of_class(args.model_class).get_parameter_labels()
-    params = row[param_labels].values.flatten().astype(np.float64)
-
-    if not args.infer_reversal_potential:
-        E_rev = args.E_rev
-    elif not args.use_artefact_model:
-        E_rev = infer_reversal_potential(desc, trace, times,
-                                         voltages=voltages)
-    else:
-        assert(False)
-
-
-    m_model = make_model_of_class(args.model_class, voltage=prot_func, protocol_description=desc,
-                                  times=times,
-                                  E_rev=E_rev)
-
-    if args.use_artefact_model:
-        m_model = ArtefactModel(m_model)
-
-    pred = m_model.make_hybrid_solver_current(hybrid=False, strict=False)(params)
-
-    if not np.all(np.isfinite(pred)):
-        assert(False)
+    pred = make_prediction(args.model_class, args, well, protocol, sweep,
+                           protocol, sweep, params_df, subtraction_df,
+                           args.fitting_case, args.reversal, protocol_dict,
+                           current, voltages, label=args.data_label)
 
     current_ax.plot(times*1e-3, pred)
     current_ax.set_xlabel('')
@@ -427,6 +418,7 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     trace = trace.flatten()
 
     desc = vp.get_all_sections()
+
     # Temporary solver hack
     desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
 

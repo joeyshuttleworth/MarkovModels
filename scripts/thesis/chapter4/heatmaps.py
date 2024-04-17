@@ -42,7 +42,7 @@ def main():
     parser.add_argument('fitting_results', type=str)
     parser.add_argument('subtraction_df')
     parser.add_argument('chrono_file')
-    parser.add_argument('--use_fake_results', action='store_true')
+    parser.add_argument('--use_mock_data', action='store_true')
     parser.add_argument('--use_raw_data', action='store_true')
     parser.add_argument('--ignore_protocols', nargs='+', default=['longap'], type=str)
     parser.add_argument('-w', '--wells', type=str, nargs='+')
@@ -133,15 +133,15 @@ def main():
 
     do_summary_statistics(res)
 
-    vmax = max([df.RMSE.values.astype(np.float64).max() for _, df in res])
-    vmin = min([df.RMSE.values.astype(np.float64).min() for _, df in res])
+    vmax = max([df.n_score.values.astype(np.float64).max() for _, df in res])
+    vmin = min([df.n_score.values.astype(np.float64).min() for _, df in res])
     vlim = (vmin, vmax)
 
     cbar_kws = {
         'orientation': 'horizontal',
         'fraction': .75,
         'drawedges': False,
-        'label': 'RMSE',
+        'label': 'noramlised RMSE',
     }
 
     done_colour_bar = False
@@ -208,15 +208,15 @@ def do_summary_statistics(res):
     for task, prediction_df in res:
         row = {}
         model_class, case, sub_df, args, output_dir, protocol_dict, fitting_case = task
-        row['average_RMSE'] = prediction_df.RMSE.min()
-        row['best_well_score'] = prediction_df.groupby('well')['RMSE'].mean().min()
-        row['best_well'] = prediction_df.groupby('well')['RMSE'].mean().idxmin()
-        row['worst_well_score'] = prediction_df.groupby('well')['RMSE'].mean().max()
-        row['worst_well'] = prediction_df.groupby('well')['RMSE'].mean().idxmax()
-        row['best_protocol_score'] = prediction_df.groupby('fitting_protocol')['RMSE'].mean().min()
-        row['best_protocol'] = prediction_df.groupby('fitting_protocol')['RMSE'].mean().idxmin()
-        row['worst_protocol_score'] = prediction_df.groupby('fitting_protocol')['RMSE'].mean().max()
-        row['worst_protocol'] = prediction_df.groupby('fitting_protocol')['RMSE'].mean().idxmax()
+        row['average_n_score'] = prediction_df.n_score.min()
+        row['best_well_score'] = prediction_df.groupby('well')['n_score'].mean().min()
+        row['best_well'] = prediction_df.groupby('well')['n_score'].mean().idxmin()
+        row['worst_well_score'] = prediction_df.groupby('well')['n_score'].mean().max()
+        row['worst_well'] = prediction_df.groupby('well')['n_score'].mean().idxmax()
+        row['best_protocol_score'] = prediction_df.groupby('fitting_protocol')['n_score'].mean().min()
+        row['best_protocol'] = prediction_df.groupby('fitting_protocol')['n_score'].mean().idxmin()
+        row['worst_protocol_score'] = prediction_df.groupby('fitting_protocol')['n_score'].mean().max()
+        row['worst_protocol'] = prediction_df.groupby('fitting_protocol')['n_score'].mean().idxmax()
         row['fitting_case'] = fitting_case
         row['model_class'] = model_class
 
@@ -239,7 +239,7 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
     else:
         data_label = ''
 
-    if not args.use_fake_results:
+    if not args.use_mock_data:
         prediction_df = compute_predictions_df(params_df, output_dir,
                                                protocol_dict, fitting_case,
                                                args.reversal, subtraction_df,
@@ -250,13 +250,14 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                                                )
     else:
         protocols = sorted(params_df.protocol.unique() )
-        print(f"protocols are {protocols}")
+        print(f"{model_class} {case} protocols are {protocols}")
 
         rows = [{'fitting_sweep': 0, 'prediction_sweep': 0, 'well': well,
                  'fitting_protocol': f_p, 'validation_protocol': v_p, 'RMSE':
                  np.random.uniform(3e2, 1e4)} for v_p in protocols for f_p in
                 protocols for well in ['Z01', 'Z02', 'Z03']]
         prediction_df = pd.DataFrame.from_records(rows)
+        prediction_df['n_score'] = prediction_df.RMSE
 
     return prediction_df
 
@@ -322,7 +323,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     prediction_df.fitting_protocol = prediction_df.fitting_protocol.cat.rename_categories(relabel_dict)
     prediction_df.validation_protocol = prediction_df.validation_protocol.cat.rename_categories(relabel_dict)
 
-    prediction_df.RMSE = prediction_df.RMSE.astype(np.float64)
+    prediction_df.n_score = prediction_df.n_score.astype(np.float64)
 
     prediction_df.to_csv(os.path.join(output_dir,
                                       f"{model_class}_Case{fitting_case}_predictions.csv"))
@@ -338,8 +339,9 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
 
     else:
         # Average across wells
-        agg_dict = {'RMSE': 'mean'}
-        sub_df = prediction_df.groupby(['fitting_protocol', 'validation_protocol']).agg(agg_dict).reset_index()
+        agg_dict = {'n_score': 'mean'}
+        sub_df = prediction_df.groupby(['fitting_protocol', 'validation_protocol'],
+                                       observed=True).agg(agg_dict).reset_index()
 
     sub_df.sort_index(inplace=True)
 
@@ -348,8 +350,9 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     cmap = sns.cm.mako_r
     norm = matplotlib.colors.LogNorm(vmin=vmin, vmax=vmax)
 
+    print(sub_df.fitting_protocol.unique())
     pivot_df = sub_df.pivot(columns='fitting_protocol',
-                            index='validation_protocol', values='RMSE')
+                            index='validation_protocol', values='n_score')
 
     pivot_df.dropna(axis=0, inplace=True, how='all')
     pivot_df.dropna(axis=1, inplace=True, how='all')
@@ -362,6 +365,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
 
     hm = sns.heatmap(pivot_df, ax=ax, square=True, norm=norm,
                      cmap=cmap, **kws)
+
     hm.set_yticklabels(hm.get_yticklabels(), rotation=0)
 
     return hm
