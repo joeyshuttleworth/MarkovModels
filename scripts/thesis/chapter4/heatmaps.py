@@ -318,7 +318,6 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     prediction_df.prediction_sweep = prediction_df.prediction_sweep.astype(int)
 
     prediction_df = prediction_df.apply(rename_staircase_func, axis=1)
-    print("apply renaming =>", prediction_df[prediction_df.sweep.astype(int)==1])
 
     prediction_df['fitting_protocol'] = pd.Categorical(prediction_df['fitting_protocol'],
                                                        categories=protocol_order,
@@ -362,7 +361,6 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     cmap = sns.cm.mako_r
     norm = matplotlib.colors.LogNorm(vmin=vmin, vmax=vmax)
 
-    print(sub_df.fitting_protocol.unique())
     pivot_df = sub_df.pivot(columns='fitting_protocol',
                             index='validation_protocol', values='n_score')
 
