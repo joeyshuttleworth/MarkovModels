@@ -408,7 +408,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         raise Exception('solver and solver type provided')
 
     if solver is None:
-        strict = False if use_artefact_model else True
+        strict = True
         try:
             if use_artefact_model and data_label == 'before':
                 assert solver_type is None or solver_type=='default'
