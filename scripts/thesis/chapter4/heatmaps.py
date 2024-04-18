@@ -175,35 +175,11 @@ def main():
     axs = setup_grid(fig)
     model_axs, model_label_axs, case_label_axs, cbar_ax = axs
 
-    figure = plt.figure(figsize=args.figsize)
-    individual_ax = figure.subplots()
+    individual_fig = plt.figure(figsize=args.figsize)
+    individual_ax = individual_fig.subplots()
 
-    # Now iterate over each well
-    for well in subtraction_df.well.unique():
-        if args.wells:
-            if well not in args.wells:
-                continue
-        if well not in prediction_df.well.unique():
-            continue
-
-        for task, prediction_df in res:
-            model_class, case, sub_df, args, output_dir, protocol_dict, fitting_case = task
-            i = args.model_classes.index(model_class)
-            j = cases.index(fitting_case)
-            ax = model_axs[i, j]
-            do_heatmap(ax, model_class, case, sub_df, subtraction_df,
-                       protocol_dict, vlim, args, well=well,
-                       prediction_df=prediction_df, cbar_ax=cbar_ax,
-                       cbar_kws=cbar_kws)
-
-            # Do heatmap on individual plot with heatmap
-            do_heatmap(individual_ax, model_class, case, sub_df, subtraction_df,
-                       protocol_dict, vlim, args, well=well,
-                       prediction_df=prediction_df, cbar_ax=cbar_ax,
-                       cbar=True)
-
-            fig.savefig(os.path.join(output_dir,
-                                     f"{well}_{case}_{model_class}_heatmap"))
+     fig.savefig(os.path.join(output_dir,
+                                                f"{well}_{case}_{model_class}_heatmap"))
             ax.cla()
 
         fig.savefig(os.path.join(output_dir,
