@@ -176,7 +176,7 @@ def main():
     model_axs, model_label_axs, case_label_axs, cbar_ax = axs
 
     individual_fig = plt.figure(figsize=args.figsize)
-    individual_ax = figure.subplots()
+    individual_ax = individual_fig.subplots()
 
     # Now iterate over each well
     for well in subtraction_df.well.unique():
