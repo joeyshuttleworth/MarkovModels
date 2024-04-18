@@ -168,7 +168,7 @@ def main():
                         data, _ = get_data(well, protocol, args.data_directory,
                                            args.experiment_name, label=args.data_label,
                                            sweep=sweep)
-                        ax.plot(times, data, color='grey', label='data', alpha=.5)
+                        ax.plot(times, data, color='grey', label='data', alpha=.1)
                         ax.legend()
                         fig.savefig(os.path.join(output_dir,
                                                  f"{well}_{model_class}_{protocol}_sweep{sweep}_cases_sop.png"))
@@ -207,7 +207,7 @@ def main():
                         data, _ = get_data(well, protocol, args.data_directory,
                                            args.experiment_name,
                                            label=args.data_label, sweep=sweep)
-                        ax.plot(times, data, color='grey', label='data', alpha=.5)
+                        ax.plot(times, data, color='grey', label='data', alpha=.1)
                         ax.legend()
 
                         fig.savefig(os.path.join(output_dir,
@@ -268,7 +268,7 @@ def do_spread_of_predictions(ax, model_class, fitting_case, params_df,
         ax.plot(times, predictions.max(axis=0), lw=.3, color=line_colour)
         ax.plot(times, predictions.min(axis=0), lw=.3, color=line_colour)
         ax.fill_between(times, predictions.min(axis=0), predictions.max(axis=0),
-                        color=line_colour, alpha=.25, label=label)
+                        color=line_colour, alpha=.1, label=label)
 
     if args.plot_all_predictions:
         for row in predictions:

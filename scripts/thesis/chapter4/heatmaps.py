@@ -42,6 +42,7 @@ def main():
     parser.add_argument('fitting_results', type=str)
     parser.add_argument('subtraction_df')
     parser.add_argument('chrono_file')
+    parser.add_argument('--protocols', nargs='+')
     parser.add_argument('--use_mock_data', action='store_true')
     parser.add_argument('--use_raw_data', action='store_true')
     parser.add_argument('--ignore_protocols', nargs='+', default=['longap'], type=str)
@@ -77,6 +78,9 @@ def main():
 
     subtraction_df = pd.read_csv(args.subtraction_df)
 
+    if args.protocols:
+        subtraction_df = subtraction_df[subtraction_df.protocol.isin(args.protocols)]
+
     cases = ['0a', '0b', '0c']
     dirnames = ['Case0a', 'Case0b', 'Case0b']
 
@@ -93,6 +97,9 @@ def main():
                                  "combined_fitting_results.csv")
 
             params_df = pd.read_csv(fname)
+
+            if args.protocols:
+                params_df = params_df[params_df.protocol.isin(args.protocols)]
 
             if args.wells:
                 params_df = params_df[params_df.well.isin(args.wells)].copy()
@@ -141,7 +148,7 @@ def main():
         'orientation': 'horizontal',
         'fraction': .75,
         'drawedges': False,
-        'label': 'noramlised RMSE',
+        'label': 'normalised RMSE',
     }
 
     done_colour_bar = False
@@ -193,7 +200,7 @@ def main():
             do_heatmap(individual_ax, model_class, case, sub_df, subtraction_df,
                        protocol_dict, vlim, args, well=well,
                        prediction_df=prediction_df, cbar_ax=cbar_ax,
-                       cbar_kws={'cbar': True})
+                       cbar=True)
 
             fig.savefig(os.path.join(output_dir,
                                      f"{well}_{case}_{model_class}_heatmap"))
@@ -250,6 +257,10 @@ def do_summary_statistics(res):
 def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
              fitting_case):
     subtraction_df = pd.read_csv(args.subtraction_df)
+
+    if args.protocols:
+        subtraction_df = subtraction_df[subtraction_df.protocol.isin(args.protocols)]
+
     ax = None
 
     if fitting_case in ['I', 'II'] or args.use_raw_data:
@@ -304,6 +315,8 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
 
     args.chrono_file
 
+    prediction_df.sweep = prediction_df.sweep.astype(int)
+
     chrono_fname = os.path.join(args.chrono_file)
     with open(chrono_fname, 'r') as fin:
         lines = fin.read().splitlines()
@@ -316,16 +329,20 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
         f_protocol, v_protocol, f_sweep, v_sweep = [row[key] for key in ['fitting_protocol', 'validation_protocol', 'fitting_sweep', 'prediction_sweep']]
 
         if f_protocol in ['staircaseramp1', 'staircaseramp1_2', 'staircaseramp2'] and f_sweep == 1:
-            row['fitting_protocol'] = str(protocol) + "_sweep2"
+            row['fitting_protocol'] = str(f_protocol) + "_sweep2"
 
         if v_protocol in ['staircaseramp1', 'staircaseramp1_2', 'staircaseramp2'] and v_sweep == 1:
-            row['validation_protocol'] = str(protocol) + "_sweep2"
+            row['validation_protocol'] = str(v_protocol) + "_sweep2"
 
         return row
 
     prediction_df = prediction_df[~prediction_df.fitting_protocol.isin(args.ignore_protocols)]
+
+    prediction_df.fitting_sweep = prediction_df.fitting_sweep.astype(int)
+    prediction_df.prediction_sweep = prediction_df.prediction_sweep.astype(int)
+
     prediction_df = prediction_df.apply(rename_staircase_func, axis=1)
-    print("apply renaming =>", prediction_df)
+    print("apply renaming =>", prediction_df[prediction_df.sweep.astype(int)==1])
 
     prediction_df['fitting_protocol'] = pd.Categorical(prediction_df['fitting_protocol'],
                                                        categories=protocol_order,
