@@ -247,16 +247,14 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
     params_df = params_df[np.isfinite(params_df.score.values)]
 
     scores = list(sorted(list(params_df.score.unique().flatten().astype(np.float64))))
-
-    scores = np.array(scores)
-    ranks = np.array(list(range(len(scores))))
-
     times_fname = os.path.join(args.data_dir,
                                f"{args.experiment_name}-{protocol}-times.csv")
     times = np.loadtxt(times_fname).flatten()
 
+    scores = np.array(scores)
     trace, vp = get_data(well, protocol, args.data_dir,
                          args.experiment_name, sweep=sweep)
+
     desc = vp.get_all_sections()
 
     prot_func = make_voltage_function_from_description(desc)
@@ -265,6 +263,12 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   args.removal_duration)
+
+
+    n_data = len(indices)
+    scores = np.sqrt(scores / n_data)
+
+    ranks = np.array(list(range(len(scores))))
 
     # Convert score to RMSE
     scores = np.sqrt(scores/len(indices))
