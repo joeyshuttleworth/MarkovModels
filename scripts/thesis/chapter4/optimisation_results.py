@@ -28,7 +28,7 @@ from markovmodels.voltage_protocols import get_protocol_list, get_ramp_protocol_
 from markovmodels.voltage_protocols import remove_spikes, detect_spikes
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-cutoff_threshold = 1.1
+cutoff_threshold = 1.05
 
 mpl.rcParams['axes.formatter.useoffset'] = True
 plt.rcParams["axes.formatter.use_mathtext"] = True
@@ -69,7 +69,7 @@ def main():
     parser.add_argument('--protocols', type=str, nargs='+')
     parser.add_argument('-w', '--wells', type=str, nargs='+')
     parser.add_argument('-s', '--sweeps', type=int, nargs='+')
-    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.7, 9])
+    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.7, 8])
     parser.add_argument('--fig_title', '-t', default='')
     parser.add_argument('--nolegend', action='store_true')
     parser.add_argument('--dpi', '-d', default=500, type=int)
