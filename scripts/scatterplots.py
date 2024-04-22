@@ -14,6 +14,7 @@ from markovmodels.fitting import infer_reversal_potential, get_best_params
 from markovmodels.utilities import setup_output_directory
 from markovmodels.model_generation import make_model_of_class
 
+plt.rcParams["axes.formatter.use_mathtext"] = True
 
 def create_axes(fig, no_rows):
     if args.adjust_kinetics:
@@ -97,7 +98,6 @@ def main():
     global param_labels
     param_labels = make_model_of_class(args.model).get_parameter_labels()
     df[param_labels] = df[param_labels].astype(np.float64)
-
 
     if args.log_a:
         ts = make_model_of_class(args.model).transformations
@@ -355,6 +355,10 @@ def do_per_cell_plots(protocol, df, p1, p2, output_dir, beta=None):
             ax.scatter(*(well_effects).T, color='gold', marker='s')
             ax.scatter(*(well_effects + protocol_effects).T, color='gold', marker='*')
 
+    for ax in axs:
+        ax.set_xlabel(f"{convert_to_latex(p1)} ({units[p1]})")
+        ax.set_ylabel(f"{convert_to_latex(p2)} ({units[p2]})")
+
     output_dir = os.path.join(output_dir, 'per_cell_plots')
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -506,6 +510,14 @@ def likelihood_ratio_tests(params_df, param_labels):
     pass
 
 
+def convert_to_latex(string):
+    letters = ''.join([s for s in string if str.isalpha(s)])
+    digits = ''.join([s for s in string if str.isdigit(s)])
+
+    if digits:
+        return f"${letters}_{{{digits}}}$"
+    else:
+        return f"${letters}$"
 
 if __name__ == "__main__":
     main()
