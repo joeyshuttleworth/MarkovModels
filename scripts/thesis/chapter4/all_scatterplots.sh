@@ -2,8 +2,16 @@ models=('model3' 'model10' 'model2' 'Wang')
 
 for model in ${models};
 do
-    python3 scripts/thesis/chapter4/scatterplots.py thesis_data/sydney_fitting/25112022MW/Case0a/${model}/combine_fitting_results/combined_fitting_results.csv --model ${model} --ignore_protocols longap -o thesis_plots/chapter4/scatterplots/${model}_a --log_a &&\
-        python3 scripts/thesis/chapter4/scatterplots.py thesis_data/sydney_fitting/25112022MW/Case0b/${model}/combine_fitting_results/combined_fitting_results.csv --model ${model} --ignore_protocols longap -o thesis_plots/chapter4/scatterplots/${model}_b --log_a &&\
-        python3 scripts/thesis/chapter4/scatterplots.py thesis_data/sydney_fitting/25112022MW/Case0c/${model}/combine_fitting_results/combined_fitting_results.csv --model ${model} --ignore_protocols longap -o thesis_plots/chapter4/scatterplots/${model}_c --adjust_kinetics --log_a
+    python3 scripts/thesis/chapter4/scatterplots.py thesis_data/sydney_fitting/25112022MW/Case0a/${model}/combine_fitting_results/combined_fitting_results.csv --model ${model} --ignore_protocols longap -o thesis_plots/chapter4/scatterplots_log_a/${model}_a --log_a &&\
+        python3 scripts/thesis/chapter4/scatterplots.py thesis_data/sydney_fitting/25112022MW/Case0b/${model}/combine_fitting_results/combined_fitting_results.csv --model ${model} --ignore_protocols longap -o thesis_plots/chapter4/scatterplots_log_a/${model}_b --log_a &&\
+        python3 scripts/thesis/chapter4/scatterplots.py thesis_data/sydney_fitting/25112022MW/Case0b/${model}/combine_fitting_results/combined_fitting_results.csv --model ${model} --ignore_protocols longap -o thesis_plots/chapter4/scatterplots_log_a/${model}_c --adjust_kinetics --log_a
 done;
+
+for model in ${models};
+do
+    python3 scripts/thesis/chapter4/scatterplots.py thesis_data/sydney_fitting/25112022MW/Case0a/${model}/combine_fitting_results/combined_fitting_results.csv --model ${model} --ignore_protocols longap -o thesis_plots/chapter4/scatterplots/${model}_a  &&\
+        python3 scripts/thesis/chapter4/scatterplots.py thesis_data/sydney_fitting/25112022MW/Case0b/${model}/combine_fitting_results/combined_fitting_results.csv --model ${model} --ignore_protocols longap -o thesis_plots/chapter4/scatterplots/${model}_b  &&\
+        python3 scripts/thesis/chapter4/scatterplots.py thesis_data/sydney_fitting/25112022MW/Case0b/${model}/combine_fitting_results/combined_fitting_results.csv --model ${model} --ignore_protocols longap -o thesis_plots/chapter4/scatterplots/${model}_c --adjust_kinetics 
+done;
+
 
