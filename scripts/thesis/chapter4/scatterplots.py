@@ -34,9 +34,8 @@ def main():
     parser.add_argument("--subtraction_df")
     parser.add_argument("--normalise_diagonal", action="store_true")
     parser.add_argument("--vmax", "-m", default=None, type=float)
-    parser.add_argument("--share_limits", action='store_true')
     parser.add_argument("--model", default='Beattie')
-    parser.add_argument("--figsize", default=(8, 13), nargs=2, type=float)
+    parser.add_argument("--figsize", default=(5.54, 7), nargs=2, type=float)
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
     parser.add_argument('--removal_duration', '-r', default=5, type=float)
     parser.add_argument('--reversal', type=float, default=np.nan)
@@ -77,6 +76,10 @@ def main():
     df = df[~df.fitting_protocol.isin(args.ignore_protocols)]
     df = df.reset_index()
 
+    # Combine first and last staircases
+    df.protocol = ['staircaseramp1' if prot in ['staircaseramp2', 'staircaseramp1_2'] else prot
+                   for prot in df.protoco]
+
     # df.protocol = [p if p not in ['staircase', 'staircaseramp1', 'staircaseramp2',
     #                               'staircaseramp', 'staircaseramp_2'] else 'staircaseramp'
     #                for p in df.protocol]
@@ -94,6 +97,11 @@ def main():
     units = {}
     parameter_labels = make_model_of_class(args.model).get_parameter_labels()
 
+    ts = make_model_of_class(args.model).transformations
+
+    global logged_params
+    logged_params = [p for t, p in zip(ts, parameter_labels) if isinstance(t, pints.LogTransformation)]
+
     for param_label, transformation in zip(parameter_labels, transformations):
         units[param_label] = r'mV$^{-1}$' if isinstance(transformation,
                                                         pints.IdentityTransformation)\
@@ -110,12 +118,11 @@ def main():
     param_labels = make_model_of_class(args.model).get_parameter_labels()
     df[param_labels] = df[param_labels].astype(np.float64)
 
+    if args.adjust_kinetics:
+        assert args.subtraction_df
 
-    if args.log_a:
-        ts = make_model_of_class(args.model).transformations
-        for i, t in enumerate(ts[:-1]):
-            if type(t) is pints.LogTransformation:
-                df[param_labels[i]] = np.log10(df[param_labels[i]])
+        subtraction_df = pd.read_csv(args.subtraction_df)
+        params_df = adjust_kinetics(model_class, params_df, subtraction_df, args.reversal)
 
     # Drop conductance parameter
     df = df.drop(param_labels[-1], axis='columns')
@@ -123,6 +130,9 @@ def main():
 
     global output_dir
     output_dir = setup_output_directory(args.output_dir, 'scatterplots')
+
+    p1, p2 = param_labels[:2]
+    do_coloured_scatterplots(df, p1, p2)
 
     beta, ll = do_multivariate_regression(df, param_labels)
 
@@ -197,67 +207,24 @@ def main():
     fig.savefig(os.path.join(output_dir, "fig1.pdf"))
     plt.close(fig)
 
+    no_parameters = len(param_labels)
+
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
-    axes = create_axes(fig, 5)
+    axes = create_axes(fig, int(no_parameters/2))
 
     plt.close(fig)
-
-    def adjust_rates(row):
-        raise NotImplementedError
-
-    if args.adjust_kinetics:
-        assert args.subtraction_df
-
-        subtraction_df = pd.read_csv(args.subtraction_df)
-        params_df = adjust_kinetics(model_class, params_df, subtraction_df, args.reversal)
 
     style_dict = {p: i for i, p in enumerate(df.protocol.unique())}
     style = [style_dict[p] for p in df.protocol]
 
-    for i in range(4):
+    for i in range(int(no_parameters / 2)):
         ax1 = axes[0][i]
-        ax2 = axes[0][i]
         sns.scatterplot(df, x=param_labels[i*2], y=param_labels[i*2+1],
                         hue=args.hue, legend=args.legend, style=style,
                         ax=ax1)
 
-        # if args.adjust_kinetics:
-        #     ax2 = axes[1][i]
-        #     sns.scatterplot(adjusted_df, x=param_labels[i*2], y=param_labels[i*2+1],
-        #                     hue=args.hue, legend=args.legend, style=style,
-        #                     ax=ax2)
-
-        xmin = min(ax1.get_xlim()[0], ax2.get_xlim()[0])
-        xmax = max(ax1.get_xlim()[1], ax2.get_xlim()[1])
-
-        ax1.set_xlim((xmin, xmax))
-        ax2.set_xlim((xmin, xmax))
-
-        ymin = min(ax1.get_ylim()[0], ax2.get_ylim()[0])
-        ymax = max(ax1.get_ylim()[1], ax2.get_ylim()[1])
-
-        ax1.set_ylim((ymin, ymax))
-        ax2.set_ylim((ymin, ymax))
-
-    # ax1 = axes[0][-1]
-    # sns.scatterplot(df, x='p9', y='p4',
-    #                 hue=args.hue, legend=args.legend, style=style,
-    #                 ax=ax1)
-
-    # if args.adjust_kinetics:
-    #     ax2 = axes[1][-1]
-    #     sns.scatterplot(df, x='p9', y='p4',
-    #                     hue=args.hue, legend=args.legend, style=style,
-    #                     ax=ax2)
-
-    xmin = min(ax1.get_xlim()[0], ax2.get_xlim()[0])
-    xmax = max(ax1.get_xlim()[1], ax2.get_xlim()[1])
-    ymin = min(ax1.get_ylim()[0], ax2.get_ylim()[0])
-    xmax = max(ax1.get_ylim()[1], ax2.get_ylim()[1])
-
-    if args.adjust_kinetics:
-        axes[0][0].set_title('without offset adjustment')
-        axes[1][0].set_title('with offset adjustment')
+        ax1.set_xlabel(f"{convert_to_latex(p1)} ({units[p1]})")
+        ax1.set_xlabel(f"{convert_to_latex(p2)} ({units[p2]})")
 
     fig.savefig(os.path.join(output_dir, "scatterplot_figure.pdf"))
 
@@ -299,18 +266,6 @@ def main():
         else:
             ax2 = ax1
 
-        xmin = min(ax1.get_xlim()[0], ax2.get_xlim()[0])
-        xmax = max(ax1.get_xlim()[1], ax2.get_xlim()[1])
-
-        ax1.set_xlim((xmin, xmax))
-        ax2.set_xlim((xmin, xmax))
-
-        ymin = min(ax1.get_ylim()[0], ax2.get_ylim()[0])
-        ymax = max(ax1.get_ylim()[1], ax2.get_ylim()[1])
-
-        ax1.set_ylim((ymin, ymax))
-        ax2.set_ylim((ymin, ymax))
-
     if args.hue == 'well':
         hue = 'protocol'
     else:
@@ -337,13 +292,51 @@ def main():
     fig.savefig(os.path.join(output_dir, "scatterplot_figure2.pdf"))
 
 
+def do_coloured_scatterplots(df, p1, p2):
+    no_rows = 3
+    fig = plt.figure(figsize=args.figsize,
+                     constrained_layout=True)
+    axs = fig.subplots(no_rows)
+
+    all_ax, well_ax, protocol_ax = axs
+
+    p1_label = convert_to_latex(p1)
+    p2_label = convert_to_latex(p2)
+
+    sns.scatterplot(df, x=p1, y=p2, legend=False, ax=all_ax)
+    # all_ax.set_title('well')
+
+    sns.scatterplot(df, x=p1, y=p2, hue='well', legend=False, ax=well_ax)
+    well_ax.set_title('coloured by well')
+
+    sns.scatterplot(df, x=p1, y=p2, hue='protocol', legend=False, ax=protocol_ax)
+    protocol_ax.set_title('coloured by protocol')
+
+    for ax in axs:
+        ax.set_xlabel(f"{convert_to_latex(p1)} ({units[p1]})")
+        ax.set_ylabel(f"{convert_to_latex(p2)} ({units[p2]})")
+
+        ax.spines[['top', 'right']].set_visible(False)
+
+        if args.log_a:
+            if p1 in logged_params:
+                ax.set_xscale('log')
+            if p2 in logged_params:
+                ax.set_yscale('log')
+
+    fig.savefig(os.path.join(output_dir,
+                             "colour_scatterplot_fig"))
+    plt.close(fig)
+
+
 def do_per_plots(protocol, well, df, p1, p2, output_dir, beta=None,
                  well_effects=None, protocol_effects=None,
                  per_variable='well'):
     # TODO use parameters from well only / protocol only models
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
-    axs = setup_per_cell_figure(fig, len(df[per_variable].unique()))
+    axs = setup_per_cell_figure(fig, len(df[per_variable].unique()),
+                                sharex=True, sharey=True)
 
     vars = sorted(df[per_variable].unique())
 
@@ -375,10 +368,18 @@ def do_per_plots(protocol, well, df, p1, p2, output_dir, beta=None,
         if beta is not None:
             if well_effects is not None and per_variable=='well':
                 well_effect = well_effects[well_index, [p1_index, p2_index]]
+
+                if args.log_a:
+                    well_effect = inverse_log_transform(well_effect, p1, p2)
+
                 ax.scatter(*(well_effect).T, color='gold', marker='s')
             elif protocol_effects is not None and per_variable=='protocol':
-                protocol_effect = (protocol_effects[protocol_index, :] - protocol_effects[:, :].mean())[:, [p1_index, p2_index]]
+                protocol_effect = protocol_effects[protocol_index, [p1_index, p2_index]]\
+                                   - protocol_effects[:, [p1_index, p2_index]].mean()
 
+
+                if args.log_a:
+                    protocol_effect = inverse_log_transform(protocol_effect, p1, p2)
                 ax.scatter(*(protocol_effect).T, color='gold', marker='s')
 
             if protocol_index < len(protocols) - 1:
@@ -387,24 +388,38 @@ def do_per_plots(protocol, well, df, p1, p2, output_dir, beta=None,
             else:
                 protocol_effect = np.array([[0, 0]])
 
-            well_index = sorted(sub_df.well.unique()).index(well)
+
+            well_index = sorted(df.well.unique()).index(well)
             w_effect_index = no_protocols - 1 + well_index
 
             well_effect = beta[w_effect_index, [p1_index,
                                                 p2_index]]
-            ax.scatter(*(well_effect + protocol_effect).T, color='gold', marker='*')
+
+            combined_effect = well_effect + protocol_effect
+
+            if args.log_a:
+                combined_effect = inverse_log_transform(combined_effect, p1, p2)
+
+            ax.scatter(*(combined_effect).T, color='gold', marker='*')
+
+            if args.log_a:
+                if p1 in logged_params:
+                    ax.set_xscale('log')
+                if p2 in logged_params:
+                    ax.set_yscale('log')
 
 
     for ax in axs:
         ax.set_xlabel(f"{convert_to_latex(p1)} ({units[p1]})")
         ax.set_ylabel(f"{convert_to_latex(p2)} ({units[p2]})")
 
-    output_dir = os.path.join(output_dir, 'per_cell_plots')
+    output_dir = os.path.join(output_dir, f'per_{per_variable}_plots')
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    fig.savefig(os.path.join(output_dir, f"per_cell_{p1}_{p2}_{protocol}"))
+    fig.savefig(os.path.join(output_dir, f"per_cell_{p1}_{p2}_{protocol}.pdf"))
     plt.close(fig)
+
 
 def do_per_plots_all(df, p1, p2, output_dir, normalised=True,
                      per_variable='protocol', normalise_var='well', beta=None):
@@ -441,14 +456,18 @@ def do_per_plots_all(df, p1, p2, output_dir, normalised=True,
     fig.savefig(os.path.join(output_dir, fname))
     plt.close(fig)
 
-def setup_per_cell_figure(fig, no_cells):
+def setup_per_cell_figure(fig, no_cells, sharex=True, sharey=True):
 
     w_cells = int(np.sqrt(no_cells / 1.8))
     h_cells = float(no_cells) / w_cells
 
     h_cells = int(h_cells) if h_cells * w_cells == no_cells else int(h_cells) + 1
 
-    axs = fig.subplots(h_cells, w_cells)
+    axs = fig.subplots(h_cells, w_cells,
+                       sharex=sharex, sharey=sharey)
+
+    for ax in axs:
+        ax.spines[['top', 'right']].set_visible(False)
 
     return axs.flatten()
 
@@ -462,6 +481,13 @@ def do_multivariate_regression(params_df, param_labels,
     - a matrix of estimated well-effects and a matrix of estimated protocol-effects
     - the log_likelihood score
     """
+
+    params_df = params_df.copy()
+    if args.log_a:
+        ts = make_model_of_class(args.model).transformations
+        for i, t in enumerate(ts[:-1]):
+            if type(t) is pints.LogTransformation:
+                params_df[param_labels[i]] = np.log10(params_df[param_labels[i]])
 
     X, Y = setup_linear_model_coding(params_df, param_labels,
                                      no_protocol_effect=no_protocol_effect,
@@ -547,10 +573,6 @@ def setup_linear_model_coding(params_df, param_labels,
     return X, Y
 
 
-def likelihood_ratio_tests(params_df, param_labels):
-    pass
-
-
 def convert_to_latex(string):
     letters = ''.join([s for s in string if str.isalpha(s)])
     digits = ''.join([s for s in string if str.isdigit(s)])
@@ -559,6 +581,18 @@ def convert_to_latex(string):
         return f"${letters}_{{{digits}}}$"
     else:
         return f"${letters}$"
+
+
+def inverse_log_transform(params, p1, p2):
+    ts = make_model_of_class(args.model).transformations
+
+    for i, p in enumerate((p1, p2)):
+        j = param_labels.index(p)
+        t = ts[j]
+        if type(t) is pints.LogTransformation:
+            params[i] = 10 ** params[i]
+
+    return params
 
 
 if __name__ == "__main__":
