@@ -191,20 +191,22 @@ def main():
             i = args.model_classes.index(model_class)
             j = cases.index(fitting_case)
             ax = model_axs[i, j]
+            ax.cla()
             do_heatmap(ax, model_class, case, sub_df, subtraction_df,
                        protocol_dict, vlim, args, well=well,
                        prediction_df=prediction_df, cbar_ax=cbar_ax,
                        cbar_kws=cbar_kws)
 
+            individual_ax = individual_fig.subplots()
             # Do heatmap on individual plot with heatmap
             do_heatmap(individual_ax, model_class, case, sub_df, subtraction_df,
                        protocol_dict, vlim, args, well=well,
-                       prediction_df=prediction_df, cbar_ax=cbar_ax,
+                       prediction_df=prediction_df,
                        cbar=True)
 
             individual_fig.savefig(os.path.join(output_dir,
                                                 f"{well}_{case}_{model_class}_heatmap"))
-            ax.cla()
+            individual_fig.clf()
 
         fig.savefig(os.path.join(output_dir,
                                  f"{well}_heatmaps"))
@@ -323,7 +325,6 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
         protocol_order = [line.split(' ')[0] for line in lines]
         protocol_order.insert(1, 'staircaseramp1_sweep2')
         protocol_order.insert(-1, 'staircaseramp1_2_sweep2')
-        protocol_order.insert(-1, 'staircaseramp2_sweep2')
 
     def rename_staircase_func(row):
         f_protocol, v_protocol, f_sweep, v_sweep = [row[key] for key in ['fitting_protocol', 'validation_protocol', 'fitting_sweep', 'prediction_sweep']]
@@ -355,8 +356,15 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     relabel_dict = {p: r"$d_{" f"{i+1}" r"}$" for i, p
                     in enumerate(protocol_order)}
 
+    relabel_dict['staircaseramp1'] = r'$d_{1}^{(1)}$'
+    relabel_dict['staircaseramp1_sweep2'] = r'$d_{0}^{(2)}$'
+    relabel_dict['staircaseramp1_2'] = r'$d_{0}^{(3)}$'
+    relabel_dict['staircaseramp1_2_sweep2'] = r'$d_{1}^{(4)}$'
+
     prediction_df.fitting_protocol = prediction_df.fitting_protocol.cat.rename_categories(relabel_dict)
     prediction_df.validation_protocol = prediction_df.validation_protocol.cat.rename_categories(relabel_dict)
+
+    prediction_df.sort_values(('fitting_protocol', 'validation_protocol'))
 
     prediction_df.n_score = prediction_df.n_score.astype(np.float64)
 
@@ -399,6 +407,9 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
 
     hm = sns.heatmap(pivot_df, ax=ax, square=True, norm=norm,
                      cmap=cmap, **kws)
+
+    ax.set_ylabel('validation protocol')
+    ax.set_xlabel('validation protocol')
 
     hm.set_yticklabels(hm.get_yticklabels(), rotation=0)
 
