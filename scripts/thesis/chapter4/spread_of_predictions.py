@@ -94,7 +94,15 @@ def main():
     if not args.validation_protocols:
         args.validation_protocols = list(subtraction_df.protocol.unique())
 
-    cases = args.cases
+    cases = ['0a', '0b', '0c']
+
+    global case_relabel_dict
+    case_relabel_dict = {
+        '0a': 'Case I',
+        '0b': 'Case II',
+        '0c': 'Case III'
+    }
+
     dirnames = ['Case0a', 'Case0b', 'Case0b']
 
     # Get fitting results (dict of dicts)
@@ -103,6 +111,8 @@ def main():
     for model in args.model_classes:
         results_dict[model] = {}
         for case, dirname in zip(cases, dirnames):
+            if case not in args.cases:
+                continue
             fname = os.path.join(args.fitting_results,
                                  dirname,
                                  model,
@@ -153,6 +163,8 @@ def main():
                 for model_class in args.model_classes:
                     i = 0
                     for case in cases:
+                        if case not in args.cases:
+                            continue
                         params_df = results_dict[model_class][case].copy()
                         params_df = params_df[params_df.well == well]
                         if len(params_df.index) == 0:
@@ -165,7 +177,7 @@ def main():
                                                            subtraction_df, protocol, well,
                                                            sweep, protocol_dict, args,
                                                            line_colour=case_colour_dict[case],
-                                                           label=f"Case {case}",
+                                                           label=f"{case_relabel_dict[case]}",
                                                            voltage_func=voltage_func)
                         voltage_ax.plot(times, voltages, color='black', lw=.3)
                         i += 1
@@ -194,6 +206,8 @@ def main():
             sweeps = params_dfs[0].sweep.unique()
             for sweep in sweeps:
                 for case in cases:
+                    if case not in args.cases:
+                        continue
                     i = 0
                     for model_class in args.model_classes:
                         params_df = results_dict[model_class][case].copy()
@@ -226,7 +240,7 @@ def main():
                         current_ax.legend()
 
                         fig.savefig(os.path.join(output_dir,
-                                                 f"{well}_{case}_sweep{sweep}_{protocol}_sop.png"))
+                                                 f"{well}_{case_relabel_dict[case]}_sweep{sweep}_{protocol}_sop.png"))
                     current_ax, voltage_ax = setup_axes(fig)
 
 
@@ -300,8 +314,8 @@ def setup_axes(fig):
         ax.spines[spines].set_visible(False)
 
     axs[1].set_xlabel('$t$ (ms)')
-    axs[1].set_ylabel('$V_\textrm{cmd}$ (mV)')
-    axs[0].set_ylabel('$I_\textrm{Kr}$ (nA)')
+    axs[1].set_ylabel(r'$V_\text{cmd}$ (mV)')
+    axs[0].set_ylabel(r'$I_\text{Kr}$ (nA)')
 
     return axs
 

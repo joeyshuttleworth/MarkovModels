@@ -78,11 +78,7 @@ def main():
 
     # Combine first and last staircases
     df.protocol = ['staircaseramp1' if prot in ['staircaseramp2', 'staircaseramp1_2'] else prot
-                   for prot in df.protoco]
-
-    # df.protocol = [p if p not in ['staircase', 'staircaseramp1', 'staircaseramp2',
-    #                               'staircaseramp', 'staircaseramp_2'] else 'staircaseramp'
-    #                for p in df.protocol]
+                   for prot in df.protocol]
 
     # Sort protocols but leave staircaseramp at the front
     global protocols
@@ -160,18 +156,19 @@ def main():
     param_combinations = [(p1, p2) for i, p1 in enumerate(param_labels[:-1])
                           for j, p2 in enumerate(param_labels[:-1]) if p1 != p2 and j < i]
 
-    for protocol in df.protocol.unique():
-        for p1, p2 in param_combinations:
-            do_per_plots(protocol, None, df, p1, p2, output_dir, beta=beta,
-                         well_effects=beta_w, protocol_effects=beta_p,
-                         per_variable='well')
-
     for well in df.well.unique():
         for p1, p2 in param_combinations:
             do_per_plots(None, well, df, p1, p2, output_dir, beta=beta,
-                         well_effects=beta_w, protocol_effects=beta_p,
                          per_variable='protocol')
 
+            do_per_plots(None, None, df, p1, p2, os.path.join(output_dir,
+                                                              'no_effects'),
+                         per_variable='protocol')
+
+    for protocol in df.protocol.unique():
+        for p1, p2 in param_combinations:
+            do_per_plots(protocol, None, df, p1, p2, output_dir, beta=beta,
+                         per_variable='well')
 
     for p1, p2 in param_combinations:
         do_per_plots_all(df, p1, p2, output_dir, per_variable='protocol')
@@ -330,7 +327,6 @@ def do_coloured_scatterplots(df, p1, p2):
 
 
 def do_per_plots(protocol, well, df, p1, p2, output_dir, beta=None,
-                 well_effects=None, protocol_effects=None,
                  per_variable='well'):
     # TODO use parameters from well only / protocol only models
 
@@ -350,50 +346,58 @@ def do_per_plots(protocol, well, df, p1, p2, output_dir, beta=None,
     for var, ax in zip(vars, axs):
         sub_df = df[df[per_variable] == var]
         ax.scatter(sub_df[p1].values, sub_df[p2].values, marker='.', color='grey')
-        sub_df = sub_df[sub_df.protocol == protocol]
+        if protocol is not None and per_variable == 'well':
+            sub_df = sub_df[sub_df.protocol == protocol]
+        elif well is not None and per_variable == 'protocol':
+            sub_df = sub_df[sub_df.well == well]
         ax.scatter(sub_df[p1].values, sub_df[p2].values, marker='x', color='red')
         ax.set_title(var)
 
-        if per_variable == 'well':
-            well = var
-            well_index = wells.index(var)
-            protocol_index = protocols.index(protocol)
-        elif per_variable == 'protocol':
-            protocol = var
-            protocol_index = protocols.index(var)
-            well_index = wells.index(well)
-        else:
-            raise Exception(f"per_variable must be well or protocol, not {per_variable}")
-
         if beta is not None:
-            if well_effects is not None and per_variable=='well':
-                well_effect = well_effects[well_index, [p1_index, p2_index]]
-
-                if args.log_a:
-                    well_effect = inverse_log_transform(well_effect, p1, p2)
-
-                ax.scatter(*(well_effect).T, color='gold', marker='s')
-            elif protocol_effects is not None and per_variable=='protocol':
-                protocol_effect = protocol_effects[protocol_index, [p1_index, p2_index]]\
-                                   - protocol_effects[:, [p1_index, p2_index]].mean()
-
-
-                if args.log_a:
-                    protocol_effect = inverse_log_transform(protocol_effect, p1, p2)
-                ax.scatter(*(protocol_effect).T, color='gold', marker='s')
-
-            if protocol_index < len(protocols) - 1:
-                protocol_effect = beta[protocol_index, [p1_index,
-                                                        p2_index]]
+            if per_variable == 'well':
+                well = var
+                well_index = wells.index(var)
+                protocol_index = protocols.index(protocol)
+            elif per_variable == 'protocol':
+                protocol = var
+                protocol_index = protocols.index(var)
+                well_index = wells.index(well)
             else:
-                protocol_effect = np.array([[0, 0]])
-
+                raise Exception(f"per_variable must be well or protocol, not {per_variable}")
 
             well_index = sorted(df.well.unique()).index(well)
             w_effect_index = no_protocols - 1 + well_index
 
             well_effect = beta[w_effect_index, [p1_index,
                                                 p2_index]]
+            if protocol_index < len(protocols) - 1:
+                protocol_effect = beta[protocol_index, [p1_index,
+                                                        p2_index]]
+            else:
+                protocol_effect = np.array([0, 0])
+
+
+            if per_variable=='well':
+                protocol_effects = [beta[i, [p1_index, p2_index]]
+                                    for i in range(len(protocols) - 1)]
+
+                well_only_effect = well_effect + sum(protocol_effects) / len(protocols)
+
+                if args.log_a:
+                    well_only_effect = inverse_log_transform(well_only_effect,
+                                                             p1, p2)
+
+                ax.scatter(*(well_only_effect).T, color='gold', marker='s')
+            elif per_variable=='protocol':
+                mean_well_effect = beta[no_protocols - 1:, [p1_index, p2_index]].mean(axis=0)
+                protocol_only_effect = mean_well_effect + protocol_effect
+
+                if args.log_a:
+                    protocol_effect = inverse_log_transform(protocol_only_effect,
+                                                            p1, p2)
+
+                ax.scatter(*(protocol_effect).T, color='gold', marker='s')
+
 
             combined_effect = well_effect + protocol_effect
 
@@ -417,7 +421,13 @@ def do_per_plots(protocol, well, df, p1, p2, output_dir, beta=None,
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    fig.savefig(os.path.join(output_dir, f"per_cell_{p1}_{p2}_{protocol}.pdf"))
+    if per_variable == 'well':
+        fname = os.path.join(output_dir, f"per_well_{p1}_{p2}_{protocol}.pdf")
+    if per_variable == 'protocol':
+        fname = os.path.join(output_dir, f"per_protocol_{p1}_{p2}_{well}.pdf")
+    else:
+        fname = os.path.join(output_dir, f"all_{p1}_{p2}.pdf")
+    fig.savefig(fname)
     plt.close(fig)
 
 
@@ -466,7 +476,7 @@ def setup_per_cell_figure(fig, no_cells, sharex=True, sharey=True):
     axs = fig.subplots(h_cells, w_cells,
                        sharex=sharex, sharey=sharey)
 
-    for ax in axs:
+    for ax in axs.flatten():
         ax.spines[['top', 'right']].set_visible(False)
 
     return axs.flatten()

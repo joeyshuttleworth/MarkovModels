@@ -28,7 +28,7 @@ from markovmodels.voltage_protocols import get_protocol_list, get_ramp_protocol_
 from markovmodels.voltage_protocols import remove_spikes, detect_spikes
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-cutoff_threshold = 1.05
+cutoff_threshold = 1.025
 
 mpl.rcParams['axes.formatter.useoffset'] = True
 plt.rcParams["axes.formatter.use_mathtext"] = True
