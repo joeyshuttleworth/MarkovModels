@@ -28,7 +28,7 @@ from markovmodels.voltage_protocols import get_protocol_list, get_ramp_protocol_
 from markovmodels.voltage_protocols import remove_spikes, detect_spikes
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-cutoff_threshold = 1.05
+cutoff_threshold = 1.005
 
 mpl.rcParams['axes.formatter.useoffset'] = True
 plt.rcParams["axes.formatter.use_mathtext"] = True
@@ -266,7 +266,7 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
 
 
     n_data = len(indices)
-    scores = np.sqrt(scores / n_data)
+    scores = np.sqrt(scores / n_data) * 1e3
 
     ranks = np.array(list(range(len(scores))))
 
@@ -320,7 +320,8 @@ def do_trace_plots(current_ax, protocol_ax, protocol, well, sweep, params_df, ar
     pred = make_prediction(args.model_class, args, well, protocol, sweep,
                            protocol, sweep, params_df, subtraction_df,
                            args.fitting_case, args.reversal, protocol_dict,
-                           current, voltages, label=args.data_label)
+                           current, voltages, label=args.data_label
+                           )
 
     current_ax.plot(times*1e-3, pred)
     current_ax.plot(times*1e-3, trace, color='grey', alpha=.5)
@@ -374,6 +375,9 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
                           width="25%",
                           height="25%",
     )
+
+    inset_ax.set_xscale('log')
+    inset_ax.set_yscale('log')
 
     # xlims = inset_ax.get_xlim()
     # xlims = [xlims[0] - (xlims[1] - xlims[0]) * 0.2,
@@ -493,6 +497,7 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     baseline_profile_ax.axvline(1.0, color='grey')
 
     baseline_profile_ax.set_xlabel(r'$\lambda$')
+    baseline_profile_ax.set_yscale('log')
 
 
 def setup_grid(fig):
