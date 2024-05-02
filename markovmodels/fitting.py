@@ -31,7 +31,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
               return_fitting_df=False, parallel=False,
               randomise_initial_guess=True, output_dir=None, solver_type=None,
               no_conductance_boundary=False, use_artefact_model=False,
-              rng=None):
+              rng=None, population_size=None):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -189,6 +189,10 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                                                   boundaries=boundaries,
                                                   method=method,
                                                   transformation=transformation)
+        if population_size is not None:
+            # May throw an error if this option doesn't exist
+            controller.optimiser().set_population_size(population_size)
+
         if not parallel:
             controller.set_parallel(False)
 
@@ -290,7 +294,8 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                   parallel=False, solver_type=None, sweep=None,
                   scale_conductance=True, no_conductance_boundary=False,
                   use_artefact_model=False, artefact_default_kinetic_parameters=None,
-                  fix_parameters=[], data_label=None, tolerance=None):
+                  fix_parameters=[], data_label=None, tolerance=None,
+                  population_size=None):
 
     if default_parameters is None or len(default_parameters) == 0:
         default_parameters = make_model_of_class(model_class_name).get_default_parameters()
@@ -453,7 +458,8 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                                  solver_type=solver_type,
                                                  use_artefact_model=use_artefact_model,
                                                  no_conductance_boundary=no_conductance_boundary,
-                                                 fix_parameters=fix_parameters)
+                                                 fix_parameters=fix_parameters,
+                                                 population_size=population_size)
 
     fig = plt.figure(figsize=(14, 12))
     ax = fig.subplots()

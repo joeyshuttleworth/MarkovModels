@@ -79,11 +79,59 @@ class MarkovModel(ODEModel):
         self.E_rev = E_rev
         self.auxiliary_function = njit(self.define_auxiliary_function())
 
+
+    def define_steady_state_function(self, tend=5000):
+        # Assume a holding potential of -80mV and simulate forwards for 5 seconds
+        # start from -80mV steady state of the Markov model and Vm=-80mV
+        atol, rtol = self.solver_tolerances
+        p = self.get_default_parameters()
+
+        crhs = self.get_cfunc_rhs()
+
+        crhs_ptr = crhs.address
+
+        n_state_vars = self.get_no_state_vars()
+        n_max_steps = 64
+        desc = self.protocol_description
+
+        E_rev = self.E_rev
+
+        matrix_steady_state_function = njit(sp.lambdify((self.p, self.v), self.rhs_inf_expr,
+                                                        modules='numpy', cse=True))
+
+        @njit
+        def rhs_inf(p=p, v=-80.0, E_rev=E_rev):
+            y0 = np.full(n_state_vars, .0)
+            y0[0] = 1.0
+            y0 = np.append(y0, -80.0)
+
+            # Start from matrix derived value
+            y0 = matrix_steady_state_function(p, v).flatten()
+
+            data = np.append(p, 0.0)
+            data = np.concatenate((data, np.full(n_max_steps*4, 0))).flatten()
+            _y0 = y0.copy()
+
+            res, _ = lsoda(crhs_ptr, _y0,
+                           np.array((-tend, .0)),
+                           data=data,
+                           rtol=rtol,
+                           atol=atol,
+                           exit_on_warning=False)
+
+            return res[-1, :].flatten()
+
+        return rhs_inf
+
+
     def compute_steady_state_expressions(self):
         self.rhs_inf_expr_rates = -self.A.LUsolve(self.B)
         self.rhs_inf_expr = self.rhs_inf_expr_rates.subs(self.rates_dict)
         self.rhs_inf = nb.njit(sp.lambdify((self.p, self.v), self.rhs_inf_expr,
                                            modules='numpy', cse=True))
+
+        rhs_inf = self.define_steady_state_function()
+
         self.auxiliary_expression = self.p[self.GKr_index] * \
             self.y[self.open_state_index] * (self.v - self.E_Kr_symb)
 

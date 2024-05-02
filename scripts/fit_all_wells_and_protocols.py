@@ -57,6 +57,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
         infer_E_rev=not args.dont_infer_Erev,
         experiment_name=args.experiment_name,
         E_rev=E_rev,
+        population_size=args.population_size,
         randomise_initial_guess=randomise_initial_guess,
         solver_type=args.solver_type,
         sweep=sweep,
@@ -76,6 +77,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
 def main():
     parser = ArgumentParser()
     parser.add_argument('data_directory')
+    parser.add_argument("--population_size", type=int)
     parser.add_argument('--max_iterations', '-i', type=int, default=100000)
     parser.add_argument('--repeats', type=int, default=16)
     parser.add_argument('--dont_randomise_initial_guess', action='store_true')
