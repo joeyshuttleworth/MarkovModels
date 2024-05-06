@@ -12,6 +12,7 @@ import pandas as pd
 import seaborn as sns
 from matplotlib import gridspec
 from matplotlib.gridspec import GridSpec
+from matplotlib.patches import ConnectionPatch, Rectangle
 
 from matplotlib import rc
 
@@ -317,8 +318,6 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
 
     args.chrono_file
 
-    prediction_df.sweep = prediction_df.sweep.astype(int)
-
     chrono_fname = os.path.join(args.chrono_file)
     with open(chrono_fname, 'r') as fin:
         lines = fin.read().splitlines()
@@ -343,6 +342,13 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     prediction_df.prediction_sweep = prediction_df.prediction_sweep.astype(int)
 
     prediction_df = prediction_df.apply(rename_staircase_func, axis=1)
+    # Reorder and relabel protocols
+    relabel_dict = {p: r"$d_{" f"{i+1}" r"}$" for i, p
+                    in enumerate(protocol_order)}
+
+    # Move longap to front
+    protocol_order.remove('longap')
+    protocol_order.insert(0, 'longap')
 
     prediction_df['fitting_protocol'] = pd.Categorical(prediction_df['fitting_protocol'],
                                                        categories=protocol_order,
@@ -352,10 +358,6 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
                                                           categories=protocol_order,
                                                           ordered=True)
 
-    # Reorder and relabel protocols
-    relabel_dict = {p: r"$d_{" f"{i+1}" r"}$" for i, p
-                    in enumerate(protocol_order)}
-
     relabel_dict['staircaseramp1'] = r'$d_{1}^{(1)}$'
     relabel_dict['staircaseramp1_sweep2'] = r'$d_{0}^{(2)}$'
     relabel_dict['staircaseramp1_2'] = r'$d_{0}^{(3)}$'
@@ -364,7 +366,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     prediction_df.fitting_protocol = prediction_df.fitting_protocol.cat.rename_categories(relabel_dict)
     prediction_df.validation_protocol = prediction_df.validation_protocol.cat.rename_categories(relabel_dict)
 
-    prediction_df.sort_values(('fitting_protocol', 'validation_protocol'))
+    prediction_df.sort_values(['fitting_protocol', 'validation_protocol'])
 
     prediction_df.n_score = prediction_df.n_score.astype(np.float64)
 
@@ -405,8 +407,25 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
             if kws['cbar_ax'] is not None:
                 kws['cbar'] = True
 
+    # Show mean score in title
+    mean_score = pivot_df.values.mean()
+    ax.set_title('$' f"{mean_score:.1f}" '$', fontsize=11)
+
     hm = sns.heatmap(pivot_df, ax=ax, square=True, norm=norm,
                      cmap=cmap, **kws)
+
+    autoAxis = ax.axis()
+    rec = Rectangle(
+        (autoAxis[0] - 0.05, autoAxis[3] - 0.05),
+        (autoAxis[1] - autoAxis[0] + 0.1),
+        1.1,
+        fill=False,
+        color='yellow',
+        lw=.75
+        )
+
+    rec = ax.add_patch(rec)
+    rec.set_clip_on(False)
 
     ax.set_ylabel('validation protocol')
     ax.set_xlabel('validation protocol')

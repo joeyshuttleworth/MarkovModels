@@ -34,13 +34,28 @@ rc('font', **{'size': 12})
 # rc('savefig', facecolor=[0]*4)
 rc('figure', autolayout=True)
 
-colours = ('red', 'blue', 'gold', 'green')
+global model_names
+model_names = {'model2': 'C-O-I',
+               'model3': 'Beattie',
+               'model10': 'Kemp',
+               'Wang': 'Wang'}
+
+model_colour_dict = {
+    'model2': '#a6cee3',
+    'model3': '#1f78b4',
+    'model10': '#b2df8a',
+    'Wang': '#33a02c',
+}
+
+case_colour_dict = {
+    '0a':  '#1b9e77',
+    '0b': '#d95f02',
+    '0c': '#7570b3'
+}
 
 model_colours = sns.husl_palette(n_colors=4)
-model_colour_dict = dict(zip(['model2', 'model3', 'model10', 'Wang'], colours))
 
 case_colours = sns.husl_palette(n_colors=3)
-case_colour_dict = dict(zip(['0a', '0b', '0c'], colours))
 
 
 def main():
@@ -61,7 +76,7 @@ def main():
     parser.add_argument('--removal_duration', type=float, default=5.0)
     parser.add_argument('--experiment_name', '-e', default='newtonrun4')
     parser.add_argument('--validation_protocols', nargs='+')
-    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.54, 7])
+    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.54, 6])
     parser.add_argument('--fig_title', '-t', default='')
     parser.add_argument('--nolegend', action='store_true')
     parser.add_argument('--dpi', '-d', default=500, type=int)
@@ -143,17 +158,99 @@ def main():
 
         protocol_dict[protocol] = desc, times
 
-    wells = results_dict[args.model_classes[0]][cases[0]].well.unique()
-
     voltage_func = make_model_of_class(args.model_classes[0]).voltage
+    wells = results_dict[args.model_classes[0]][cases[0]].well.unique()
 
     if args.wells:
         [w for w in wells if w in args.wells]
 
-    fig = plt.figure(figsize=args.figsize, constrained_layout=True)
-    current_ax, voltage_ax = setup_axes(fig)
 
-    # Compare cases
+    fig = plt.figure(figsize=args.figsize, constrained_layout=True)
+    axs = fig.subplots(3, height_ratios=[1, 1, .25],
+                       sharex=True)
+
+    desc, times = protocol_dict[protocol]
+
+    for ax in axs:
+        ax.spines[['top', 'right']].set_visible(False)
+    # Compare cases 0a, 0b for models 2, 3 (longap)
+    prediction_protocol = 'longap'
+    sweep = 0
+    well = 'B09'
+
+    for model_class, ax in zip(['model2', 'model3'], axs):
+        desc, times = protocol_dict[prediction_protocol]
+        voltages = np.array([voltage_func(t, protocol_description=desc) for t in times])
+
+        ax.set_title(model_names[model_class])
+        desc, times = protocol_dict[prediction_protocol]
+        data, _ = get_data(well, prediction_protocol, args.data_directory,
+                                           args.experiment_name, label=args.data_label,
+                                           sweep=sweep)
+        ax.plot(times, data, color='grey', label=args.data_label, alpha=.3)
+
+        for case in ['0a', '0b']:
+            params_df = results_dict[model_class][case].copy()
+            do_spread_of_predictions(ax, model_class, case, params_df,
+                                     subtraction_df, prediction_protocol, well, sweep,
+                                     protocol_dict, args,
+                                     line_colour=case_colour_dict[case],
+                                     label=f"{case_relabel_dict[case]}",
+                                     voltage_func=voltage_func)
+
+    axs[0].legend()
+    axs[2].plot(times, voltages, color='black', lw=.5)
+    axs[0].set_ylabel(r'$I_\text{subtracted}$ (pA)')
+    axs[1].set_ylabel(r'$I_\text{subtracted}$ (pA)')
+
+    axs[2].set_ylabel(r'$V_\text{cmd}$ (mV)')
+    axs[2].set_xlabel(r'$t$ (ms)')
+
+    fig.savefig(os.path.join(output_dir, 'thesis_plots'
+                             f"{well}_{model_class}_{prediction_protocol}_cases_I_II_models_2_3.png"))
+
+    for ax in axs:
+        ax.cla()
+
+    # Compare cases 0a, 0b for models 2, 3 (longap)
+    prediction_protocol = 'staircaseramp1'
+    sweep = 0
+
+    for model_class, ax in zip(['model2', 'model3'], axs):
+        desc, times = protocol_dict[prediction_protocol]
+        voltages = np.array([voltage_func(t, protocol_description=desc) for t in times])
+        data, _ = get_data(well, prediction_protocol, args.data_directory,
+                                           args.experiment_name, label=args.data_label,
+                                           sweep=sweep)
+        ax.plot(times, data, color='grey', label=args.data_label, alpha=.3)
+
+        ax.set_title(model_names[model_class])
+
+        for case in ['0a', '0b']:
+            params_df = results_dict[model_class][case].copy()
+            do_spread_of_predictions(ax, model_class, case, params_df,
+                                     subtraction_df, prediction_protocol, well, sweep,
+                                     protocol_dict, args,
+                                     line_colour=case_colour_dict[case],
+                                     label=f"{case_relabel_dict[case]}",
+                                     voltage_func=voltage_func)
+        ax.legend()
+
+    axs[0].legend()
+    axs[2].plot(times, voltages, color='black', lw=.5)
+    axs[0].set_ylabel(r'$I_\text{subtracted}$ (pA)')
+    axs[1].set_ylabel(r'$I_\text{subtracted}$ (pA)')
+
+    axs[2].set_ylabel(r'$V_\text{cmd}$ (mV)')
+    axs[2].set_xlabel(r'$t$ (ms)')
+
+
+    fig.savefig(os.path.join(output_dir, 'thesis_plots'
+                             f"{well}_{model_class}_{prediction_protocol}_cases_I_II_models_2_3.png"))
+
+    fig.clf()
+    current_ax, voltage_ax = setup_axes(fig)
+    # Compare all cases
     for protocol in args.validation_protocols:
         desc, times = protocol_dict[protocol]
         voltages = np.array([voltage_func(t, protocol_description=desc) for t in times])
@@ -185,22 +282,20 @@ def main():
                     # Plot ata
                     # TODO
                     if plotted:
-                        times = np.loadtxt(os.path.join(args.data_directory,
-                                                        f"{args.experiment_name}-{protocol}-times.csv")).astype(np.float64).flatten()
-
                         data, _ = get_data(well, protocol, args.data_directory,
                                            args.experiment_name, label=args.data_label,
                                            sweep=sweep)
-                        current_ax.plot(times, data, color='grey', label='data', alpha=.3)
+                        current_ax.plot(times, data, color='grey', label=well, alpha=.3)
                         current_ax.legend()
-                        fig.savefig(os.path.join(output_dir,
-                                                 f"{well}_{model_class}_{protocol}_sweep{sweep}_cases_sop.png"))
+
+                        fig.savefig(os.path.join(output_dir, 'thesis_plots'
+                                                 f"{well}_{model_class}_{prediction_protocol}_cases_I_II_models_2_3.png"))
                         current_ax.cla()
                     current_ax, voltage_ax = setup_axes(fig)
 
-    # Compare models
+    # Compare all models
     for protocol in args.validation_protocols:
-        desc, times = protocol_dict[protocol]
+        desc, times = protocol_dict[prediction_protocol]
         voltages = np.array([voltage_func(t, protocol_description=desc) for t in times])
         for well in wells:
             sweeps = params_dfs[0].sweep.unique()
@@ -223,7 +318,7 @@ def main():
                                                            sweep,
                                                            protocol_dict, args,
                                                            line_colour=model_colour_dict[model_class],
-                                                           label=model_class,
+                                                           label=model_names[model_class],
                                                            voltage_func=voltage_func)
                         voltage_ax.plot(times, voltages, color='black', lw=.3)
                         i += 1
@@ -236,7 +331,7 @@ def main():
                         data, _ = get_data(well, protocol, args.data_directory,
                                            args.experiment_name,
                                            label=args.data_label, sweep=sweep)
-                        current_ax.plot(times, data, color='grey', label='data', alpha=.3)
+                        current_ax.plot(times, data, color='grey', label=well, alpha=.3)
                         current_ax.legend()
 
                         fig.savefig(os.path.join(output_dir,
@@ -307,7 +402,7 @@ def do_spread_of_predictions(ax, model_class, fitting_case, params_df,
 
 def setup_axes(fig):
     fig.clf()
-    axs = fig.subplots(2, sharex=True, height_ratios=[1, .5])
+    axs = fig.subplots(2, sharex=True, height_ratios=[1, .3])
     spines = ['top', 'right']
 
     for ax in axs:
