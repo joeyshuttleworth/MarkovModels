@@ -405,6 +405,9 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     pivot_df.dropna(axis=0, inplace=True, how='all')
     pivot_df.dropna(axis=1, inplace=True, how='all')
 
+    pivot_df = pivot_df.reindex([p for p in protocol_order if p in pivot_df.columns,
+                                 axis=1)
+
     if 'cbar' not in kws:
         kws['cbar'] = False
         if 'cbar_ax' in kws:
