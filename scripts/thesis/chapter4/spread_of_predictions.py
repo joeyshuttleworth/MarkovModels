@@ -42,9 +42,9 @@ model_names = {'model2': 'C-O-I',
 
 model_colour_dict = {
     'model2': '#a6cee3',
-    'model3': '#1f78b4',
+    'Wang': '#1f78b4',
     'model10': '#b2df8a',
-    'Wang': '#33a02c',
+    'model3': '#33a02c',
 }
 
 case_colour_dict = {

@@ -67,7 +67,7 @@ def main():
     global args
     args = parser.parse_args()
 
-    args.model_classes = ['model2', 'model3', 'model10', 'Wang']
+    args.model_classes = ['model2', 'model3', 'model10']
 
     global output_dir
     output_dir = setup_output_directory(args.output, 'chapter_4_heatmaps')
@@ -198,6 +198,7 @@ def main():
                        prediction_df=prediction_df, cbar_ax=cbar_ax,
                        cbar_kws=cbar_kws)
 
+            individual_fig.clf()
             individual_ax = individual_fig.subplots()
             # Do heatmap on individual plot with heatmap
             do_heatmap(individual_ax, model_class, case, sub_df, subtraction_df,
@@ -207,8 +208,10 @@ def main():
 
             individual_fig.savefig(os.path.join(output_dir,
                                                 f"{well}_{case}_{model_class}_heatmap"))
-            individual_fig.clf()
 
+        for ax in model_axs.flatten():
+            ax.xaxis.set_visible(False)
+            ax.yaxis.set_visible(False)
         fig.savefig(os.path.join(output_dir,
                                  f"{well}_heatmaps"))
         fig.clf()
@@ -289,7 +292,6 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                  np.random.uniform(3e2, 1e4)} for v_p in protocols for f_p in
                 protocols for well in ['Z01', 'Z02', 'Z03']]
         prediction_df = pd.DataFrame.from_records(rows)
-        prediction_df['n_score'] = prediction_df.RMSE
 
     return prediction_df
 
@@ -342,6 +344,8 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     prediction_df.prediction_sweep = prediction_df.prediction_sweep.astype(int)
 
     prediction_df = prediction_df.apply(rename_staircase_func, axis=1)
+
+    protocol_order = [p for p in protocol_order if p in prediction_df.validation_protocol.unique()]
     # Reorder and relabel protocols
     relabel_dict = {p: r"$d_{" f"{i+1}" r"}$" for i, p
                     in enumerate(protocol_order)}
@@ -349,6 +353,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     # Move longap to front
     protocol_order.remove('longap')
     protocol_order.insert(0, 'longap')
+
 
     prediction_df['fitting_protocol'] = pd.Categorical(prediction_df['fitting_protocol'],
                                                        categories=protocol_order,
@@ -359,25 +364,26 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
                                                           ordered=True)
 
     relabel_dict['staircaseramp1'] = r'$d_{1}^{(1)}$'
-    relabel_dict['staircaseramp1_sweep2'] = r'$d_{0}^{(2)}$'
-    relabel_dict['staircaseramp1_2'] = r'$d_{0}^{(3)}$'
+    relabel_dict['staircaseramp1_sweep2'] = r'$d_{1}^{(2)}$'
+    relabel_dict['staircaseramp1_2'] = r'$d_{1}^{(3)}$'
     relabel_dict['staircaseramp1_2_sweep2'] = r'$d_{1}^{(4)}$'
 
     prediction_df.fitting_protocol = prediction_df.fitting_protocol.cat.rename_categories(relabel_dict)
     prediction_df.validation_protocol = prediction_df.validation_protocol.cat.rename_categories(relabel_dict)
-
-    prediction_df.sort_values(['fitting_protocol', 'validation_protocol'])
 
     prediction_df.n_score = prediction_df.n_score.astype(np.float64)
 
     prediction_df.to_csv(os.path.join(output_dir,
                                       f"{model_class}_Case{fitting_case}_predictions.csv"))
 
+    prediction_df = prediction_df.sort_values(['fitting_protocol', 'validation_protocol'])
+
     if ax is None:
         return prediction_df
 
     if well is not None:
         sub_df = prediction_df[prediction_df.well == well].copy()
+        sub_df = sub_df.sort_values(['fitting_protocol', 'validation_protocol'])
         if len(sub_df.index) == 0:
             # logging.warning(f"do_heatmap: No predictions found for well {well}")
             return
@@ -387,8 +393,6 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
         agg_dict = {'n_score': 'mean'}
         sub_df = prediction_df.groupby(['fitting_protocol', 'validation_protocol'],
                                        observed=True).agg(agg_dict).reset_index()
-
-    sub_df.sort_index(inplace=True)
 
     vmin, vmax = vlim
 
@@ -409,7 +413,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
 
     # Show mean score in title
     mean_score = pivot_df.values.mean()
-    ax.set_title('$' f"{mean_score:.1f}" '$', fontsize=11)
+    ax.set_title('$\mathcal{E}_1 = ' f"{mean_score:.2E}" '$', fontsize=11)
 
     hm = sns.heatmap(pivot_df, ax=ax, square=True, norm=norm,
                      cmap=cmap, **kws)
@@ -428,7 +432,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     rec.set_clip_on(False)
 
     ax.set_ylabel('validation protocol')
-    ax.set_xlabel('validation protocol')
+    ax.set_xlabel('fitting protocol')
 
     hm.set_yticklabels(hm.get_yticklabels(), rotation=0)
 
@@ -437,12 +441,12 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
 
 def setup_grid(fig):
     # Row for each model, a colorbar, and case labels
-    no_rows = 6
+    no_rows = 5
 
     # Coumn for each 'case' and labels
     no_columns = 4
 
-    gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[.15, 1, 1, 1, 1, 0.25],
+    gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[.15, 1, 1, 1, 0.25],
                   width_ratios=[.5, 1, 1, 1])
 
     model_label_axs = [fig.add_subplot(gs[i, 0]) for i in range(1, no_rows - 1)]
