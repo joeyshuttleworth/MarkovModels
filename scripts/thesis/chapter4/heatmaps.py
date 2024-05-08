@@ -405,7 +405,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     pivot_df.dropna(axis=0, inplace=True, how='all')
     pivot_df.dropna(axis=1, inplace=True, how='all')
 
-    pivot_df = pivot_df.reindex([p for p in protocol_order if p in pivot_df.columns,
+    pivot_df = pivot_df.reindex([p for p in protocol_order if p in pivot_df.columns],
                                  axis=1)
 
     if 'cbar' not in kws:
@@ -416,7 +416,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
 
     # Show mean score in title
     mean_score = pivot_df.values.mean()
-    ax.set_title('$\mathcal{E}_1 = ' f"{mean_score:.2E}" '$', fontsize=11)
+    ax.set_title('$\mathcal{E}_1 = $' f"{mean_score:.2E}", fontsize=11)
 
     hm = sns.heatmap(pivot_df, ax=ax, square=True, norm=norm,
                      cmap=cmap, **kws)
