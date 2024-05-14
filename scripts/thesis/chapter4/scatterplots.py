@@ -10,7 +10,7 @@ from matplotlib.gridspec import GridSpec
 
 import markovmodels
 
-from markovmodels.fitting import infer_reversal_potential, get_best_params
+from markovmodels.fitting import infer_reversal_potential, get_best_params, adjust_kinetics
 from markovmodels.utilities import setup_output_directory
 from markovmodels.model_generation import make_model_of_class
 

@@ -1333,7 +1333,8 @@ def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None):
 def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                     protocol_fitted, fitting_sweep, params_df, subtractions_df,
                     fitting_case, E_rev, protocol_dict, full_data, voltages,
-                    label='', solver=None, do_spike_removal=True):
+                    label='', solver=None, do_spike_removal=True,
+                    return_states=False):
 
     if fitting_case in ['I', 'II']:
         use_artefacts = True
@@ -1382,7 +1383,10 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     df = params_df[params_df.well == well]
     df = df[(df.protocol == protocol_fitted) & (df.sweep == fitting_sweep)]
     if df.empty:
-        return np.full(full_times.shape, None)
+        if return_states:
+            return np.full(full_times.shape, np.nan), np.full((full_times.shape[0], no_states), np.nan)
+        else:
+            return np.full(full_times.shape, np.nan)
 
     params = df.iloc[0][param_labels].values\
                                         .astype(np.float64)\
@@ -1400,8 +1404,63 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     if fitting_case in ['I', 'II']:
         params[-no_artefact_params] = inferred_E_rev
-        return solver(params, times=full_times, protocol_description=desc)
+        current = solver(params, times=full_times, protocol_description=desc)
     else:
-        return solver(params, times=full_times, protocol_description=desc,
-                      E_rev=pred_E_rev)
+        current = solver(params, times=full_times, protocol_description=desc,
+                         E_rev=pred_E_rev)
+
+    if return_states:
+        states_solver = model.make_hybrid_solver_states(hybrid=False,
+                                                       njitted=False,
+                                                       strict=True,
+                                                       protocol_description=desc)
+
+        states = states_solver(params, times=full_times, protocol_description=desc,
+                               E_rev=pred_E_rev)
+        return current, states
+    else:
+        return current
+
+
+def get_ensemble_of_predictions(times, desc, params_df, protocol, well, sweep,
+                                subtraction_df, fitting_case, reversal,
+                                model_class, data, args, protocol_dict,
+                                solver=None,
+                                voltage_func=None,
+                                ignore_fitted=False):
+
+    if solver is not None or voltage_func is None:
+        model = make_model_of_class(model_class, voltage=voltage_func)
+        param_labels = model.get_parameter_labels()
+
+        if solver is None:
+            solver = model.make_hybrid_solver_current(njitted=True,
+                                                      hybrid=False,
+                                                      strict=False)
+        if voltage_func is None:
+            voltage_func = model.voltage
+
+    voltages = np.array([voltage_func(t, protocol_description=desc) for t in times])
+    predictions = []
+    for _, row in params_df.iterrows():
+        protocol_fitted = row['protocol']
+        fit_sweep = row['sweep']
+
+        if ignore_fitted and protocol_fitted == protocol:
+            continue
+
+        if str(row['well']) != str(well):
+            continue
+
+        pred = make_prediction(model_class, args, well, protocol, sweep,
+                               protocol_fitted, fit_sweep, params_df, subtraction_df,
+                               fitting_case, args.reversal, protocol_dict,
+                               data, voltages, solver=solver, do_spike_removal=False)
+
+        predictions.append(pred)
+
+    if predictions:
+        predictions = np.vstack(predictions)
+    return predictions
+
 
