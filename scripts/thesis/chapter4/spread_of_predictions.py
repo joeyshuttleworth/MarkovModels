@@ -17,7 +17,7 @@ from matplotlib import rc
 
 import markovmodels
 from markovmodels.model_generation import make_model_of_class
-from markovmodels.fitting import get_best_params, compute_predictions_df, make_prediction, adjust_kinetics
+from markovmodels.fitting import get_best_params, compute_predictions_df, make_prediction, adjust_kinetics, get_ensemble_of_predictions
 from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.utilities import setup_output_directory, get_data, get_all_wells_in_directory
 from markovmodels.voltage_protocols import get_protocol_list, get_ramp_protocol_from_json, make_voltage_function_from_description
@@ -368,24 +368,19 @@ def do_spread_of_predictions(ax, model_class, fitting_case, params_df,
                        args.experiment_name, label=args.data_label,
                        sweep=sweep)
 
+
+
     desc, times = protocol_dict[validation_protocol]
     desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
-
     voltages = np.array([voltage_func(t, protocol_description=desc) for t in times])
 
-    predictions = []
-    for _, row in params_df.iterrows():
-        protocol = row['protocol']
-        fit_sweep = row['sweep']
+    predictions = get_ensemble_of_predictions(times, desc, params_df, well,
+                                              validation_protocol, well, sweep,
+                                              subtraction_df, fitting_case,
+                                              args.reversal, model_class,
+                                              data, solver=solver,
+                                              voltage_func=voltage_func)
 
-        pred = make_prediction(model_class, args, well, validation_protocol, sweep,
-                               protocol, fit_sweep, params_df, subtraction_df,
-                               fitting_case, args.reversal, protocol_dict,
-                               data, voltages, solver=solver, do_spike_removal=False)
-
-        predictions.append(pred)
-
-    predictions = np.vstack(predictions)
 
     if not args.plot_all_predictions:
         ax.plot(times, predictions.max(axis=0), lw=.3, color=line_colour)

@@ -48,6 +48,28 @@ _colours = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 multiprocessing_kws = {'maxtasksperchild': 1}
 
+relabel_states = {
+    'model2': {
+        'O': 'O',
+        'I': 'I',
+        'C': 'C',
+    },
+    'model3': {
+        'O1_I': 'I',
+        'O1_O2': 'O',
+        'C_I': 'IC',
+        'C_O2': 'C',
+    },
+    'model10': {
+        'O_I': 'I',
+        'O_O2': 'O',
+        'C1_I': 'IC',
+        'C1_O2': 'C',
+        'C2_I': 'IC',
+        'C2_O2': 'C',
+    }
+}
+
 
 def main():
 
@@ -202,27 +224,29 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
         return
 
 
-    current_ax, protocol_ax, rank_ax, scatter_ax, baseline_profile_ax = axs
+    occupations_ax, current_ax, protocol_ax, rank_ax, scatter_ax, baseline_profile_ax = axs
 
     title_font_size = 12
-    current_ax.set_title('a', fontweight='bold', fontsize=title_font_size,
+
+    occupations_ax.set_title('a', fontweight='bold', fontsize=title_font_size,
                          loc='left')
-    protocol_ax.set_title('b', fontweight='bold', fontsize=title_font_size,
+    current_ax.set_title('b', fontweight='bold', fontsize=title_font_size,
+                         loc='left')
+    protocol_ax.set_title('c', fontweight='bold', fontsize=title_font_size,
                           loc='left')
-    scatter_ax.set_title('c', fontweight='bold', fontsize=title_font_size,
+    scatter_ax.set_title('d', fontweight='bold', fontsize=title_font_size,
                          loc='left')
-    rank_ax.set_title('d', fontweight='bold', fontsize=title_font_size,
+    rank_ax.set_title('e', fontweight='bold', fontsize=title_font_size,
                       loc='left')
-    baseline_profile_ax.set_title('e', fontweight='bold',
+    baseline_profile_ax.set_title('f', fontweight='bold',
                                   fontsize=title_font_size,
                                   loc='left')
 
-    do_trace_plots(current_ax, protocol_ax, protocol, well, sweep, params_df, args)
-
+    do_trace_plots(current_ax, protocol_ax, occupations_ax,
+                   protocol, well, sweep, params_df, args)
     if args.plot_wip:
         do_scatter_plot(scatter_ax, params_df, well, protocol,
                         sweep, args)
-
     if args.plot_wip:
         fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
     do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args)
@@ -294,7 +318,8 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
     rank_ax.set_xlabel('Rank')
 
 
-def do_trace_plots(current_ax, protocol_ax, protocol, well, sweep, params_df, args):
+def do_trace_plots(current_ax, protocol_ax, occupations_ax,
+                   protocol, well, sweep, params_df, args):
     # Load trace
     data_fname = os.path.join(args.data_dir,
                               f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}-subtracted.csv")
@@ -317,16 +342,41 @@ def do_trace_plots(current_ax, protocol_ax, protocol, well, sweep, params_df, ar
 
     voltages = np.array([prot_func(t) for t in times])
 
-    pred = make_prediction(args.model_class, args, well, protocol, sweep,
-                           protocol, sweep, params_df, subtraction_df,
-                           args.fitting_case, args.reversal, protocol_dict,
-                           current, voltages, label=args.data_label
-                           )
+    pred, states = make_prediction(args.model_class, args, well, protocol, sweep,
+                                   protocol, sweep, params_df, subtraction_df,
+                                   args.fitting_case, args.reversal, protocol_dict,
+                                   current, voltages, label=args.data_label,
+                                   return_states=True
+                                   )
+
+    states, state_labels = make_model_of_class(args.model_class).compute_all_states(states)
+
+    if args.model_class in relabel_states:
+        state_labels = [relabel_states[args.model_class][s] for s in state_labels]
+
+    colours = sns.husl_palette(len(state_labels))
+
+
+    culm_states = np.full(states.shape[0], 0)
+    for i in range(states.shape[1]):
+        colour = colours[i]
+        label = state_labels[i]
+        occupations_ax.fill_between(times, culm_states,
+                                    culm_states + states[:, i].flatten(),
+                                    color=colour,
+                                    label=label)
+
+        culm_states += states[:, i].flatten()
+
+    occupations_ax.legend(fontsize=8, ncol=states.shape[1], loc='upper center')
+    occupations_ax.set_ylim([0, 1.25])
 
     current_ax.plot(times*1e-3, pred)
     current_ax.plot(times*1e-3, trace, color='grey', alpha=.5)
     current_ax.set_xlabel('')
     current_ax.set_ylabel(r'$I_\text{subtracted}$ (pA)')
+    occupations_ax.set_ylabel(r'state')
+    occupations_ax.set_xticks([])
     protocol_ax.set_ylabel(r'$V_\text{cmd}$ (mV)')
     protocol_ax.set_xlabel('$t$ (ms)')
     protocol_ax.plot(times*1e-3, voltages, color='black')
@@ -502,18 +552,17 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
 
 def setup_grid(fig):
     no_columns = 2
-    no_rows = 4
-    gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[.5, .5, 1, 1])
+    no_rows = 5
+    gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[.5, .5, .5, 1, 1])
 
-    current_ax = fig.add_subplot(gs[0, :])
-    protocol_ax = fig.add_subplot(gs[1, :])
+    occupations_ax = fig.add_subplot(gs[0, :])
+    current_ax = fig.add_subplot(gs[1, :])
+    protocol_ax = fig.add_subplot(gs[2, :])
+    scatter_ax = fig.add_subplot(gs[3, :])
+    baseline_profile_ax = fig.add_subplot(gs[4, 1])
+    rank_ax = fig.add_subplot(gs[4, 0])
 
-    baseline_profile_ax = fig.add_subplot(gs[3, 1])
-
-    rank_ax = fig.add_subplot(gs[3, 0])
-    scatter_ax = fig.add_subplot(gs[2, :])
-
-    axs = current_ax, protocol_ax, rank_ax, scatter_ax, baseline_profile_ax
+    axs = occupations_ax, current_ax, protocol_ax, rank_ax, scatter_ax, baseline_profile_ax
 
     return axs
 
