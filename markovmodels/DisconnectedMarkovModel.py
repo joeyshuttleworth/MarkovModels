@@ -152,7 +152,8 @@ class DisconnectedMarkovModel(MarkovModel):
 
     def make_solver_states(self, protocol_description=None, njitted=False,
                            strict=True, hybrid=True, solver_type='lsoda',
-                           atol=None, rtol=None, cond_threshold=None, crhs=None):
+                           atol=None, rtol=None, cond_threshold=None, crhs=None,
+                           E_rev=None):
 
         if protocol_description is None:
             if self.protocol_description is None:
@@ -176,10 +177,14 @@ class DisconnectedMarkovModel(MarkovModel):
         if solver_type != 'lsoda':
             raise NotImplementedError()
 
+        if E_rev is None:
+            E_rev = self.E_rev
+
         def hybrid_forward_solve_component(rhs_inf, analytic_solver, crhs_ptr, p=p,
                                            times=times, atol=atol, rtol=rtol,
                                            strict=strict, hybrid=hybrid, crhs=None,
-                                           protocol_description=protocol_description):
+                                           protocol_description=protocol_description,
+                                           E_rev=self.E_rev):
 
             y0 = rhs_inf(p, voltage(.0)).flatten()
             no_states = y0.shape[0]
@@ -311,7 +316,8 @@ class DisconnectedMarkovModel(MarkovModel):
 
             def hybrid_forward_solver(p=p, times=times, atol=atol, rtol=rtol,
                                       strict=strict, hybrid=hybrid,
-                                      protocol_description=protocol_description):
+                                      protocol_description=protocol_description,
+                                      E_rev=E_rev):
                 solution = np.full((times.shape[0], n_state_vars), np.nan)
                 state_counter = 0
                 component_solution = \
@@ -345,7 +351,8 @@ class DisconnectedMarkovModel(MarkovModel):
         elif len(self.connected_components) == 1:
             def hybrid_forward_solver(p=p, times=times, atol=atol, rtol=rtol,
                                       strict=strict, hybrid=hybrid,
-                                      protocol_description=protocol_description):
+                                      protocol_description=protocol_description,
+                                      E_rev=E_rev):
                 solution = np.full((times.shape[0], n_state_vars), np.nan)
                 component_solution = \
                     hybrid_forward_solve_component(steady_state_func1,
@@ -355,7 +362,8 @@ class DisconnectedMarkovModel(MarkovModel):
                                                    atol=atol, rtol=rtol,
                                                    strict=strict,
                                                    protocol_description=protocol_description,
-                                                   hybrid=hybrid)
+                                                   hybrid=hybrid,
+                                                   E_rev=E_rev)
 
                 solution[:, :] = component_solution
                 return solution
@@ -415,3 +423,36 @@ class DisconnectedMarkovModel(MarkovModel):
 
     def get_state_labels(self):
         return [lab for c in self.connected_components for lab in c[:-1]]
+
+    def get_all_state_labels(self):
+        return [lab for c in self.connected_components for lab in c]
+
+    def compute_all_states(self, states):
+        # Assume 2 components
+        comp1 = self.connected_components[0]
+        comp2 = self.connected_components[1]
+
+
+        auxiliary_states = [str(s) for s in self.auxiliary_expression.free_symbols
+                            if len(str(s)) > 6]
+        auxiliary_states = [s[6:] for s in auxiliary_states if s[:6] == 'state_']
+
+        eliminated_state_1 = [s for s in comp1 if s not in auxiliary_states][0]
+        eliminated_state_2 = [s for s in comp2 if s not in auxiliary_states][0]
+
+        eliminated_index_1 = comp1.index(eliminated_state_1)
+        eliminated_index_2 = comp2.index(eliminated_state_2)
+
+        c = len(comp1)
+        states = np.insert(states, eliminated_index_1, 1 - states[:, :c-1].sum(axis=1), axis=1)
+        states = np.insert(states, c + eliminated_index_2,
+                           1 - states[:, c:].sum(axis=1), axis=1)
+
+        new_states = np.vstack([(states[:, i] * states[:, c + j]).flatten()
+                                for i in range(len(comp1))\
+                                for j in range(len(comp2))
+                               ]).T
+
+        state_labels = [f"{a}_{b}" for a in comp1 for b in comp2]
+
+        return new_states, state_labels

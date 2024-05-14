@@ -333,3 +333,9 @@ class MarkovModel(ODEModel):
 
     def set_tolerances(self, abs_tol, rel_tol):
         self.solver_tolerances = (abs_tol, rel_tol)
+
+    def compute_all_states(self, states):
+        state_labels = self.get_state_labels() + ['leftover_state']
+        states = np.vstack((states.T, (1 - states.sum(axis=1)).flatten())).T
+
+        return states, state_labels
