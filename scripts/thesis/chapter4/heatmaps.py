@@ -405,8 +405,8 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     pivot_df.dropna(axis=0, inplace=True, how='all')
     pivot_df.dropna(axis=1, inplace=True, how='all')
 
-    pivot_df = pivot_df.reindex([relabel_dict[p] for p in protocol_order if p in pivot_df.columns],
-                                 axis=1)
+    pivot_df = col_order = [relabel_dict[p] for p in protocol_order if p in pivot_df.columns]
+    pivot_df = pivot_df[col_order]
 
     if pivot_df.values.shape[0] == 0:
         logging.warning("No values in pivot_df")
