@@ -357,10 +357,14 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
     colours = sns.husl_palette(len(state_labels))
 
 
-    culm_states = np.full(states.shape[0], 0)
+    culm_states = np.full(states.shape[0], 0.0)
     for i in range(states.shape[1]):
         colour = colours[i]
         label = state_labels[i]
+
+        occupations_ax.plot(times, culm_states + states[:, i].flatten(),
+                            color='grey', lw=.3)
+
         occupations_ax.fill_between(times, culm_states,
                                     culm_states + states[:, i].flatten(),
                                     color=colour,
