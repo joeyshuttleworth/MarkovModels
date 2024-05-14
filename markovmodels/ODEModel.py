@@ -166,7 +166,8 @@ class ODEModel:
     def make_hybrid_solver_states(self, protocol_description=None,
                                   njitted=False, analytic_solver=None,
                                   strict=True, cond_threshold=None, atol=None,
-                                  rtol=None, hybrid=True, crhs=None):
+                                  rtol=None, hybrid=True, crhs=None,
+                                  E_rev=None):
 
         if protocol_description is None:
             # if self.protocol_description is None:
@@ -199,6 +200,9 @@ class ODEModel:
         if rtol is None:
             rtol = self.solver_tolerances[1]
 
+        if E_rev is None:
+            E_rev = self.E_rev
+
         times = self.times
 
         p = self.get_default_parameters()
@@ -210,7 +214,8 @@ class ODEModel:
 
         def hybrid_forward_solve(p=p, times=times, atol=atol, rtol=rtol,
                                  strict=strict, hybrid=hybrid,
-                                 protocol_description=protocol_description):
+                                 protocol_description=protocol_description,
+                                 E_rev=E_rev):
 
             y0 = rhs_inf(p, holding_potential).flatten()
             solution = np.full((len(times), no_states), np.nan)
