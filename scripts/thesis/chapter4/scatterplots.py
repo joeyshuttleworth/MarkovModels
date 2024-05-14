@@ -134,7 +134,8 @@ def main():
         assert args.subtraction_df
 
         subtraction_df = pd.read_csv(args.subtraction_df)
-        params_df = adjust_kinetics(model_class, params_df, subtraction_df, args.reversal)
+        params_df = adjust_kinetics(args.model, params_df,
+                                    subtraction_df, args.reversal)
 
     # Drop conductance parameter
     params_df = params_df.drop(param_labels[-1], axis='columns')
