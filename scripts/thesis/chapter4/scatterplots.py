@@ -75,6 +75,14 @@ def main():
     params_df.protocol = ['staircaseramp1' if prot in ['staircaseramp2', 'staircaseramp1_2'] else prot
                    for prot in params_df.protocol]
 
+    if args.adjust_kinetics:
+        assert args.subtraction_df
+
+        subtraction_df = pd.read_csv(args.subtraction_df)
+        params_df = adjust_kinetics(args.model, params_df,
+                                    subtraction_df, args.reversal)
+
+
     # Sort protocols but leave staircaseramp at the front
     global protocols
     protocols = ['staircaseramp1'] + [p for p in params_df.protocol.unique()\
@@ -129,13 +137,6 @@ def main():
         params_df = params_df[params_df.protocol.isin(args.protocols)]
 
     params_df[param_labels] = params_df[param_labels].astype(np.float64)
-
-    if args.adjust_kinetics:
-        assert args.subtraction_df
-
-        subtraction_df = pd.read_csv(args.subtraction_df)
-        params_df = adjust_kinetics(args.model, params_df,
-                                    subtraction_df, args.reversal)
 
     # Drop conductance parameter
     params_df = params_df.drop(param_labels[-1], axis='columns')
