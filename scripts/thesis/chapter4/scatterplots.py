@@ -83,6 +83,8 @@ def main():
                                     subtraction_df, args.reversal)
 
 
+    params_df = get_best_params(params_df)
+
     # Sort protocols but leave staircaseramp at the front
     global protocols
     protocols = ['staircaseramp1'] + [p for p in params_df.protocol.unique()\
@@ -101,9 +103,6 @@ def main():
         params_df.protocol = params_df.protocol.cat.rename_categories(relabel_dict)
 
         protocols = [p for p in list(relabel_dict.values()) if p in params_df.protocol.unique()]
-
-    print(protocols)
-    params_df = get_best_params(params_df)
 
     transformations = make_model_of_class(args.model).transformations
     # Dictionary of units

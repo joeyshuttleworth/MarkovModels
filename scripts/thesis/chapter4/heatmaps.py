@@ -63,11 +63,13 @@ def main():
     parser.add_argument('--reversal', default=-91.71, type=float)
     parser.add_argument('--output', '-o')
     parser.add_argument('--no_cpus', '-c', default=1, type=int)
+    parser.add_argument('--model_classes', nargs='+')
 
     global args
     args = parser.parse_args()
 
-    args.model_classes = ['model2', 'model3', 'model10']
+    if args.model_classes is None:
+        args.model_classes = ['model2', 'model3', 'model10', 'Wang']
 
     global output_dir
     output_dir = setup_output_directory(args.output, 'chapter_4_heatmaps')
@@ -406,8 +408,10 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     pivot_df.dropna(axis=0, inplace=True, how='all')
     pivot_df.dropna(axis=1, inplace=True, how='all')
 
-    col_order = [relabel_dict[p] for p in protocol_order if p in pivot_df.columns]
-    pivot_df = pivot_df[col_order]
+    relabelled_order = [relabel_dict[p] for p in protocol_order
+                        if relabel_dict[p] in pivot_df.columns.to_list()]
+
+    pivot_df = pivot_df[relabelled_order]
 
     if pivot_df.values.shape[0] == 0:
         logging.warning("No values in pivot_df")
