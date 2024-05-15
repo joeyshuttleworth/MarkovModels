@@ -351,9 +351,10 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
                     in enumerate(protocol_order)}
 
     # Move longap to front
-    protocol_order.remove('longap')
-    protocol_order.insert(0, 'longap')
 
+    if 'longap' in protocol_order:
+        protocol_order.remove('longap')
+        protocol_order.insert(0, 'longap')
 
     prediction_df['fitting_protocol'] = pd.Categorical(prediction_df['fitting_protocol'],
                                                        categories=protocol_order,
@@ -405,7 +406,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     pivot_df.dropna(axis=0, inplace=True, how='all')
     pivot_df.dropna(axis=1, inplace=True, how='all')
 
-    pivot_df = col_order = [relabel_dict[p] for p in protocol_order if p in pivot_df.columns]
+    col_order = [relabel_dict[p] for p in protocol_order if p in pivot_df.columns]
     pivot_df = pivot_df[col_order]
 
     if pivot_df.values.shape[0] == 0:
