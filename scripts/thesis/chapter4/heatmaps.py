@@ -459,9 +459,8 @@ def setup_grid(fig, args):
     no_cases = 3
     no_columns = 1 + no_cases
 
-    gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[.15] + [1] * no_cases,
-                  + [0.25],
-                  width_ratios=[.5] + no_cases*[1])
+    gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[.15] + [1] *
+                  no_cases + [0.25], width_ratios=[.5] + no_cases*[1])
 
     model_label_axs = [fig.add_subplot(gs[i, 0]) for i in range(1, no_rows - 1)]
     case_label_axs = [fig.add_subplot(gs[0, i]) for i in range(1, no_columns)]

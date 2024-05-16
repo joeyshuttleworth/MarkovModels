@@ -1320,13 +1320,14 @@ def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None):
         else:
             V_off = inferred_E_rev - new_E_rev
 
-        for a, b in zip(param_labels[:-3:2], param_labels[1:-1:2]):
+        for a, b in param_pairs:
+            row[a] = np.float64(row[a])
+            row[b] = np.float64(row[b])
             row[a] = row[a] * np.exp(row[b] * V_off)
 
         new_rows.append(row)
 
     new_dict = pd.DataFrame.from_records(new_rows)
-
     return new_dict
 
 
@@ -1345,6 +1346,10 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     if use_artefacts:
         model = ArtefactModel(model)
+
+    if fitting_case == '0c':
+        params_df = adjust_kinetics(args.model, params_df,
+                                    subtraction_df, args.reversal)
 
     param_labels = model.get_parameter_labels()
 
