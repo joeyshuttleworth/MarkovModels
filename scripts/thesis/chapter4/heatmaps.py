@@ -126,7 +126,7 @@ def main():
 
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
-    axs = setup_grid(fig)
+    axs = setup_grid(fig, args)
     model_axs, model_label_axs, case_label_axs, colour_bar_ax = axs
 
     tasks = []
@@ -175,7 +175,7 @@ def main():
 
     fig.savefig(os.path.join(output_dir, "averaged_well_heatmaps"))
     fig.clf()
-    axs = setup_grid(fig)
+    axs = setup_grid(fig, args)
     model_axs, model_label_axs, case_label_axs, cbar_ax = axs
 
     individual_fig = plt.figure(figsize=args.figsize)
@@ -217,7 +217,7 @@ def main():
         fig.savefig(os.path.join(output_dir,
                                  f"{well}_heatmaps"))
         fig.clf()
-        axs = setup_grid(fig)
+        axs = setup_grid(fig, args)
         model_axs, model_label_axs, case_label_axs, cbar_ax = axs
     plt.close(fig)
 
