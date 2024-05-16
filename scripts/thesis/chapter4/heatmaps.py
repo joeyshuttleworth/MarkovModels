@@ -451,12 +451,13 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     return hm
 
 
-def setup_grid(fig):
+def setup_grid(fig, args):
     # Row for each model, a colorbar, and case labels
-    no_rows = 5
+    no_rows = 2 + len(args.model_classes)
 
     # Coumn for each 'case' and labels
-    no_columns = 4
+    no_cases = 3
+    no_columns = 1 + no_cases
 
     gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[.15, 1, 1, 1, 0.25],
                   width_ratios=[.5, 1, 1, 1])
