@@ -256,69 +256,6 @@ def main():
 
     fig.savefig(os.path.join(output_dir, "scatterplot_figure.pdf"))
 
-    for ax in axes[0]:
-        ax.cla()
-
-    if args.adjust_kinetics:
-        for ax in axes[1]:
-            ax.cla()
-
-    for i in range(2):
-        ax = axes[0][i]
-        sns.scatterplot(params_df, x=param_labels[i*2], y=param_labels[i*2+2],
-                        hue=args.hue, legend=args.legend,
-                        ax=ax, style=style)
-
-        if args.adjust_kinetics:
-            ax2 = axes[1][i]
-            sns.scatterplot(adjusted_df, x=param_labels[i*2], y=param_labels[i*2+2],
-                            hue=args.hue, legend=args.legend,
-                            ax=ax2, style=style)
-
-    for i in range(2):
-        ax = axes[0][i+2]
-        sns.scatterplot(params_df, x=param_labels[i*4+1], y=param_labels[i*4+3],
-                        hue=args.hue, legend=args.legend,
-                        ax=ax, style=style)
-
-        if args.adjust_kinetics:
-            ax2 = axes[1][i]
-            sns.scatterplot(adjusted_df, x=param_labels[i*2+1], y=param_labels[i*2+3],
-                            hue=args.hue, legend=args.legend,
-                            ax=ax2, style=style)
-
-    for i in range(4):
-        ax1 = axes[0][i]
-        if args.adjust_kinetics:
-            ax2 = axes[1][i]
-        else:
-            ax2 = ax1
-
-    if args.hue == 'well':
-        hue = 'protocol'
-    else:
-        hue = 'well'
-
-    ax1 = axes[0][-1]
-
-
-    # if args.adjust_kinetics:
-    #     ax2 = axes[1][-1]
-    #     sns.scatterplot(adjusted_df, x='p9', y='p4',
-    #                     hue=hue, legend=args.legend, ax=ax2,
-    #                     style=style)
-
-    xmin = min(ax1.get_xlim()[0], ax2.get_xlim()[0])
-    xmax = max(ax1.get_xlim()[1], ax2.get_xlim()[1])
-    ymin = min(ax1.get_ylim()[0], ax2.get_ylim()[0])
-    xmax = max(ax1.get_ylim()[1], ax2.get_ylim()[1])
-
-    if args.adjust_kinetics:
-        axes[0][0].set_title('without offset adjustment')
-        axes[1][0].set_title('with offset adjustment')
-
-    fig.savefig(os.path.join(output_dir, "scatterplot_figure2.pdf"))
-
 
 def do_coloured_scatterplots(params_df, p1, p2):
     no_rows = 3
