@@ -1349,7 +1349,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     if fitting_case == '0c':
         params_df = adjust_kinetics(args.model, params_df,
-                                    subtraction_df, args.reversal)
+                                    subtractions_df, args.reversal)
 
     param_labels = model.get_parameter_labels()
 
