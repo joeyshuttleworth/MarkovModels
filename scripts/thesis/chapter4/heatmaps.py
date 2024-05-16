@@ -277,6 +277,7 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
         data_label = ''
 
     if not args.use_mock_data:
+        args.model = model_class
         prediction_df = compute_predictions_df(params_df, output_dir,
                                                protocol_dict, fitting_case,
                                                args.reversal, subtraction_df,
@@ -312,6 +313,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
         data_label = ''
 
     if prediction_df is None:
+        args.model = model_class
         prediction_df = compute_predictions_df(params_df, output_dir,
                                                protocol_dict, fitting_case,
                                                args.reversal, subtractions_df,
