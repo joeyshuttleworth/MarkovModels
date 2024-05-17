@@ -167,7 +167,7 @@ def main():
 
     with open(os.path.join(output_dir, 'likelihood_ratio_test.txt'), 'w') as fout:
 
-        out_str = "Likelihood of full model: {ll}"
+        out_str = f"Likelihood of full model: {ll}"
         fout.write(out_str)
         fout.write('\n')
         print(out_str)
