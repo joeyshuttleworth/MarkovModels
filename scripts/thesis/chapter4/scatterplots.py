@@ -166,6 +166,12 @@ def main():
                                                    no_well_effect=True)
 
     with open(os.path.join(output_dir, 'likelihood_ratio_test.txt'), 'w') as fout:
+
+        out_str = "Likelihood of full model: {ll}"
+        fout.write(out_str)
+        fout.write('\n')
+        print(out_str)
+
         out_str = f"Likelihood ratio of well effect & protocol effect vs just protocol effect: {ll - ll_p:.1f}"
 
         fout.write(out_str)
