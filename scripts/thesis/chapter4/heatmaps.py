@@ -284,7 +284,9 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                                                model_class=model_class,
                                                args=args,
                                                label=f"{model_class}_{case}_predictions",
-                                               data_label=data_label
+                                               data_label=data_label,
+                                               hybrid=True,
+                                               strict=False
                                                )
     else:
         protocols = sorted(params_df.protocol.unique() )
@@ -319,6 +321,8 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
                                                model_class=model_class,
                                                label=f"{model_class}_{fitting_case}_predictions",
                                                data_label=data_label,
+                                               hybrid=True,
+                                               strict=False,
                                                args=args)
 
     args.chrono_file

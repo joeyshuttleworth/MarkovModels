@@ -1057,7 +1057,7 @@ def infer_reversal_potential(protocol_desc: np.array, current: np.array, times, 
 def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E_rev, subtractions_df,
                            label='predictions', model_class=None,
                            default_artefact_kinetic_parameters=None, args=None,
-                           data_label=''):
+                           data_label='', hybrid=False, strict=True):
 
     param_labels = make_model_of_class(model_class).get_parameter_labels()
     params_df = get_best_params(params_df, protocol_label='protocol')
@@ -1097,9 +1097,12 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
         voltages = np.array([prot_func(t, protocol_description=desc) for t in full_times])
 
         if solver is None:
-            solver = model.make_hybrid_solver_current(hybrid=False,
+            if use_artefacts:
+                hybrid = False
+
+            solver = model.make_hybrid_solver_current(hybrid=hybrid,
                                                       njitted=True,
-                                                      strict=True,
+                                                      strict=strict,
                                                       protocol_description=desc,
                                                       voltage=prot_func)
 
