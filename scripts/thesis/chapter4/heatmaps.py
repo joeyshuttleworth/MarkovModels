@@ -295,7 +295,6 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                  np.random.uniform(3e2, 1e4)} for v_p in protocols for f_p in
                 protocols for well in ['Z01', 'Z02', 'Z03']]
         prediction_df = pd.DataFrame.from_records(rows)
-
     return prediction_df
 
 

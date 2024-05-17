@@ -1163,12 +1163,13 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                                                           protocol_dict,
                                                           full_data, voltages,
                                                           label=data_label,
-                                                          solver=solver)
+                                                          solver=solver,
+                                                          strict=False)
 
                         if np.any(~np.isfinite(full_prediction)):
                             logging.warning(f"Prediction failed {model_class} {fitting_case} \
                             {well}, {sim_protocol} {predict_sweep} using \
-                            {protocol_fitting} {fitting_sweep}")
+                            {protocol_fitted} {fitting_sweep}")
 
                         prediction = full_prediction[indices]
 
@@ -1335,7 +1336,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                     protocol_fitted, fitting_sweep, params_df, subtractions_df,
                     fitting_case, E_rev, protocol_dict, full_data, voltages,
                     label='', solver=None, do_spike_removal=True,
-                    return_states=False):
+                    return_states=False, strict=True):
 
     if fitting_case in ['I', 'II']:
         use_artefacts = True
@@ -1359,7 +1360,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     if solver is None:
         solver= model.make_hybrid_solver_current(hybrid=False,
                                                  njitted=False,
-                                                 strict=True,
+                                                 strict=strict,
                                                  protocol_description=desc)
 
     if do_spike_removal:

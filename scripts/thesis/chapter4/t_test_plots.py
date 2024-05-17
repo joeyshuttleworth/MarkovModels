@@ -124,6 +124,7 @@ def main():
         lines = fin.read().splitlines()
         protocol_order = [line.split(' ')[0] for line in lines]
 
+    global relabel_dict
     relabel_dict = {p: r"$d_{" f"{i+1}" r"}$" for i, p
                     in enumerate(protocol_order)}
     print(relabel_dict)
@@ -156,7 +157,12 @@ def main():
 
     protocol_dict = {}
     v_func = None
-    for protocol in list(np.unique(list(itertools.chain(*[list(params_df.protocol.unique()) for params_df in params_dfs])))) + args.validation_protocols:
+    sweep = 0
+    fitting_case = '0b'
+
+    protocols = list(np.unique(list(itertools.chain(*[list(params_df.protocol.unique()) for params_df in params_dfs])))) + args.validation_protocols
+
+    for protocol in protocols:
         v_func, desc = get_ramp_protocol_from_json(protocol, os.path.join(args.data_directory, 'protocols'),
                                               args.experiment_name)
 
@@ -165,8 +171,48 @@ def main():
 
         protocol_dict[protocol] = desc, times
 
-    sweep = 0
-    fitting_case = '0b'
+    plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
+                          protocol_dict, protocol_order, results_dict,
+                          subtraction_df,
+                          mode='prediction', v_func=v_func)
+
+    plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
+                          protocol_dict, protocol_order, results_dict,
+                          subtraction_df,
+                          mode='fitting', v_func=v_func)
+
+
+def setup_axes(fig, no_protocols):
+    fig.clf()
+
+    no_rows = int(no_protocols / 2) + 1
+    no_columns = 2
+
+    gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[1] * (no_rows - 1) + [0.2])
+
+    axs = np.array([[fig.add_subplot(gs[i, j]) for j in range(no_columns)] for i in range(no_rows - 1)])
+    cbar_ax = fig.add_subplot(gs[-1, :])
+
+    spines = ['top', 'right']
+
+    for ax in axs.flatten():
+        ax.spines[spines].set_visible(False)
+
+    for ax in axs[-1, :]:
+        ax.set_xlabel(r'$t$')
+        ax.set_xticks([0, 1])
+        ax.set_xticklabels([0, r'$t_\text{end}$'])
+
+    for ax in axs[:, 0]:
+        ax.set_ylabel(r'$Z_\text{T}$')
+
+    return axs.flatten(), cbar_ax
+
+
+def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
+                          protocol_dict, protocol_order, results_dict,
+                          subtraction_df,
+                          mode='prediction', v_func=None):
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     protocols = params_df.protocol.unique()
@@ -176,6 +222,10 @@ def main():
 
     wells = params_df.well.unique()
     zs = {}
+
+    if v_func is None:
+        v_func = make_model_of_type(args.model_class).voltage
+
     max_z, min_z = -np.inf, np.inf
     for well in wells:
         zs[well] = {}
@@ -197,7 +247,7 @@ def main():
             z = get_t_test_statistic(args.model_class, fitting_case, params_df,
                                      subtraction_df, protocol, well, sweep,
                                      protocol_dict, args,
-                                     voltage_func=v_func)
+                                     voltage_func=v_func, mode=mode)
 
             max_z = max(z[indices].max(), max_z)
             min_z = min(z[indices].min(), min_z)
@@ -231,7 +281,7 @@ def main():
 
         fig.colorbar(im, cax=cbar_ax, shrink=.75, orientation='horizontal')
         fig.savefig(os.path.join(output_dir,
-                                 f"{well}_sweep{sweep}_t_scores"))
+                                 f"{well}_sweep{sweep}_t_scores_{mode}"))
         for ax in axs:
             ax.cla()
         cbar_ax.cla()
@@ -262,15 +312,14 @@ def main():
     fig.colorbar(im, cax=cbar_ax, shrink=.75, orientation='horizontal',
                  norm=SymLogNorm(symlogthresh, vmin=vmin, vmax=vmax))
     fig.savefig(os.path.join(output_dir,
-                                f"average_sweep{sweep}_t_scores"))
-    for ax in axs:
-        ax.cla()
+                                f"average_sweep{sweep}_t_scores_{mode}"))
+    plt.close(fig)
 
 
 def get_t_test_statistic(model_class, fitting_case, params_df,
                          subtraction_df, validation_protocol, well, sweep,
                          protocol_dict, args,
-                         voltage_func=None):
+                         voltage_func=None, mode='prediction'):
 
     if (well, validation_protocol, sweep) not in \
        subtraction_df.set_index(['well', 'protocol', 'sweep']).index:
@@ -308,20 +357,30 @@ def get_t_test_statistic(model_class, fitting_case, params_df,
 
     sub_df = params_df[~params_df.protocol.isin(disallowed_protocols)]
 
-    predictions = get_ensemble_of_predictions(times, desc, sub_df,
-                                              validation_protocol, well, sweep,
-                                              subtraction_df, fitting_case,
-                                              args.reversal, model_class, data,
-                                              args, protocol_dict,
-                                              solver=solver,
-                                              voltage_func=voltage_func,
-                                              ignore_fitted=True)
-
-    residuals = predictions - data[None, :]
-
     noise = data[:200].std(ddof=1)
-    # T-test statistic with null hypothesis being 0 error
-    z = residuals.mean(axis=0) / (noise + residuals.std(axis=0, ddof=1) / residuals.shape[0])
+
+    if mode == 'prediction':
+        predictions = get_ensemble_of_predictions(times, desc, sub_df,
+                                                  validation_protocol, well, sweep,
+                                                  subtraction_df, fitting_case,
+                                                  args.reversal, model_class, data,
+                                                  args, protocol_dict,
+                                                  solver=solver,
+                                                  voltage_func=voltage_func,
+                                                  ignore_fitted=True)
+        # T-test statistic with null hypothesis being 0 error
+        residuals = predictions - data[None, :]
+        z = residuals.mean(axis=0) / (noise + residuals.std(axis=0, ddof=1) / residuals.shape[0])
+
+    elif mode == 'fitting':
+        pred = make_prediction(model_class, args, well, validation_protocol, sweep,
+                               validation_protocol, sweep, params_df, subtraction_df,
+                               fitting_case, args.reversal, protocol_dict,
+                               data, voltages, solver=solver, do_spike_removal=False)
+        residuals = (pred - data).flatten()
+        z = residuals / noise
+    else:
+        raise ValueError()
 
     return z
 
@@ -342,10 +401,20 @@ def setup_axes(fig, no_protocols):
     for ax in axs.flatten():
         ax.spines[spines].set_visible(False)
 
-    for ax in axs[-1, :]:
+    for ax in axs[:, :].flatten():
         ax.set_xlabel(r'$t$')
+        ax.set_xticks([])
+        ax.set_xlim([0, 1])
+        ax.set_xlabel('')
+
+    for ax in axs[-1, :].flatten():
+        ax.set_xlim([0, 1])
         ax.set_xticks([0, 1])
-        ax.set_xticklabels([0, r'$t_\text{end}$'])
+        ax.set_xticklabels(['0', r'$t_\text{end}$'])
+
+    for ax in axs[:, -1]:
+        ax.set_ylabel('')
+        ax.set_yticks([])
 
     for ax in axs[:, 0]:
         ax.set_ylabel(r'$Z_\text{T}$')
