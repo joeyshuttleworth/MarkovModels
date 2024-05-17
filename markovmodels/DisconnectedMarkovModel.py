@@ -95,11 +95,11 @@ class DisconnectedMarkovModel(MarkovModel):
                 a = A_func(rates)[0, 0]
 
                 if a < 1 / cond_threshold:
-                    return np.full((times.shape[0], 1), np.nan)
+                    return np.full((times.shape[0], 1), np.nan), False
 
                 b = B_func(rates)[0, 0]
                 sol = np.expand_dims((y0 + b/a) * np.exp(a * times) - b/a, -1)
-                return sol
+                return sol, True
 
             return analytic_solution_func_scalar
 
@@ -112,12 +112,12 @@ class DisconnectedMarkovModel(MarkovModel):
                 try:
                     cond_A = np.linalg.norm(_A, 2) * np.linalg.norm(np.linalg.inv(_A), 2)
                 except Exception:
-                    return np.full((times.shape[0], y0.shape[0]), np.nan)
+                    return np.full((times.shape[0], y0.shape[0]), np.nan), False
 
                 if cond_A > cond_threshold:
                     print("WARNING: cond_A = ", cond_A, " > ", cond_threshold)
                     print("matrix is poorly conditioned", cond_A, cond_threshold)
-                    return np.full((times.shape[0], y0.shape[0]), np.nan)
+                    return np.full((times.shape[0], y0.shape[0]), np.nan), False
 
                 D, P = np.linalg.eig(_A)
 
@@ -125,12 +125,12 @@ class DisconnectedMarkovModel(MarkovModel):
                 try:
                     cond_P = np.linalg.norm(P, 2) * np.linalg.norm(np.linalg.inv(P), 2)
                 except Exception:
-                    return np.full((times.shape[0], y0.shape[0]), np.nan)
+                    return np.full((times.shape[0], y0.shape[0]), np.nan), False
 
                 if cond_P > cond_threshold:
                     print("WARNING: cond_P = ", cond_P, " > ", cond_threshold)
                     print("matrix is almost defective", cond_P, cond_threshold)
-                    return np.full((times.shape[0], y0.shape[0]), np.nan)
+                    return np.full((times.shape[0], y0.shape[0]), np.nan), False
 
                 X2 = -np.linalg.solve(_A, _B)
 
@@ -138,7 +138,7 @@ class DisconnectedMarkovModel(MarkovModel):
 
                 solution = (P @ K @  np.exp(np.outer(D, times))).T + X2.T
 
-                return solution
+                return solution, True
 
             return analytic_solution_func
 
@@ -240,9 +240,9 @@ class DisconnectedMarkovModel(MarkovModel):
 
                 if vstart == vend and hybrid:
                     try:
-                        # step_sol[:, :] = analytic_solver(step_times - tstart,
-                        #                                  vstart, p, y0)
-                        analytic_success = np.all(np.isfinite(step_sol))
+                        step_sol[:, :], success = analytic_solver(step_times - tstart,
+                                                                  vstart, p, y0)
+                        analytic_success = success and np.all(np.isfinite(step_sol))
 
                     except Exception:
                         analytic_success = False

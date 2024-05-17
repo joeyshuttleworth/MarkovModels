@@ -2,7 +2,6 @@ import numba as nb
 import numpy as np
 import sympy as sp
 
-
 from scipy.integrate import solve_ivp
 from numba import cfunc, njit
 from numbalsoda import lsoda, lsoda_sig
@@ -400,7 +399,8 @@ class ODEModel:
 
             states = hybrid_solver(p, times=times, hybrid=hybrid, atol=atol,
                                    rtol=rtol,
-                                   protocol_description=protocol_description)
+                                   protocol_description=protocol_description,
+                                   E_rev=E_rev)
             return (auxiliary_function(states.T, p, voltages, E_rev)).flatten()
 
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve

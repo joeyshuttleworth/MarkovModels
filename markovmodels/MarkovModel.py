@@ -214,8 +214,8 @@ class MarkovModel(ODEModel):
             if njitted:
                 A_func = njit(A_func)
                 B_func = njit(B_func)
-            # Scalar case
 
+            # Scalar case
             def analytic_solution_func_scalar(times=times, voltage=voltage, p=p, y0=y0):
                 rates = rates_func(p, voltage).flatten()
                 y0 = y0[0]
