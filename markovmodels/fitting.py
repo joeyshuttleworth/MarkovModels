@@ -167,9 +167,9 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         params_not_fixed = starting_parameters
 
     voltages = mm.GetVoltage().flatten()
-    boundaries = fitting_boundaries(starting_parameters, mm, data,
-                                    voltages, rng, fix_parameters,
-                                    is_artefact_model=use_artefact_model)
+    boundaries = FittingBoundaries(starting_parameters, mm, data,
+                                   voltages, rng, fix_parameters,
+                                   use_artefact_model=use_artefact_model)
 
     if randomise_initial_guess:
         initial_guess_dist = boundaries
@@ -604,7 +604,7 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
     return samples[:, burn_in:, :]
 
 
-class fitting_boundaries(pints.Boundaries):
+class FittingBoundaries(pints.Boundaries):
     def __init__(self, full_parameters, model, current, voltages, rng,
                  fix_parameters=[], is_artefact_model=False):
         self.is_artefact_model = is_artefact_model
@@ -1057,7 +1057,8 @@ def infer_reversal_potential(protocol_desc: np.array, current: np.array, times, 
 def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E_rev, subtractions_df,
                            label='predictions', model_class=None,
                            default_artefact_kinetic_parameters=None, args=None,
-                           data_label='', hybrid=False, strict=True):
+                           data_label='', hybrid=False, strict=True,
+                           tolerances=(None, None)):
 
     param_labels = make_model_of_class(model_class).get_parameter_labels()
     params_df = get_best_params(params_df, protocol_label='protocol')
@@ -1167,9 +1168,10 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                                                           full_data, voltages,
                                                           label=data_label,
                                                           solver=solver,
-                                                          strict=False)
+                                                          strict=False,
+                                                          tolerances=tolerances)
 
-                        if np.any(~np.isfinite(full_prediction)):
+                        if not np.all(np.isfinite(full_prediction)):
                             logging.warning(f"Prediction failed {model_class} {fitting_case} \
                             {well}, {sim_protocol} {predict_sweep} using \
                             {protocol_fitted} {fitting_sweep}")
@@ -1286,7 +1288,8 @@ def get_best_params(fitting_df, protocol_label='protocol'):
     return pd.concat(best_params, ignore_index=True)
 
 
-def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None):
+def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None,
+                    use_boundaries=False):
     # Assume that params_df is a datafram of parameter estimates that were
     # found under the assumption that E_obs = E_Nernst. Then adjust the
     # kinetics parameters such that E_obs = E_Nernst - V_off, instead.
@@ -1299,15 +1302,18 @@ def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None):
     param_labels = sorted(model.get_parameter_labels())
     param_pairs = list(zip(param_labels[:-2:2], param_labels[1:-1:2]))
 
+    param_pairs = [(a, b, 1 - 2 * (i % 2))
+                   for i, (a, b) in enumerate(param_pairs)]
+
     E_rev_df = E_rev_df.set_index(['protocol', 'well', 'sweep'])
 
     if model.name == 'WangModel':
-        param_pairs = [['a_a0_a', 'a_a0_b'],
-                       ['b_a0_a', 'b_a0_b'],
-                       ['a_a1_a', 'a_a1_b'],
-                       ['b_a1_a', 'b_a1_b'],
-                       ['a_1_a', 'a_1_b'],
-                       ['b_1_a', 'b_1_b']]
+        param_pairs = [['a_a0_a', 'a_a0_b', 1],
+                       ['b_a0_a', 'b_a0_b', -1],
+                       ['a_a1_a', 'a_a1_b', 1],
+                       ['b_a1_a', 'b_a1_b', -1],
+                       ['a_1_a', 'a_1_b', 1],
+                       ['b_1_a', 'b_1_b', -1]]
 
     # Assume that parameters listed like a1, b1, a1, b2, ..., gkr with k_i=a_i e^{b_i V}
     new_rows = []
@@ -1324,10 +1330,24 @@ def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None):
         else:
             V_off = inferred_E_rev - new_E_rev
 
-        for a, b in param_pairs:
+        for a, b, multiplier in param_pairs:
             row[a] = np.float64(row[a])
             row[b] = np.float64(row[b])
             row[a] = row[a] * np.exp(row[b] * V_off)
+
+            if use_boundaries:
+                # Modify rates so they lie on/inside the boundary (if necessary)
+                row[a] = min(row[a], 1e5)
+                row[a] = max(row[a], 1e-7)
+
+                V = np.array([-120, 60])
+                max_rate = np.max(row[a] * np.exp(row[b] * V * multiplier))
+
+                if max_rate > 1e3:
+                    row[a] = 1e3 / (np.exp(row[b] * V[i] * multiplier))
+
+                if max_rate < 1.67e-5:
+                    row[a] = 1.67e-5 / (np.exp(row[b] * V[i] * multiplier))
 
         new_rows.append(row)
 
@@ -1339,7 +1359,9 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                     protocol_fitted, fitting_sweep, params_df, subtractions_df,
                     fitting_case, E_rev, protocol_dict, full_data, voltages,
                     label='', solver=None, do_spike_removal=True,
-                    return_states=False, strict=True):
+                    return_states=False, strict=True, tolerances=(None, None)):
+
+    atol, rtol = tolerances
 
     if fitting_case in ['I', 'II']:
         use_artefacts = True
@@ -1353,7 +1375,8 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     if fitting_case == '0c':
         params_df = adjust_kinetics(args.model, params_df,
-                                    subtractions_df, args.reversal)
+                                    subtractions_df, args.reversal,
+                                    use_boundaries=True)
 
     param_labels = model.get_parameter_labels()
 
@@ -1364,7 +1387,9 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
         solver= model.make_hybrid_solver_current(hybrid=False,
                                                  njitted=False,
                                                  strict=strict,
-                                                 protocol_description=desc)
+                                                 protocol_description=desc,
+                                                 atol=atol,
+                                                 rtol=rtol)
 
     if do_spike_removal:
         spike_times, spike_indices = markovmodels.voltage_protocols.detect_spikes(full_times, voltages,
@@ -1413,7 +1438,8 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     if fitting_case in ['I', 'II']:
         params[-no_artefact_params] = inferred_E_rev
-        current = solver(params, times=full_times, protocol_description=desc)
+        current = solver(params, times=full_times, protocol_description=desc,
+                         atol=atol, rtol=rtol)
     else:
         current = solver(params, times=full_times, protocol_description=desc,
                          E_rev=pred_E_rev)
@@ -1425,7 +1451,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                                                        protocol_description=desc)
 
         states = states_solver(params, times=full_times, protocol_description=desc,
-                               E_rev=pred_E_rev)
+                               E_rev=pred_E_rev, atol=atol, rtol=rtol)
         return current, states
     else:
         return current
