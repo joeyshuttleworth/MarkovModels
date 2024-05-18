@@ -228,9 +228,9 @@ def main():
 
     params_df['staircase'] = params_df.protocol.isin(['staircaseramp1', 'staircaseramp2'])
 
-    sns.scatterplot(data=params_df, x='p1', y='p2',
-                    legend=args.legend,
-                    hue='staircase', marker='x')
+    # sns.scatterplot(data=params_df, x='p1', y='p2',
+    #                 legend=args.legend,
+    #                 hue='staircase', marker='x')
 
     default_params = make_model_of_class(args.model).get_default_parameters()
     if args.model == 'Beattie':
