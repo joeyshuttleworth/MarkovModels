@@ -107,7 +107,7 @@ class DisconnectedMarkovModel(MarkovModel):
             def analytic_solution_func(times, voltage, p, y0):
                 rates = rates_func(p, voltage).flatten()
                 _A = A_func(rates)
-                _B = B_func(rates)
+                _B = B_func(rates).flatten()
 
                 try:
                     cond_A = np.linalg.norm(_A, 2) * np.linalg.norm(np.linalg.inv(_A), 2)
@@ -115,8 +115,8 @@ class DisconnectedMarkovModel(MarkovModel):
                     return np.full((times.shape[0], y0.shape[0]), np.nan), False
 
                 if cond_A > cond_threshold:
-                    print("WARNING: cond_A = ", cond_A, " > ", cond_threshold)
-                    print("matrix is poorly conditioned", cond_A, cond_threshold)
+                    # print("WARNING: cond_A = ", cond_A, " > ", cond_threshold)
+                    # print("matrix is poorly conditioned", cond_A, cond_threshold)
                     return np.full((times.shape[0], y0.shape[0]), np.nan), False
 
                 D, P = np.linalg.eig(_A)
@@ -128,11 +128,11 @@ class DisconnectedMarkovModel(MarkovModel):
                     return np.full((times.shape[0], y0.shape[0]), np.nan), False
 
                 if cond_P > cond_threshold:
-                    print("WARNING: cond_P = ", cond_P, " > ", cond_threshold)
-                    print("matrix is almost defective", cond_P, cond_threshold)
+                    # print("WARNING: cond_P = ", cond_P, " > ", cond_threshold)
+                    # print("matrix is almost defective", cond_P, cond_threshold)
                     return np.full((times.shape[0], y0.shape[0]), np.nan), False
 
-                X2 = -np.linalg.solve(_A, _B)
+                X2 = -np.linalg.solve(_A, _B).flatten()
 
                 K = np.diag(np.linalg.solve(P, (y0 - X2).flatten()))
 

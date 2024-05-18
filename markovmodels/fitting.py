@@ -1080,17 +1080,16 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
     use_artefacts = True if fitting_case in ['I', 'II'] else False
 
     model = make_model_of_class(model_class)
-    solver = None
 
     prot_func = None
 
+    solver = None
     for sim_protocol in np.unique(protocols_list):
 
         desc, full_times = protocol_dict[sim_protocol]
 
         # Temporary solver hack
         desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
-
 
         if prot_func is None:
             prot_func = make_voltage_function_from_description(desc)
@@ -1344,10 +1343,10 @@ def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None,
                 max_rate = np.max(row[a] * np.exp(row[b] * V * multiplier))
 
                 if max_rate > 1e3:
-                    row[a] = 1e3 / (np.exp(row[b] * V[i] * multiplier))
+                    row[a] = 1e3 / np.max(np.exp(row[b] * V * multiplier))
 
                 if max_rate < 1.67e-5:
-                    row[a] = 1.67e-5 / (np.exp(row[b] * V[i] * multiplier))
+                    row[a] = 1.67e-5 / np.max(np.exp(row[b] * V * multiplier))
 
         new_rows.append(row)
 

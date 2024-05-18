@@ -235,14 +235,14 @@ class MarkovModel(ODEModel):
             B_func = sp.lambdify((self.rates_dict.keys(),), self.B)
 
             if njitted:
-                A_func = njit(A_func)
-                B_func = njit(B_func)
+                A_func = njit(A_func, fastmath=True)
+                B_func = njit(B_func, fastmath=True)
                 # Q_func = njit(Q_func)
 
             def analytic_solution_func_matrix(times=times, voltage=voltage, p=p, y0=y0):
                 rates = rates_func(p, voltage).flatten()
                 _A = A_func(rates)
-                _B = B_func(rates).flatten()
+                _B = B_func(rates)
 
                 try:
                     cond_A = np.linalg.norm(_A, 2) * np.linalg.norm(np.linalg.inv(_A), 2)
@@ -250,8 +250,8 @@ class MarkovModel(ODEModel):
                     return np.full((times.shape[0], y0.shape[0]), np.nan), False
 
                 if cond_A > cond_threshold:
-                    print("WARNING: cond_A = ", cond_A, " > ", cond_threshold)
-                    print("matrix is poorly conditioned", cond_A, cond_threshold)
+                    # print("WARNING: cond_A = ", cond_A, " > ", cond_threshold)
+                    # print("matrix is poorly conditioned", cond_A, cond_threshold)
                     return np.full((times.shape[0], y0.shape[0]), np.nan), False
 
                 D, P = np.linalg.eig(_A)
@@ -263,16 +263,17 @@ class MarkovModel(ODEModel):
                     return np.full((times.shape[0], y0.shape[0]), np.nan), False
 
                 if cond_P > cond_threshold:
-                    print("WARNING: cond_P = ", cond_P, " > ", cond_threshold)
-                    print("matrix is almost defective", cond_P, cond_threshold)
+                    # print("WARNING: cond_P = ", cond_P, " > ", cond_threshold)
+                    # print("matrix is almost defective", cond_P, cond_threshold)
                     return np.full((times.shape[0], y0.shape[0]), np.nan), False
 
                 X2 = -np.linalg.solve(_A, _B).flatten()
-
                 K = np.diag(np.linalg.solve(P, (y0 - X2).flatten()))
+
                 solution = (P @ K @  np.exp(np.outer(D, times))).T + X2.T
 
                 return solution, True
+
             analytic_solution_func = analytic_solution_func_matrix
 
         return analytic_solution_func if not njitted else njit(analytic_solution_func)
