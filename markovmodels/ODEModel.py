@@ -401,6 +401,7 @@ class ODEModel:
                                    rtol=rtol,
                                    protocol_description=protocol_description,
                                    E_rev=E_rev)
+
             return (auxiliary_function(states.T, p, voltages, E_rev)).flatten()
 
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve

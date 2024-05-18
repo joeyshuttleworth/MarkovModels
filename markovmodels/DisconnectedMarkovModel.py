@@ -7,6 +7,8 @@ from numbalsoda import lsoda, lsoda_sig
 from markovmodels.MarkovModel import MarkovModel
 from markovmodels.ODEModel import n_max_protocol_steps
 
+from markovmodels.ODEModel import _lsoda_n_max_steps
+
 
 class DisconnectedMarkovModel(MarkovModel):
 
@@ -267,13 +269,17 @@ class DisconnectedMarkovModel(MarkovModel):
                                                                 step_times[start_int:end_int] - step_times[0],
                                                                 data=data, rtol=rtol,
                                                                 atol=atol,
-                                                                exit_on_warning=strict)
+                                                                exit_on_warning=strict,
+                                                                mxstep=_lsoda_n_max_steps
+                                                                )
                     else:
                         end_int = 0
                         step_sol[start_int:], _ = lsoda(crhs_ptr, y0,
                                                         step_times[start_int:] - step_times[0],
                                                         data=data, rtol=rtol,
-                                                        atol=atol, exit_on_warning=strict)
+                                                        atol=atol, exit_on_warning=strict,
+                                                        mxstep=_lsoda_n_max_steps
+                                                        )
 
                 if end_int == -1:
                     step_sol[-1, :] = step_sol[-2, :]

@@ -1369,6 +1369,11 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     model = make_model_of_class(model_class)
 
+    if atol is None:
+        atol = model.solver_tolerances[0]
+    if rtol is None:
+        rtol = model.solver_tolerances[1]
+
     if use_artefacts:
         model = ArtefactModel(model)
 
@@ -1383,12 +1388,12 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     desc, full_times = protocol_dict[sim_protocol]
 
     if solver is None:
-        solver= model.make_hybrid_solver_current(hybrid=False,
-                                                 njitted=False,
-                                                 strict=strict,
-                                                 protocol_description=desc,
-                                                 atol=atol,
-                                                 rtol=rtol)
+        solver = model.make_hybrid_solver_current(hybrid=False,
+                                                  njitted=False,
+                                                  strict=strict,
+                                                  protocol_description=desc,
+                                                  atol=atol,
+                                                  rtol=rtol)
 
     if do_spike_removal:
         spike_times, spike_indices = markovmodels.voltage_protocols.detect_spikes(full_times, voltages,
@@ -1441,16 +1446,17 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                          atol=atol, rtol=rtol)
     else:
         current = solver(params, times=full_times, protocol_description=desc,
-                         E_rev=pred_E_rev)
+                         E_rev=pred_E_rev, atol=atol, rtol=rtol)
 
     if return_states:
         states_solver = model.make_hybrid_solver_states(hybrid=False,
-                                                       njitted=False,
-                                                       strict=True,
-                                                       protocol_description=desc)
+                                                        njitted=False,
+                                                        strict=strict,
+                                                        protocol_description=desc)
 
-        states = states_solver(params, times=full_times, protocol_description=desc,
-                               E_rev=pred_E_rev, atol=atol, rtol=rtol)
+        states = states_solver(params, times=full_times,
+                               protocol_description=desc, E_rev=pred_E_rev,
+                               atol=atol, rtol=rtol)
         return current, states
     else:
         return current
@@ -1468,7 +1474,7 @@ def get_ensemble_of_predictions(times, desc, params_df, protocol, well, sweep,
         param_labels = model.get_parameter_labels()
 
         if solver is None:
-            solver = model.make_hybrid_solver_current(njitted=True,
+            solver = model.make_hybrid_solver_current(njitted=False,
                                                       hybrid=False,
                                                       strict=False)
         if voltage_func is None:

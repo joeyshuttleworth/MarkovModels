@@ -26,7 +26,7 @@ class MarkovModel(ODEModel):
 
     def get_state_labels(self):
         if self.state_labels:
-            return self.state_labels.copy()[:self.get_no_state_vars()]
+            return self.state_labels.copy()
         else:
             return ['state_%i' % i for i in range(self.get_no_state_vars())]
 
@@ -336,7 +336,7 @@ class MarkovModel(ODEModel):
         self.solver_tolerances = (abs_tol, rel_tol)
 
     def compute_all_states(self, states):
-        state_labels = self.get_state_labels() + ['leftover_state']
+        state_labels = self.get_state_labels()
         states = np.vstack((states.T, (1 - states.sum(axis=1)).flatten())).T
 
         return states, state_labels
