@@ -207,7 +207,7 @@ def main():
                          per_variable='protocol')
 
             do_per_plots(None, None, params_df, p1, p2, os.path.join(output_dir,
-                                                              'no_effects'),
+                                                                     'no_effects'),
                          per_variable='protocol')
 
     for protocol in params_df.protocol.unique():
@@ -398,7 +398,7 @@ def do_per_plots(protocol, well, params_df, p1, p2, output_dir, beta=None,
 
     if per_variable == 'well':
         fname = f"per_well_{p1}_{p2}_{protocol}.pdf"
-    if per_variable == 'protocol':
+    elif per_variable == 'protocol':
         fname = f"per_protocol_{p1}_{p2}_{well}.pdf"
     else:
         fname = f"all_{p1}_{p2}.pdf"
