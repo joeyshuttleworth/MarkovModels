@@ -437,8 +437,8 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
                 kws['cbar'] = True
 
     # Show mean score in title
-    mean_training_score = sub_df[sub_df.fitting_protocol == sub_df.validation_protocol].values.mean()
-    mean_validation_score = sub_df[sub_df.fitting_protocol != sub_df.validation_protocol].values.mean()
+    mean_training_score = sub_df[sub_df.fitting_protocol == sub_df.validation_protocol]['n_score'].values.astype(np.float64).mean()
+    mean_validation_score = sub_df[sub_df.fitting_protocol != sub_df.validation_protocol]['n_score'].values.astype(np.float64).mean()
     ax.set_title(r'$\mathcal{E}_\text{train} = $' f"{mean_training_score:.2E}" + \
     r'$\mathcal{E})\text{predict} = ' + f"{mean_validation_score:.2E}",
     fontsize=8)
