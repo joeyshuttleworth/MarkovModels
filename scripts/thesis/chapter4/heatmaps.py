@@ -91,7 +91,7 @@ def main():
     cases = args.cases
     dirnames_dict = { '0a': 'Case0a',
                       '0b': 'Case0b',
-                      '0c': 'Case0c'}
+                      '0c': 'Case0b'}
 
     dirnames = [dirnames_dict[case] for case in cases]
 
