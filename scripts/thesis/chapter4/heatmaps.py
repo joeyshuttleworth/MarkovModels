@@ -89,10 +89,9 @@ def main():
         args.cases = ['0a', '0b', '0c']
 
     cases = args.cases
-    dirnames_dict = [
-        '0a:' 'Case0a',
-        '0b': 'Case0b',
-        '0c': 'Case0b']
+    dirnames_dict = { '0a': 'Case0a',
+                      '0b': 'Case0b',
+                      '0c': 'Case0c'}
 
     dirnames = [dirnames_dict[case] for case in cases]
 
@@ -438,8 +437,11 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
                 kws['cbar'] = True
 
     # Show mean score in title
-    mean_score = pivot_df.values.mean()
-    ax.set_title('$\mathcal{E}_1 = $' f"{mean_score:.2E}", fontsize=11)
+    mean_training_score = sub_df[sub_df.fitting_protocol == sub_df.validation_protocol].values.mean()
+    mean_validation_score = sub_df[sub_df.fitting_protocol != sub_df.validation_protocol].values.mean()
+    ax.set_title(r'$\mathcal{E}_\text{train} = $' f"{mean_training_score:.2E}" + \
+    r'$\mathcal{E})\text{predict} = ' + f"{mean_validation_score:.2E}",
+    fontsize=8)
 
     hm = sns.heatmap(pivot_df, ax=ax, square=True, norm=norm,
                      cmap=cmap, **kws)
