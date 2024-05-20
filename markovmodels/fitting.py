@@ -1123,12 +1123,6 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                     # A key error is thrown if this (protocol, sweep) combination doesn't exist
                     continue
 
-                if fitting_case == '0c':
-                    adjusted_params_df = adjust_kinetics(model_class, params_df, subtractions_df,
-                                                         E_rev, inferred_E_rev)
-                else:
-                    adjusted_params_df = params_df
-
                 subdir_name = f"{well}_{sim_protocol}_sweep{predict_sweep}_predictions"\
                     if predict_sweep is not None else f"{well}_{sim_protocol}_predictions"
                 sub_dir = os.path.join(predictions_dir, subdir_name)
@@ -1180,7 +1174,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                         score = np.sqrt(np.mean((data - prediction)**2))
                         n_score = score / np.sqrt(np.mean(data**2))
 
-                        df = adjusted_params_df[adjusted_params_df.well == well]
+                        df = params_df[params_df.well == well]
                         df = df[(df.protocol == protocol_fitted) & (df.sweep == fitting_sweep)]
                         if df.empty:
                             return np.full(full_times.shape, None)
@@ -1377,10 +1371,21 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     if use_artefacts:
         model = ArtefactModel(model)
 
+    # Set artefact params
+    if use_artefacts:
+        params[no_artefact_parameters:] = artefact_params
+
+    if fitting_case in ['0a', 'I']:
+        pred_E_rev = E_rev
+    else:
+        inferred_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(sim_protocol, well, predict_sweep)]['E_rev']
+        pred_E_rev = inferred_E_rev
+
     if fitting_case == '0c':
-        params_df = adjust_kinetics(args.model, params_df,
-                                    subtractions_df, args.reversal,
-                                    use_boundaries=True)
+        fitting_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(protocol_fitted, well, fitting_sweep)]['E_rev']
+        new_E_rev = inferred_E_rev
+        params_df = adjust_kinetics(args.model, params_df, subtractions_df,
+                                    fitting_E_rev, new_E_rev, use_boundaries=True)
 
     param_labels = model.get_parameter_labels()
 
@@ -1429,16 +1434,6 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     params = df.iloc[0][param_labels].values\
                                         .astype(np.float64)\
                                         .flatten()
-
-    # Set artefact params
-    if use_artefacts:
-        params[no_artefact_parameters:] = artefact_params
-
-    if fitting_case in ['0a', 'I']:
-        pred_E_rev = E_rev
-    else:
-        inferred_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(sim_protocol, well, predict_sweep)]['E_rev']
-        pred_E_rev = inferred_E_rev
 
     if fitting_case in ['I', 'II']:
         params[-no_artefact_params] = inferred_E_rev

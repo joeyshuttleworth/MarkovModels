@@ -64,6 +64,7 @@ def main():
     parser.add_argument('--output', '-o')
     parser.add_argument('--no_cpus', '-c', default=1, type=int)
     parser.add_argument('--model_classes', nargs='+')
+    parser.add_argument('--cases', nargs='+')
 
     global args
     args = parser.parse_args()
@@ -84,7 +85,7 @@ def main():
     if args.protocols:
         subtraction_df = subtraction_df[subtraction_df.protocol.isin(args.protocols)]
 
-    cases = ['0a', '0b', '0c']
+    cases = args.cases
     dirnames = ['Case0a', 'Case0b', 'Case0b']
 
     # Get fitting results (dict of dicts)
@@ -474,11 +475,12 @@ def setup_grid(fig, args):
     model_axs = np.array([[fig.add_subplot(gs[i, j]) for j in range(1, no_columns)]
                           for i in range(1, no_rows - 1)])
 
-    relabel_models_dict{'model2': 'C-O-I',
-                        'model3': 'Beattie',
-                        'model10': 'Kemp',
-                        'Wang': 'Wang'
-                        }
+    relabel_models_dict = {
+        'model2': 'C-O-I',
+        'model3': 'Beattie',
+        'model10': 'Kemp',
+        'Wang': 'Wang'
+    }
 
     for i, (label_ax, model_label) in enumerate(zip(model_label_axs, args.model_classes)):
         label = relabel_models_dict[model_label]
