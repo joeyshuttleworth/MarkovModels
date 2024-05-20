@@ -474,9 +474,15 @@ def setup_grid(fig, args):
     model_axs = np.array([[fig.add_subplot(gs[i, j]) for j in range(1, no_columns)]
                           for i in range(1, no_rows - 1)])
 
-    model_labels = ['C-O-I', 'Beattie', 'Kemp', 'Wang']
-    for i, (label_ax, model_label) in enumerate(zip(model_label_axs, model_labels)):
-        label_ax.text(.5, .5, model_label, horizontalalignment='center',
+    relabel_models_dict{'model2': 'C-O-I',
+                        'model3': 'Beattie',
+                        'model10': 'Kemp',
+                        'Wang': 'Wang'
+                        }
+
+    for i, (label_ax, model_label) in enumerate(zip(model_label_axs, args.model_classes)):
+        label = relabel_models_dict[model_label]
+        label_ax.text(.5, .5, label, horizontalalignment='center',
                       verticalalignment='center')
 
     case_labels = ['Case I', 'Case II', 'Case III']
