@@ -85,8 +85,16 @@ def main():
     if args.protocols:
         subtraction_df = subtraction_df[subtraction_df.protocol.isin(args.protocols)]
 
+    if not args.cases:
+        args.cases = ['0a', '0b', '0c']
+
     cases = args.cases
-    dirnames = ['Case0a', 'Case0b', 'Case0b']
+    dirnames_dict = [
+        '0a:' 'Case0a',
+        '0b': 'Case0b',
+        '0c': 'Case0b']
+
+    dirnames = [dirnames_dict[case] for case in cases]
 
     # Get fitting results (dict of dicts)
     results_dict = {}
