@@ -1101,7 +1101,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                 hybrid = False
 
             solver = model.make_hybrid_solver_current(hybrid=hybrid,
-                                                      njitted=not hybrid,
+                                                      njitted=False,
                                                       strict=strict,
                                                       protocol_description=desc,
                                                       voltage=prot_func)
