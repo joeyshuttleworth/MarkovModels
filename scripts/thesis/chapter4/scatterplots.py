@@ -65,15 +65,17 @@ def main():
         protocol_order.insert(-1, 'staircaseramp1_2_sweep2')
 
     params_df = pd.read_csv(args.input_file)
+    params_df.protocol = ['staircaseramp1' if prot in ['staircaseramp2', 'staircaseramp1_2'] else prot
+                   for prot in params_df.protocol]
     # Reorder and relabel protocols
-    relabel_dict = {p: r"$d_{" f"{i+1}" r"}$" for i, p
+    relabel_dict = {p: r"$d_{" f"{i}" r"}$" for i, p
                     in enumerate(protocol_order)}
+
+    relabel_dict['staircaseramp1'] = r'$d_{1}$'
 
     params_df = params_df[~params_df.protocol.isin(args.ignore_protocols)]
     params_df = params_df.reset_index()
     # Combine first and last staircases
-    params_df.protocol = ['staircaseramp1' if prot in ['staircaseramp2', 'staircaseramp1_2'] else prot
-                   for prot in params_df.protocol]
 
     if args.adjust_kinetics:
         assert args.subtraction_df

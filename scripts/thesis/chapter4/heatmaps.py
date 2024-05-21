@@ -364,7 +364,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
 
     protocol_order = [p for p in protocol_order if p in prediction_df.validation_protocol.unique()]
     # Reorder and relabel protocols
-    relabel_dict = {p: r"$d_{" f"{i+1}" r"}$" for i, p
+    relabel_dict = {p: r"$d_{" f"{i}" r"}$" for i, p
                     in enumerate(protocol_order)}
 
     # Move longap to front
@@ -441,8 +441,8 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     # Show mean score in title
     mean_training_score = sub_df[sub_df.fitting_protocol == sub_df.validation_protocol]['n_score'].values.astype(np.float64).mean()
     mean_validation_score = sub_df[sub_df.fitting_protocol != sub_df.validation_protocol]['n_score'].values.astype(np.float64).mean()
-    ax.set_title(r'$\mathcal{E}_\text{train} = $' f"{mean_training_score:.2E}" + \
-    r', $\mathcal{E})\text{predict} = $' + f"{mean_validation_score:.2E}",
+    ax.set_title(r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
+    r', $\mathcal{E}{\text{predict}} = $' + f"{mean_validation_score:.2E}",
     fontsize=8)
 
     hm = sns.heatmap(pivot_df, ax=ax, square=True, norm=norm,
@@ -479,7 +479,7 @@ def setup_grid(fig, args):
     no_columns = 1 + no_cases
 
     gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[.15] + [1] *
-                  no_models + [0.25], width_ratios=[.5] + no_cases*[1])
+                  no_models + [0.25], width_ratios=[.3] + no_cases*[1])
 
     model_label_axs = [fig.add_subplot(gs[i, 0]) for i in range(1, no_rows - 1)]
     case_label_axs = [fig.add_subplot(gs[0, i]) for i in range(1, no_columns)]
@@ -497,13 +497,13 @@ def setup_grid(fig, args):
     for i, (label_ax, model_label) in enumerate(zip(model_label_axs, args.model_classes)):
         label = relabel_models_dict[model_label]
         label_ax.text(.5, .5, label, horizontalalignment='center',
-                      verticalalignment='center')
+                      verticalalignment='center', fontsize=12)
 
     case_labels = ['Case I', 'Case II', 'Case III']
     for i, (label_ax, case_label) in enumerate(zip(case_label_axs, case_labels)):
         case_label = case_labels[i]
         label_ax.text(.5, .5, case_label, horizontalalignment='center',
-                      verticalalignment='center')
+                      verticalalignment='center', fontsize=12)
 
     for ax in list(model_axs.flatten()) + model_label_axs + case_label_axs:
         ax.set_axis_off()
