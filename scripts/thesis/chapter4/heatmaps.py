@@ -157,7 +157,7 @@ def main():
 
     cbar_kws = {
         'orientation': 'horizontal',
-        'fraction': .75,
+        'fraction': .65,
         'drawedges': False,
         'label': 'normalised RMSE',
     }
@@ -441,9 +441,16 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     # Show mean score in title
     mean_training_score = sub_df[sub_df.fitting_protocol == sub_df.validation_protocol]['n_score'].values.astype(np.float64).mean()
     mean_validation_score = sub_df[sub_df.fitting_protocol != sub_df.validation_protocol]['n_score'].values.astype(np.float64).mean()
+
+    # Set small fontsize if there is a colour bar (i.e for the plots taking up the whole figure)
+    if kws['cbar']:
+        fontsize = 8
+    else:
+        fontsize = 12
+
     ax.set_title(r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
-    r', $\mathcal{E}{\text{predict}} = $' + f"{mean_validation_score:.2E}",
-    fontsize=8)
+    r',\n' r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}",
+                 fontsize=fonstize)
 
     hm = sns.heatmap(pivot_df, ax=ax, square=True, norm=norm,
                      cmap=cmap, **kws)
