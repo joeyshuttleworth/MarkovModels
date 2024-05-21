@@ -1293,9 +1293,11 @@ def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None,
     assert transformations is not None
 
     param_labels = sorted(model.get_parameter_labels())
-    param_pairs = list(zip(param_labels[:-2:2], param_labels[1:-1:2]))
+    param_labels = [p for p in param_labels if p != 'g_Kr']
 
-    param_pairs = [(a, b, 1 - 2 * (i % 2))
+    # TODO Make this work for other models. Currently only works for model2, 3, 10 and Wang
+    param_pairs = list(zip(param_labels[::2], param_labels[1::2]))
+    param_pairs = [(a, b, 1 if  (i % 2) else 0)
                    for i, (a, b) in enumerate(param_pairs)]
 
     E_rev_df = E_rev_df.set_index(['protocol', 'well', 'sweep'])
