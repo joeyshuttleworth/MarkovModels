@@ -306,7 +306,7 @@ def do_per_plots(protocol, well, params_df, p1, p2, output_dir, beta=None,
     axs = setup_per_cell_figure(fig, len(params_df[per_variable].unique()),
                                 sharex=True, sharey=True)
 
-    vars = sorted(params_df[per_variable].unique())
+    vars = params_df[per_variable].copy().sort_values('per_variable').unique()
 
     p1_index = param_labels.index(p1)
     p2_index = param_labels.index(p2)
