@@ -1326,7 +1326,7 @@ def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None,
         for a, b, multiplier in param_pairs:
             row[a] = np.float64(row[a])
             row[b] = np.float64(row[b])
-            row[a] = row[a] * np.exp(row[b] * V_off)
+            row[a] = row[a] * np.exp(row[b] * V_off * multiplier)
 
             if use_boundaries:
                 # Modify rates so they lie on/inside the boundary (if necessary)
@@ -1353,6 +1353,8 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                     fitting_case, E_rev, protocol_dict, full_data, voltages,
                     label='', solver=None, do_spike_removal=True,
                     return_states=False, strict=True, tolerances=(None, None)):
+
+    params_df = params_df.copy()
 
     atol, rtol = tolerances
 
