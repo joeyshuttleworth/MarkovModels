@@ -293,7 +293,7 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                                                args=args,
                                                label=f"{model_class}_{case}_predictions",
                                                data_label=data_label,
-                                               hybrid=False,
+                                               hybrid=True,
                                                strict=False,
                                                )
     else:
@@ -329,7 +329,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
                                                model_class=model_class,
                                                label=f"{model_class}_{fitting_case}_predictions",
                                                data_label=data_label,
-                                               hybrid=False,
+                                               hybrid=True,
                                                strict=False,
                                                args=args)
 
@@ -440,7 +440,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     mean_training_score = sub_df[sub_df.fitting_protocol == sub_df.validation_protocol]['n_score'].values.astype(np.float64).mean()
     mean_validation_score = sub_df[sub_df.fitting_protocol != sub_df.validation_protocol]['n_score'].values.astype(np.float64).mean()
     ax.set_title(r'$\mathcal{E}_\text{train} = $' f"{mean_training_score:.2E}" + \
-    r'$\mathcal{E})\text{predict} = ' + f"{mean_validation_score:.2E}",
+    r'$\mathcal{E})\text{predict} = $' + f"{mean_validation_score:.2E}",
     fontsize=8)
 
     hm = sns.heatmap(pivot_df, ax=ax, square=True, norm=norm,
