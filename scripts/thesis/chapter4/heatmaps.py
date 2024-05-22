@@ -293,7 +293,7 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                                                args=args,
                                                label=f"{model_class}_{case}_predictions",
                                                data_label=data_label,
-                                               hybrid=True,
+                                               hybrid=False,
                                                strict=False,
                                                tolerances=(1e-6, 1e-6)
                                                )
