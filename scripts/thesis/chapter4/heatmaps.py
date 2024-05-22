@@ -213,7 +213,7 @@ def main():
             # Do heatmap on individual plot with heatmap
             do_heatmap(individual_ax, model_class, case, sub_df, subtraction_df,
                        protocol_dict, vlim, args, well=well,
-                       prediction_df=prediction_df,
+                       prediction_df=prediction_df, fontsize=11,
                        cbar=True)
 
             individual_fig.savefig(os.path.join(output_dir,
@@ -315,7 +315,8 @@ def do_spread_of_predictions(ax, model_class, fitting_case, params_df,
 
 
 def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
-               protocol_dict, vlim, args, well=None, prediction_df=None, **kws):
+               protocol_dict, vlim, args, well=None, prediction_df=None, fontsize=8,
+               **kws):
 
     if fitting_case in ['I', 'II'] or args.use_raw_data:
         data_label = 'before'
@@ -442,15 +443,9 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     mean_training_score = sub_df[sub_df.fitting_protocol == sub_df.validation_protocol]['n_score'].values.astype(np.float64).mean()
     mean_validation_score = sub_df[sub_df.fitting_protocol != sub_df.validation_protocol]['n_score'].values.astype(np.float64).mean()
 
-    # Set small fontsize if there is a colour bar (i.e for the plots taking up the whole figure)
-    if kws['cbar']:
-        fontsize = 8
-    else:
-        fontsize = 12
-
     ax.set_title(r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
-    r',\n' r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}",
-                 fontsize=fontsize)
+    r',\\' r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}",
+                 fontsize=fonstize)
 
     hm = sns.heatmap(pivot_df, ax=ax, square=True, norm=norm,
                      cmap=cmap, **kws)
