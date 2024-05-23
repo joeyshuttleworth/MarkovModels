@@ -134,8 +134,6 @@ def main():
     if args.protocols:
         params_df = params_df[params_df.protocol.isin(args.protocols)]
 
-    params_df[param_labels] = params_df[param_labels].astype(np.float64)
-
     # Drop conductance parameter
     params_df = params_df.drop(param_labels[-1], axis='columns')
     param_labels = param_labels[:-1]
@@ -305,14 +303,14 @@ def do_per_plots(protocol, well, params_df, p1, p2, output_dir, beta=None,
     axs = setup_per_cell_figure(fig, len(params_df[per_variable].unique()),
                                 sharex=True, sharey=True)
 
-    vars = params_df.copy().sort_values(by=per_variable)[per_variable].unique()
+    vars = params_df.copy().sort_values(by=['well', 'protocol'])[per_variable].unique()
 
     p1_index = param_labels.index(p1)
     p2_index = param_labels.index(p2)
 
+    wells = list(params_df.well.unique())
+    protocols = list(params_df.protocol.unique())
     no_protocols = len(protocols)
-
-    wells = sorted(params_df.well.unique())
 
     for var, ax in zip(vars, axs):
         sub_df = params_df[params_df[per_variable] == var]
@@ -329,11 +327,11 @@ def do_per_plots(protocol, well, params_df, p1, p2, output_dir, beta=None,
         if beta is not None:
             if per_variable == 'well':
                 well = var
-                well_index = wells.index(var)
+                well_index = wells.index(well)
                 protocol_index = protocols.index(protocol)
             elif per_variable == 'protocol':
                 protocol = var
-                protocol_index = protocols.index(var)
+                protocol_index = protocols.index(protocol)
                 well_index = wells.index(well)
             else:
                 raise Exception(f"per_variable must be well or protocol, not {per_variable}")
@@ -432,6 +430,11 @@ def do_multivariate_regression(params_df, param_labels,
                                      no_protocol_effect=no_protocol_effect,
                                      no_well_effect=no_well_effect)
 
+    protocols = sorted(list(params_df.protocol.unique()))
+    wells = sorted(list(params_df.well.unique()))
+    no_wells = len(wells)
+    no_protocols = len(protocols)
+
     no_protocols = len(protocols)
 
     # Do regression
@@ -459,9 +462,10 @@ def setup_linear_model_coding(params_df, param_labels,
     Set-up the design matrxi for the linear parameter estimates model
     """
 
-    no_protocols = len(protocols)
+    protocols = sorted(list(params_df.protocol.unique()))
     wells = sorted(list(params_df.well.unique()))
     no_wells = len(wells)
+    no_protocols = len(protocols)
 
     # Number of parameters (excluding conductance)
     no_parameters = len(param_labels)
