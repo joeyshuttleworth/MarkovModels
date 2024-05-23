@@ -306,6 +306,7 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                  np.random.uniform(3e2, 1e4)} for v_p in protocols for f_p in
                 protocols for well in ['Z01', 'Z02', 'Z03']]
         prediction_df = pd.DataFrame.from_records(rows)
+        prediction_df['n_score'] = prediction_df['RMSE']
     return prediction_df
 
 
@@ -444,8 +445,9 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     mean_validation_score = sub_df[sub_df.fitting_protocol != sub_df.validation_protocol]['n_score'].values.astype(np.float64).mean()
 
     ax.set_title(r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
-    r',\\' r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}",
-                 fontsize=fonstize)
+    ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}",
+                 fontsize=fontsize,
+                 ha='left')
 
     hm = sns.heatmap(pivot_df, ax=ax, square=True, norm=norm,
                      cmap=cmap, **kws)
