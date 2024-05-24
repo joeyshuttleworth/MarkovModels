@@ -448,7 +448,6 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}",
                  fontsize=fontsize,
                  ha='left')
->>>>>>> a6de430ececca77a87f0ef1e3afa7a62f068c93b
 
     hm = sns.heatmap(pivot_df, ax=ax, square=True, norm=norm,
                      cmap=cmap, **kws)
