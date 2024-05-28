@@ -375,6 +375,13 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
         protocol_order.remove('longap')
         protocol_order.insert(0, 'longap')
 
+    relabel_dict['staircaseramp1'] = r'$d_{1}^{(1)}$'
+    relabel_dict['staircaseramp1_sweep2'] = r'$d_{1}^{(2)}$'
+    relabel_dict['staircaseramp1_2'] = r'$d_{1}^{(3)}$'
+    relabel_dict['staircaseramp1_2_sweep2'] = r'$d_{1}^{(4)}$'
+
+    protocol_order = protocol_order + ['staircaseramp1_2', 'staircaseramp1_2_sweep2']
+
     prediction_df['fitting_protocol'] = pd.Categorical(prediction_df['fitting_protocol'],
                                                        categories=protocol_order,
                                                        ordered=True)
@@ -382,11 +389,6 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     prediction_df['validation_protocol'] = pd.Categorical(prediction_df['validation_protocol'],
                                                           categories=protocol_order,
                                                           ordered=True)
-
-    relabel_dict['staircaseramp1'] = r'$d_{1}^{(1)}$'
-    relabel_dict['staircaseramp1_sweep2'] = r'$d_{1}^{(2)}$'
-    relabel_dict['staircaseramp1_2'] = r'$d_{1}^{(3)}$'
-    relabel_dict['staircaseramp1_2_sweep2'] = r'$d_{1}^{(4)}$'
 
     prediction_df.fitting_protocol = prediction_df.fitting_protocol.cat.rename_categories(relabel_dict)
     prediction_df.validation_protocol = prediction_df.validation_protocol.cat.rename_categories(relabel_dict)
