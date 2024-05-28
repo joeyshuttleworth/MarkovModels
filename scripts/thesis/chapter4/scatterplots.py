@@ -196,7 +196,7 @@ def main():
         print(out_str)
 
     param_combinations = [(p1, p2) for i, p1 in enumerate(param_labels[:-1])
-                          for j, p2 in enumerate(param_labels[:-1]) if p1 != p2 and j < i]
+                          for j, p2 in enumerate(param_labels[:-1]) if p1 != p2 and i < j]
 
     for well in params_df.well.unique():
         for p1, p2 in param_combinations:
