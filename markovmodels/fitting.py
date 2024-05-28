@@ -1336,7 +1336,7 @@ def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None,
                 row[a] = max(row[a], 1e-7)
 
                 V = np.array([-120, 60])
-                max_rate = np.max(row[a] * np.exp(row[b] * V * multiplier))
+                max_rate = row[a] * np.max(np.exp(row[b] * V * multiplier))
 
                 if max_rate > 1e3:
                     row[a] = 1e3 / np.max(np.exp(row[b] * V * multiplier))
