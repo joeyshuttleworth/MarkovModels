@@ -61,10 +61,11 @@ def main():
     with open(chrono_fname, 'r') as fin:
         lines = fin.read().splitlines()
         protocol_order = [line.split(' ')[0] for line in lines]
-        protocol_order.insert(1, 'staircaseramp1_sweep2')
-        protocol_order.insert(-1, 'staircaseramp1_2_sweep2')
+        protocol_order.remove('longap')
+        protocol_order.remove('staircaseramp1_2')
 
     params_df = pd.read_csv(args.input_file)
+    params_df = get_best_params(params_df)
 
     if args.adjust_kinetics:
         assert args.subtraction_df
@@ -75,33 +76,26 @@ def main():
 
 
     params_df.protocol = ['staircaseramp1' if prot in ['staircaseramp2', 'staircaseramp1_2'] else prot
-                   for prot in params_df.protocol]
-    # Reorder and relabel protocols
-    relabel_dict = {p: r"$d_{" f"{i}" r"}$" for i, p
-                    in enumerate(protocol_order)}
+                          for prot in params_df.protocol]
 
+    print(params_df.protocol.unique())
+
+    # Reorder and relabel protocols
+    relabel_dict = {p: r"$d_{" f"{i + 1}" r"}$" for i, p
+                    in enumerate(protocol_order) if p != 'staircaseramp1'}
     relabel_dict['staircaseramp1'] = r'$d_{1}$'
-    relabel_dict['staircaseramp1_2'] = r'$d_{1}$'
 
     params_df = params_df[~params_df.protocol.isin(args.ignore_protocols)]
     params_df = params_df.reset_index()
     # Combine first and last staircases
 
-    params_df = get_best_params(params_df)
-
     if not args.use_real_protocol_labels:
-        # Handle multiple sweeps of staircase protocol
-        relabel_dict['staircaseramp1'] = r'$d_{1}$'
-
         params_df['protocol'] = pd.Categorical(params_df['protocol'],
                                                categories=protocol_order,
                                                ordered=True)
-        # Reorder and relabel protocols
-        relabel_dict = {p: r"$d_{" f"{i+1}" r"}$" for i, p
-                        in enumerate(protocol_order)}
+        print(relabel_dict)
         params_df.protocol = params_df.protocol.cat.rename_categories(relabel_dict)
-
-        protocols = [p for p in list(relabel_dict.values()) if p in params_df.protocol.unique()]
+        protocols = params_df.protocol.unique()
 
     transformations = make_model_of_class(args.model).transformations
     # Dictionary of units
@@ -137,9 +131,6 @@ def main():
     # Drop conductance parameter
     params_df = params_df.drop(param_labels[-1], axis='columns')
     param_labels = param_labels[:-1]
-
-    p1, p2 = param_labels[:2]
-    do_coloured_scatterplots(params_df, p1, p2)
 
     beta, ll = do_multivariate_regression(params_df, param_labels)
 
@@ -308,18 +299,21 @@ def do_per_plots(protocol, well, params_df, p1, p2, output_dir, beta=None,
     p1_index = param_labels.index(p1)
     p2_index = param_labels.index(p2)
 
-    wells = list(params_df.well.unique())
-    protocols = list(params_df.protocol.unique())
+    wells = sorted(list(params_df.well.unique()))
+    protocols = sorted(list(params_df.protocol.unique()))
     no_protocols = len(protocols)
 
     for var, ax in zip(vars, axs):
         sub_df = params_df[params_df[per_variable] == var]
-        ax.scatter(sub_df[p1].values, sub_df[p2].values, marker='.', color='grey')
         if protocol is not None and per_variable == 'well':
-            sub_df = sub_df[sub_df.protocol == protocol]
+            grey_df = sub_df[sub_df.protocol != protocol]
+            sub_df = sub_df[sub_df.protocol == sub_df.protocol]
+            ax.scatter(grey_df[p1].values, grey_df[p2].values, marker='.', color='grey')
             ax.scatter(sub_df[p1].values, sub_df[p2].values, marker='x', color='red')
         elif well is not None and per_variable == 'protocol':
+            grey_df = sub_df[sub_df.well != well]
             sub_df = sub_df[sub_df.well == well]
+            ax.scatter(grey_df[p1].values, grey_df[p2].values, marker='.', color='grey')
             ax.scatter(sub_df[p1].values, sub_df[p2].values, marker='x', color='red')
 
         ax.set_title(var)
@@ -341,17 +335,15 @@ def do_per_plots(protocol, well, params_df, p1, p2, output_dir, beta=None,
 
             well_effect = beta[w_effect_index, [p1_index,
                                                 p2_index]]
+
             if protocol_index < len(protocols) - 1:
                 protocol_effect = beta[protocol_index, [p1_index,
                                                         p2_index]]
             else:
                 protocol_effect = np.array([0, 0])
 
-
             if per_variable=='well':
-                protocol_effects = [beta[i, [p1_index, p2_index]]
-                                    for i in range(len(protocols) - 1)]
-
+                protocol_effects = beta[:no_protocols - 1, [p1_index, p2_index]]
                 well_only_effect = well_effect + sum(protocol_effects) / len(protocols)
 
                 if args.log_a:
@@ -368,7 +360,6 @@ def do_per_plots(protocol, well, params_df, p1, p2, output_dir, beta=None,
                                                             p1, p2)
 
                 ax.scatter(*(protocol_only_effect).T, color='gold', marker='s')
-
 
             combined_effect = well_effect + protocol_effect
 
