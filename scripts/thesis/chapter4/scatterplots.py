@@ -307,13 +307,13 @@ def do_per_plots(protocol, well, params_df, p1, p2, output_dir, beta=None,
         sub_df = params_df[params_df[per_variable] == var]
         if protocol is not None and per_variable == 'well':
             grey_df = sub_df[sub_df.protocol != protocol]
-            sub_df = sub_df[sub_df.protocol == sub_df.protocol]
             ax.scatter(grey_df[p1].values, grey_df[p2].values, marker='.', color='grey')
+            sub_df = sub_df[sub_df.protocol == protocol]
             ax.scatter(sub_df[p1].values, sub_df[p2].values, marker='x', color='red')
         elif well is not None and per_variable == 'protocol':
             grey_df = sub_df[sub_df.well != well]
-            sub_df = sub_df[sub_df.well == well]
             ax.scatter(grey_df[p1].values, grey_df[p2].values, marker='.', color='grey')
+            sub_df = sub_df[sub_df.well == well]
             ax.scatter(sub_df[p1].values, sub_df[p2].values, marker='x', color='red')
 
         ax.set_title(var)
