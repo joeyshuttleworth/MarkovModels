@@ -379,8 +379,11 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     relabel_dict['staircaseramp1_2'] = r'$d_{1}^{(3)}$'
     relabel_dict['staircaseramp1_2_sweep2'] = r'$d_{1}^{(4)}$'
 
+    protocol_order.remove('staircaseramp1_2_sweep2')
     protocol_order = protocol_order + ['staircaseramp1_2_sweep2']
-    protocol_order.insert(1, 'staircaseramp1_sweep2')
+
+    protocol_order.remove('staircaseramp1_sweep2')
+    protocol_order.insert(2, 'staircaseramp1_sweep2')
 
     prediction_df['fitting_protocol'] = pd.Categorical(prediction_df['fitting_protocol'],
                                                        categories=protocol_order,
