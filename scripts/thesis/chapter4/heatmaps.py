@@ -299,7 +299,6 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                                                )
     else:
         protocols = sorted(params_df.protocol.unique() )
-        print(f"{model_class} {case} protocols are {protocols}")
 
         rows = [{'fitting_sweep': 0, 'prediction_sweep': 0, 'well': well,
                  'fitting_protocol': f_p, 'validation_protocol': v_p, 'RMSE':
@@ -380,7 +379,8 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     relabel_dict['staircaseramp1_2'] = r'$d_{1}^{(3)}$'
     relabel_dict['staircaseramp1_2_sweep2'] = r'$d_{1}^{(4)}$'
 
-    protocol_order = protocol_order + ['staircaseramp1_2', 'staircaseramp1_2_sweep2']
+    protocol_order = protocol_order + ['staircaseramp1_2_sweep2']
+    protocol_order.insert(1, 'staircaseramp1_sweep2')
 
     prediction_df['fitting_protocol'] = pd.Categorical(prediction_df['fitting_protocol'],
                                                        categories=protocol_order,
