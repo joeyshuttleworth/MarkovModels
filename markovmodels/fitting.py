@@ -1389,7 +1389,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
         fitting_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(protocol_fitted, well, fitting_sweep)]['E_rev']
         new_E_rev = inferred_E_rev
         params_df = adjust_kinetics(args.model, params_df, subtractions_df,
-                                    fitting_E_rev, new_E_rev, use_boundaries=True)
+                                    fitting_E_rev, new_E_rev, use_boundaries=False)
 
     param_labels = model.get_parameter_labels()
 
