@@ -38,7 +38,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
     if args.use_artefact_model and not args.data_label:
         data_label = 'before'
     else:
-        data_label = ''
+        data_label = args.data_label
 
     fix_parameters = []
     if args.use_artefact_model:
@@ -101,7 +101,7 @@ def main():
     parser.add_argument('--sweeps', nargs='+', type=int, default=[0])
     parser.add_argument('--use_artefact_model', action='store_true')
     parser.add_argument('--subtraction_df_file')
-    parser.add_argument('--data_label')
+    parser.add_argument('--data_label', default='')
     parser.add_argument('--compute_predictions', action='store_true')
     parser.add_argument('--reversal', type=float)
     parser.add_argument('--tolerance', nargs=2, type=float, default=(1e-8, 1e-8))
@@ -230,7 +230,6 @@ def main():
 
         protocols_list.append(protocol)
 
-    print(f"fitting tasks are {tasks}")
     assert len(tasks) > 0, "no valid protocol/well combinations provided"
     protocols_list = np.unique(protocols_list)
     pool_size = min(args.cores, len(tasks))

@@ -16,6 +16,7 @@ from sympy.utilities.lambdify import _TensorflowEvaluatorPrinter
 
 import markovmodels
 
+from quality_control.leak_fit import fit_leak_lr
 from markovmodels.model_generation import make_model_of_class, setup_model_for_fitting_case
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv, make_voltage_function_from_description
 from markovmodels.utilities import get_data
@@ -314,6 +315,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
 
     data, voltage_protocol = get_data(well, protocol, data_directory, experiment_name,
                                       label=data_label, sweep=sweep)
+
     protocol_desc = voltage_protocol.get_all_sections()
 
     # Temporary solver hack
@@ -359,8 +361,6 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                     np.append(make_model_of_class(V_off_model_class).get_default_parameters(),
                               default_parameters[-no_artefact_parameters:])
 
-                print(V_off_initial_params)
-
             try:
                 V_off = find_V_off(protocol_desc, times,
                                    data, V_off_model_class,
@@ -370,6 +370,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                    output_path=output_path,
                                    data_label=data_label
                                    )
+
             except ValueError as exc:
                 # Possibly non data or non-finite values in data
                 logging.warning("error whilst inferring V_off: ", str(exc))
@@ -391,6 +392,18 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         if inferred_E_rev < -50 or inferred_E_rev > -100:
             E_rev = inferred_E_rev
 
+    # Fit leak parameters
+    if use_artefact_model:
+        markov_model_leak = ArtefactModel(make_model_of_class('model3',
+                                                              protocol_description=protocol_desc,
+                                                              times=times))
+        gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak, protocol_desc,
+                                                         times, data, voltages,
+                                                         return_var='I_out')
+        default_parameters[-no_artefact_parameters + 1] = gleak
+        default_parameters[-no_artefact_parameters + 2] = Eleak
+
+
     m_model = make_model_of_class(model_class_name, voltage=voltage_func,
                                   times=times,
                                   E_rev=E_rev,
@@ -402,7 +415,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
     else:
         model = m_model
 
-    initial_params = default_parameters.flatten()
+    initial_params = default_parameters.flatten().copy()
 
     columns = model.get_parameter_labels()
 
@@ -434,11 +447,6 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
             print(model.SimulateForwardModel(initial_params))
 
         bad_indices = np.argwhere(~np.isfinite(solver(initial_params.flatten())))
-
-        print(times[bad_indices])
-        print(voltages[bad_indices])
-
-        print(len(times))
 
         state_solver = model.make_hybrid_solver_states(hybrid=False, njitted=False)
         print(state_solver()[bad_indices, :])
@@ -606,10 +614,10 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
 
 class FittingBoundaries(pints.Boundaries):
     def __init__(self, full_parameters, model, current, voltages, rng,
-                 fix_parameters=[], is_artefact_model=False):
-        self.is_artefact_model = is_artefact_model
+                 fix_parameters=[], use_artefact_model=False):
+        self.is_artefact_model = use_artefact_model
 
-        if is_artefact_model:
+        if self.is_artefact_model:
             self.mm = model.channel_model
 
             self.fix_parameters = [
@@ -721,17 +729,79 @@ class FittingBoundaries(pints.Boundaries):
         return ret_vec
 
 
-def _find_conductance(solver, data, indices, aux_func, voltages, p, Erev, gkr_index,
-                      bounds=None, return_var='I_Kr'):
+def fit_leak_parameters_with_artefact(model, desc, times, data,
+                                      voltages, default_parameters=None,
+                                      return_var='I_out'):
+
+    if default_parameters is None:
+        default_parameters = model.get_default_parameters()
+    bounds = np.array([
+        [0.0, 1e3],
+        [-500.0, 500.0]
+    ])
+
+    leak_ramp_i = [i for i, l in enumerate(desc) if l[2] != l[3]][0]
+    ramp_end = desc[leak_ramp_i + 1, 1] - 50.0
+
+    ramp_start = 0.0
+
+    istart = np.argmax(times > ramp_start)
+    iend = np.argmax(times > ramp_end)
+
+    dt = times[1] - times[0]
+    g_leak_est, E_leak_est, _, _, _, _, _ = fit_leak_lr(
+        voltages, data, dt=dt,
+        ramp_start=ramp_start,
+        ramp_end=ramp_end
+    )
+
+    x0 = [g_leak_est, E_leak_est]
+
+    solver = model.make_hybrid_solver_current(hybrid=False, return_var='I_out')
+
+    def opt_func(p):
+        _params = default_parameters.copy()
+        _params[-no_artefact_parameters + 1] = p[0]
+        _params[-no_artefact_parameters + 2] = p[1]
+        # Set channel conductance to 0
+        _params[-no_artefact_parameters-1] = 0.0
+        I_out = solver(_params).flatten()
+
+        score = np.sqrt(np.mean((I_out[istart:iend] - data[istart:iend])**2))
+        return score
+
+    options = {}
+    res = scipy.optimize.minimize(opt_func, x0=x0, bounds=bounds,
+                                  options=options)
+
+    print(res)
+
+    if res.success:
+        return res.x
+    return np.nan, np.nan
+
+
+def _find_conductance(solver, desc, times, data, indices, aux_func,
+                      voltages, p, Erev, gkr_index, model,
+                      bounds=None):
 
     if bounds is None:
         # Look at -120 step
         b_indices = np.argwhere(np.abs(voltages + 120)<1e-2)
-        bounds = np.unique([0, (data[b_indices]/(voltages[b_indices] - Erev)).max() * 20])
+        bounds = np.unique([0, (data[b_indices]/(voltages[b_indices] - Erev)).max() * 10])
+
+    gleak, Eleak = fit_leak_parameters_with_artefact(model, desc, times, data,
+                                                     voltages, default_parameters=p)
+
+    gleak_index = -no_artefact_parameters + 1
+    Eleak_index = -no_artefact_parameters + 1
+
 
     def find_g_opt(g):
         _p = p.copy()
         _p[gkr_index] = float(g)
+        _p[gleak_index] = gleak
+        _p[Eleak_index] = Eleak
 
         states = solver(_p)
 
@@ -752,7 +822,6 @@ def _find_conductance(solver, data, indices, aux_func, voltages, p, Erev, gkr_in
     if res.success:
         return res.x
     return np.nan
-
 
 
 def find_V_off(protocol_desc, times, data,
@@ -794,7 +863,9 @@ def find_V_off(protocol_desc, times, data,
     a_solver = model.make_hybrid_solver_states(hybrid=False, njitted=False,
                                                strict=False)
 
-    return_var = 'I_out' if data_label == 'before' else None
+    assert np.all(np.isfinite(a_solver()))
+
+    return_var = 'I_out' if data_label == 'before' else 'I_Kr'
 
     aux_func = model.define_auxiliary_function(return_var=return_var)
     step = next(filter(lambda x: x[2] >= -74, reversed(protocol_desc)))
@@ -810,18 +881,18 @@ def find_V_off(protocol_desc, times, data,
 
     p = default_parameters.copy()
     p[-3] = 0.0
+    gleak, Eleak = p[-7:-5]
     states = a_solver(p)
 
-
     if data_label == 'before':
-        gleak, Eleak = p[-7:-5]
         s_data = data - gleak * (voltages - Eleak)
+
     else:
-        s_data = data
+            s_data = data
 
+    initial_gkr = _find_conductance(a_solver, protocol_desc, times, data,
+                                    indices, aux_func, voltages, p, E_rev, gkr_index, model)
 
-    initial_gkr = _find_conductance(a_solver, data, indices, aux_func,
-                                    voltages, p, E_rev, gkr_index)
     E_obs = infer_reversal_potential(protocol_desc, s_data, times)
 
     def opt_V_off_func(V_off):
@@ -829,8 +900,8 @@ def find_V_off(protocol_desc, times, data,
 
         p[gkr_index] = initial_gkr
 
-        gkr = _find_conductance(a_solver, data, indices, aux_func, voltages, p,
-                                E_rev, gkr_index)
+        gkr = _find_conductance(a_solver, protocol_desc, times, data, indices,
+                                aux_func, voltages, p, E_rev, gkr_index, model)
 
         p[gkr_index] = gkr
         if not np.isfinite(gkr):
@@ -839,6 +910,7 @@ def find_V_off(protocol_desc, times, data,
         p[-3] = V_off
         states = a_solver(p)
         V_m = states[:, -1]
+
         trace = aux_func(states.T, p, voltages).flatten()
 
         # Do leak subtraction if handling raw trace
@@ -852,7 +924,7 @@ def find_V_off(protocol_desc, times, data,
         # Get voltage where current first crosses 0 in the reversal ramp
         expected_E_obs = voltages[istart:iend][np.argmax(s_trace[istart:iend] < 0)]
 
-        if np.any(~np.isfinite(trace)):
+        if not np.all(np.isfinite(trace)):
             return np.inf
 
         if expected_E_obs > voltages.max() or expected_E_obs < voltages.min():
@@ -861,13 +933,14 @@ def find_V_off(protocol_desc, times, data,
         score = (E_obs - expected_E_obs)**2
         return score
 
-    # Set bounds for optimisation
+    # Set bounds not for optimisallo
 
     E_obs = infer_reversal_potential(protocol_desc, s_data, times,
                                      voltages=voltages)
 
     E_rev_error = E_obs - E_rev
-    bounds = np.unique([-E_rev_error*2, 0])
+
+    bounds = np.unique([-E_rev_error*2, 0.5*E_rev_error])
 
     options = {'xatol': 1e-8}
 
@@ -881,8 +954,8 @@ def find_V_off(protocol_desc, times, data,
         return np.inf
 
     p[-3] = found_V_off
-    gkr = _find_conductance(a_solver, data, indices, aux_func, voltages, p,
-                            E_rev, gkr_index)
+    gkr = _find_conductance(a_solver, protocol_desc, times, data, indices,
+                            aux_func, voltages, p, E_rev, gkr_index, model)
     p[gkr_index] = gkr
 
     if output_path:
@@ -892,25 +965,25 @@ def find_V_off(protocol_desc, times, data,
         states = a_solver(p)
         V_m = states[:, -1]
         trace = aux_func(states.T, p, voltages).flatten()
-        # s_trace = aux_func_IKr(states.T, p, _)
-        # Do leak subtraction if handling raw tra wce
+
+        # Do leak subtraction if handling raw trace
         if data_label == 'before':
-            gleak, Eleak = p[-7:-5]
             s_data = data - gleak * (voltages - Eleak)
             s_trace = trace - gleak * (voltages - Eleak)
+
         else:
             # Leave trace untouched otherwise
-            s_trace = trace
             s_data = data
+            s_trace = trace
 
         ax.scatter(V_m[istart:iend], s_data[istart:iend], marker='x', color='grey',
                    s=5, label=r'$V_\text{m}$ reversal ramp')
         ax.scatter(voltages[istart:iend], s_data[istart:iend], marker='x',
                    color='pink', alpha=.5, s=5, label=r'$V_\text{cmd}$ reversal ramp')
-        ax.scatter(V_m[istart:iend], s_trace[istart:iend], marker='x', s=5,
+        ax.plot(V_m[istart:iend], s_trace[istart:iend],
                    label=r'reference model $V_\text{m}$ reversal ramp')
 
-        ax.scatter(voltages[istart:iend], s_trace[istart:iend], marker='x', s=5,
+        ax.plot(voltages[istart:iend], s_trace[istart:iend],
                    label=r'reference model with $V_\text{cmd}$ during reversal ramp')
 
         ax.axvline(E_rev, color='grey', linestyle='--', label=r'$E_\text{Nernst}$')
@@ -930,22 +1003,11 @@ def find_V_off(protocol_desc, times, data,
         fig = plt.figure()
         axs = fig.subplots(2)
 
-        # Find conductance
-        gkr = _find_conductance(a_solver, data, indices, aux_func, voltages, p,
-                                E_rev, gkr_index)
-
         p[-3] = found_V_off
         p[gkr_index] = gkr
-        states = a_solver(p)
 
-        prediction = aux_func(states.T, p, voltages)
-
-        if data_label == 'before':
-            gleak, Eleak = p[-7:-5]
-            prediction = prediction - gleak * (voltages - Eleak)
-
-        axs[0].plot(times, s_data, color='grey', alpha=.5, label='data')
-        axs[0].plot(times, prediction, label='forward_sim')
+        axs[0].plot(times, data, color='grey', alpha=.5, label='data')
+        axs[0].plot(times, trace, label='forward_sim')
 
         Vm = states[:, -1].flatten()
 
@@ -1501,5 +1563,3 @@ def get_ensemble_of_predictions(times, desc, params_df, protocol, well, sweep,
     if predictions:
         predictions = np.vstack(predictions)
     return predictions
-
-

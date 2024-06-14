@@ -109,7 +109,6 @@ class ArtefactModel(MarkovModel):
         y0 = np.append(y0, -80.0)
 
         n_max_steps = 64
-        desc = self.protocol_description
 
         E_rev = self.channel_model.E_rev
 
@@ -126,7 +125,6 @@ class ArtefactModel(MarkovModel):
                            rtol=rtol,
                            atol=atol,
                            exit_on_warning=False)
-
             return res[-1, :].flatten()
 
         return rhs_inf
@@ -139,7 +137,8 @@ class ArtefactModel(MarkovModel):
                                                 self.g_leak_leftover,
                                                 self.E_leak_leftover,
                                                 self.V_off, self.C_m,
-                                                self.R_s]).astype(np.float64)
+                                                self.R_s,
+                                                ]).astype(np.float64)
 
         ret_vec = np.concatenate((channel_parameters,
                                   default_artefact_parameters)).astype(np.float64).flatten()
@@ -184,6 +183,9 @@ class ArtefactModel(MarkovModel):
                                   njitted=False, analytic_solver=None,
                                   strict=True, cond_threshold=None, atol=None,
                                   rtol=None, hybrid=True, crhs=None):
+        if protocol_description is None:
+            protocol_description = self.protocol_description
+
         if hybrid:
             raise NotImplementedError()
         else:

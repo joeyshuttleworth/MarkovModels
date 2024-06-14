@@ -220,10 +220,6 @@ class ODEModel:
             solution = np.full((len(times), no_states), np.nan)
             solution[0, :] = y0
 
-            # protocol_desc = np.vstack((protocol_desc, ((protocol_desc[-1, 1],
-            #                                             np.inf, -80.0, -80.0))))
-
-            # pad protocol description to fill up 64 steps
             flat_desc = protocol_description.flatten().copy()
 
             if flat_desc.shape[0] < n_max_protocol_steps * 4:
@@ -236,7 +232,7 @@ class ODEModel:
                 print("Warning: n_max_protocol_steps exceeded")
 
             start_times = protocol_description[:, 0]
-            for i in range(len(protocol_description)):
+            for i in range(len(protocol_description[:-1, :])):
 
                 start_int = 0
                 end_int = 0
@@ -318,6 +314,7 @@ class ODEModel:
                 else:
                     y0 = step_sol[-1, :]
                     solution[istart:iend, ] = step_sol[1:-1, ]
+
 
             return solution
 

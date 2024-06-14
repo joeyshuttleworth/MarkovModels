@@ -84,35 +84,6 @@ def remove_indices(lst, indices_to_remove):
     return np.unique(lst).astype(int)
 
 
-def get_protocol_from_csv(protocol_name: str, directory=None, holding_potential=-80):
-    """Generate a function by interpolating
-    time-series data.
-
-    Params:
-    Holding potential: the value to return for times outside of the
-    range
-
-    Returns:
-    Returns a function float->float which returns the voltage (in mV)
-    at any given time t (in ms)
-
-    """
-
-    if directory is None:
-        directory = get_protocol_directory()
-
-    protocol = pd.read_csv(os.path.join(directory, protocol_name + ".csv"),
-                           float_precision='round_trip')
-
-    times = protocol["time"].values.flatten()
-    voltages = protocol["voltage"].values.flatten()
-
-    def protocol_safe(t):
-        return np.interp([t], times, voltages)[0] if t < times[-1] and t > times[0] else holding_potential
-
-    return protocol_safe, times
-
-
 def get_ramp_protocol_from_json(protocol_name: str, directory: str,
                                 experiment_name: str, holding_potential=-80.0):
     """
@@ -124,6 +95,7 @@ def get_ramp_protocol_from_json(protocol_name: str, directory: str,
                                      holding_potential=holding_potential).get_all_sections()
 
     prot_func = make_voltage_function_from_description(desc, holding_potential)
+    desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
     desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
 
     return prot_func, desc
