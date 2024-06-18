@@ -885,10 +885,10 @@ def find_V_off(protocol_desc, times, data,
     ramp = [line for line in protocol_desc if line[2] != line[3]][-1]
     start_t, end_t = ramp[0:2]
 
-    # Fit for middle of ramp
+    # Use central portion of reversal ramp for conductance estimation
     ramp_length = end_t - start_t
-    start_t += 0.35 * ramp_length
-    end_t -= 0.35 * ramp_length
+    start_t += 0.25 * ramp_length
+    end_t -= 0.25 * ramp_length
 
     indices = np.argwhere((times > start_t) & (times < end_t))
 
