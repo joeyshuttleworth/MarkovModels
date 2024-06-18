@@ -366,7 +366,6 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                    data, V_off_model_class,
                                    V_off_initial_params, E_rev,
                                    forward_sim_output_dir=reversal_dir,
-                                   removal_duration=removal_duration,
                                    output_path=output_path,
                                    data_label=data_label
                                    )
@@ -736,8 +735,8 @@ def fit_leak_parameters_with_artefact(model, desc, times, data,
     if default_parameters is None:
         default_parameters = model.get_default_parameters()
     bounds = np.array([
-        [0.0, 1e3],
-        [-500.0, 500.0]
+        [0.0, 1e4],
+        [-1e3, 1e3]
     ])
 
     leak_ramp_i = [i for i, l in enumerate(desc) if l[2] != l[3]][0]
@@ -772,30 +771,50 @@ def fit_leak_parameters_with_artefact(model, desc, times, data,
 
     options = {}
     res = scipy.optimize.minimize(opt_func, x0=x0, bounds=bounds,
-                                  options=options)
-
-    print(res)
+                                  options=options,
+                                  tol=1e-3,
+                                  method='Nelder-Mead')
 
     if res.success:
         return res.x
-    return np.nan, np.nan
+    else:
+        logging.warning(res)
+        return np.nan, np.nan
 
 
 def _find_conductance(solver, desc, times, data, indices, aux_func,
                       voltages, p, Erev, gkr_index, model,
                       bounds=None):
 
+
+    states = solver(p, times=times,
+                    protocol_description=desc)
+    Vm = states[:, -1].flatten()
+
+    gleak_index = -no_artefact_parameters + 1
+    Eleak_index = -no_artefact_parameters + 2
+
     if bounds is None:
         # Look at -120 step
         b_indices = np.argwhere(np.abs(voltages + 120)<1e-2)
-        bounds = np.unique([0, (data[b_indices]/(voltages[b_indices] - Erev)).max() * 10])
+
+        decay_step = [line for line in desc if line[2] == -120][0]
+
+        decay_step_tstart = decay_step[0]
+        decay_step_tend = decay_step[1]
+
+        b_indices = np.argmax((times > decay_step_tstart + 10) & (times < decay_step_tend - 50))
+
+        gleak = p[gleak_index]
+        Eleak = p[Eleak_index]
+
+        s_data = data - gleak * (Vm - Eleak)
+
+        max_conductance =  np.abs((s_data[b_indices]/(Vm[b_indices] - Erev))).max()
+        bounds = np.unique([0.1 * max_conductance, max_conductance * 20])
 
     gleak, Eleak = fit_leak_parameters_with_artefact(model, desc, times, data,
                                                      voltages, default_parameters=p)
-
-    gleak_index = -no_artefact_parameters + 1
-    Eleak_index = -no_artefact_parameters + 1
-
 
     def find_g_opt(g):
         _p = p.copy()
@@ -803,21 +822,48 @@ def _find_conductance(solver, desc, times, data, indices, aux_func,
         _p[gleak_index] = gleak
         _p[Eleak_index] = Eleak
 
-        states = solver(_p)
+        states = solver(_p, times=times,
+                        protocol_description=desc)
 
-        if not np.all(np.isfinite(states)):
-            return np.inf
+        Vm = states[:, -1].flatten()
 
-        prediction = aux_func(states.T, _p, voltages).flatten()
+        prediction = aux_func(states.T, _p, Vm).flatten()
+
+        assert prediction.shape == data.shape
 
         score = np.sqrt(np.mean((prediction[indices] - data[indices])**2))
         return score
 
-    options = {'xatol': bounds.max() * 1e-8}
+    options = {
+        # 'xatol': bounds.max() * 1e-5
+    }
     # Find conductance
     res = scipy.optimize.minimize_scalar(find_g_opt,
                                          bounds=bounds,
                                          options=options)
+
+    _p = p.copy()
+    _p[gkr_index] = float(res.x)
+    _p[gleak_index] = gleak
+    _p[Eleak_index] = Eleak
+    states = solver(_p, times=times,
+                    protocol_description=desc)
+
+    if not np.all(np.isfinite(states)):
+        return np.inf
+
+    Vm = states[:, -1].flatten()
+
+    prediction = aux_func(states.T, _p, Vm).flatten()
+
+    # fig, axs = plt.subplots(2)
+    # axs[1].axvspan(times[indices].flatten()[0], times[indices].flatten()[-1], color='grey',
+    #                alpha=.25)
+    # axs[1].plot(times, data)
+    # axs[1].plot(times, prediction)
+    # axs[0].plot(times[indices], data[indices])
+    # axs[0].plot(times[indices], prediction[indices])
+    # plt.savefig(os.path.join('tmp', 'find_conductance'))
 
     if res.success:
         return res.x
@@ -828,28 +874,23 @@ def find_V_off(protocol_desc, times, data,
                model_class_name,
                default_parameters, E_rev,
                forward_sim_output_dir=None,
-               removal_duration=0,
                output_path=None,
-               data_label=''):
+               data_label='',
+               a_solver=None):
 
     voltage_func = make_voltage_function_from_description(protocol_desc)
     voltages = np.array([voltage_func(t) for t in times])
 
-    spike_times, _ = detect_spikes(times, voltages, window_size=0)
-    _, _, indices = remove_spikes(times, voltages, spike_times,
-                                  removal_duration)
-
-    # Only use the last part of the protocol for guessing the conductance
-    # Find last +40 step
-    start_step = [line for line in protocol_desc if
-                  line[2] == line[3] and line[2] == +40.0][-1]
-    start_t = start_step[1]
-
     # Find end of reversal ramp
-    end_ramp = [line for line in protocol_desc if line[2] != line[3]][-1]
-    end_t = end_ramp[1] + 200
+    ramp = [line for line in protocol_desc if line[2] != line[3]][-1]
+    start_t, end_t = ramp[0:2]
 
-    indices = indices[np.argwhere((times[indices] > start_t) & (times[indices] <= end_t))]
+    # Fit for middle of ramp
+    ramp_length = end_t - start_t
+    start_t += 0.35 * ramp_length
+    end_t -= 0.35 * ramp_length
+
+    indices = np.argwhere((times > start_t) & (times < end_t))
 
     model = make_model_of_class(model_class_name, voltage=voltage_func,
                                 times=times,
@@ -857,14 +898,17 @@ def find_V_off(protocol_desc, times, data,
                                 protocol_description=protocol_desc,
                                 tolerances=(1e-6, 1e-6))
 
-    gkr_index = model.GKr_index
+    gkr_index = -no_artefact_parameters - 1
+    gleak_index = -no_artefact_parameters + 1
+    Eleak_index = -no_artefact_parameters + 2
     model = ArtefactModel(model)
 
-    a_solver = model.make_hybrid_solver_states(hybrid=False, njitted=False,
-                                               strict=False)
+
+    if a_solver is None:
+        a_solver = model.make_hybrid_solver_states(hybrid=False, njitted=False,
+                                                   strict=False)
 
     assert np.all(np.isfinite(a_solver()))
-
     return_var = 'I_out' if data_label == 'before' else 'I_Kr'
 
     aux_func = model.define_auxiliary_function(return_var=return_var)
@@ -888,7 +932,7 @@ def find_V_off(protocol_desc, times, data,
         s_data = data - gleak * (voltages - Eleak)
 
     else:
-            s_data = data
+        s_data = data
 
     initial_gkr = _find_conductance(a_solver, protocol_desc, times, data,
                                     indices, aux_func, voltages, p, E_rev, gkr_index, model)
@@ -899,6 +943,7 @@ def find_V_off(protocol_desc, times, data,
         p = default_parameters.copy()
 
         p[gkr_index] = initial_gkr
+        p[-3] = V_off
 
         gkr = _find_conductance(a_solver, protocol_desc, times, data, indices,
                                 aux_func, voltages, p, E_rev, gkr_index, model)
@@ -907,15 +952,13 @@ def find_V_off(protocol_desc, times, data,
         if not np.isfinite(gkr):
             return np.inf
 
-        p[-3] = V_off
         states = a_solver(p)
         V_m = states[:, -1]
-
         trace = aux_func(states.T, p, voltages).flatten()
 
         # Do leak subtraction if handling raw trace
         if data_label == 'before':
-            gleak, Eleak = p[-7:-5]
+            gleak, Eleak = p[-no_artefact_parameters + 1:-no_artefact_parameters+3]
             s_trace = trace - gleak * (voltages - Eleak)
         else:
             # Leave trace untouched otherwise
@@ -942,7 +985,7 @@ def find_V_off(protocol_desc, times, data,
 
     bounds = np.unique([-E_rev_error*2, 0.5*E_rev_error])
 
-    options = {'xatol': 1e-8}
+    options = {'xatol': 1e-5}
 
     res = scipy.optimize.minimize_scalar(opt_V_off_func,
                                          bounds=bounds,
@@ -958,13 +1001,18 @@ def find_V_off(protocol_desc, times, data,
                             aux_func, voltages, p, E_rev, gkr_index, model)
     p[gkr_index] = gkr
 
+    p[gleak_index] = gleak
+    p[Eleak_index] = Eleak
+
+    states = a_solver(p)
+    V_m = states[:, -1]
+    trace = aux_func(states.T, p, voltages).flatten()
+
     if output_path:
         fig = plt.figure()
         ax = fig.subplots()
 
         states = a_solver(p)
-        V_m = states[:, -1]
-        trace = aux_func(states.T, p, voltages).flatten()
 
         # Do leak subtraction if handling raw trace
         if data_label == 'before':
@@ -1001,18 +1049,24 @@ def find_V_off(protocol_desc, times, data,
 
     if forward_sim_output_dir and res.success:
         fig = plt.figure()
-        axs = fig.subplots(2)
+        axs = fig.subplots(3)
 
         p[-3] = found_V_off
         p[gkr_index] = gkr
 
-        axs[0].plot(times, data, color='grey', alpha=.5, label='data')
-        axs[0].plot(times, trace, label='forward_sim')
+        axs[0].plot(times[indices], data[indices],
+                    color='grey', alpha=.5, label='data')
+
+        axs[0].plot(times[indices], trace[indices],
+                    label='forward_sim')
+
+        axs[1].plot(times, data, color='grey', alpha=.5, label='data')
+        axs[1].plot(times, trace, label='forward_sim')
 
         Vm = states[:, -1].flatten()
 
-        axs[1].plot(times, voltages, label='Vcmd')
-        axs[1].plot(times, Vm, label='Vm')
+        axs[2].plot(times, voltages, label='Vcmd')
+        axs[2].plot(times, Vm, label='Vm')
 
         fig.savefig(os.path.join(forward_sim_output_dir, 'simulation.png'))
         plt.close(fig)
