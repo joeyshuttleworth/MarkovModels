@@ -66,8 +66,7 @@ class ArtefactModel(MarkovModel):
         y = self.y
 
         I_out_expr = channel_model.auxiliary_expression +\
-            sp.sympify('g_leak * (V_m - E_leak) + g_leak_leftover * (V_m - E_leak_leftover)')
-
+            sp.sympify('g_leak * (V_m - E_leak - V_off) + g_leak_leftover * (V_m - E_leak_leftover)')
         I_out_expr = I_out_expr.subs({'V': 'Vm'})
 
         artefact_rhs_expr = sp.sympify('(V_off - V_m)/(C_m * R_s) * 1e-3 - I_out * 1e-3 / C_m')
@@ -156,8 +155,12 @@ class ArtefactModel(MarkovModel):
     def define_auxiliary_function(self, return_var='I_Kr', **kwargs):
         channel_auxiliary_function = njit(self.channel_model.define_auxiliary_function())
         E_rev = self.E_rev
-        def auxiliary_func(x, p, _, E_rev=E_rev):
-            E_Kr, g_leak, E_leak, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
+        def auxiliary_func(x, p, _, E_rev=E_rev, return_var=return_var):
+            _E_rev, g_leak, E_leak, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
+
+            if E_rev is None:
+                E_rev = _E_rev
+
             V_m = x[-1, :]
             p = p.astype(np.float64)
 
@@ -170,8 +173,10 @@ class ArtefactModel(MarkovModel):
 
             if return_var == 'I_Kr':
                 return I_Kr
-            else:
+            elif return_var == 'I_out':
                 return I_post
+            else:
+                raise Exception(f"Invalid return_var: {return_var}")
 
         return auxiliary_func
 
@@ -182,7 +187,7 @@ class ArtefactModel(MarkovModel):
     def make_hybrid_solver_states(self, protocol_description=None,
                                   njitted=False, analytic_solver=None,
                                   strict=True, cond_threshold=None, atol=None,
-                                  rtol=None, hybrid=True, crhs=None):
+                                  rtol=None, hybrid=True, crhs=None, times=None):
         if protocol_description is None:
             protocol_description = self.protocol_description
 
@@ -197,6 +202,7 @@ class ArtefactModel(MarkovModel):
                 cond_threshold=cond_threshold,
                 atol=atol, rtol=rtol,
                 hybrid=False,
+                times=times,
                 crhs=crhs
             )
 
@@ -208,9 +214,12 @@ class ArtefactModel(MarkovModel):
                                    njitted=False, analytic_solver=None,
                                    strict=True, cond_threshold=None, atol=None,
                                    rtol=None, hybrid=True, return_var='I_Kr',
-                                   cfunc=None):
+                                   cfunc=None, times=None):
 
         af_kws = {'return_var': return_var}
+
+        if times is None:
+            times = self.times
 
         if hybrid:
             raise NotImplementedError()
@@ -218,6 +227,7 @@ class ArtefactModel(MarkovModel):
             solver = super().make_hybrid_solver_current(
                 protocol_description=protocol_description,
                 njitted=False,
+                times=times,
                 analytic_solver=analytic_solver,
                 strict=strict,
                 cond_threshold=cond_threshold,

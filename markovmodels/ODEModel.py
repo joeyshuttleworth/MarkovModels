@@ -114,7 +114,7 @@ class ODEModel:
     def func_rhs(self):
         raise NotImplementedError()
 
-    def define_auxiliary_function(self, njitted=False, **kwargs):
+    def define_auxiliary_function(self, njitted=False, return_var=None, **kwargs):
         lamb_func = njit(sp.lambdify((self.y, self.p, self.v, self.E_Kr_symb),
                                      self.auxiliary_expression))
 
@@ -165,7 +165,7 @@ class ODEModel:
     def make_hybrid_solver_states(self, protocol_description=None,
                                   njitted=False, analytic_solver=None,
                                   strict=True, cond_threshold=None, atol=None,
-                                  rtol=None, hybrid=True, crhs=None,
+                                  rtol=None, hybrid=True, crhs=None, times=None,
                                   E_rev=None):
 
         if protocol_description is None:
@@ -202,7 +202,8 @@ class ODEModel:
         if E_rev is None:
             E_rev = self.E_rev
 
-        times = self.times
+        if times is None:
+            times = self.times
 
         p = self.get_default_parameters()
         eps = np.finfo(float).eps

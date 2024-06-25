@@ -24,7 +24,7 @@ from markovmodels.model_generation import make_model_of_class
 from markovmodels.fitting import get_best_params, infer_reversal_potential, make_prediction
 from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.utilities import setup_output_directory, get_data, get_all_wells_in_directory
-from markovmodels.voltage_protocols import get_protocol_list, get_ramp_protocol_from_json, make_voltage_function_from_description
+from markovmodels.voltage_protocols import get_protocol_list, make_voltage_function_from_description
 from markovmodels.voltage_protocols import remove_spikes, detect_spikes
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 

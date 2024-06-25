@@ -8,18 +8,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import itertools
 from matplotlib import gridspec
 
 from matplotlib import rc
 
 import markovmodels
 from markovmodels.model_generation import make_model_of_class
-from markovmodels.fitting import get_best_params
+from markovmodels.fitting import get_best_params, make_prediction
 from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.utilities import setup_output_directory, get_data, get_all_wells_in_directory
 from markovmodels.voltage_protocols import get_protocol_list, get_ramp_protocol_from_json, make_voltage_function_from_description
 
-rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 12})
 # rc('text', usetex=True)
 rc('figure', dpi=400, facecolor=[0]*4)
 rc('axes', facecolor=[0]*4)
@@ -32,19 +32,21 @@ def main():
 
     parser.add_argument('data_directory', help='directory where data is stored')
     parser.add_argument('fitting_case', type=str)
+    parser.add_argument('subtraction_file')
+    parser.add_argument('parameter_file')
     parser.add_argument('--model_class')
+    parser.add_argument('--removal_duration', default=5.0, type=float)
     parser.add_argument('--experiment_name', '-e', default='newtonrun4')
     parser.add_argument('--wells', '-w', type=str, nargs='+')
     parser.add_argument('--protocols', type=str, nargs='+')
+    parser.add_argument('--validation_protocols', type=str, nargs='+')
     parser.add_argument('-o', '--output', type=str)
-    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.54, 7])
+    parser.add_argument('--figsizet', '-f', nargs=2, type=float, default=[5.54, 7])
     parser.add_argument('--fig_title', '-t', default='')
-    parser.add_argument('--parameter_file')
     parser.add_argument('--nolegend', action='store_true')
     parser.add_argument('--dpi', '-d', default=500, type=int)
     parser.add_argument('--fontsize', type=int)
     parser.add_argument('--show_uncertainty', action='store_true')
-    parser.add_argument('--ignore_protocols', nargs='+', default=['longap'])
     parser.add_argument('--shared_plot_limits', action='store_true')
     parser.add_argument('--no_voltage', action='store_true')
     parser.add_argument('--file_format', default='')
@@ -54,6 +56,8 @@ def main():
     args = parser.parse_args()
 
     output_dir = setup_output_directory(args.output, 'plot_data')
+
+    subtraction_df = pd.read_csv(args.subtraction_file)
 
     # Case describing how was the was model fitted
     if args.fitting_case == '0a':
@@ -83,10 +87,7 @@ def main():
     if args.protocols is None:
         args.protocols = get_protocol_list()
 
-    if args.parameter_file and args.model_class:
-        params_df = get_best_params(pd.read_csv(args.parameter_file))
-    else:
-        params_df = None
+    params_df = get_best_params(pd.read_csv(args.parameter_file))
 
     if params_df is not None:
         args.protocols = [protocol for protocol in args.protocols if protocol
@@ -100,6 +101,9 @@ def main():
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     axs = fig.subplots(2)
 
+    for ax in axs:
+        ax.spines[['top', 'right']].set_visible(False)
+
     cm = sns.husl_palette(len(args.protocols))
 
     if len(args.protocols) == 1:
@@ -107,56 +111,46 @@ def main():
     else:
         lw = .5
 
-    args.protocols = [p for p in args.protocols if p not in
-                      args.ignore_protocols]
+    protocol_dict = {}
+    for protocol in args.protocols + args.validation_protocols:
+        v_func, desc = get_ramp_protocol_from_json(protocol, os.path.join(args.data_directory, 'protocols'),
+                                              args.experiment_name)
 
-    infer_reversal_params = np.loadtxt(os.path.join('data', 'BeattieModel_roomtemp_staircase_params.csv')).flatten().astype(np.float64)
+        times = np.loadtxt(os.path.join(args.data_directory,
+                                        f"{args.experiment_name}-{protocol}-times.csv")).astype(np.float64).flatten()
 
-    prediction_protocols = list(params_df.protocol.unique()) + ['longap']
-
-    protocol_directory = os.path.join(args.data_directory, 'protocols')
-
+        protocol_dict[protocol] = desc, times
 
     param_labels = make_model_of_class(args.model_class).get_parameter_labels()
 
     for well in wells:
         sweep = params_df.sweep.unique()[0]
 
-        for prediction_protocol in prediction_protocols:
-            # Don't plot anything which was fitted to validation protocols
-            if prediction_protocol in args.ignore_protocols:
-                continue
-
-            print(params_df.well)
-            print(params_df.protocol)
-            print(params_df.sweep)
-            current, vp = get_data(well, prediction_protocol, args.data_directory,
+        for prediction_protocol in args.validation_protocols + args.protocols:
+            current, _ = get_data(well, prediction_protocol, args.data_directory,
                                         args.experiment_name, sweep=sweep)
-            desc = vp.get_all_sections()
-            prot_func = make_voltage_function_from_description(desc)
 
-            current = current * 1e-3
+            desc, times  = protocol_dict[prediction_protocol]
 
-            times = np.loadtxt(os.path.join(args.data_directory,
-                                            f"{args.experiment_name}-{prediction_protocol}-times.csv")).astype(np.float64).flatten()
-
-
-            model = make_model_of_class(args.model_class, voltage=prot_func, times=times,
+            model = make_model_of_class(args.model_class, voltage=v_func, times=times,
                                         protocol_description=desc, E_rev=args.E_rev)
+
+            voltages = np.array([v_func(t, protocol_description=desc) for t in times])
+
             if args.use_artefact_model:
                 model = ArtefactModel(model)
                 param_labels = model.get_parameter_labels()
 
-            solver = model.make_forward_solver_current()
-            state_solver = model.make_hybrid_solver_states(hybrid=False)
+            fit = make_prediction(args.model_class, args, well,
+                                  prediction_protocol, sweep, prediction_protocol,
+                                  sweep, params_df, subtraction_df,
+                                  args.fitting_case, args.E_rev,
+                                  protocol_dict, current, voltages,
+                                  label='', solver=None,
+                                  do_spike_removal=True,
+                                  return_states=False, strict=True,
+                                  tolerances=(None, None))
 
-            fit_params = params_df[(params_df.well==well)\
-                                   & (params_df.protocol == prediction_protocol)
-                                   & (params_df.sweep == sweep)][param_labels].values[0, :].flatten()
-
-            fit = solver(fit_params, protocol_description=desc, times=times)
-
-            voltages = np.array([prot_func(t) for t in times])
             axs[0].plot(times*1e-3, current, color='grey', alpha=0.5)
             axs[0].plot(times*1e-3, fit*1e-3, label='fit')
             axs[0].legend()
@@ -178,34 +172,14 @@ def main():
                 axs[1].plot(times*1e-3, voltages)
 
             axs[1].set_xlabel(r'$t$ (ms)')
-            # fig.tight_layout()
             fig.savefig(os.path.join(output_dir, f"{prediction_protocol}-{well}-sweep{sweep}-fit.pdf"))
 
             for ax in axs:
                 ax.cla()
 
             V_off = 0
-            # TODO get reversal potential automatically
-            E_rev = args.E_rev
-            if args.use_artefact_model and args.infer_reversal_potential:
-                V_off = \
-                    markovmodels.fitting.infer_reversal_potential_with_artefact(prediction_protocol,
-                                                                                times, current, 'model3',
-                                                                                default_parameters=infer_reversal_params,
-                                                                                E_rev=args.reversal)
-            elif args.infer_reversal_potential:
-                E_rev = \
-                markovmodels.fitting.infer_reversal_potential(prediction_protocol,
-                                                              times,
-                                                              current,
-                                                              'model3',
-                                                              args.reversal)
 
-            if args.use_artefact_model:
-                model.channel_model.default_parameters[-3] = V_off
-
-            predictions =[]
-
+            predictions = []
             for i, protocol in enumerate(args.protocols):
                 if params_df is not None:
                     if protocol not in params_df.protocol.unique():
@@ -227,14 +201,19 @@ def main():
                     label = f"{protocol} fit"
 
                 if model:
-                    # if args.use_artefact_model:
-                    #     params_from_fitted_trace = params_df[(params_df.well==well)
-                    #                                             & (params_df.protocol == prediction_protocol)].head(1)[param_labels].values_flatten()
+                    prediction = make_prediction(args.model_class, args, well,
+                                                 prediction_protocol, sweep,
+                                                 protocol, sweep, params_df,
+                                                 subtraction_df,
+                                                 args.fitting_case, args.E_rev,
+                                                 protocol_dict, current,
+                                                 voltages, label='',
+                                                    solver=None,
+                                                 do_spike_removal=True,
+                                                 return_states=False,
+                                                 strict=True, tolerances=(None,
+                                                                          None))
 
-                    #     params[-7:] = params_from_fitted_trace[artefact_params]
-
-                    prediction = solver(parameters, protocol_description=desc, times=times)
-                    prediction = prediction * 1e-3
                     color = 'red'
                     axs[0].plot(times*1e-3, prediction, color=color,
                                 label=label, linewidth=lw,
@@ -302,52 +281,25 @@ def main():
             current_range = None
             voltage_range = None
 
-        for well in wells:
-            for protocol in args.protocols:
-                data, voltages, fit, times = get_data_voltages_fit_times(protocol, well, params_df, model_class)
-                if not args.no_voltage:
-                    axs[1].plot(times, voltages, linewidth=lw)
-                    axs[1].set_xlabel('time (ms)')
-                    axs[1].set_ylabel(r'$V_{in}$ (mV)')
-
-
-                # Set plot limits
-                if time_range is not None:
-                    axs[0].set_xlim(time_range)
-                    if not args.no_voltage:
-                        axs[1].set_xlim(time_range)
-
-                if current_range is not None:
-                    axs[0].set_ylim(current_range)
-
-                if voltage_range is not None and not args.no_voltage:
-                    axs[1].set_ylim(voltage_range)
-
-                data_alpha = .5
-                axs[0].plot(times*1e-3, data, color='grey', label='data', alpha=data_alpha, linewidth=.5)
-                axs[0].plot(times*1e-3, fit,)
-                axs[0].set_ylabel(r'$I_{Kr}$ (nA)')
-
-                colour = 'green'
-                axs[0].plot(times*1e-3, fit, color=colour, linewidth=lw)
-
-                axs[0].set_title(args.fig_title)
-                # fig.tight_layout()
-                fig.savefig(os.path.join(output_dir,
-                                         f"{protocol}_{well}_fit.pdf"), dpi=args.dpi)
-                for ax in axs:
-                    ax.cla()
-
 
 def get_data_voltages_fit_times(protocol, well, params_df, model_class):
     sweep = 0
+
+
     if os.path.exists(os.path.join(args.data_directory,
                                    f"{args.experiment_name}-{protocol}-times.csv")):
-        current, prot_desc = get_data(well, protocol, args.data_directory,
+        current, vp = get_data(well, protocol, args.data_directory,
                                       args.experiment_name, sweep=sweep)
+
+        desc = vp.get_all_sections()
+
+        v_func = make_voltage_function_from_description(desc,
+                                                        holding_potential=-80.0)
+
         times = np.loadtxt(os.path.join(args.data_directory,
                                         f"{args.experiment_name}-{protocol}-times.csv")).astype(np.float64).flatten()
-        voltages = np.array([prot_func(t) for t in times])
+        voltages = np.array([v_func(t,
+                                    protocol_description=desc) for t in times])
 
         fit = None
 
@@ -356,10 +308,9 @@ def get_data_voltages_fit_times(protocol, well, params_df, model_class):
             param_labels = model.get_parameter_labels()
             parameters = params_df[(params_df.well == well) &
                                    (params_df.protocol == protocol)].head(1)[param_labels].values.flatten()
-            model = make_model_of_class(args.model_class, voltage=prot_func,
-                                        times=times, parameters=parameters,
-                                        protocol_description=desc)
-            fit = model.SimulateForwardModel()
+            model = make_model_of_class(args.model_class, voltage=v_func,
+                                        times=times, protocol_description=desc)
+            fit = model.SimulateForwardModel(parameters)
 
         else:
             fit = None

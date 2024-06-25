@@ -148,6 +148,7 @@ def main():
             params_dfs.append(params_df)
             results_dict[model][case] = params_df
 
+    global protocol_dict
     protocol_dict = {}
     for protocol in list(np.unique(list(itertools.chain(*[list(params_df.protocol.unique()) for params_df in params_dfs])))) + args.validation_protocols:
         v_func, desc = get_ramp_protocol_from_json(protocol, os.path.join(args.data_directory, 'protocols'),
@@ -207,7 +208,7 @@ def main():
     axs[2].set_xlabel(r'$t$ (ms)')
 
     fig.savefig(os.path.join(output_dir, 'thesis_plots'
-                             f"{well}_{model_class}_{prediction_protocol}_cases_I_II_models_2_3.png"))
+                             f"{well}_{model_class}_{prediction_protocol}_cases_I_II_models_2_3.pdf"))
 
     for ax in axs:
         ax.cla()
@@ -246,7 +247,7 @@ def main():
 
 
     fig.savefig(os.path.join(output_dir, 'thesis_plots'
-                             f"{well}_{model_class}_{prediction_protocol}_cases_I_II_models_2_3.png"))
+                             f"{well}_{model_class}_{prediction_protocol}_cases_I_II_models_2_3.pdf"))
 
     fig.clf()
     current_ax, voltage_ax = setup_axes(fig)
@@ -288,8 +289,8 @@ def main():
                         current_ax.plot(times, data, color='grey', label=well, alpha=.3)
                         current_ax.legend()
 
-                        fig.savefig(os.path.join(output_dir, 'thesis_plots'
-                                                 f"{well}_{model_class}_{prediction_protocol}_cases_I_II_models_2_3.png"))
+                        fig.savefig(os.path.join(output_dir, 'thesis_plots',
+                                                 f"{well}_{model_class}_{prediction_protocol}_cases_I_II_models_2_3.pdf"))
                         current_ax.cla()
                     current_ax, voltage_ax = setup_axes(fig)
 
@@ -335,7 +336,7 @@ def main():
                         current_ax.legend()
 
                         fig.savefig(os.path.join(output_dir,
-                                                 f"{well}_{case_relabel_dict[case]}_sweep{sweep}_{protocol}_sop.png"))
+                                                 f"{well}_{case_relabel_dict[case]}_sweep{sweep}_{protocol}_sop.pdf"))
                     current_ax, voltage_ax = setup_axes(fig)
 
 
@@ -374,12 +375,14 @@ def do_spread_of_predictions(ax, model_class, fitting_case, params_df,
     desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
     voltages = np.array([voltage_func(t, protocol_description=desc) for t in times])
 
-    predictions = get_ensemble_of_predictions(times, desc, params_df, well,
+    predictions = get_ensemble_of_predictions(times, desc, params_df,
                                               validation_protocol, well, sweep,
                                               subtraction_df, fitting_case,
-                                              args.reversal, model_class,
-                                              data, solver=solver,
+                                              args.reversal, model_class, data,
+                                              args, protocol_dict,
+                                              solver=solver,
                                               voltage_func=voltage_func)
+    predictions = np.vstack(predictions)
 
 
     if not args.plot_all_predictions:

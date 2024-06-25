@@ -16,8 +16,6 @@ def main():
     # parser.add_argument('subtraction_summary_file')
     parser.add_argument('--figsize', default=[12, 9], nargs=2, type=int)
     parser.add_argument('--output', '-o')
-    parser.add_argument('--leak_subtraction_file')
-    parser.add_argument('--selection_file')
 
     global args
     args = parser.parse_args()
@@ -26,91 +24,6 @@ def main():
     output_dir = setup_output_directory(args.output, 'show_artefact_variability')
 
     use_literature_range()
-
-    if args.leak_subtraction_file:
-        leak_subtraction_df = pd.read_csv(args.leak_subtraction_file)
-        if args.selection_file:
-            with open(args.selection_file) as fin:
-                selected_wells = fin.read().splitlines()
-        else:
-            selected_wells = None
-        use_qc_estimates(leak_subtraction_df, selected_wells)
-
-
-def use_qc_estimates(leak_df, passed_wells):
-    leak_df = leak_df[leak_df.well.isin(passed_wells)]
-
-    leak_df = leak_df[leak_df.well.isin(passed_wells) &\
-                      leak_df.protocol.isin(['staircaseramp1', 'staircaseramp2', 'staircaseramp1_2'])].reset_index()
-    leak_df = leak_df.set_index(['well', 'protocol', 'sweep']).sort_index()
-
-    model_class = 'model3'
-    protocol = 'staircaseramp1'
-    voltage_func, times, desc = get_ramp_protocol_from_csv(protocol)
-    c_model = make_model_of_class(model_class, times, voltage=voltage_func,
-                                  protocol_description=desc,
-                                  tolerances=(1e-7, 1e-7))
-    artefact_model = ArtefactModel(c_model)
-    p = artefact_model.get_default_parameters()
-    p[-no_artefact_parameters - 1] *= 1e3
-    a_solver = artefact_model.make_hybrid_solver_states(hybrid=False, njitted=False)
-    a_solver_i = artefact_model.make_forward_solver_current(njitted=False)
-
-    def get_Vm(p):
-        return a_solver(p)[:, -1]
-
-    fig = plt.figure(figsize=args.figsize)
-    axs = fig.subplots(2)
-
-    reference_sol = c_model.SimulateForwardModel()
-    axs[0].plot(times*1e-3, c_model.SimulateForwardModel())
-    ylims_1 = axs[0].get_ylim()
-
-    axs[1].plot(times*1e-3, [voltage_func(t) for t in times])
-    ylim_2 = axs[1].get_ylim()
-
-    leak_df.Rseries = leak_df.Rseries*1e-9
-    leak_df.Cm = leak_df.Cm*1e9
-
-    discrepancies = []
-    for index, row in leak_df.iterrows():
-        well, protocol, sweep = index
-        R_s, C_m = row[['Rseries', 'Cm']]
-        # Convert from base units
-        try:
-            g_leak, E_leak = leak_df.loc[(well,
-                                         protocol,
-                                          sweep)][['gleak_before',
-                                                 'E_leak_before']]
-        except KeyError:
-            discrepancies.append(np.nan)
-            logging.warning(f"missing key {(well, protocol, sweep)}")
-            continue
-
-        p = artefact_model.get_default_parameters()
-        p[-no_artefact_parameters + 1:] = .0, .0, .0, .0, .0, C_m, R_s
-
-        sol = a_solver(p)
-        sol_i = a_solver_i(p)
-        discrepancy = np.sqrt(np.mean((sol_i - reference_sol)**2))
-
-        discrepancies.append(discrepancy)
-
-        axs[0].plot(times*1e-3, sol_i,
-                    color='grey', alpha=.25)
-        axs[1].plot(times*1e-3, sol[:, -1],
-                    color='grey', alpha=.25)
-
-    # Well with biggest error
-    leak_df['discrepancy'] = discrepancies
-    worst_trace = leak_df.loc[leak_df.discrepancy.idxmax()]
-
-    axs[1].set_ylim(ylim_2)
-    axs[0].set_ylim(ylims_1)
-
-    fig.savefig(os.path.join(output_dir,
-                             'artefact_variability_from_qc_estimates'))
-    fig.clf()
 
 
 def use_literature_range():
