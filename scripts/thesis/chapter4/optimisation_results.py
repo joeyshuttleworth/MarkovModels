@@ -248,16 +248,16 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
         do_scatter_plot(scatter_ax, params_df, well, protocol,
                         sweep, args)
     if args.plot_wip:
-        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
+        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}.pdf"))
     do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args)
     if args.plot_wip:
-        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
+        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}.pdf"))
     if args.plot_wip:
-        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
+        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}.pdf"))
     do_rank_plot(rank_ax, params_df, protocol, well, sweep, args)
 
     # Plot everything
-    fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}"))
+    fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}.pdf"))
     plt.close(fig)
 
 
@@ -426,8 +426,8 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
     scatter_ax.set_xscale('log')
 
     inset_ax = inset_axes(scatter_ax,
-                          width="25%",
-                          height="25%",
+                          width="30%",
+                          height="40%",
     )
 
     inset_ax.set_xscale('log')
@@ -466,11 +466,14 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
     inset_ax.xaxis.get_offset_text().set_fontsize(8)
     inset_ax.yaxis.get_offset_text().set_fontsize(8)
 
-    # inset_ax.set_yscale('log')
-    # inset_ax.set_xscale('log')
-    # inset_ax.set_xticks([], minor=True)
-    # inset_ax.set_yticks([], minor=True)
+    xticks = inset_ax.get_xticks()
+    xticks = [xticks[0], xticks[-1]]
 
+    yticks = inset_ax.get_yticks()
+    yticks = [yticks[0], yticks[-1]]
+
+    inset_ax.set_xticks(xticks)
+    inset_ax.set_yticks(yticks)
 
 
 def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args):
