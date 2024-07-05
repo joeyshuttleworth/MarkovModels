@@ -949,7 +949,7 @@ def find_V_off(protocol_desc, times, data,
 
     if not np.isfinite(E_obs):
         logging.warning(f"find_V_off failed: E_obs not finite = {E_obs}")
-        return np.nan
+        return np.nan, False
 
     def opt_V_off_func(V_off):
         p = default_parameters.copy()
@@ -1099,10 +1099,10 @@ def find_V_off(protocol_desc, times, data,
         plt.close(fig)
 
     if res.success and np.isfinite(found_V_off):
-        return found_V_off, False
+        return found_V_off, True
 
     logging.warning("find_V_off failed", res)
-    return found_V_off, True
+    return found_V_off, False
 
 
 
