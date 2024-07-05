@@ -366,14 +366,15 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                 Eleak_index = -no_artefact_parameters + 2
                 pp_gleak = default_parameters[gleak_index]
                 pp_Eleak = default_parameters[Eleak_index]
-                V_off = find_V_off(protocol_desc, times,
-                                   data, V_off_model_class,
-                                   V_off_initial_params, E_rev,
-                                   pp_gleak, pp_Eleak,
-                                   forward_sim_output_dir=reversal_dir,
-                                   output_path=output_path,
-                                   data_label=data_label
-                                   )
+                V_off, success = find_V_off(protocol_desc, times,
+                                            data, V_off_model_class,
+                                            V_off_initial_params, E_rev,
+                                            pp_gleak, pp_Eleak,
+                                            forward_sim_output_dir=reversal_dir,
+                                            output_path=output_path,
+                                            data_label=data_label
+                                            )
+                assert success
 
             except ValueError as exc:
                 # Possibly non data or non-finite values in data
