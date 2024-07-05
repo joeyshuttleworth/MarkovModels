@@ -137,12 +137,26 @@ def main():
 
         times = np.loadtxt(os.path.join(args.data_directory,
                                         f"{args.experiment_name}-{protocol}-times.csv")).astype(np.float64).flatten()
-
         protocol_dict[protocol] = desc, times
 
     if args.figsize:
         individual_fig_height = 4.0
         individual_plot_figsize =  [args.figsize[0], individual_fig_height]
+
+        tasks = []
+    for i, model_class in enumerate(args.model_classes):
+        for j, case in enumerate(cases):
+            sub_df = results_dict[model_class][case]
+            tasks.append([model_class, case, sub_df, args, output_dir,
+                          protocol_dict, case])
+
+    with multiprocessing.Pool(min(len(tasks), args.no_cpus),
+                              **multiprocessing_kws) as pool:
+        res = pool.starmap(map_func, tasks)
+
+    res = list(zip(tasks, res))
+
+    do_summary_statistics(res)
 
     fig = plt.figure(figsize=individual_plot_figsize, constrained_layout=True)
 
@@ -151,7 +165,7 @@ def main():
         # Compare best and worst wells
         fig.clf()
         axs = fig.subplots(1, 3, width_ratios=[1, 1, 0.25])
-        best_ax, worst_ax cbar_ax = axs
+        best_ax, worst_ax, cbar_ax = axs
 
         agg_dict = {'n_score': 'mean'}
         best_well = sub_df.groupby('well').agg(agg_dict).idxmin()['well']
@@ -170,20 +184,6 @@ def main():
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     axs = setup_grid(fig, args)
     model_axs, model_label_axs, case_label_axs, colour_bar_ax = axs
-
-    tasks = []
-    for i, model_class in enumerate(args.model_classes):
-        for j, case in enumerate(cases):
-            sub_df = results_dict[model_class][case]
-            tasks.append([model_class, case, sub_df, args, output_dir,
-                          protocol_dict, case])
-
-    with multiprocessing.Pool(min(len(tasks), args.no_cpus),
-                              **multiprocessing_kws) as pool:
-        res = pool.starmap(map_func, tasks)
-    res = list(zip(tasks, res))
-
-    do_summary_statistics(res)
 
     vmax = max([df.n_score.values.astype(np.float64).max() for _, df in res])
     vmin = min([df.n_score.values.astype(np.float64).min() for _, df in res])
