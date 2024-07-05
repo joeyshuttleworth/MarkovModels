@@ -27,6 +27,8 @@ from markovmodels.voltage_protocols import remove_spikes, detect_spikes
 multiprocessing_kws = {'maxtasksperchild': 1}
 
 plt.rcParams["axes.formatter.use_mathtext"] = True
+plt.rcParams['xtick.labelsize'] = 9
+plt.rcParams['ytick.labelsize'] = 9
 
 rc('font', **{'size': 12})
 # rc('text', usetex=True)
@@ -37,9 +39,16 @@ rc('figure', autolayout=True)
 
 cbar_kws = {
     'orientation': 'horizontal',
-    'fraction': .65,
+    'fraction': .5,
     'drawedges': False,
     'label': 'NRMSE',
+}
+
+relabel_models_dict = {
+    'model2': 'C-O-I',
+    'model3': 'Beattie',
+    'model10': 'Kemp',
+    'Wang': 'Wang'
 }
 
 
@@ -140,7 +149,7 @@ def main():
         protocol_dict[protocol] = desc, times
 
     if args.figsize:
-        individual_fig_height = 4.0
+        individual_fig_height = 3.0
         individual_plot_figsize =  [args.figsize[0], individual_fig_height]
 
         tasks = []
@@ -155,6 +164,11 @@ def main():
         res = pool.starmap(map_func, tasks)
 
     res = list(zip(tasks, res))
+    vmax = max([df.n_score.values.astype(np.float64).max() for _, df in res])
+    vmin = min([df.n_score.values.astype(np.float64).min() for _, df in res])
+    vlim = (vmin, vmax)
+
+
 
     do_summary_statistics(res)
 
@@ -164,12 +178,18 @@ def main():
         model_class, case, sub_df, args, output_dir, protocol_dict, fitting_case = task
         # Compare best and worst wells
         fig.clf()
-        axs = fig.subplots(1, 3, width_ratios=[1, 1, 0.25])
+        axs = fig.subplots(1, 3, width_ratios=[1, 1, 0.15])
         best_ax, worst_ax, cbar_ax = axs
 
         agg_dict = {'n_score': 'mean'}
-        best_well = sub_df.groupby('well').agg(agg_dict).idxmin()['well']
-        best_well = sub_df.groupby('well').agg(agg_dict).idxmax()['well']
+        best_well = prediction_df.groupby('well').agg(agg_dict).idxmin()['n_score']
+        worst_well = prediction_df.groupby('well').agg(agg_dict).idxmax()['n_score']
+        print(f"best well: {best_well}")
+        print(f"worst well: {worst_well}")
+
+        best_worst_cbar_kws = cbar_kws
+        best_worst_cbar_kws['orientation'] = 'vertical'
+        best_worst_cbar_kws['label'] = ''
 
         do_heatmap(best_ax, model_class, case, sub_df, subtraction_df,
                    protocol_dict, vlim, args, well=best_well,
@@ -177,17 +197,22 @@ def main():
 
         do_heatmap(worst_ax, model_class, case, sub_df, subtraction_df,
                    protocol_dict, vlim, args, well=worst_well,
-                   prediction_df=prediction_df, fontsize=11, cbar_ax=cbar_ax)
+                   prediction_df=prediction_df, fontsize=11, cbar_ax=cbar_ax,
+                   cbar_kws=best_worst_cbar_kws)
 
-        fig.savefig(os.path.join(output_dir, f"{well}_{case}_{model_class}_heatmap_best_worst"))
+        cbar_ax.set_title('NRMSE')
+
+        best_ax.set_title(best_well)
+        worst_ax.set_title(worst_well)
+        worst_ax.axis('off')
+        # worst_ax.set_xticks([])
+        worst_ax.set_yticks([])
+
+        fig.savefig(os.path.join(output_dir, f"best_worst_{case}_{model_class}_heatmap_best_worst"))
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     axs = setup_grid(fig, args)
     model_axs, model_label_axs, case_label_axs, colour_bar_ax = axs
-
-    vmax = max([df.n_score.values.astype(np.float64).max() for _, df in res])
-    vmin = min([df.n_score.values.astype(np.float64).min() for _, df in res])
-    vlim = (vmin, vmax)
 
     individual_fig = plt.figure(figsize=individual_plot_figsize)
     individual_ax = individual_fig.subplots()
@@ -223,6 +248,37 @@ def main():
 
     fig.savefig(os.path.join(output_dir, "averaged_well_heatmaps"))
     fig.clf()
+
+    # Plot Case III only
+    model_axs, cbar_ax = setup_grid_single_case(fig, args)
+    for task, prediction_df in res:
+        model_class, case, sub_df, args, output_dir, protocol_dict, fitting_case = task
+        if fitting_case != '0c':
+            continue
+
+        if done_colour_bar:
+            cbar_ax = None
+        else:
+            cbar_ax = colour_bar_ax
+            done_colour_bar = True
+
+        i = args.model_classes.index(model_class)
+        j = cases.index(case)
+        ax = model_axs[args.model_classes.index(model_class)]
+        ax.set_label(relabel_models_dict[model_class])
+
+        this_cbar_kws = cbar_kws
+        this_cbar_kws['orientation'] = 'vertical'
+
+        hm = do_heatmap(ax, model_class, case, sub_df, subtraction_df,
+                        protocol_dict, vlim, args, prediction_df=prediction_df,
+                        cbar_ax=cbar_ax,
+                        cbar_kws=this_cbar_kws)
+
+
+    fig.savefig(os.path.join(output_dir, 'Case0c_heatmap_comparison'))
+    fig.clf()
+
     axs = setup_grid(fig, args)
     model_axs, model_label_axs, case_label_axs, cbar_ax = axs
 
@@ -337,7 +393,6 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                                                )
     else:
         protocols = sorted(params_df.protocol.unique() )
-
         rows = [{'fitting_sweep': 0, 'prediction_sweep': 0, 'well': well,
                  'fitting_protocol': f_p, 'validation_protocol': v_p, 'RMSE':
                  np.random.uniform(3e2, 1e4)} for v_p in protocols for f_p in
@@ -353,8 +408,8 @@ def do_spread_of_predictions(ax, model_class, fitting_case, params_df,
 
 
 def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
-               protocol_dict, vlim, args, well=None, prediction_df=None, fontsize=8,
-               **kws):
+               protocol_dict, vlim, args, well=None, prediction_df=None,
+               fontsize=9, **kws):
 
     if fitting_case in ['I', 'II'] or args.use_raw_data:
         data_label = 'before'
@@ -417,10 +472,12 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     relabel_dict['staircaseramp1_2'] = r'$d_{1}^{(3)}$'
     relabel_dict['staircaseramp1_2_sweep2'] = r'$d_{1}^{(4)}$'
 
-    protocol_order.remove('staircaseramp1_2_sweep2')
+    if 'staircaseramp_1_2_sweep2' in protocol_order:
+        protocol_order.remove('staircaseramp1_2_sweep2')
     protocol_order = protocol_order + ['staircaseramp1_2_sweep2']
 
-    protocol_order.remove('staircaseramp1_sweep2')
+    if 'staircaseramp1_sweep2' in protocol_order:
+        protocol_order.remove('staircaseramp1_sweep2')
     protocol_order.insert(2, 'staircaseramp1_sweep2')
 
     prediction_df['fitting_protocol'] = pd.Categorical(prediction_df['fitting_protocol'],
@@ -481,7 +538,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
         kws['cbar'] = False
         if 'cbar_ax' in kws:
             if kws['cbar_ax'] is not None:
-                kws['bar'] = True
+                kws['cbar'] = True
 
     # Show mean score in title
     mean_training_score = sub_df[sub_df.fitting_protocol == sub_df.validation_protocol]['n_score'].values.astype(np.float64).mean()
@@ -555,6 +612,23 @@ def setup_grid(fig, args):
         ax.set_axis_off()
 
     return model_axs, model_label_axs, case_label_axs, colour_bar_ax
+
+
+def setup_grid_single_case(fig, args):
+    # Row for each model, a colorbar, and case labels
+    no_models = len(args.model_classes)
+    no_columns = no_models
+    no_rows = 2
+
+    gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[2, 1])
+
+    colour_bar_ax = fig.add_subplot(gs[-1, :])
+    model_axs = np.array([fig.add_subplot(gs[0, i]) for i in range(no_models)])
+
+    for model_ax, model_class in zip(model_axs, args.model_classes):
+        model_ax.set_title(relabel_models_dict[model_class])
+
+    return model_axs, colour_bar_ax
 
 
 if __name__ == "__main__":
