@@ -35,6 +35,14 @@ rc('font', **{'size': 12})
 # rc('savefig', facecolor=[0]*4)
 rc('figure', autolayout=True)
 
+cbar_kws = {
+    'orientation': 'horizontal',
+    'fraction': .65,
+    'drawedges': False,
+    'label': 'NRMSE',
+}
+
+
 def main():
 
     parser = argparse.ArgumentParser()
@@ -132,6 +140,32 @@ def main():
 
         protocol_dict[protocol] = desc, times
 
+    if args.figsize:
+        individual_fig_height = 4.0
+        individual_plot_figsize =  [args.figsize[0], individual_fig_height]
+
+    fig = plt.figure(figsize=individual_plot_figsize, constrained_layout=True)
+
+    for task, prediction_df in res:
+        model_class, case, sub_df, args, output_dir, protocol_dict, fitting_case = task
+        # Compare best and worst wells
+        fig.clf()
+        axs = fig.subplots(1, 3, width_ratios=[1, 1, 0.25])
+        best_ax, worst_ax cbar_ax = axs
+
+        agg_dict = {'n_score': 'mean'}
+        best_well = sub_df.groupby('well').agg(agg_dict).idxmin()['well']
+        best_well = sub_df.groupby('well').agg(agg_dict).idxmax()['well']
+
+        do_heatmap(best_ax, model_class, case, sub_df, subtraction_df,
+                   protocol_dict, vlim, args, well=best_well,
+                   prediction_df=prediction_df, fontsize=11, cbar=False)
+
+        do_heatmap(worst_ax, model_class, case, sub_df, subtraction_df,
+                   protocol_dict, vlim, args, well=worst_well,
+                   prediction_df=prediction_df, fontsize=11, cbar_ax=cbar_ax)
+
+        fig.savefig(os.path.join(output_dir, f"{well}_{case}_{model_class}_heatmap_best_worst"))
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     axs = setup_grid(fig, args)
@@ -155,13 +189,8 @@ def main():
     vmin = min([df.n_score.values.astype(np.float64).min() for _, df in res])
     vlim = (vmin, vmax)
 
-    cbar_kws = {
-        'orientation': 'horizontal',
-        'fraction': .65,
-        'drawedges': False,
-        'label': 'normalised RMSE',
-    }
-
+    individual_fig = plt.figure(figsize=individual_plot_figsize)
+    individual_ax = individual_fig.subplots()
     done_colour_bar = False
     for task, prediction_df in res:
         model_class, case, sub_df, args, output_dir, protocol_dict, fitting_case = task
@@ -181,13 +210,21 @@ def main():
                         cbar_ax=cbar_ax,
                         cbar_kws=cbar_kws)
 
+        individual_fig.clf()
+        individual_ax = individual_fig.subplots()
+        # Do heatmap on individual plot with heatmap
+        do_heatmap(individual_ax, model_class, case, sub_df, subtraction_df,
+                    protocol_dict, vlim, args,
+                    prediction_df=prediction_df, fontsize=11,
+                    cbar=True, cbar_kws=cbar_kws)
+
+        individual_fig.savefig(os.path.join(output_dir,
+                                            f"average_{case}_{model_class}_heatmap"))
+
     fig.savefig(os.path.join(output_dir, "averaged_well_heatmaps"))
     fig.clf()
     axs = setup_grid(fig, args)
     model_axs, model_label_axs, case_label_axs, cbar_ax = axs
-
-    individual_fig = plt.figure(figsize=args.figsize)
-    individual_ax = individual_fig.subplots()
 
     # Now iterate over each well
     for well in subtraction_df.well.unique():
@@ -214,11 +251,11 @@ def main():
             do_heatmap(individual_ax, model_class, case, sub_df, subtraction_df,
                        protocol_dict, vlim, args, well=well,
                        prediction_df=prediction_df, fontsize=11,
+                       cbar_kws=cbar_kws,
                        cbar=True)
 
             individual_fig.savefig(os.path.join(output_dir,
                                                 f"{well}_{case}_{model_class}_heatmap"))
-
         for ax in model_axs.flatten():
             ax.xaxis.set_visible(False)
             ax.yaxis.set_visible(False)
@@ -227,6 +264,7 @@ def main():
         fig.clf()
         axs = setup_grid(fig, args)
         model_axs, model_label_axs, case_label_axs, cbar_ax = axs
+
     plt.close(fig)
 
 
@@ -443,7 +481,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
         kws['cbar'] = False
         if 'cbar_ax' in kws:
             if kws['cbar_ax'] is not None:
-                kws['cbar'] = True
+                kws['bar'] = True
 
     # Show mean score in title
     mean_training_score = sub_df[sub_df.fitting_protocol == sub_df.validation_protocol]['n_score'].values.astype(np.float64).mean()
