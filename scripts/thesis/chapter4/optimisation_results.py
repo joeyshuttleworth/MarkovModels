@@ -425,46 +425,50 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
     scatter_ax.set_yscale('log')
     scatter_ax.set_xscale('log')
 
-    inset_ax = inset_axes(scatter_ax,
-                          width="30%",
-                          height="40%",
-    )
-
-    inset_ax.set_xscale('log')
-    inset_ax.set_yscale('log')
-
-    mark_inset(scatter_ax, inset_ax, 2, 3, alpha=.4)
-
-    scatter_ax.set_xlabel(r'$p_1$')
-    scatter_ax.set_ylabel(r'$p_2$')
-
-    inset_ax.scatter(params_df[param_labels[0]].values[highlight_indices],
-                     params_df[param_labels[1]].values[highlight_indices],
-                     color=_colours[0], marker='x')
-
-    inset_ax.scatter([best_params[0]], [best_params[1]], color='gold', marker='s')
-    # inset_ax.xaxis.set_major_formatter(FormatStrFormatter('%.3E'))
-    # inset_ax.yaxis.set_major_formatter(FormatStrFormatter('%.3E'))
-    inset_ax.tick_params(axis='x', labelrotation=90)
-    inset_ax.tick_params(axis='y')
-
+    # Limits for inset
     xlims = (params_df[param_labels[0]].values[highlight_indices].min(),
-             params_df[param_labels[1]].values[highlight_indices].max())
+             params_df[param_labels[0]].values[highlight_indices].max())
 
     ylims = (params_df[param_labels[1]].values[highlight_indices].min(),
              params_df[param_labels[1]].values[highlight_indices].max())
 
-    inset_ax.set_xlim(xlims)
-    inset_ax.set_ylim(ylims)
 
-    xticks = inset_ax.get_xticks()
-    xticks = [xticks[0], xticks[-1]]
+    if xlims[0] == xlims[1] or ylims[0] == ylims[1]:
+        inset_ax = inset_axes(scatter_ax,
+                            width="30%",
+                            height="40%",
+        )
 
-    yticks = inset_ax.get_yticks()
-    yticks = [yticks[0], yticks[-1]]
+        inset_ax.set_xscale('log')
+        inset_ax.set_yscale('log')
 
-    inset_ax.set_xticks(xticks)
-    inset_ax.set_yticks(yticks)
+        mark_inset(scatter_ax, inset_ax, 2, 3, alpha=.4)
+
+        scatter_ax.set_xlabel(r'$p_1$')
+        scatter_ax.set_ylabel(r'$p_2$')
+
+        inset_ax.scatter(params_df[param_labels[0]].values[highlight_indices],
+                        params_df[param_labels[1]].values[highlight_indices],
+                        color=_colours[0], marker='x')
+
+        inset_ax.scatter([best_params[0]], [best_params[1]], color='gold', marker='s')
+        # inset_ax.xaxis.set_major_formatter(FormatStrFormatter('%.3E'))
+        # inset_ax.yaxis.set_major_formatter(FormatStrFormatter('%.3E'))
+        inset_ax.tick_params(axis='x', labelrotation=90)
+        inset_ax.tick_params(axis='y')
+
+
+        inset_ax.set_xlim(xlims)
+        inset_ax.set_ylim(ylims)
+
+        xticks = inset_ax.get_xticks()
+        xticks = [xticks[0], xticks[-1]]
+
+        yticks = inset_ax.get_yticks()
+        yticks = [yticks[0], yticks[-1]]
+
+        inset_ax.set_xticks(xticks)
+        inset_ax.set_yticks(yticks)
 
 
 def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args):
