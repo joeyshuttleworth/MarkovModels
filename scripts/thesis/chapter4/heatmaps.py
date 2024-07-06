@@ -193,11 +193,11 @@ def main():
 
         do_heatmap(best_ax, model_class, case, sub_df, subtraction_df,
                    protocol_dict, vlim, args, well=best_well,
-                   prediction_df=prediction_df, fontsize=11, cbar=False)
+                   prediction_df=prediction_df, cbar=False)
 
         do_heatmap(worst_ax, model_class, case, sub_df, subtraction_df,
                    protocol_dict, vlim, args, well=worst_well,
-                   prediction_df=prediction_df, fontsize=11, cbar_ax=cbar_ax,
+                   prediction_df=prediction_df, cbar_ax=cbar_ax,
                    cbar_kws=best_worst_cbar_kws)
 
         cbar_ax.set_title('NRMSE')
@@ -240,7 +240,7 @@ def main():
         # Do heatmap on individual plot with heatmap
         do_heatmap(individual_ax, model_class, case, sub_df, subtraction_df,
                     protocol_dict, vlim, args,
-                    prediction_df=prediction_df, fontsize=11,
+                    prediction_df=prediction_df,
                     cbar=True, cbar_kws=cbar_kws)
 
         individual_fig.savefig(os.path.join(output_dir,
@@ -250,7 +250,8 @@ def main():
     fig.clf()
 
     # Plot Case III only
-    model_axs, cbar_ax = setup_grid_single_case(fig, args)
+    model_axs, colour_bar_ax, label_axs = setup_grid_single_case(fig, args)
+    done_colour_bar = False
     for task, prediction_df in res:
         model_class, case, sub_df, args, output_dir, protocol_dict, fitting_case = task
         if fitting_case != '0c':
@@ -275,6 +276,11 @@ def main():
                         cbar_ax=cbar_ax,
                         cbar_kws=this_cbar_kws)
 
+    for ax in model_axs:
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlabel('')
+        ax.set_ylabel('')
 
     fig.savefig(os.path.join(output_dir, 'Case0c_heatmap_comparison'))
     fig.clf()
@@ -306,7 +312,7 @@ def main():
             # Do heatmap on individual plot with heatmap
             do_heatmap(individual_ax, model_class, case, sub_df, subtraction_df,
                        protocol_dict, vlim, args, well=well,
-                       prediction_df=prediction_df, fontsize=11,
+                       prediction_df=prediction_df,
                        cbar_kws=cbar_kws,
                        cbar=True)
 
@@ -429,8 +435,6 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
                                                tolerances=(1e-6, 1e-6),
                                                args=args)
 
-    args.chrono_file
-
     chrono_fname = os.path.join(args.chrono_file)
     with open(chrono_fname, 'r') as fin:
         lines = fin.read().splitlines()
@@ -456,30 +460,21 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
 
     prediction_df = prediction_df.apply(rename_staircase_func, axis=1)
 
-    protocol_order = [p for p in protocol_order if p in prediction_df.validation_protocol.unique()]
-    # Reorder and relabel protocols
-    relabel_dict = {p: r"$d_{" f"{i}" r"}$" for i, p
-                    in enumerate(protocol_order)}
-
     # Move longap to front
-
     if 'longap' in protocol_order:
         protocol_order.remove('longap')
         protocol_order.insert(0, 'longap')
+
+    # Reorder and relabel protocols
+    relabel_dict = {p: r"$d_{" f"{i}" r"}$" for i, p
+                    in enumerate(protocol_order)}
 
     relabel_dict['staircaseramp1'] = r'$d_{1}^{(1)}$'
     relabel_dict['staircaseramp1_sweep2'] = r'$d_{1}^{(2)}$'
     relabel_dict['staircaseramp1_2'] = r'$d_{1}^{(3)}$'
     relabel_dict['staircaseramp1_2_sweep2'] = r'$d_{1}^{(4)}$'
 
-    if 'staircaseramp_1_2_sweep2' in protocol_order:
-        protocol_order.remove('staircaseramp1_2_sweep2')
-    protocol_order = protocol_order + ['staircaseramp1_2_sweep2']
-
-    if 'staircaseramp1_sweep2' in protocol_order:
-        protocol_order.remove('staircaseramp1_sweep2')
-    protocol_order.insert(2, 'staircaseramp1_sweep2')
-
+    print(protocol_order)
     prediction_df['fitting_protocol'] = pd.Categorical(prediction_df['fitting_protocol'],
                                                        categories=protocol_order,
                                                        ordered=True)
@@ -600,13 +595,13 @@ def setup_grid(fig, args):
     for i, (label_ax, model_label) in enumerate(zip(model_label_axs, args.model_classes)):
         label = relabel_models_dict[model_label]
         label_ax.text(.5, .5, label, horizontalalignment='center',
-                      verticalalignment='center', fontsize=12)
+                      verticalalignment='center')
 
     case_labels = ['Case I', 'Case II', 'Case III']
     for i, (label_ax, case_label) in enumerate(zip(case_label_axs, case_labels)):
         case_label = case_labels[i]
         label_ax.text(.5, .5, case_label, horizontalalignment='center',
-                      verticalalignment='center', fontsize=12)
+                      verticalalignment='center')
 
     for ax in list(model_axs.flatten()) + model_label_axs + case_label_axs:
         ax.set_axis_off()
@@ -617,18 +612,22 @@ def setup_grid(fig, args):
 def setup_grid_single_case(fig, args):
     # Row for each model, a colorbar, and case labels
     no_models = len(args.model_classes)
-    no_columns = no_models
-    no_rows = 2
+    no_columns = 3
+    no_rows = no_models
 
-    gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[2, 1])
+    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[1, 2, .25])
 
-    colour_bar_ax = fig.add_subplot(gs[-1, :])
-    model_axs = np.array([fig.add_subplot(gs[0, i]) for i in range(no_models)])
+    colour_bar_ax = fig.add_subplot(gs[:, -1])
+    model_axs = np.array([fig.add_subplot(gs[i, 1]) for i in range(no_models)])
+    label_axs = np.array([fig.add_subplot(gs[i, 0]) for i in range(no_models)])
 
-    for model_ax, model_class in zip(model_axs, args.model_classes):
-        model_ax.set_title(relabel_models_dict[model_class])
+    for ax, model_class in zip(label_axs, args.model_classes):
+        ax.text(.5, .5, relabel_models_dict[model_class])
+        ax.set_axis_off()
 
-    return model_axs, colour_bar_ax
+    colour_bar_ax.set_axis_off()
+
+    return model_axs, colour_bar_ax, label_axs
 
 
 if __name__ == "__main__":
