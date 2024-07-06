@@ -433,25 +433,10 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
     inset_ax.set_xscale('log')
     inset_ax.set_yscale('log')
 
-    # xlims = inset_ax.get_xlim()
-    # xlims = [xlims[0] - (xlims[1] - xlims[0]) * 0.2,
-    #          xlims[1] + (xlims[1] - xlims[0]) * 0.2]
-
-    # ylims = inset_ax.get_ylim()
-    # ylims = [ylims[0] - (ylims[1] - ylims[0]) * 0.2,
-    #          ylims[1] + (ylims[1] - ylims[0]) * 0.2]
-
-    # inset_ax.set_xlim(xlims)
-    # inset_ax.set_ylim(ylims)
-
     mark_inset(scatter_ax, inset_ax, 2, 3, alpha=.4)
-
 
     scatter_ax.set_xlabel(r'$p_1$')
     scatter_ax.set_ylabel(r'$p_2$')
-
-    cutoff = scores.min() * cutoff_threshold
-    highlight_indices = np.argwhere((scores <= cutoff) & (scores != scores.min()))
 
     inset_ax.scatter(params_df[param_labels[0]].values[highlight_indices],
                      params_df[param_labels[1]].values[highlight_indices],
@@ -460,11 +445,17 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
     inset_ax.scatter([best_params[0]], [best_params[1]], color='gold', marker='s')
     # inset_ax.xaxis.set_major_formatter(FormatStrFormatter('%.3E'))
     # inset_ax.yaxis.set_major_formatter(FormatStrFormatter('%.3E'))
-    inset_ax.tick_params(axis='x', labelrotation=90, labelsize=8)
-    inset_ax.tick_params(axis='y', labelsize=8)
+    inset_ax.tick_params(axis='x', labelrotation=90)
+    inset_ax.tick_params(axis='y')
 
-    inset_ax.xaxis.get_offset_text().set_fontsize(8)
-    inset_ax.yaxis.get_offset_text().set_fontsize(8)
+    xlims = (params_df[param_labels[0]].values[highlight_indices].min(),
+             params_df[param_labels[1]].values[highlight_indices].max())
+
+    ylims = (params_df[param_labels[1]].values[highlight_indices].min(),
+             params_df[param_labels[1]].values[highlight_indices].max())
+
+    inset_ax.set_xlim(xlims)
+    inset_ax.set_ylim(ylims)
 
     xticks = inset_ax.get_xticks()
     xticks = [xticks[0], xticks[-1]]
