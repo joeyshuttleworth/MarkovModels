@@ -403,8 +403,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                                               protocol_description=protocol_desc,
                                                               times=times))
         gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak, protocol_desc,
-                                                         times, data, voltages,
-                                                         return_var='I_out')
+                                                         times, data, voltages)
         default_parameters[-no_artefact_parameters + 1] = gleak
         default_parameters[-no_artefact_parameters + 2] = Eleak
 
