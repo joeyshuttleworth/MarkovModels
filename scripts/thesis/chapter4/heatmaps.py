@@ -39,7 +39,7 @@ rc('figure', autolayout=True)
 
 cbar_kws = {
     'orientation': 'horizontal',
-    'fraction': .5,
+    'fraction': .75,
     'drawedges': False,
     'label': 'NRMSE',
 }
@@ -187,7 +187,7 @@ def main():
         print(f"best well: {best_well}")
         print(f"worst well: {worst_well}")
 
-        best_worst_cbar_kws = cbar_kws
+        best_worst_cbar_kws = cbar_kws.copy()
         best_worst_cbar_kws['orientation'] = 'vertical'
         best_worst_cbar_kws['label'] = ''
 
@@ -214,7 +214,7 @@ def main():
     axs = setup_grid(fig, args)
     model_axs, model_label_axs, case_label_axs, colour_bar_ax = axs
 
-    individual_fig = plt.figure(figsize=individual_plot_figsize)
+    individual_fig = plt.figure(figsize=individual_plot_figsize, constrained_layout=True)
     individual_ax = individual_fig.subplots()
     done_colour_bar = False
     for task, prediction_df in res:
@@ -259,8 +259,13 @@ def main():
 
         if done_colour_bar:
             cbar_ax = None
+            this_cbar_kws = {}
         else:
             cbar_ax = colour_bar_ax
+            this_cbar_kws = cbar_kws.copy()
+            this_cbar_kws['orientation'] = 'vertical'
+            this_cbar_kws['label'] = ''
+            print(this_cbar_kws)
             done_colour_bar = True
 
         i = args.model_classes.index(model_class)
@@ -268,13 +273,12 @@ def main():
         ax = model_axs[args.model_classes.index(model_class)]
         ax.set_label(relabel_models_dict[model_class])
 
-        this_cbar_kws = cbar_kws
-        this_cbar_kws['orientation'] = 'vertical'
-
         hm = do_heatmap(ax, model_class, case, sub_df, subtraction_df,
                         protocol_dict, vlim, args, prediction_df=prediction_df,
                         cbar_ax=cbar_ax,
                         cbar_kws=this_cbar_kws)
+
+    colour_bar_ax.set_title('NRMSE')
 
     for ax in model_axs:
         ax.set_xticks([])
@@ -305,7 +309,7 @@ def main():
             do_heatmap(ax, model_class, case, sub_df, subtraction_df,
                        protocol_dict, vlim, args, well=well,
                        prediction_df=prediction_df, cbar_ax=cbar_ax,
-                       cbar_kws=cbar_kws)
+                       cbar_kws=cbar_kws.copy())
 
             individual_fig.clf()
             individual_ax = individual_fig.subplots()
@@ -313,7 +317,7 @@ def main():
             do_heatmap(individual_ax, model_class, case, sub_df, subtraction_df,
                        protocol_dict, vlim, args, well=well,
                        prediction_df=prediction_df,
-                       cbar_kws=cbar_kws,
+                       cbar_kws=cbar_kws.copy(),
                        cbar=True)
 
             individual_fig.savefig(os.path.join(output_dir,
@@ -571,7 +575,6 @@ def setup_grid(fig, args):
     # Row for each model, a colorbar, and case labels
     no_rows = 2 + len(args.model_classes)
 
-    # Coumn for each 'case' and labels
     no_cases = 3
     no_models = len(args.model_classes)
     no_columns = 1 + no_cases
@@ -615,7 +618,7 @@ def setup_grid_single_case(fig, args):
     no_columns = 3
     no_rows = no_models
 
-    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[1, 2, .25])
+    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[.125, 1, .075])
 
     colour_bar_ax = fig.add_subplot(gs[:, -1])
     model_axs = np.array([fig.add_subplot(gs[i, 1]) for i in range(no_models)])
@@ -625,8 +628,7 @@ def setup_grid_single_case(fig, args):
         ax.text(.5, .5, relabel_models_dict[model_class])
         ax.set_axis_off()
 
-    colour_bar_ax.set_axis_off()
-
+    # colour_bar_ax.set_axis_off()
     return model_axs, colour_bar_ax, label_axs
 
 
