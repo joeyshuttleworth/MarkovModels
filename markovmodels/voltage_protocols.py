@@ -96,9 +96,21 @@ def get_ramp_protocol_from_json(protocol_name: str, directory: str,
 
     prot_func = make_voltage_function_from_description(desc, holding_potential)
     desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
-    desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
 
     return prot_func, desc
+
+
+def get_protocol_desc_from_json(protocol_name: str, directory: str,
+                                experiment_name: str, holding_potential=-80.0):
+    """
+
+    """
+    with open(os.path.join(directory, f"{experiment_name}-{protocol_name}.json")) as fin:
+        json_protocol = json.load(fin)
+    desc = VoltageProtocol.from_json(json_protocol,
+                                     holding_potential=holding_potential).get_all_sections()
+
+    return desc
 
 
 def get_ramp_protocol_from_csv(protocol_name: str, directory=None,
@@ -156,7 +168,10 @@ def get_ramp_protocol_from_csv(protocol_name: str, directory=None,
     return protocol_func, times, protocol
 
 
-def make_voltage_function_from_description(desc, holding_potential=-80.0):
+def make_voltage_function_from_description(desc=None, holding_potential=-80.0):
+
+    if desc is None:
+        desc = np.array([0, 1000.0, -80.0, -80.0]).astype(np.float64)
 
     @njit
     def protocol_func(t: np.float64, offset=0.0,
