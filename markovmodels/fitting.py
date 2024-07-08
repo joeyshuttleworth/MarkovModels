@@ -16,7 +16,7 @@ from sympy.utilities.lambdify import _TensorflowEvaluatorPrinter
 
 import markovmodels
 
-from quality_control.leak_fit import fit_leak_lr
+from markovmodels.quality_control.leak_fit import fit_leak_lr
 from markovmodels.model_generation import make_model_of_class, setup_model_for_fitting_case
 from markovmodels.voltage_protocols import get_ramp_protocol_from_csv, make_voltage_function_from_description
 from markovmodels.utilities import get_data
