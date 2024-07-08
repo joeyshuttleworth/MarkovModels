@@ -178,7 +178,7 @@ def main():
         model_class, case, sub_df, args, output_dir, protocol_dict, fitting_case = task
         # Compare best and worst wells
         fig.clf()
-        axs = fig.subplots(1, 3, width_ratios=[1, 1, 0.15])
+        axs = fig.subplots(1, 3, width_ratios=[1, 1, 0.1])
         best_ax, worst_ax, cbar_ax = axs
 
         agg_dict = {'n_score': 'mean'}
@@ -444,7 +444,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
         lines = fin.read().splitlines()
         protocol_order = [line.split(' ')[0] for line in lines]
         protocol_order.insert(1, 'staircaseramp1_sweep2')
-        protocol_order.insert(-1, 'staircaseramp1_2_sweep2')
+        protocol_order.append('staircaseramp1_2_sweep2', inplace=True)
 
     def rename_staircase_func(row):
         f_protocol, v_protocol, f_sweep, v_sweep = [row[key] for key in ['fitting_protocol', 'validation_protocol', 'fitting_sweep', 'prediction_sweep']]
