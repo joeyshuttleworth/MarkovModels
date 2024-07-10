@@ -51,6 +51,13 @@ relabel_models_dict = {
     'Wang': 'Wang'
 }
 
+model_colour_dict = {
+    'model2': '#a6cee3',
+    'Wang': '#1f78b4',
+    'model10': '#b2df8a',
+    'model3': '#33a02c',
+}
+
 
 def main():
 
@@ -250,7 +257,8 @@ def main():
     fig.clf()
 
     # Plot Case III only
-    model_axs, colour_bar_ax, label_axs = setup_grid_single_case(fig, args)
+    model_axs, colour_bar_ax, label_axs, prediction_ax\
+        = setup_grid_single_case(fig, args)
     done_colour_bar = False
     for task, prediction_df in res:
         model_class, case, sub_df, args, output_dir, protocol_dict, fitting_case = task
@@ -277,6 +285,44 @@ def main():
                         protocol_dict, vlim, args, prediction_df=prediction_df,
                         cbar_ax=cbar_ax,
                         cbar_kws=this_cbar_kws)
+
+        validation_protocol = 'longap'
+        best_well = prediction_df.groupby('well').agg(agg_dict).idxmin()['n_score']
+        worst_well = prediction_df.groupby('well').agg(agg_dict).idxmax()['n_score']
+        example_well = worst_well
+        data, vp = get_data(example_well, validation_protocol, args.data_directory,
+                       args.experiment_name,
+                       sweep=sweep)
+
+        times = np.loadtxt(os.path.join(args.data_directory,
+                                        f"{args.experiment_name}-{validation_protocol}-times.csv")).astype(np.float64).flatten()
+
+        # Do predictions plot
+        desc, times = protocol_dict[validation_protocol]
+        desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
+        voltages = np.array([voltage_func(t, protocol_description=desc) for t in times])
+
+        prediction_ax.set_title(example_well)
+        prediction_df['protocol'] = prediction_df['fitting_protocol']
+        if not args.use_mock_data:
+            predictions = get_ensemble_of_predictions(times, desc, prediction_df,
+                                                      validation_protocol, example_well,
+                                                      sweep,
+                                                      sub_df, case,
+                                                      args.reversal, model_class, data,
+                                                      args, protocol_dict,
+                                                      solver=solver,
+                                                      voltage_func=voltage_func)
+            for pred in predictions:
+                prediction_ax.plot(times*1e-3, pred, color=model_colour_dict[model_class])
+
+    for ax in prediction_ax[:-1]:
+        ax.set_xticks([])
+
+    prediction_ax[-1].set_xlabel(r'$t$ (s)')
+
+    for ax in prediction_ax:
+        ax.set_ylabel(r'$I_\mathrm{Kr}$ (pA)')
 
     colour_bar_ax.set_title('NRMSE')
 
@@ -615,21 +661,26 @@ def setup_grid(fig, args):
 def setup_grid_single_case(fig, args):
     # Row for each model, a colorbar, and case labels
     no_models = len(args.model_classes)
-    no_columns = 3
+    no_columns = 4
     no_rows = no_models
 
-    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[.125, 1, .075])
+    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[.0625, 1,
+                                                                 1, .0625])
 
     colour_bar_ax = fig.add_subplot(gs[:, -1])
-    model_axs = np.array([fig.add_subplot(gs[i, 1]) for i in range(no_models)])
+    model_axs = np.array([fig.add_subplot(gs[i, 2]) for i in range(no_models)])
     label_axs = np.array([fig.add_subplot(gs[i, 0]) for i in range(no_models)])
+    prediction_axs = np.array([fig.add_subplot(gs[i, 1]) for i in range(no_models)])
 
     for ax, model_class in zip(label_axs, args.model_classes):
         ax.text(.5, .5, relabel_models_dict[model_class])
         ax.set_axis_off()
 
+    for ax in prediction_axs:
+        ax.spines[['top', 'right']].set_visible(False)
+
     # colour_bar_ax.set_axis_off()
-    return model_axs, colour_bar_ax, label_axs
+    return model_axs, colour_bar_ax, label_axs, prediction_axs
 
 
 if __name__ == "__main__":
