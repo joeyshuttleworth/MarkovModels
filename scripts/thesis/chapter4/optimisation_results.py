@@ -426,7 +426,7 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
     scatter_ax.set_xscale('log')
 
     # Limits for inset
-    if highlight_indices.flatten().shape[0] == 0:
+    if highlight_indices.flatten().shape[0] > 0:
         highlight_indices = np.array([np.argmin(scores)])
         xlims = (params_df[param_labels[0]].values[highlight_indices].min(),
                  params_df[param_labels[0]].values[highlight_indices].max())
