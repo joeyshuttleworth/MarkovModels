@@ -299,7 +299,10 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                   population_size=None):
 
     if default_parameters is None or len(default_parameters) == 0:
-        default_parameters = make_model_of_class(model_class_name).get_default_parameters()
+        if use_artefact_model:
+            default_parameters = ArtefactModel(make_model_of_class(model_class_name).get_default_parameters())
+        else:
+            default_parameters = make_model_of_class(model_class_name).get_default_parameters()
 
     if not use_artefact_model:
         parameter_labels = make_model_of_class(model_class_name).get_parameter_labels()
@@ -341,8 +344,8 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
             except FileExistsError:
                 pass
 
-            output_path = os.path.join(reversal_dir,
-                                        'infer_reversal_potential.png')
+            reversal_output_path = os.path.join(reversal_dir,
+                                                'infer_reversal_potential.png')
         else:
             output_path = None
             reversal_dir = None
@@ -362,19 +365,30 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                               default_parameters[-no_artefact_parameters:])
 
             try:
-                gleak_index = -no_artefact_parameters + 1
-                Eleak_index = -no_artefact_parameters + 2
-                pp_gleak = default_parameters[gleak_index]
-                pp_Eleak = default_parameters[Eleak_index]
+                dt = times[1] - times[0]
+                leak_ramp_i = [i for i, l in enumerate(protocol_desc)
+                               if l[2] != l[3]][0]
+                ramp_start = protocol_desc[leak_ramp_i - 1, 0] + 50.0
+                ramp_end = protocol_desc[leak_ramp_i + 1, 1] - 50.0
+
+                g_leak_est, E_leak_est, _, _, _, _, _ = fit_leak_lr(
+                    voltages, data.copy(), dt=dt,
+                    ramp_start=ramp_start,
+                    ramp_end=ramp_end
+                )
+                pp_Eleak = E_leak_est
+                pp_gleak = g_leak_est
+
                 V_off, success = find_V_off(protocol_desc, times,
                                             data, V_off_model_class,
                                             V_off_initial_params, E_rev,
                                             pp_gleak, pp_Eleak,
                                             forward_sim_output_dir=reversal_dir,
-                                            output_path=output_path,
+                                            output_path=reversal_dir,
                                             data_label=data_label
                                             )
-                assert success
+                if not success:
+                    raise Exception(f"failed to infer V_off {well} {protocol} sweep{sweep}")
 
             except ValueError as exc:
                 # Possibly non data or non-finite values in data
@@ -385,8 +399,10 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
 
         else:
             voltages = None
-            E_obs = infer_reversal_potential(protocol_desc, data, times, plot=plot,
-                                             output_path=output_path, voltages=voltages)
+            E_obs = infer_reversal_potential(protocol_desc, data, times,
+                                             plot=plot,
+                                             output_path=reversal_output_path,
+                                             voltages=voltages)
         if use_artefact_model:
             inferred_E_rev = E_rev
             default_parameters[-3] = V_off
@@ -884,7 +900,8 @@ def find_V_off(protocol_desc, times, data,
     if voltage_func is None:
         voltage_func = make_voltage_function_from_description(protocol_desc)
 
-    Vcmd = np.array([voltage_func(t) for t in times])
+    Vcmd = np.array([voltage_func(t,
+                                  protocol_description=protocol_desc) for t in times])
 
     # Find end of reversal ramp
     ramp = [line for line in protocol_desc if line[2] != line[3]][-1]
@@ -943,8 +960,15 @@ def find_V_off(protocol_desc, times, data,
 
     s_data = data - pp_gleak * (Vcmd - pp_Eleak)
 
+    if output_path:
+        reversal_output_path = os.path.join(output_path, 'reversal_inference')
+    else:
+        reversal_output_path = None
+
     E_obs = infer_reversal_potential(protocol_desc, s_data, times,
-                                     voltages=Vcmd)
+                                     voltages=Vcmd,
+                                     output_path=reversal_output_path,
+                                     strict_bounds=False)
 
     if not np.isfinite(E_obs):
         logging.warning(f"find_V_off failed: E_obs not finite = {E_obs}")
@@ -1106,7 +1130,8 @@ def find_V_off(protocol_desc, times, data,
 
 
 def infer_reversal_potential(protocol_desc: np.array, current: np.array, times, ax=None,
-                             output_path=None, plot=None, known_Erev=None, voltages=None):
+                             output_path=None, plot=None, known_Erev=None, voltages=None,
+                             strict_bounds=True):
     if output_path:
         dirname = os.path.dirname(output_path)
         if not os.path.exists(dirname):
@@ -1144,15 +1169,19 @@ def infer_reversal_potential(protocol_desc: np.array, current: np.array, times, 
 
     fitted_poly = poly.Polynomial.fit(voltages, current, 4)
 
+    logging.info(fitted_poly.roots())
+
     roots = np.unique([np.real(root) for root in fitted_poly.roots()
                        if root > np.min(voltages) and root < np.max(voltages)])
+
+    if len(roots) == 0:
+        roots = np.unique([np.real(root) for root in fitted_poly.roots()
+                           if (not strict_bounds) or
+                           root > np.min(voltages) and root < np.max(voltages)])
 
     # Take the last root (greatest voltage). This should be the first time that
     # the current crosses 0 and where the ion-channel kinetics are too slow to
     # play a role
-
-    if len(roots) == 0:
-        return np.nan
 
     if plot:
         created_fig = False
@@ -1181,7 +1210,8 @@ def infer_reversal_potential(protocol_desc: np.array, current: np.array, times, 
 
             ax.plot(ideal_voltages, scaled_IKr, '--', color='red', label='ideal IKr with Nernst potential')
 
-        ax.axvline(roots[-1], linestyle='--', color='grey', label="$E_{Kr}$")
+        if len(roots) > 0:
+            ax.axvline(roots[-1], linestyle='--', color='grey', label="$E_{Kr}$")
         if known_Erev:
             ax.axvline(known_Erev, linestyle='--', color='yellow', label="known $E_{Kr}$")
         ax.axhline(0, linestyle='--', color='grey')
@@ -1195,7 +1225,10 @@ def infer_reversal_potential(protocol_desc: np.array, current: np.array, times, 
         if created_fig:
             plt.close(fig)
 
-    return roots[-1]
+    if len(roots) == 0:
+        return np.nan
+
+    return min(roots[-1], voltages.max())
 
 
 def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E_rev, subtractions_df,
