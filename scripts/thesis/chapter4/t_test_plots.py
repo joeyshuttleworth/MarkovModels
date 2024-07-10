@@ -27,7 +27,7 @@ multiprocessing_kws = {'maxtasksperchild': 1}
 
 plt.rcParams["axes.formatter.use_mathtext"] = True
 
-rc('font', **{'size': 12})
+rc('font', **{'size': 11})
 rc('figure', autolayout=True)
 
 global model_names
@@ -71,12 +71,15 @@ def main():
     parser.add_argument('fitting_results', type=str)
     parser.add_argument('subtraction_df')
     parser.add_argument('chrono_file')
-    parser.add_argument('--cases', nargs='+', default=['0a', '0b', '0c'])
-    parser.add_argument('--model_class', default='model3')
+    parser.add_argument('--fitting_cases', nargs='+', default=['0a', '0b', '0c'])
+    parser.add_argument('--model_classes',
+                        default=['model2', 'model3', 'model10', 'Wang'],
+                        nargs='+')
     parser.add_argument('--plot_all_predictions', action='store_true')
     parser.add_argument('--data_label', default='')
     parser.add_argument('--ignore_protocols', nargs='+', default=['longap'], type=str)
-    parser.add_argument('-w', '--wells', type=str, nargs='+')
+    parser.add_argument('--ignore_wells', nargs='+', default=['M06'], type=str)
+    parser.add_argument('-w', '--wells', type=str, nargs='+', default=[])
     parser.add_argument('--removal_duration', type=float, default=5.0)
     parser.add_argument('--experiment_name', '-e', default='newtonrun4')
     parser.add_argument('--validation_protocols', nargs='+')
@@ -134,31 +137,32 @@ def main():
     # Get fitting results (dict of dicts)
     params_dfs = []
     results_dict = {}
-    for case, dirname in zip(cases, dirnames):
-        if case not in args.cases:
-            continue
-        fname = os.path.join(args.fitting_results,
-                                dirname,
-                                args.model_class,
-                                "combine_fitting_results",
-                                "combined_fitting_results.csv")
 
-        params_df = get_best_params(pd.read_csv(fname))
+    for model_class in args.model_classes:
+        for case, dirname in zip(cases, dirnames):
+            if case not in args.fitting_cases:
+                continue
+            fname = os.path.join(args.fitting_results,
+                                    dirname,
+                                    model_class,
+                                    "combine_fitting_results",
+                                    "combined_fitting_results.csv")
 
-        if args.wells:
-            params_df = params_df[params_df.well.isin(args.wells)].copy()
+            params_df = get_best_params(pd.read_csv(fname))
 
-        params_df['protocol'] = ['staircaseramp1_2' if protocol ==
-                                    'staircaseramp2' else protocol for
-                                    protocol in params_df.protocol]
+            if args.wells:
+                params_df = params_df[params_df.well.isin(args.wells)].copy()
 
-        params_dfs.append(params_df)
-        results_dict[case] = params_df
+            params_df['protocol'] = ['staircaseramp1_2' if protocol ==
+                                        'staircaseramp2' else protocol for
+                                        protocol in params_df.protocol]
+
+            params_dfs.append(params_df)
+            results_dict[(model_class, case)] = params_df
 
     protocol_dict = {}
     v_func = None
     sweep = 0
-    fitting_case = '0b'
 
     protocols = list(np.unique(list(itertools.chain(*[list(params_df.protocol.unique()) for params_df in params_dfs])))) + args.validation_protocols
 
@@ -171,15 +175,18 @@ def main():
 
         protocol_dict[protocol] = desc, times
 
-    plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
-                          protocol_dict, protocol_order, results_dict,
-                          subtraction_df,
-                          mode='prediction', v_func=v_func)
+    for fitting_case in args.fitting_cases:
+        for model_class in args.model_classes:
+            print(f"plotting {fitting_case} {model_class}")
+            plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
+                                  protocol_dict, protocol_order, results_dict,
+                                  subtraction_df, model_class, mode='prediction',
+                                  v_func=v_func)
 
-    plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
-                          protocol_dict, protocol_order, results_dict,
-                          subtraction_df,
-                          mode='fitting', v_func=v_func)
+            plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
+                                  protocol_dict, protocol_order, results_dict,
+                                  subtraction_df, model_class, mode='fitting',
+                                  v_func=v_func)
 
 
 def setup_axes(fig, no_protocols):
@@ -204,14 +211,14 @@ def setup_axes(fig, no_protocols):
         ax.set_xticklabels([0, r'$t_\text{end}$'])
 
     for ax in axs[:, 0]:
-        ax.set_ylabel(r'$Z_\text{T}$')
+        ax.set_ylabel(r'$V$ (mV)')
 
     return axs.flatten(), cbar_ax
 
 
 def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
                           protocol_dict, protocol_order, results_dict,
-                          subtraction_df,
+                          subtraction_df, model_class,
                           mode='prediction', v_func=None):
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
@@ -220,14 +227,16 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
     axs, cbar_ax = setup_axes(fig, no_protocols)
     V_range = (-120, 60)
 
-    wells = params_df.well.unique()
+    wells = np.array([w for w in params_df.well.unique() if w not in args.ignore_wells])
     zs = {}
 
     if v_func is None:
-        v_func = make_model_of_type(args.model_class).voltage
+        v_func = make_model_of_type(model_class).voltage
 
     max_z, min_z = -np.inf, np.inf
     for well in wells:
+        if well in args.ignore_wells:
+            continue
         zs[well] = {}
         axs, cbar_ax = setup_axes(fig, no_protocols)
         for ax, protocol in zip(axs, protocol_order):
@@ -241,10 +250,10 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
             markovmodels.voltage_protocols.remove_spikes(times,
                                                          voltages, spike_times,
                                                          time_to_remove=args.removal_duration)
-            params_df = results_dict[fitting_case]
+            params_df = results_dict[(model_class, fitting_case)]
             sub_df = params_df[params_df.protocol != protocol]
 
-            z = get_t_test_statistic(args.model_class, fitting_case, params_df,
+            z = get_t_test_statistic(model_class, fitting_case, params_df,
                                      subtraction_df, protocol, well, sweep,
                                      protocol_dict, args,
                                      voltage_func=v_func, mode=mode)
@@ -254,12 +263,13 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
             zs[well][protocol] = z
 
 
-    print(min_z, max_z)
-
     vmin = -np.max(np.abs([min_z, max_z]))
     vmax = +np.max(np.abs([min_z, max_z]))
 
     for well in wells:
+        if well in args.ignore_wells:
+            continue
+
         axs, cbar_ax = setup_axes(fig, no_protocols)
         for ax, protocol in zip(axs, protocol_order):
             desc, times = protocol_dict[protocol]
@@ -268,7 +278,6 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
             ymin, ymax = V_range
             z = zs[well][protocol]
             X = z[None, :].astype(np.float64)
-            print(z)
             im = ax.imshow(X, extent=(xmin, xmax, ymin, ymax), alpha=1,
                            aspect='auto', norm=SymLogNorm(symlogthresh, vmin=vmin, vmax=vmax),
                            cmap=cmap)
@@ -279,9 +288,10 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
 
             ax.set_title(relabel_dict[protocol])
 
-        fig.colorbar(im, cax=cbar_ax, shrink=.75, orientation='horizontal')
+        fig.colorbar(im, cax=cbar_ax, shrink=.75, orientation='horizontal',
+                     label=r'$Z_\text{T}$')
         fig.savefig(os.path.join(output_dir,
-                                 f"{well}_sweep{sweep}_t_scores_{mode}"))
+                                 f"{well}_sweep{sweep}_t_scores_{model_class}_{fitting_case}_{mode}"))
         for ax in axs:
             ax.cla()
         cbar_ax.cla()
@@ -310,9 +320,10 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
         ax.set_title(relabel_dict[protocol])
 
     fig.colorbar(im, cax=cbar_ax, shrink=.75, orientation='horizontal',
-                 norm=SymLogNorm(symlogthresh, vmin=vmin, vmax=vmax))
+                 norm=SymLogNorm(symlogthresh, vmin=vmin, vmax=vmax),
+                 label=r'$Z_\text{T}$')
     fig.savefig(os.path.join(output_dir,
-                                f"average_sweep{sweep}_t_scores_{mode}"))
+                                f"average_sweep{sweep}_t_scores_{model_class}_{fitting_case}_{mode}"))
     plt.close(fig)
 
 
@@ -336,7 +347,7 @@ def get_t_test_statistic(model_class, fitting_case, params_df,
     model = make_model_of_class(model_class, voltage=voltage_func)
     param_labels = model.get_parameter_labels()
 
-    solver = model.make_hybrid_solver_current(njitted=True,
+    solver = model.make_hybrid_solver_current(njitted=False,
                                               hybrid=False,
                                               strict=False)
 
@@ -417,7 +428,7 @@ def setup_axes(fig, no_protocols):
         ax.set_yticks([])
 
     for ax in axs[:, 0]:
-        ax.set_ylabel(r'$Z_\text{T}$')
+        ax.set_ylabel(r'$V$ (mV)')
 
     return axs.flatten(), cbar_ax
 
