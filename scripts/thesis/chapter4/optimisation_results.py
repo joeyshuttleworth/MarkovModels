@@ -459,9 +459,10 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
             inset_ax.tick_params(axis='x', labelrotation=90)
             inset_ax.tick_params(axis='y')
 
-
-            inset_ax.set_xlim(xlims)
-            inset_ax.set_ylim(ylims)
+            if len(np.unique(xlims)) == 2:
+                inset_ax.set_xlim(xlims)
+            if len(np.unique(ylims)) == 2:
+                inset_ax.set_ylim(ylims)
 
             xticks = inset_ax.get_xticks()
             xticks = [xticks[0], xticks[-1]]
