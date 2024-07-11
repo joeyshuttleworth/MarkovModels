@@ -145,7 +145,7 @@ def main():
 
     params = params_df[param_labels].values
     residuals = params - params.mean(axis=0)
-    std_params  = residuals.std(axis=0, ddof=1).flatten()
+    std_params  = residuals.std(axis=0, ddof=0).flatten()
 
     n_estimates = params_df.values.shape[0]
 
@@ -282,6 +282,10 @@ def do_coloured_scatterplots(params_df, p1, p2):
                 ax.set_xscale('log')
             if p2 in logged_params:
                 ax.set_yscale('log')
+
+    axs[0].set_title('a', fontweight='bold', fontsize=title_font_size, loc='left')
+    axs[1].set_title('b', fontweight='bold', fontsize=title_font_size, loc='left')
+    axs[2].set_title('c', fontweight='bold', fontsize=title_font_size, loc='left')
 
     fig.savefig(os.path.join(output_dir,
                              "colour_scatterplot_fig"))
@@ -438,7 +442,7 @@ def do_multivariate_regression(params_df, param_labels,
         residuals = Y - (X @ beta)
 
     n = params_df.values.shape[0]
-    sigma_ests = residuals.std(axis=0, ddof=1).flatten()
+    sigma_ests = residuals.std(axis=0, ddof=0).flatten()
 
     log_likelihood = 0
     for i in range(len(param_labels)):
@@ -467,7 +471,7 @@ def setup_linear_model_coding(params_df, param_labels,
     Xp = X[:, :no_protocols]
     Xw = X[:, no_protocols:]
 
-    assert(Xw.shape[1] == no_wells)
+    assert Xw.shape[1] == no_wells
 
     # Data
     # Each row is a parameter estimate vector
