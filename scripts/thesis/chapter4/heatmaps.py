@@ -30,7 +30,7 @@ plt.rcParams["axes.formatter.use_mathtext"] = True
 plt.rcParams['xtick.labelsize'] = 9
 plt.rcParams['ytick.labelsize'] = 9
 
-rc('font', **{'size': 12})
+rc('font', **{'size': 9})
 # rc('text', usetex=True)
 # rc('figure', dpi=400, facecolor=[0]*4)
 # rc('axes', facecolor=[0]*4)
@@ -71,6 +71,7 @@ def main():
     parser.add_argument('--use_mock_data', action='store_true')
     parser.add_argument('--use_raw_data', action='store_true')
     parser.add_argument('--ignore_protocols', nargs='+', default=['longap'], type=str)
+    parser.add_arugment('--fontsize', type=int)
     parser.add_argument('-w', '--wells', type=str, nargs='+')
     parser.add_argument('--removal_duration', type=float, default=5.0)
     parser.add_argument('--experiment_name', '-e', default='newtonrun4')
@@ -79,7 +80,6 @@ def main():
     parser.add_argument('--fig_title', '-t', default='')
     parser.add_argument('--nolegend', action='store_true')
     parser.add_argument('--dpi', '-d', default=500, type=int)
-    parser.add_argument('--fontsize', type=int, default=12)
     parser.add_argument('--show_uncertainty', action='store_true')
     parser.add_argument('--shared_plot_limits', action='store_true')
     parser.add_argument('--no_voltage', action='store_true')
@@ -122,6 +122,7 @@ def main():
     # Get fitting results (dict of dicts)
     results_dict = {}
     params_dfs = []
+    params_df_dict = {}
     for model in args.model_classes:
         results_dict[model] = {}
         for case, dirname in zip(cases, dirnames):
@@ -144,6 +145,7 @@ def main():
                                      protocol in params_df.protocol]
 
             params_dfs.append(params_df)
+            params_df_dict[(model, case)] = params_df
             results_dict[model][case] = params_df
 
     protocol_dict = {}
@@ -287,34 +289,39 @@ def main():
                         cbar_kws=this_cbar_kws)
 
         validation_protocol = 'longap'
+        sweep = 0
         best_well = prediction_df.groupby('well').agg(agg_dict).idxmin()['n_score']
         worst_well = prediction_df.groupby('well').agg(agg_dict).idxmax()['n_score']
         example_well = worst_well
-        data, vp = get_data(example_well, validation_protocol, args.data_directory,
-                       args.experiment_name,
-                       sweep=sweep)
 
-        times = np.loadtxt(os.path.join(args.data_directory,
-                                        f"{args.experiment_name}-{validation_protocol}-times.csv")).astype(np.float64).flatten()
-
-        # Do predictions plot
-        desc, times = protocol_dict[validation_protocol]
-        desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
-        voltages = np.array([voltage_func(t, protocol_description=desc) for t in times])
-
-        prediction_ax.set_title(example_well)
-        prediction_df['protocol'] = prediction_df['fitting_protocol']
         if not args.use_mock_data:
-            predictions = get_ensemble_of_predictions(times, desc, prediction_df,
-                                                      validation_protocol, example_well,
-                                                      sweep,
-                                                      sub_df, case,
-                                                      args.reversal, model_class, data,
-                                                      args, protocol_dict,
-                                                      solver=solver,
-                                                      voltage_func=voltage_func)
-            for pred in predictions:
-                prediction_ax.plot(times*1e-3, pred, color=model_colour_dict[model_class])
+            data, vp = get_data(example_well, validation_protocol,
+                                args.data_directory, args.experiment_name, sweep=sweep)
+
+            times = np.loadtxt(os.path.join(args.data_directory,
+                                            f"{args.experiment_name}-{validation_protocol}-times.csv")).astype(np.float64).flatten()
+
+            # Do predictions plot
+            desc, times = protocol_dict[validation_protocol]
+            desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
+            voltages = np.array([voltage_func(t, protocol_description=desc) for t in times])
+
+            prediction_ax.set_title(example_well)
+            prediction_ax.plot(times * 1e-3, data, color='grey', alpha=.5)
+            prediction_df['protocol'] = prediction_df['fitting_protocol']
+            predictions = get_ensemble_of_predictions(times, desc, params_df_dict[(model_class, case)],
+                                                        validation_protocol, example_well,
+                                                        sweep,
+                                                        sub_df, case,
+                                                        args.reversal, model_class, data,
+                                                        args, protocol_dict,
+                                                        solver=solver,
+                                                        voltage_func=voltage_func)
+                for pred in predictions:
+                    prediction_ax.plot(times*1e-3, pred, color=model_colour_dict[model_class])
+
+            ylims = predictions.flatten().quantiles([0.01, 0.99])
+            prediction_ax.set_ylim(ylims)
 
     for ax in prediction_ax[:-1]:
         ax.set_xticks([])
@@ -465,7 +472,7 @@ def do_spread_of_predictions(ax, model_class, fitting_case, params_df,
 
 def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
                protocol_dict, vlim, args, well=None, prediction_df=None,
-               fontsize=9, **kws):
+               **kws):
 
     if fitting_case in ['I', 'II'] or args.use_raw_data:
         data_label = 'before'
