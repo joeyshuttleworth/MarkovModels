@@ -317,8 +317,8 @@ def main():
                                                         args, protocol_dict,
                                                         solver=solver,
                                                         voltage_func=voltage_func)
-                for pred in predictions:
-                    prediction_ax.plot(times*1e-3, pred, color=model_colour_dict[model_class])
+            for pred in predictions:
+                prediction_ax.plot(times*1e-3, pred, color=model_colour_dict[model_class])
 
             ylims = predictions.flatten().quantiles([0.01, 0.99])
             prediction_ax.set_ylim(ylims)
