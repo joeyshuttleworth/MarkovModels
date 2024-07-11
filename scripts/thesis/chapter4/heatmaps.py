@@ -71,7 +71,7 @@ def main():
     parser.add_argument('--use_mock_data', action='store_true')
     parser.add_argument('--use_raw_data', action='store_true')
     parser.add_argument('--ignore_protocols', nargs='+', default=['longap'], type=str)
-    parser.add_arugment('--fontsize', type=int)
+    parser.add_argument('--fontsize', type=int)
     parser.add_argument('-w', '--wells', type=str, nargs='+')
     parser.add_argument('--removal_duration', type=float, default=5.0)
     parser.add_argument('--experiment_name', '-e', default='newtonrun4')
