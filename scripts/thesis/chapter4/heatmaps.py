@@ -262,6 +262,7 @@ def main():
     model_axs, colour_bar_ax, label_axs, prediction_ax\
         = setup_grid_single_case(fig, args)
     done_colour_bar = False
+    voltage_func = make_voltage_function_from_description()
     for task, prediction_df in res:
         model_class, case, sub_df, args, output_dir, protocol_dict, fitting_case = task
         if fitting_case != '0c':
