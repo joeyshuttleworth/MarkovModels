@@ -47,7 +47,7 @@ setup(
     install_requires=[
         'pints>=0.4.0',
         'scipy>=1.9.1',
-        'numpy>=1.23.3',
+        'numpy<=1.26.4',
         'matplotlib>=3.6.2',
         'pandas>=1.5.0',
         'sympy<=1.11.1',

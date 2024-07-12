@@ -276,7 +276,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             initial_guess_df = pd.DataFrame(starting_parameter_sets,
                                             columns=columns[unfixed_indices])
             initial_guess_df['iterations'] = iterations
-            initial_guess_df['RMSE'] = np.NaN
+            initial_guess_df['RMSE'] = np.nan
 
             fitting_df = pd.concat([fitting_df, initial_guess_df],
                                    ignore_index=True)
@@ -1565,7 +1565,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     if fitting_case == '0c':
         fitting_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(protocol_fitted, well, fitting_sweep)]['E_rev']
         new_E_rev = inferred_E_rev
-        params_df = adjust_kinetics(args.model, params_df, subtractions_df,
+        params_df = adjust_kinetics(model_class, params_df, subtractions_df,
                                     fitting_E_rev, new_E_rev, use_boundaries=False)
 
     param_labels = model.get_parameter_labels()
