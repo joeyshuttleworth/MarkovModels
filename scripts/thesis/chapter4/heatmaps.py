@@ -259,7 +259,7 @@ def main():
     fig.clf()
 
     # Plot Case III only
-    model_axs, colour_bar_ax, label_axs, prediction_ax\
+    model_axs, colour_bar_ax, label_axs, prediction_axs\
         = setup_grid_single_case(fig, args)
     done_colour_bar = False
     voltage_func = make_voltage_function_from_description()
@@ -282,6 +282,8 @@ def main():
         i = args.model_classes.index(model_class)
         j = cases.index(case)
         ax = model_axs[args.model_classes.index(model_class)]
+        prediction_ax = prediction_axs[i]
+
         ax.set_label(relabel_models_dict[model_class])
 
         hm = do_heatmap(ax, model_class, case, sub_df, subtraction_df,
