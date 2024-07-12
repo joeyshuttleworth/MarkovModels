@@ -79,6 +79,7 @@ def main():
     parser.add_argument('--data_label', default='')
     parser.add_argument('--ignore_protocols', nargs='+', default=['longap'], type=str)
     parser.add_argument('--ignore_wells', nargs='+', default=['M06'], type=str)
+    parser.add_argument('--vlims', nargs=2, type=float, default=(-100, 100))
     parser.add_argument('-w', '--wells', type=str, nargs='+', default=[])
     parser.add_argument('--removal_duration', type=float, default=5.0)
     parser.add_argument('--experiment_name', '-e', default='newtonrun4')
@@ -263,8 +264,10 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
             zs[well][protocol] = z
 
 
-    vmin = -np.max(np.abs([min_z, max_z]))
-    vmax = +np.max(np.abs([min_z, max_z]))
+    # vmin = -np.max(np.abs([min_z, max_z]))
+    # vmax = +np.max(np.abs([min_z, max_z]))
+
+    vmin, vmax = args.vlims
 
     for well in wells:
         if well in args.ignore_wells:
