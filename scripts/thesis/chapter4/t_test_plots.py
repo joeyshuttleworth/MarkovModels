@@ -25,8 +25,6 @@ from markovmodels.voltage_protocols import remove_spikes, detect_spikes
 
 multiprocessing_kws = {'maxtasksperchild': 1}
 
-plt.rcParams["axes.formatter.use_mathtext"] = True
-
 rc('font', **{'size': 11})
 rc('figure', autolayout=True)
 
@@ -99,14 +97,14 @@ def main():
     global args
     args = parser.parse_args()
 
+    if args.fontsize:
+        matplotlib.rcParams.update({'font.size': args.fontsize})
+
     global output_dir
     output_dir = setup_output_directory(args.output, 'chapter_4_t_test_plots')
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-
-    if args.fontsize:
-        matplotlib.rcParams.update({'font.size': args.fontsize})
 
     infer_reversal_params = np.loadtxt(os.path.join('data', 'BeattieModel_roomtemp_staircase_params.csv')).flatten().astype(np.float64)
 

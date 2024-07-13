@@ -49,10 +49,15 @@ def main():
     parser.add_argument('--adjust_kinetics', action='store_true')
     parser.add_argument('--hue', default='well')
     parser.add_argument('--markers', default='protocol')
+    parser.add_argument('--fontsize', type=int)
+    parser.add_argument('--title_fontsize', type=int)
     parser.add_argument('--log_a', action='store_true')
 
     global args
     args = parser.parse_args()
+
+    if args.fontsize:
+        matplotlib.rcParams.update({'font.size': args.fontsize})
 
     global param_labels
     param_labels = make_model_of_class(args.model).get_parameter_labels()
@@ -283,9 +288,10 @@ def do_coloured_scatterplots(params_df, p1, p2):
             if p2 in logged_params:
                 ax.set_yscale('log')
 
-    axs[0].set_title('a', fontweight='bold', fontsize=title_font_size, loc='left')
-    axs[1].set_title('b', fontweight='bold', fontsize=title_font_size, loc='left')
-    axs[2].set_title('c', fontweight='bold', fontsize=title_font_size, loc='left')
+    title_fontsize = args.title_fontsize
+    axs[0].set_title('a', fontweight='bold', fontsize=title_fontsize, loc='left')
+    axs[1].set_title('b', fontweight='bold', fontsize=title_fontsize, loc='left')
+    axs[2].set_title('c', fontweight='bold', fontsize=title_fontsize, loc='left')
 
     fig.savefig(os.path.join(output_dir,
                              "colour_scatterplot_fig"))
