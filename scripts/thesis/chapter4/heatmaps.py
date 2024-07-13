@@ -322,7 +322,6 @@ def main():
                                                         sub_df, case,
                                                         args.reversal, model_class, data,
                                                         args, protocol_dict,
-                                                        solver=solver,
                                                         voltage_func=voltage_func)
             for pred in predictions:
                 prediction_ax.plot(times*1e-3, pred, color=model_colour_dict[model_class])
