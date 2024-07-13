@@ -18,7 +18,7 @@ from matplotlib import rc
 
 import markovmodels
 from markovmodels.model_generation import make_model_of_class
-from markovmodels.fitting import get_best_params, compute_predictions_df
+from markovmodels.fitting import get_best_params, compute_predictions_df, get_ensemble_of_predictions
 from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.utilities import setup_output_directory, get_data, get_all_wells_in_directory
 from markovmodels.voltage_protocols import get_protocol_list, get_ramp_protocol_from_json, make_voltage_function_from_description
@@ -673,15 +673,16 @@ def setup_grid_single_case(fig, args):
     # Row for each model, a colorbar, and case labels
     no_models = len(args.model_classes)
     no_columns = 4
-    no_rows = no_models
+    no_rows = no_models + 1
 
     gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[.0625, 1,
-                                                                 1, .0625])
+                                                                 1, .0625],
+                  height_ratio=[0.1] + [1]*no_models)
 
-    colour_bar_ax = fig.add_subplot(gs[:, -1])
-    model_axs = np.array([fig.add_subplot(gs[i, 2]) for i in range(no_models)])
-    label_axs = np.array([fig.add_subplot(gs[i, 0]) for i in range(no_models)])
-    prediction_axs = np.array([fig.add_subplot(gs[i, 1]) for i in range(no_models)])
+    colour_bar_ax = fig.add_subplot(gs[1:, -1])
+    model_axs = np.array([fig.add_subplot(gs[i + 1, 2]) for i in range(no_models)])
+    label_axs = np.array([fig.add_subplot(gs[i + 1, 0]) for i in range(no_models)])
+    prediction_axs = np.array([fig.add_subplot(gs[i + 1, 1]) for i in range(no_models)])
 
     for ax, model_class in zip(label_axs, args.model_classes):
         ax.text(.5, .5, relabel_models_dict[model_class])
@@ -689,6 +690,12 @@ def setup_grid_single_case(fig, args):
 
     for ax in prediction_axs:
         ax.spines[['top', 'right']].set_visible(False)
+
+    caption_axs = np.array([fig.add_subplot[gs[0, i]] for i in range(no_columns - 1)])
+
+    for ax, cap in zip(caption_axs, ['a', 'b', 'c', 'd', 'e']):
+        ax.set_axis_off()
+        ax.set_title(cap, fontweight='bold', loc='left')
 
     # colour_bar_ax.set_axis_off()
     return model_axs, colour_bar_ax, label_axs, prediction_axs
