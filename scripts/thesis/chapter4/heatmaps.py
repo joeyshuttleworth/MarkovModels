@@ -71,6 +71,7 @@ def main():
     parser.add_argument('--use_mock_data', action='store_true')
     parser.add_argument('--use_raw_data', action='store_true')
     parser.add_argument('--ignore_protocols', nargs='+', default=['longap'], type=str)
+    parser.add_argument('--ignore_wells', nargs='+', default=['M06'], type=str)
     parser.add_argument('--fontsize', type=int)
     parser.add_argument('-w', '--wells', type=str, nargs='+')
     parser.add_argument('--removal_duration', type=float, default=5.0)
@@ -281,7 +282,7 @@ def main():
 
         i = args.model_classes.index(model_class)
         j = cases.index(case)
-        ax = model_axs[args.model_classes.index(model_class)]
+        ax = model_axs[i]
         prediction_ax = prediction_axs[i]
 
         ax.set_label(relabel_models_dict[model_class])
@@ -514,6 +515,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
         return row
 
     prediction_df = prediction_df[~prediction_df.fitting_protocol.isin(args.ignore_protocols)]
+    prediction_df = prediction_df[~prediction_df.well.isin(args.ignore_wells)]
 
     prediction_df.fitting_sweep = prediction_df.fitting_sweep.astype(int)
     prediction_df.prediction_sweep = prediction_df.prediction_sweep.astype(int)
