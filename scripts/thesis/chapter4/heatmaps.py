@@ -225,7 +225,6 @@ def main():
     model_axs, model_label_axs, case_label_axs, colour_bar_ax = axs
 
     individual_fig = plt.figure(figsize=individual_plot_figsize, constrained_layout=True)
-    individual_ax = individual_fig.subplots()
     done_colour_bar = False
     for task, prediction_df in res:
         model_class, case, sub_df, args, output_dir, protocol_dict, fitting_case = task
@@ -246,12 +245,16 @@ def main():
                         cbar_kws=cbar_kws)
 
         individual_fig.clf()
-        individual_ax = individual_fig.subplots()
+        individual_ax, individual_cbar_ax = individual_fig.subplots(1, 2, width_ratios=[1, 0.1])
+        individual_cbar_kws = cbar_kws.copy()
+        individual_cbar_kws['orientation'] = 'vertical'
+
         # Do heatmap on individual plot with heatmap
         do_heatmap(individual_ax, model_class, case, sub_df, subtraction_df,
-                    protocol_dict, vlim, args,
-                    prediction_df=prediction_df,
-                    cbar=True, cbar_kws=cbar_kws)
+                   protocol_dict, vlim, args,
+                   prediction_df=prediction_df,
+                   cbar_ax=individual_cbar_ax,
+                   cbar=True, cbar_kws=individual_cbar_kws)
 
         individual_fig.savefig(os.path.join(output_dir,
                                             f"average_{case}_{model_class}_heatmap"))
@@ -370,12 +373,17 @@ def main():
 
             individual_fig.clf()
             individual_ax = individual_fig.subplots()
+
+            individual_ax, individual_cbar_ax = individual_fig.subplots(1, 2, width_ratios=[1, 0.1])
             # Do heatmap on individual plot with heatmap
+            individual_cbar_kws = cbar_kws.copy()
+            individual_cbar_kws['orientation'] = 'vertical'
             do_heatmap(individual_ax, model_class, case, sub_df, subtraction_df,
                        protocol_dict, vlim, args, well=well,
                        prediction_df=prediction_df,
-                       cbar_kws=cbar_kws.copy(),
-                       cbar=True)
+                       cbar_kws=individual_cbar_kws,
+                       cbar=True,
+                       cbar_ax=individual_cbar_ax)
 
             individual_fig.savefig(os.path.join(output_dir,
                                                 f"{well}_{case}_{model_class}_heatmap"))
@@ -677,7 +685,7 @@ def setup_grid_single_case(fig, args):
 
     gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[.0625, 1,
                                                                  1, .0625],
-                  height_ratio=[0.1] + [1]*no_models)
+                  height_ratios=[0.1] + [1]*no_models)
 
     colour_bar_ax = fig.add_subplot(gs[1:, -1])
     model_axs = np.array([fig.add_subplot(gs[i + 1, 2]) for i in range(no_models)])
