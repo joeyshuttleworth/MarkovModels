@@ -267,6 +267,7 @@ def main():
         = setup_grid_single_case(fig, args)
     done_colour_bar = False
     voltage_func = make_voltage_function_from_description()
+
     for task, prediction_df in res:
         model_class, case, sub_df, args, output_dir, protocol_dict, fitting_case = task
         if fitting_case != '0c':
@@ -326,7 +327,7 @@ def main():
             for pred in predictions:
                 prediction_ax.plot(times*1e-3, pred, color=model_colour_dict[model_class])
 
-            ylims = predictions.flatten().quantiles([0.01, 0.99])
+            ylims = data.flatten().quantile([0.01, 0.99])
             prediction_ax.set_ylim(ylims)
 
     for ax in prediction_axs[:-1]:
