@@ -329,12 +329,12 @@ def main():
             ylims = predictions.flatten().quantiles([0.01, 0.99])
             prediction_ax.set_ylim(ylims)
 
-    for ax in prediction_ax[:-1]:
+    for ax in prediction_axs[:-1]:
         ax.set_xticks([])
 
-    prediction_ax[-1].set_xlabel(r'$t$ (s)')
+    prediction_axs[-1].set_xlabel(r'$t$ (s)')
 
-    for ax in prediction_ax:
+    for ax in prediction_axs:
         ax.set_ylabel(r'$I_\mathrm{Kr}$ (pA)')
 
     colour_bar_ax.set_title('NRMSE')
@@ -698,7 +698,7 @@ def setup_grid_single_case(fig, args):
     for ax in prediction_axs:
         ax.spines[['top', 'right']].set_visible(False)
 
-    caption_axs = np.array([fig.add_subplot[gs[0, i]] for i in range(no_columns - 1)])
+    caption_axs = np.array([fig.add_subplot(gs[0, i]) for i in range(no_columns - 1)])
 
     for ax, cap in zip(caption_axs, ['a', 'b', 'c', 'd', 'e']):
         ax.set_axis_off()
