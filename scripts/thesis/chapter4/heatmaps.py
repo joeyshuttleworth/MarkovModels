@@ -327,7 +327,7 @@ def main():
             for pred in predictions:
                 prediction_ax.plot(times*1e-3, pred, color=model_colour_dict[model_class])
 
-            ylims = data.flatten().quantile([0.01, 0.99])
+            ylims = np.quantile(data.flatten(), [0.01, 0.99])
             prediction_ax.set_ylim(ylims)
 
     for ax in prediction_axs[:-1]:
