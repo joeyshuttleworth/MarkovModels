@@ -303,8 +303,9 @@ def main():
         example_well = worst_well
 
         if not args.use_mock_data:
+            trace_dir = os.path.join(args.data_directory, 'traces')
             data, vp = get_data(example_well, validation_protocol,
-                                args.data_directory, args.experiment_name, sweep=sweep)
+                                trace_dir, args.experiment_name, sweep=sweep)
 
             times = np.loadtxt(os.path.join(args.data_directory,
                                             f"{args.experiment_name}-{validation_protocol}-times.csv")).astype(np.float64).flatten()
@@ -325,9 +326,10 @@ def main():
                                                         args, protocol_dict,
                                                         voltage_func=voltage_func)
             for pred in predictions:
-                prediction_ax.plot(times*1e-3, pred, color=model_colour_dict[model_class])
+                # color = model_colour_dict[model_class]
+                prediction_ax.plot(times*1e-3, pred, lw=.5)
 
-            ylims = np.quantile(data.flatten(), [0.01, 0.99])
+            ylims = np.quantile(data.flatten(), [0.05, 0.9999])
             prediction_ax.set_ylim(ylims)
 
     for ax in prediction_axs[:-1]:
@@ -683,9 +685,9 @@ def setup_grid_single_case(fig, args):
     no_columns = 4
     no_rows = no_models + 1
 
-    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[.0625, 1,
+    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[.0625, .8,
                                                                  1, .0625],
-                  height_ratios=[0.1] + [1]*no_models)
+                  height_ratios=[0.05] + [1]*no_models)
 
     colour_bar_ax = fig.add_subplot(gs[1:, -1])
     model_axs = np.array([fig.add_subplot(gs[i + 1, 2]) for i in range(no_models)])
