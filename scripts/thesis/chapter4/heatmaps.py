@@ -303,9 +303,8 @@ def main():
         example_well = worst_well
 
         if not args.use_mock_data:
-            trace_dir = os.path.join(args.data_directory, 'traces')
             data, vp = get_data(example_well, validation_protocol,
-                                trace_dir, args.experiment_name, sweep=sweep)
+                                args.data_directory, args.experiment_name, sweep=sweep)
 
             times = np.loadtxt(os.path.join(args.data_directory,
                                             f"{args.experiment_name}-{validation_protocol}-times.csv")).astype(np.float64).flatten()
