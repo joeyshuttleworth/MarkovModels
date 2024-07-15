@@ -32,7 +32,8 @@ def fit_model(mm, data, times=None, starting_parameters=None,
               return_fitting_df=False, parallel=False,
               randomise_initial_guess=True, output_dir=None, solver_type=None,
               no_conductance_boundary=False, use_artefact_model=False,
-              rng=None, population_size=None):
+              rng=None, population_size=None, add_simple_leak=False, g_leak=None,
+              E_leak=None):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -117,6 +118,11 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         subset_indices = np.array(list(range(len(mm.times))))
 
     fix_parameters = np.unique(fix_parameters)
+    desc = mm.protocol_description
+    voltages = np.array([mm.voltage(t, protocol_description=desc) for t in times])
+
+    if add_simple_leak:
+        leak_current = voltages * g_leak * (voltages - E_leak)
 
     class PintsWrapper(pints.ForwardModelS1):
         def __init__(self, mm, parameters, fix_parameters=None):
@@ -139,7 +145,10 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             else:
                 def simulate(p, times):
                     # try:
-                    return solver(p)[subset_indices]
+                    if not add_simple_leak:
+                        return solver(p)[subset_indices]
+                    else:
+                        return solver(p)[subset_indices] + leak_current
                     # except Exception:
                     #     return np.full(times.shape, np.inf)
 
@@ -167,7 +176,6 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         unfixed_indices = list(range(len(starting_parameters)))
         params_not_fixed = starting_parameters
 
-    voltages = mm.GetVoltage().flatten()
     boundaries = FittingBoundaries(starting_parameters, mm, data,
                                    voltages, rng, fix_parameters,
                                    use_artefact_model=use_artefact_model)
@@ -328,6 +336,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
 
     times = pd.read_csv(os.path.join(data_directory, f"{experiment_name}-{protocol}-times.csv"),
                         header=None).values.flatten()
+    dt = times[1] - times[0]
 
     voltages = np.array([voltage_func(t) for t in times])
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
@@ -398,8 +407,25 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                 return df
 
         else:
-            voltages = None
-            E_obs = infer_reversal_potential(protocol_desc, data, times,
+            if data_label == 'before':
+                leak_ramp_i = [i for i, l in enumerate(protocol_desc)
+                               if l[2] != l[3]][0]
+                ramp_start = protocol_desc[leak_ramp_i, 0] + 50.0
+                ramp_end = protocol_desc[leak_ramp_i + 1, 1] - 50.0
+                g_leak_est, E_leak_est, _, _, _, _, _ = fit_leak_lr(
+                    voltages, data.copy(), dt=dt,
+                    ramp_start=ramp_start,
+                    ramp_end=ramp_end
+                )
+                pp_Eleak = E_leak_est
+                pp_gleak = g_leak_est
+
+                sub_trace = data - pp_gleak * (voltages - pp_Eleak)
+
+            else:
+                sub_trace = data
+
+            E_obs = infer_reversal_potential(protocol_desc, sub_trace, times,
                                              plot=plot,
                                              output_path=reversal_output_path,
                                              voltages=voltages)
@@ -413,16 +439,31 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         if inferred_E_rev < -50 or inferred_E_rev > -100:
             E_rev = inferred_E_rev
 
+    if not use_artefact_model and data_label == 'before':
+        add_simple_leak = True
+    else:
+        add_simple_leak = False
+
+    pp_g_leak, pp_E_leak, _, _, _, _, _ = fit_leak_lr(
+                    voltages, data.copy(), dt=dt,
+                    ramp_start=ramp_start,
+                    ramp_end=ramp_end
+                )
+
+    print(pp_g_leak, pp_E_leak)
+
     # Fit leak parameters
     if use_artefact_model:
         markov_model_leak = ArtefactModel(make_model_of_class('model3',
                                                               protocol_description=protocol_desc,
                                                               times=times))
+
+        leak_initial_params = \
+            np.append(artefact_default_kinetic_parameters, leak_initial_params)
         gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak, protocol_desc,
                                                          times, data, voltages)
         default_parameters[-no_artefact_parameters + 1] = gleak
         default_parameters[-no_artefact_parameters + 2] = Eleak
-
 
     m_model = make_model_of_class(model_class_name, voltage=voltage_func,
                                   times=times,
@@ -474,6 +515,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         raise Exception("Default parameters gave non-finite output \n"
                         f"{well} {protocol} {sweep} {initial_params} {E_rev}")
 
+
     fitted_params, score, fitting_df = fit_model(model, data, solver=solver,
                                                  starting_parameters=initial_params,
                                                  max_iterations=max_iterations,
@@ -487,7 +529,11 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                                  use_artefact_model=use_artefact_model,
                                                  no_conductance_boundary=no_conductance_boundary,
                                                  fix_parameters=fix_parameters,
-                                                 population_size=population_size)
+                                                 population_size=population_size,
+                                                 g_leak=pp_g_leak,
+                                                 E_leak=pp_E_leak,
+                                                 add_simple_leak=add_simple_leak
+                                                 )
 
     fig = plt.figure(figsize=(14, 12))
     ax = fig.subplots()
