@@ -148,7 +148,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                     if not add_simple_leak:
                         return solver(p)[subset_indices]
                     else:
-                        return solver(p)[subset_indices] + leak_current
+                        return solver(p)[subset_indices] + leak_current[subset_indices]
                     # except Exception:
                     #     return np.full(times.shape, np.inf)
 
