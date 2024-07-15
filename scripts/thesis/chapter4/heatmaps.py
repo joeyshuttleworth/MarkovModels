@@ -315,7 +315,7 @@ def main():
 
             prediction_ax.set_title(example_well)
             prediction_ax.plot(times * 1e-3, data, color='grey', alpha=.5)
-            prediction_df['protocol'] = prediction_df['fitting_protocol'].reset_index()
+            prediction_df['protocol'] = prediction_df['fitting_protocol']
             predictions = get_ensemble_of_predictions(times, desc, params_df_dict[(model_class, case)],
                                                         validation_protocol, example_well,
                                                         sweep,
