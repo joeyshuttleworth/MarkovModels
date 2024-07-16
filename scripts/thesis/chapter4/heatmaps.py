@@ -315,7 +315,7 @@ def main():
             voltages = np.array([voltage_func(t, protocol_description=desc) for t in times])
 
             prediction_ax.set_title(example_well)
-            prediction_ax.plot(times * 1e-3, data, color='grey', alpha=.5)
+            prediction_ax.plot(times * 1e-3, data, color='grey', alpha=.125)
             prediction_df['protocol'] = prediction_df['fitting_protocol']
             predictions = get_ensemble_of_predictions(times, desc, params_df_dict[(model_class, case)],
                                                         validation_protocol, example_well,
@@ -328,7 +328,7 @@ def main():
                 # color = model_colour_dict[model_class]
                 prediction_ax.plot(times*1e-3, pred, lw=.5)
 
-            ylims = np.quantile(data.flatten(), [0.001, 0.9999])
+            ylims = np.quantile(data.flatten(), [0.0001, 0.9999])
             prediction_ax.set_ylim(ylims)
 
     for ax in prediction_axs[:-1]:
@@ -684,7 +684,7 @@ def setup_grid_single_case(fig, args):
     no_columns = 4
     no_rows = no_models + 1
 
-    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[.0625, .8,
+    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[.025, .8,
                                                                  1, .0625],
                   height_ratios=[0.05] + [1]*no_models)
 
