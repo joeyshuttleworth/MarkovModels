@@ -36,7 +36,7 @@ def main():
     parser.add_argument("--normalise_diagonal", action="store_true")
     parser.add_argument("--vmax", "-m", default=None, type=float)
     parser.add_argument("--model", default='Beattie')
-    parser.add_argument("--figsize", default=(5.54, 7), nargs=2, type=float)
+    parser.add_argument("--figsize", default=(5.3, 7), nargs=2, type=float)
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
     parser.add_argument('--removal_duration', '-r', default=5, type=float)
     parser.add_argument('--reversal', type=float, default=np.nan)
@@ -49,7 +49,7 @@ def main():
     parser.add_argument('--adjust_kinetics', action='store_true')
     parser.add_argument('--hue', default='well')
     parser.add_argument('--markers', default='protocol')
-    parser.add_argument('--fontsize', type=int)
+    parser.add_argument('--fontsize', type=int, default=9)
     parser.add_argument('--title_fontsize', type=int)
     parser.add_argument('--log_a', action='store_true')
 
