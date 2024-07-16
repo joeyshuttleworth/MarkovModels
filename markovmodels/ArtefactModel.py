@@ -315,3 +315,5 @@ class ArtefactModel(MarkovModel):
         return self.make_hybrid_solver_current(njitted=False, hybrid=False,
                                                **kws)(p, times)
 
+    def compute_all_states(self, states, return_voltage=False):
+        return self.channel_model.compute_all_states(states[:, :-1])

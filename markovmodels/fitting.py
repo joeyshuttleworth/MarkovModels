@@ -950,7 +950,7 @@ def _find_conductance(a_solver_current, desc, times, data, indices,
 def find_V_off(protocol_desc, times, data,
                model_class_name,
                default_parameters, E_rev,
-               pp_gleak, pp_Eleak,
+               pp_gleak=None, pp_Eleak=None,
                forward_sim_output_dir=None,
                output_path=None,
                data_label='before',
@@ -965,6 +965,19 @@ def find_V_off(protocol_desc, times, data,
 
     Vcmd = np.array([voltage_func(t,
                                   protocol_description=protocol_desc) for t in times])
+
+    if pp_gleak is None or pp_Eleak is None:
+        leak_ramp_i = [i for i, l in enumerate(desc) if l[2] != l[3]][0]
+        ramp_start = protocol_desc[leak_ramp_i, 0]
+        ramp_end = protocol_desc[leak_ramp_i, 1]
+
+        g_leak_est, E_leak_est, _, _, _, _, _ = fit_leak_lr(
+            voltages, data.copy(), dt=dt,
+            ramp_start=ramp_start,
+            ramp_end=ramp_end
+        )
+        pp_Eleak = E_leak_est
+        pp_gleak = g_leak_est
 
     # Find end of reversal ramp
     ramp = [line for line in protocol_desc if line[2] != line[3]][-1]
