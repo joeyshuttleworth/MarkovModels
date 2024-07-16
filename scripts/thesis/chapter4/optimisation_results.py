@@ -92,7 +92,7 @@ def main():
     parser.add_argument('--protocols', type=str, nargs='+')
     parser.add_argument('-w', '--wells', type=str, nargs='+')
     parser.add_argument('-s', '--sweeps', type=int, nargs='+')
-    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.7, 8])
+    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.3, 8])
     parser.add_argument('--fig_title', '-t', default='')
     parser.add_argument('--nolegend', action='store_true')
     parser.add_argument('--dpi', '-d', default=500, type=int)
@@ -530,7 +530,8 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
         m_model = ArtefactModel(m_model)
 
     default_params = m_model.get_default_parameters()
-    solver = m_model.make_hybrid_solver_current(hybrid=False)
+    solver = m_model.make_hybrid_solver_current(hybrid=False,
+                                                strict=False)
 
     def compute_rmse(p):
         if np.any(p <= 0):
