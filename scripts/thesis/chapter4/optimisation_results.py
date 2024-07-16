@@ -435,7 +435,11 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
         ylims = (params_df[param_labels[1]].values[highlight_indices].min(),
                  params_df[param_labels[1]].values[highlight_indices].max())
 
-        if xlims[0] == xlims[1] or ylims[0] == ylims[1]:
+        if len(np.unique(xlims)) == 2:
+            inset_ax.set_xlim(xlims)
+        if len(np.unique(ylims)) == 2:
+            inset_ax.set_ylim(ylims)
+        if xlims[0] != xlims[1] and ylims[0] != ylims[1]:
             inset_ax = inset_axes(scatter_ax,
                                 width="30%",
                                 height="40%",
@@ -458,11 +462,6 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
             # inset_ax.yaxis.set_major_formatter(FormatStrFormatter('%.3E'))
             inset_ax.tick_params(axis='x', labelrotation=90)
             inset_ax.tick_params(axis='y')
-
-            if len(np.unique(xlims)) == 2:
-                inset_ax.set_xlim(xlims)
-            if len(np.unique(ylims)) == 2:
-                inset_ax.set_ylim(ylims)
 
             xticks = inset_ax.get_xticks()
             xticks = [xticks[0], xticks[-1]]
