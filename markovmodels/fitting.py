@@ -1603,8 +1603,8 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
         model = ArtefactModel(model)
 
     # Set artefact params
-    if use_artefacts:
-        params[no_artefact_parameters:] = artefact_params
+    # if use_artefacts:
+    #     params[no_artefact_parameters:] = artefact_params
 
     if fitting_case in ['0a', 'I']:
         pred_E_rev = E_rev
