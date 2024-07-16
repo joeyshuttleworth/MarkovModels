@@ -413,6 +413,7 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
 
     other_indices = np.argwhere(scores > cutoff)
 
+    scatter_ax.scatter([best_params[0]], [best_params[1]], color='gold', marker='s', alpha=.5)
     scatter_ax.scatter(params_df[param_labels[0]].values[other_indices],
                        params_df[param_labels[1]].values[other_indices],
                        color=_colours[1], marker='+')
@@ -421,7 +422,6 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
                        params_df[param_labels[1]].values[highlight_indices],
                        color=_colours[0], marker='x')
 
-    scatter_ax.scatter([best_params[0]], [best_params[1]], color='gold', marker='s')
 
     scatter_ax.set_yscale('log')
     scatter_ax.set_xscale('log')
