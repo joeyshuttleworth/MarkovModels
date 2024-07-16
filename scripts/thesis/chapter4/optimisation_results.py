@@ -96,7 +96,7 @@ def main():
     parser.add_argument('--fig_title', '-t', default='')
     parser.add_argument('--nolegend', action='store_true')
     parser.add_argument('--dpi', '-d', default=500, type=int)
-    parser.add_argument('--fontsize', type=int, default=12)
+    parser.add_argument('--fontsize', type=int, default=9)
     parser.add_argument('--show_uncertainty', action='store_true')
     parser.add_argument('--shared_plot_limits', action='store_true')
     parser.add_argument('--no_voltage', action='store_true')
@@ -227,7 +227,7 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
 
     occupations_ax, current_ax, protocol_ax, rank_ax, scatter_ax, baseline_profile_ax = axs
 
-    title_font_size = 12
+    title_font_size = 9
 
     occupations_ax.set_title('a', fontweight='bold', fontsize=title_font_size,
                          loc='left')
