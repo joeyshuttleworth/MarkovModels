@@ -191,6 +191,8 @@ def main():
         axs = fig.subplots(1, 3, width_ratios=[1, 1, 0.1])
         best_ax, worst_ax, cbar_ax = axs
 
+        prediction_df = prediction_df[~prediction_df.well.isin(args.ignore_wells)]
+
         agg_dict = {'n_score': 'mean'}
         best_well = prediction_df.groupby('well').agg(agg_dict).idxmin()['n_score']
         worst_well = prediction_df.groupby('well').agg(agg_dict).idxmax()['n_score']
@@ -467,6 +469,9 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                                                strict=False,
                                                tolerances=(1e-6, 1e-6)
                                                )
+        if args.ignore_wells:
+            prediction_df = prediction_df[~prediction_df.well.isin(args.ignore_wells)]
+
     else:
         protocols = sorted(params_df.protocol.unique() )
         rows = [{'fitting_sweep': 0, 'prediction_sweep': 0, 'well': well,
@@ -475,6 +480,7 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                 protocols for well in ['Z01', 'Z02', 'Z03']]
         prediction_df = pd.DataFrame.from_records(rows)
         prediction_df['n_score'] = prediction_df['RMSE']
+
     return prediction_df
 
 
@@ -545,7 +551,6 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     relabel_dict['staircaseramp1_2'] = r'$d_{1}^{(3)}$'
     relabel_dict['staircaseramp1_2_sweep2'] = r'$d_{1}^{(4)}$'
 
-    print(protocol_order)
     prediction_df['fitting_protocol'] = pd.Categorical(prediction_df['fitting_protocol'],
                                                        categories=protocol_order,
                                                        ordered=True)
