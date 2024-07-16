@@ -343,6 +343,12 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   removal_duration)
 
+
+    # Start and end of leak ramp
+    leak_ramp_i = [i for i, l in enumerate(desc) if l[2] != l[3]][0]
+    ramp_start = protocol_desc[leak_ramp_i, 0]
+    ramp_end = protocol_desc[leak_ramp_i, 1]
+
     V_off = 0.0
     if infer_E_rev:
         if output_dir:
@@ -377,8 +383,8 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                 dt = times[1] - times[0]
                 leak_ramp_i = [i for i, l in enumerate(protocol_desc)
                                if l[2] != l[3]][0]
-                ramp_start = protocol_desc[leak_ramp_i - 1, 0] + 50.0
-                ramp_end = protocol_desc[leak_ramp_i + 1, 1] - 50.0
+                ramp_start = protocol_desc[leak_ramp_i, 0]
+                ramp_end = protocol_desc[leak_ramp_i, 1]
 
                 g_leak_est, E_leak_est, _, _, _, _, _ = fit_leak_lr(
                     voltages, data.copy(), dt=dt,
@@ -410,8 +416,6 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
             if data_label == 'before':
                 leak_ramp_i = [i for i, l in enumerate(protocol_desc)
                                if l[2] != l[3]][0]
-                ramp_start = protocol_desc[leak_ramp_i, 0] + 50.0
-                ramp_end = protocol_desc[leak_ramp_i + 1, 1] - 50.0
                 g_leak_est, E_leak_est, _, _, _, _, _ = fit_leak_lr(
                     voltages, data.copy(), dt=dt,
                     ramp_start=ramp_start,
@@ -800,8 +804,8 @@ def fit_leak_parameters_with_artefact(model, desc, times, data,
                                       x0=None, a_solver_current=None,
                                       pp_gleak=None, pp_Eleak=None):
     leak_ramp_i = [i for i, l in enumerate(desc) if l[2] != l[3]][0]
-    ramp_start = desc[leak_ramp_i - 1, 0] + 50.0
-    ramp_end = desc[leak_ramp_i + 1, 1] - 50.0
+    ramp_start = desc[leak_ramp_i, 0]
+    ramp_end = desc[leak_ramp_i, 1]
 
     istart = np.argmax(times > ramp_start)
     iend = np.argmax(times > ramp_end)
@@ -822,11 +826,13 @@ def fit_leak_parameters_with_artefact(model, desc, times, data,
     if x0 is None:
         x0 = [pp_gleak, pp_Eleak]
 
+    x0 = np.array(x0)
+
     V_off = default_parameters[-3]
     bounds = np.array([ [0.0, 1e4], [-5e2, 5e2]] )
     bounds[0, 1] = max(np.abs(x0[0]*2), bounds[0, 1])
-    bounds[1, 0] = min(-np.abs(x0[1]*2), bounds[1, 0]) + V_off
-    bounds[1, 1] = max(np.abs(x0[1]*2), bounds[1, 1]) - V_off
+    bounds[1, 0] = min(-np.abs(x0[1]*2), bounds[1, 0])
+    bounds[1, 1] = max(np.abs(x0[1]*2), bounds[1, 1])
 
     # print(f"fit leak parameters with artefacts bounds: {bounds}")
     # print(f"fit leak parameters with artefacts x0: {x0}")
@@ -855,6 +861,13 @@ def fit_leak_parameters_with_artefact(model, desc, times, data,
         'xatol': 1e-6,
         'maxiter': 1000
     }
+
+    x0s = np.random.normal(1, 0.1, (10, 2)) * x0[None, :]
+    initial_guess_scores = np.array([opt_func(p) for p in x0s])
+    logging.debug(f"initial_guess_scores: {initial_guess_scores}")
+
+    if np.min(initial_guess_scores.flatten()) < opt_func(x0):
+        x0 = x0s[np.argmin(initial_guess_scores), :].flatten()
 
     res = scipy.optimize.minimize(opt_func, x0=x0, bounds=bounds,
                                   options=options,
@@ -905,9 +918,12 @@ def _find_conductance(a_solver_current, desc, times, data, indices,
         # max_conductance =  np.abs((s_data[b_indices]/(Vm[b_indices] - Erev))).max()
         bounds = np.unique([50, 250])
 
-    initial_x0s  = np.linspace(0, 300, 10)
+    initial_x0s  = np.linspace(0, 500, 25)
     initial_guesses = np.array([find_g_opt(g) for g in initial_x0s])
     i = np.argmin(initial_guesses)
+
+    if i < len(initial_x0s) - 1:
+        i += 1
 
     bounds = np.array([0, initial_x0s[i]])
 
@@ -917,6 +933,7 @@ def _find_conductance(a_solver_current, desc, times, data, indices,
     # Find conductance
     res = scipy.optimize.minimize_scalar(find_g_opt,
                                          bracket=bounds,
+                                         method='brent',
                                          options=options)
 
     _p = p.copy()
@@ -1013,31 +1030,30 @@ def find_V_off(protocol_desc, times, data,
 
     E_obs = infer_reversal_potential(protocol_desc, s_data, times,
                                      voltages=Vcmd,
-                                     output_path=reversal_output_path,
-                                     strict_bounds=False)
+                                     output_path=reversal_output_path)
 
-    if not np.isfinite(E_obs):
+    if not np.isfinite(E_obs) or E_obs < Vcmd[istart:iend].min() or E_obs > Vcmd[istart:iend].max():
         logging.warning(f"find_V_off failed: E_obs not finite = {E_obs}")
         return np.nan, False
+
+    gleak, Eleak = fit_leak_parameters_with_artefact(model,
+                                              protocol_desc, times, data,
+                                              Vcmd,
+                                              p,
+                                              a_solver_current=a_solver_current,
+                                              pp_gleak=pp_gleak,
+                                              pp_Eleak=pp_Eleak)
 
     def opt_V_off_func(V_off):
         p = default_parameters.copy()
         p[-3] = V_off
-        gleak, Eleak = fit_leak_parameters_with_artefact(model,
-                                                         protocol_desc, times, data,
-                                                         Vcmd,
-                                                         p,
-                                                         a_solver_current=a_solver_current,
-                                                         pp_gleak=pp_gleak,
-                                                         pp_Eleak=pp_Eleak)
 
         p[gleak_index] = gleak
         p[Eleak_index] = Eleak
         p[-no_artefact_parameters] = E_rev
 
         gkr = _find_conductance(a_solver_current, protocol_desc, times, data, indices,
-                                Vcmd, p, E_rev, gkr_index, model)
-
+                            Vcmd, p, E_rev, gkr_index, model)
         p[gkr_index] = gkr
         if not np.isfinite(gkr):
             return np.inf
@@ -1055,7 +1071,7 @@ def find_V_off(protocol_desc, times, data,
         if not np.all(np.isfinite(trace)):
             return np.inf
 
-        if expected_E_obs > Vcmd.max() or expected_E_obs < Vcmd.min():
+        if expected_E_obs > Vcmd[istart:iend].max() or expected_E_obs < Vcmd[istart:iend].min():
             return np.inf
 
         score = (E_obs - expected_E_obs)**2
@@ -1063,7 +1079,7 @@ def find_V_off(protocol_desc, times, data,
 
     E_rev_error = E_obs - E_rev
 
-    initial_x0s = np.linspace(0, -E_rev_error - 5, 10)
+    initial_x0s = np.linspace(-20, 20, 10)
     initial_guess_scores = np.array([opt_V_off_func(x0) for x0 in initial_x0s])
 
     bounds = np.array(sorted([0, initial_x0s[np.argmin(initial_guess_scores)]]))
@@ -1084,27 +1100,16 @@ def find_V_off(protocol_desc, times, data,
     # print("V_off_bounds ", bounds)
     res = scipy.optimize.minimize_scalar(opt_V_off_func,
                                          bracket=bounds,
-                                         # bounds=bounds,
-                                         # method='bounded'
+                                         method='brent'
                                          )
     found_V_off = res.x
 
     p = default_parameters.copy()
     p[-3] = found_V_off
     p[-no_artefact_parameters] = E_rev
-    gleak_index = -no_artefact_parameters + 1
-    Eleak_index = -no_artefact_parameters + 2
 
-    gleak, Eleak = fit_leak_parameters_with_artefact(model,
-                                                     protocol_desc, times, data,
-                                                     Vcmd,
-                                                     p,
-                                                     a_solver_current=a_solver_current,
-                                                     pp_gleak=pp_gleak,
-                                                     pp_Eleak=pp_Eleak)
     p[gleak_index] = gleak
     p[Eleak_index] = Eleak
-
     gkr = _find_conductance(a_solver_current, protocol_desc, times, data, indices,
                             Vcmd, p, E_rev, gkr_index, model)
     p[gkr_index] = gkr
@@ -1176,8 +1181,7 @@ def find_V_off(protocol_desc, times, data,
 
 
 def infer_reversal_potential(protocol_desc: np.array, current: np.array, times, ax=None,
-                             output_path=None, plot=None, known_Erev=None, voltages=None,
-                             strict_bounds=True):
+                             output_path=None, plot=None, known_Erev=None, voltages=None):
     if output_path:
         dirname = os.path.dirname(output_path)
         if not os.path.exists(dirname):
@@ -1222,7 +1226,7 @@ def infer_reversal_potential(protocol_desc: np.array, current: np.array, times, 
 
     if len(roots) == 0:
         roots = np.unique([np.real(root) for root in fitted_poly.roots()
-                           if (not strict_bounds) or
+                           if
                            root > np.min(voltages) and root < np.max(voltages)])
 
     # Take the last root (greatest voltage). This should be the first time that
