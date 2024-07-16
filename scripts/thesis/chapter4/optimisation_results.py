@@ -531,12 +531,13 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
 
     default_params = m_model.get_default_parameters()
     solver = m_model.make_hybrid_solver_current(hybrid=False,
-                                                strict=False)
+                                                strict=False,
+                                                njitted=False)
 
     def compute_rmse(p):
         if np.any(p <= 0):
             return np.nan
-        return np.sqrt(np.mean((solver(p)[indices] - trace[indices])**2))
+        return np.sqrt(np.mean((solver(p.flatten())[indices] - trace[indices])**2))
 
     plot_var = np.linspace(-0.05, 1.05, 250)
 
