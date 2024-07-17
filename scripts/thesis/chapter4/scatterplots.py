@@ -67,8 +67,7 @@ def main():
     with open(chrono_fname, 'r') as fin:
         lines = fin.read().splitlines()
         protocol_order = [line.split(' ')[0] for line in lines]
-        protocol_order.remove('longap')
-        protocol_order.remove('staircaseramp1_2')
+        # protocol_order.remove('staircaseramp1_2')
 
     params_df = pd.read_csv(args.input_file)
     params_df = get_best_params(params_df)
@@ -302,8 +301,8 @@ def do_coloured_scatterplots(params_df, p1, p2):
 def do_per_plots(protocol, well, params_df, p1, p2, output_dir, beta=None,
                  per_variable='well', prefix=''):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
-    axs = setup_per_cell_figure(fig, len(params_df[per_variable].unique()),
-                                sharex=True, sharey=True)
+    axs, all_data_ax = setup_per_cell_figure(fig, len(params_df[per_variable].unique()),
+                                             sharex=True, sharey=True)
 
     vars = params_df.copy().sort_values(by=['well', 'protocol'])[per_variable].unique()
 
@@ -313,6 +312,17 @@ def do_per_plots(protocol, well, params_df, p1, p2, output_dir, beta=None,
     wells = sorted(list(params_df.well.unique()))
     protocols = sorted(list(params_df.protocol.unique()))
     no_protocols = len(protocols)
+
+    if all_data_ax:
+        if per_variable=='well':
+            grey_df = params_df[params_df.protocol != protocol]
+            sub_df = params_df[params_df.protocol == protocol]
+        elif per_variable=='protocol':
+            grey_df = params_df[params_df.well != well]
+            sub_df = params_df[params_df.well == well]
+
+        all_data_ax.scatter(grey_df[p1].values, grey_df[p2].values, marker='.', color='grey')
+        all_data_ax.scatter(sub_df[p1].values, sub_df[p2].values, marker='x', color='red')
 
     for var, ax in zip(vars, axs):
         sub_df = params_df[params_df[per_variable] == var]
@@ -390,6 +400,10 @@ def do_per_plots(protocol, well, params_df, p1, p2, output_dir, beta=None,
     for ax in axs:
         ax.set_xlabel(f"{convert_to_latex(p1)} ({units[p1]})")
         ax.set_ylabel(f"{convert_to_latex(p2)} ({units[p2]})")
+    if all_data_ax:
+        all_data_ax.set_xlabel(f"{convert_to_latex(p1)} ({units[p1]})")
+        all_data_ax.set_ylabel(f"{convert_to_latex(p2)} ({units[p2]})")
+        all_data_ax.set_title('all protocols')
 
     output_dir = os.path.join(output_dir, f'per_{per_variable}_plots')
     if not os.path.exists(output_dir):
@@ -542,18 +556,28 @@ def inverse_log_transform(params, p1, p2):
 
 
 def setup_per_cell_figure(fig, no_cells, sharex=True, sharey=True):
-    w_cells = int(np.sqrt(no_cells / 1.8))
+    w_cells = 2
     h_cells = float(no_cells) / w_cells
 
     h_cells = int(h_cells) if h_cells * w_cells == no_cells else int(h_cells) + 1
 
-    axs = fig.subplots(h_cells, w_cells,
-                       sharex=sharex, sharey=sharey)
+    if h_cells * w_cells == no_cells - 1:
+        axs = fig.subplots(h_cells + 1, w_cells,
+                           sharex=sharex, sharey=sharey)
+        all_data_ax = axs[-1, -1]
+        axs = axs.flatten()[:-1]
+    else:
+        all_data_ax = None
+        axs = fig.subplots(h_cells, w_cells,
+                           sharex=sharex, sharey=sharey).flatten()
 
     for ax in axs.flatten():
         ax.spines[['top', 'right']].set_visible(False)
 
-    return axs.flatten()
+    if all_data_ax:
+        all_data_ax.spines[['top', 'right']].set_visible(False)
+
+    return axs.flatten(), all_data_ax
 
 
 if __name__ == "__main__":

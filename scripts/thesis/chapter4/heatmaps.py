@@ -537,14 +537,14 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
 
     prediction_df = prediction_df.apply(rename_staircase_func, axis=1)
 
+    # Reorder and relabel protocols
+    relabel_dict = {p: r"$d_{" f"{i}" r"}$" for i, p
+                    in enumerate(protocol_order)}
+
     # Move longap to front
     if 'longap' in protocol_order:
         protocol_order.remove('longap')
         protocol_order.insert(0, 'longap')
-
-    # Reorder and relabel protocols
-    relabel_dict = {p: r"$d_{" f"{i}" r"}$" for i, p
-                    in enumerate(protocol_order)}
 
     relabel_dict['staircaseramp1'] = r'$d_{1}^{(1)}$'
     relabel_dict['staircaseramp1_sweep2'] = r'$d_{1}^{(2)}$'
