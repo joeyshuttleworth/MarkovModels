@@ -288,7 +288,7 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
         if mode == 'prediction':
             label = r'$Z_\text{T}$'
         else:
-            label = r'$\frac{1}{\sigma}(y_i - z_i)$'
+            label = r'$\frac{1}{\hat\sigma}(y_i - z_i)$'
         fig.colorbar(im, cax=cbar_ax, shrink=.75, orientation='horizontal',
                      label=label)
         fig.savefig(os.path.join(output_dir,
