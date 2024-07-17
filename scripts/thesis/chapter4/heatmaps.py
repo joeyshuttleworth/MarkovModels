@@ -85,7 +85,7 @@ def main():
     parser.add_argument('--shared_plot_limits', action='store_true')
     parser.add_argument('--no_voltage', action='store_true')
     parser.add_argument('--file_format', default='')
-    parser.add_argument('--reversal', default=-91.71, type=float)
+    parser.add_argument('--reversal', default=-89.5, type=float)
     parser.add_argument('--output', '-o')
     parser.add_argument('--no_cpus', '-c', default=1, type=int)
     parser.add_argument('--model_classes', nargs='+')

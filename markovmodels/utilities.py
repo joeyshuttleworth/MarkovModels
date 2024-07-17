@@ -35,7 +35,7 @@ def calculate_reversal_potential(T=293, K_in=120, K_out=5):
 
 
 def get_data(well, protocol, data_directory, experiment_name='',
-             label='', sweep=None, no_headers=True):
+             label='', sweep=0, no_headers=True):
 
     if not label:
         label = ''

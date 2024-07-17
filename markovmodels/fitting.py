@@ -988,6 +988,7 @@ def find_V_off(protocol_desc, times, data,
                                 times=times,
                                 E_rev=E_rev,
                                 protocol_description=protocol_desc,
+                                default_parameters=default_parameters[:-no_artefact_parameters],
                                 tolerances=(1e-6, 1e-6))
 
     gkr_index = -no_artefact_parameters - 1
@@ -1038,6 +1039,7 @@ def find_V_off(protocol_desc, times, data,
     E_obs = infer_reversal_potential(protocol_desc, s_data, times,
                                      voltages=Vcmd,
                                      output_path=reversal_output_path)
+    logging.info(E_obs)
 
     if not np.isfinite(E_obs) or E_obs < Vcmd[istart:iend].min() or E_obs > Vcmd[istart:iend].max():
         logging.warning(f"find_V_off failed: E_obs not finite = {E_obs}")
@@ -1087,10 +1089,17 @@ def find_V_off(protocol_desc, times, data,
 
     E_rev_error = E_obs - E_rev
 
-    initial_x0s = np.linspace(-20, 20, 10)
+    initial_x0s = np.linspace(-20, 20, 30)
     initial_guess_scores = np.array([opt_V_off_func(x0) for x0 in initial_x0s])
 
-    bounds = np.array(sorted([0, initial_x0s[np.argmin(initial_guess_scores)]]))
+    i = np.argmin(initial_guess_scores)
+
+    if i == len(initial_guess_scores) - 1:
+        i -= 1
+    elif i == 0:
+        i = 1
+
+    bounds = np.array(sorted([initial_x0s[i-1], initial_x0s[i+1]]))
 
     if len(bounds) == 0 or not np.all(np.isfinite(bounds)):
         bounds = np.array([-5, 5])
@@ -1105,11 +1114,13 @@ def find_V_off(protocol_desc, times, data,
     if not np.all(np.isfinite(bounds)):
         bounds = np.array([-20, 20])
 
-    # print("V_off_bounds ", bounds)
+    print("V_off_bounds ", bounds)
     res = scipy.optimize.minimize_scalar(opt_V_off_func,
                                          bracket=bounds,
                                          method='brent'
                                          )
+    logging.debug(f"find_V_off res: {res}")
+    # print(f"find_V_off res: {res}")
     found_V_off = res.x
 
     p = default_parameters.copy()
@@ -1144,6 +1155,7 @@ def find_V_off(protocol_desc, times, data,
                    label=r'reference model with $V_\text{cmd}$ during reversal ramp')
 
         ax.axvline(E_rev, color='grey', linestyle='--', label=r'$E_\text{Nernst}$')
+        ax.axvline(E_obs, color='blue', linestyle='--', label=r'$E_\text{obs}$')
 
         if res.success:
             ax.axvline(E_rev - found_V_off, label=r'$E_\text{Kr} - V_\text{off}$',
@@ -1183,7 +1195,7 @@ def find_V_off(protocol_desc, times, data,
     if res.success and np.isfinite(found_V_off):
         return found_V_off, True
 
-    logging.warning("find_V_off failed", res)
+    logging.warning(f"find_V_off failed {res}")
     return found_V_off, False
 
 
@@ -1659,10 +1671,13 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                                 (params_df.protocol == sim_protocol) &\
                                 (params_df.sweep == predict_sweep)].iloc[0]
 
-        gleak, Eleak, V_off, Rseries, Cm = param_row[['gleak, Eleak, V_off, Rseries, Cm']]
-        forward_sim_parameters[-8:] = E_rev, gleak, Eleak, 0, 0, V_off, Rseries, Cm
+        a_params = [p for p in param_labels if p != 'E_Kr']
+        forward_sim_parameters = model.get_default_parameters()
+
+        for p in a_params:
+            forward_sim_parameters[param_labels.index(p)] = param_row[p]
+
         artefact_params = forward_sim_parameters[-no_artefact_parameters:]
-        model.default_parameters[-3] = V_off
 
     data = full_data[indices]
 
@@ -1674,12 +1689,17 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
         else:
             return np.full(full_times.shape, np.nan)
 
-    params = df.iloc[0][param_labels].values\
+    if use_artefacts:
+        c_param_labels = model.channel_model.get_parameter_labels()
+    else:
+        c_param_labels = param_labels
+    params = df.iloc[0][c_param_labels].values\
                                         .astype(np.float64)\
                                         .flatten()
 
     if fitting_case in ['I', 'II']:
-        params[-no_artefact_params] = inferred_E_rev
+        params[-no_artefact_parameters] = E_rev
+        params[-no_artefact_parameters:] = artefact_params
         current = solver(params, times=full_times, protocol_description=desc,
                          atol=atol, rtol=rtol)
     else:
