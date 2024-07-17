@@ -1022,10 +1022,6 @@ def find_V_off(protocol_desc, times, data,
     istart = np.argmax(times >= step[0])
     iend = np.argmax(times > step[1])
 
-    p = default_parameters.copy()
-    p[-3] = 0.0
-    states = a_solver_states(p, times=times, protocol_description=protocol_desc)
-
     gleak_index = -no_artefact_parameters + 1
     Eleak_index = -no_artefact_parameters + 2
 
@@ -1042,17 +1038,14 @@ def find_V_off(protocol_desc, times, data,
     logging.info(E_obs)
 
     if not np.isfinite(E_obs) or E_obs < Vcmd[istart:iend].min() or E_obs > Vcmd[istart:iend].max():
-        logging.warning(f"find_V_off failed: E_obs not finite = {E_obs}")
+        logging.warning(f"find_V_off failed: E_obs not within bounds = {E_obs}")
         return np.nan, False
 
-    gleak, Eleak = fit_leak_parameters_with_artefact(model,
-                                                     protocol_desc, times, data,
-                                                     Vcmd,
-                                                     p,
-                                                     a_solver_current=a_solver_current,
-                                                     pp_gleak=pp_gleak,
-                                                     pp_Eleak=pp_Eleak,
-                                                     )
+    gleak, Eleak = fit_leak_parameters_with_artefact(model, protocol_desc,
+                                                    times, data, Vcmd, default_parameters,
+                                                    a_solver_current=a_solver_current,
+                                                    pp_gleak=pp_gleak,
+                                                    pp_Eleak=pp_Eleak)
 
     def opt_V_off_func(V_off):
         p = default_parameters.copy()
@@ -1092,10 +1085,11 @@ def find_V_off(protocol_desc, times, data,
     initial_x0s = np.linspace(-20, 20, 30)
     initial_guess_scores = np.array([opt_V_off_func(x0) for x0 in initial_x0s])
 
+    # print(list(initial_guess_scores))
     i = np.argmin(initial_guess_scores)
 
     if i == len(initial_guess_scores) - 1:
-        i -= 1
+        i = i - 1
     elif i == 0:
         i = 1
 
@@ -1119,7 +1113,7 @@ def find_V_off(protocol_desc, times, data,
                                          bracket=bounds,
                                          method='brent'
                                          )
-    logging.debug(f"find_V_off res: {res}")
+    # logging.debug(f"find_V_off res: {res}")
     # print(f"find_V_off res: {res}")
     found_V_off = res.x
 
@@ -1609,6 +1603,8 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                     return_states=False, strict=True, tolerances=(None, None)):
 
     params_df = params_df.copy()
+
+    params_df = params_df[params_df.well != well]
 
     atol, rtol = tolerances
 

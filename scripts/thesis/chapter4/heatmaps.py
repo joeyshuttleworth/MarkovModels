@@ -109,6 +109,8 @@ def main():
 
     if args.protocols:
         subtraction_df = subtraction_df[subtraction_df.protocol.isin(args.protocols)]
+    if args.ignore_wells:
+        subtraction_df = subtraction_df[~subtraction_df.well.isin(args.ignore_wells)]
 
     if not args.cases:
         args.cases = ['0a', '0b', '0c']
