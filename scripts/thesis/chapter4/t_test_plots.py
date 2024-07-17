@@ -285,9 +285,12 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
             ax.plot(times/times.max(), voltages, color='black')
 
             ax.set_title(relabel_dict[protocol])
-
+        if mode == 'prediction':
+            label = r'$Z_\text{T}$'
+        else:
+            label = r'$\frac{1}{\sigma}(y_i - z_i)$'
         fig.colorbar(im, cax=cbar_ax, shrink=.75, orientation='horizontal',
-                     label=r'$Z_\text{T}$')
+                     label=label)
         fig.savefig(os.path.join(output_dir,
                                  f"{well}_sweep{sweep}_t_scores_{model_class}_{fitting_case}_{mode}"))
         for ax in axs:
@@ -321,7 +324,7 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
 
     fig.colorbar(im, cax=cbar_ax, shrink=.75, orientation='horizontal',
                  norm=SymLogNorm(symlogthresh, vmin=vmin, vmax=vmax),
-                 label=r'$Z_\text{T}$')
+                 label=label)
     fig.savefig(os.path.join(output_dir,
                                 f"average_sweep{sweep}_t_scores_{model_class}_{fitting_case}_{mode}"))
     plt.close(fig)
