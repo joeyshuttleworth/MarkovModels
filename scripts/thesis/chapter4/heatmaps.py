@@ -141,7 +141,8 @@ def main():
                 params_df = params_df[params_df.protocol.isin(args.protocols)]
 
             if args.wells:
-                params_df = params_df[params_df.well.isin(args.wells)].copy()
+                params_df = params_df[params_df.well.isin(args.wells) \
+                                      & ~params_df.well.isin(args.ignore_wells)].copy()
 
             params_df['protocol'] = ['staircaseramp1_2' if protocol ==
                                      'staircaseramp2' else protocol for
