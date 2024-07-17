@@ -1604,7 +1604,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     params_df = params_df.copy()
 
-    params_df = params_df[params_df.well != well]
+    params_df = params_df[params_df.well == well].copy()
 
     atol, rtol = tolerances
 
