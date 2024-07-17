@@ -403,7 +403,10 @@ def do_per_plots(protocol, well, params_df, p1, p2, output_dir, beta=None,
     if all_data_ax:
         all_data_ax.set_xlabel(f"{convert_to_latex(p1)} ({units[p1]})")
         all_data_ax.set_ylabel(f"{convert_to_latex(p2)} ({units[p2]})")
-        all_data_ax.set_title('all protocols')
+        if per_variable == 'well':
+            all_data_ax.set_title('all wells')
+        elif per_variable == 'protocol':
+            all_data_ax.set_title('all protocols')
 
     output_dir = os.path.join(output_dir, f'per_{per_variable}_plots')
     if not os.path.exists(output_dir):
