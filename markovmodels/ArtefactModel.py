@@ -167,7 +167,7 @@ class ArtefactModel(MarkovModel):
             I_Kr = channel_auxiliary_function(x[:-1], p[:-no_artefact_parameters], V_m,
                                               E_rev)
 
-            I_leak = g_leak * (V_m - V_off - E_leak)
+            I_leak = g_leak * (V_m - E_leak - V_off)
             I_leak_leftover = g_leak_leftover * (V_m - E_leak_leftover)
             I_post = I_Kr + I_leak + I_leak_leftover
 
@@ -275,7 +275,7 @@ class ArtefactModel(MarkovModel):
             V_cmd = prot_func(t, offset=t_offset,
                               protocol_description=desc)
 
-            I_leak = (V_m - E_leak) * g_leak
+            I_leak = (V_m - E_leak - V_off) * g_leak
             I_leak_leftover = (V_m - E_leak_leftover) * g_leak_leftover
 
             I_Kr = channel_auxiliary_function(y[:-1], p[:-no_artefact_parameters], V_m)
