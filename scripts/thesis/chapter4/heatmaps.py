@@ -241,7 +241,7 @@ def main():
 
             worst_pred, _ = make_prediction(model_class, args, worst_well,
                                             validation_protocol, sweep,
-                                            fitting_protocol, sweep, params_df,
+                                            fitting_protocol, sweep, sub_df,
                                             subtraction_df, case,
                                             args.reversal, protocol_dict,
                                             worst_data, Vcmd,
@@ -250,7 +250,7 @@ def main():
 
             best_pred, _ = make_prediction(model_class, args, best_well,
  validation_protocol, sweep,
-                                           fitting_protocol, sweep, params_df,
+                                           fitting_protocol, sweep, sub_df,
                                            subtraction_df, case,
                                            args.reversal, protocol_dict,
                                            best_data, Vcmd,
