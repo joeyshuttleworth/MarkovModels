@@ -1041,18 +1041,22 @@ def find_V_off(protocol_desc, times, data,
         logging.warning(f"find_V_off failed: E_obs not within bounds = {E_obs}")
         return np.nan, False
 
+    _leak_parameters = default_parameters.copy()
+    _leak_parameters[-3] = 0.0
     gleak, Eleak = fit_leak_parameters_with_artefact(model, protocol_desc,
-                                                    times, data, Vcmd, default_parameters,
+                                                    times, data, Vcmd, _leak_parameters,
                                                     a_solver_current=a_solver_current,
                                                     pp_gleak=pp_gleak,
                                                     pp_Eleak=pp_Eleak)
+
+    default_E_leak = Eleak
 
     def opt_V_off_func(V_off):
         p = default_parameters.copy()
         p[-3] = V_off
 
         p[gleak_index] = gleak
-        p[Eleak_index] = Eleak
+        p[Eleak_index] = default_E_leak
         p[-no_artefact_parameters] = E_rev
 
         gkr = _find_conductance(a_solver_current, protocol_desc, times, data, indices,
@@ -1061,8 +1065,8 @@ def find_V_off(protocol_desc, times, data,
         if not np.isfinite(gkr):
             return np.inf
 
-        states = a_solver_states(p, times=times, protocol_description=protocol_desc)
-        V_m = states[:, -1]
+        # states = a_solver_states(p, times=times, protocol_description=protocol_desc)
+        # V_m = states[:, -1]
         trace = a_solver_current(p, times=times,
                                  protocol_description=protocol_desc).flatten()
 
@@ -1108,6 +1112,7 @@ def find_V_off(protocol_desc, times, data,
     if not np.all(np.isfinite(bounds)):
         bounds = np.array([-20, 20])
 
+    print(list(zip(initial_x0s, initial_guess_scores)))
     print("V_off_bounds ", bounds)
     res = scipy.optimize.minimize_scalar(opt_V_off_func,
                                          bracket=bounds,
