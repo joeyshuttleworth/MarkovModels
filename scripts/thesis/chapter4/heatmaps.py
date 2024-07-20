@@ -236,8 +236,8 @@ def main():
             Vcmd = np.array([voltage_func(t, protocol_description=desc) for t in times])
 
             voltage_ax.plot(times * 1e-3, Vcmd, color='black')
-            prediction_axs[0].plot(times * 1e-3, worst_data, color='grey', alpha=.25)
-            prediction_axs[1].plot(times * 1e-3, best_data, color='grey', alpha=.25)
+            prediction_axs[0].plot(times * 1e-3, worst_data, color='grey', alpha=.5)
+            prediction_axs[1].plot(times * 1e-3, best_data, color='grey', alpha=.5)
 
             worst_pred, _ = make_prediction(model_class, args, worst_well,
                                             validation_protocol, sweep,
@@ -276,13 +276,13 @@ def main():
         # Highlight worst cell
         autoAxis = worst_ax.axis()
         fitting_protocol_i = protocol_order.index(fitting_protocol)
-        validation_protocol_i = protocol_order.index(fitting_protocol)
+        validation_protocol_i = protocol_order.index(validation_protocol)
 
         no_protocols = len(protocol_order)
         rec = Rectangle(
             (autoAxis[0] - 0.05 + fitting_protocol_i, autoAxis[2] - 0.05 + validation_protocol_i),
-            0.1 + 1 / no_protocols,
-            0.1 + 1 / no_protocols,
+            1.1,
+            1.1,
             fill=False,
             color='yellow',
             lw=.75
@@ -293,8 +293,7 @@ def main():
 
         rec = Rectangle(
             (autoAxis[0] - 0.05 + fitting_protocol_i, autoAxis[2] - 0.05 + validation_protocol_i),
-            0.1 + 1 / no_protocols,
-            0.1 + 1 / no_protocols,
+            1.1, 1.1,
             fill=False,
             color='yellow',
             lw=.75
@@ -759,8 +758,10 @@ def setup_grid_single_case(fig, args):
     for i, (ax, model) in enumerate(zip(caption_axs, args.model_classes)):
         cap = relabel_models_dict[model]
         ax.set_axis_off()
-        loc = 'left' if i%2 == 0 else 'right'
-        ax.set_title(cap, fontsize='9', loc=loc)
+        # loc = 'left' if i%2 == 0 else 'right'
+        loc = center
+        ax.set_title(cap, fontsize='12', loc=loc,
+                     fontweight='bold')
     model_axs[0].set_axis_on()
 
     # for ax in model_axs:
@@ -775,13 +776,18 @@ def setup_best_worst_fig(fig):
     no_columns = 3
     no_rows = 4
 
-    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[1, 1, 0.1],
-                  height_ratios=[0.5, 0.5, 0.5, 1]
+    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[1, 1, 0.05],
+                  height_ratios=[0.5, 0.5, 0.25, 1.2]
                   )
 
     heatmap_axs = [fig.add_subplot(gs[-1, i]) for i in range(no_columns)]
     prediction_axs = [fig.add_subplot(gs[i, :]) for i in range(2)]
     voltage_ax = fig.add_subplot(gs[2, :])
+
+    voltage_ax.set_xlabel(r'$t$ (ms)')
+
+    for ax in prediction_axs:
+        ax.set_ylabel(r'$I_\mathrm{Kr} (pA)$')
 
     for ax in prediction_axs + [voltage_ax]:
         ax.spines[['top', 'right']].set_visible(False)
