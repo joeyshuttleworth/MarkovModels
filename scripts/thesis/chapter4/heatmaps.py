@@ -264,11 +264,11 @@ def main():
         best_worst_cbar_kws['orientation'] = 'vertical'
         best_worst_cbar_kws['label'] = ''
 
-        do_heatmap(best_ax, model_class, case, sub_df, subtraction_df,
+        do_heatmap(best_ax, model_class, case, sub_df.copy(), subtraction_df,
                    protocol_dict, vlim, args, well=best_well,
                    prediction_df=prediction_df, cbar=False)
 
-        do_heatmap(worst_ax, model_class, case, sub_df, subtraction_df,
+        do_heatmap(worst_ax, model_class, case, sub_df.copy(), subtraction_df,
                    protocol_dict, vlim, args, well=worst_well,
                    prediction_df=prediction_df, cbar_ax=cbar_ax,
                    cbar_kws=best_worst_cbar_kws)
@@ -291,6 +291,7 @@ def main():
         rec_1 = worst_ax.add_patch(rec)
         rec_1.set_clip_on(False)
 
+        autoAxis = best_ax.axis()
         rec = Rectangle(
             (autoAxis[0] - 0.05 + fitting_protocol_i, autoAxis[2] - 0.05 + validation_protocol_i),
             1.1, 1.1,
@@ -307,8 +308,29 @@ def main():
 
         cbar_ax.set_title('NRMSE')
 
-        best_ax.set_title(best_well)
-        worst_ax.set_title(worst_well)
+        mean_training_score = prediction_df[(prediction_df.fitting_protocol == prediction_df.validation_protocol)\
+                                   & (prediction_df.well == best_well)]['n_score'].values.astype(np.float64).mean()
+        mean_validation_score = prediction_df[(prediction_df.fitting_protocol != prediction_df.validation_protocol)\
+                                       & prediction_df.well == best_well]['n_score'].values.astype(np.float64).mean()
+
+
+        ax.set_title(r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
+                     ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}")
+        best_well_title = f"{best_well}" + r'\\' \
+            + r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
+            ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}"
+
+        best_ax.set_title(best_well_title)
+
+        mean_training_score = prediction_df[(prediction_df.fitting_protocol == prediction_df.validation_protocol)\
+                                     & (prediction_df.well == worst_well)]['n_score'].values.astype(np.float64).mean()
+        mean_validation_score = prediction_df[(prediction_df.fitting_protocol != prediction_df.validation_protocol)\
+                                       & (prediction_df.well == worst_well)]['n_score'].values.astype(np.float64).mean()
+        worst_well_title = f"{worst_well}" + r'\\' \
+            + r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
+            ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}"
+
+        worst_ax.set_title(worst_well_title)
         worst_ax.axis('off')
         # worst_ax.set_xticks([])
         worst_ax.set_yticks([])
@@ -392,11 +414,17 @@ def main():
                         cbar_ax=cbar_ax,
                         cbar_kws=this_cbar_kws)
 
+
+        mean_training_score = sub_df[(sub_df.fitting_protocol == sub_df.validation_protocol)]['n_score'].values.astype(np.float64).mean()
+        mean_validation_score = sub_df[(sub_df.fitting_protocol != sub_df.validation_protocol)]['n_score'].values.astype(np.float64).mean()
+
+
+        ax.set_title(r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
+                     ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}")
+
+
         validation_protocol = 'longap'
         sweep = 0
-        best_well = prediction_df.groupby('well').agg(agg_dict).idxmin()['n_score']
-        worst_well = prediction_df.groupby('well').agg(agg_dict).idxmax()['n_score']
-        example_well = worst_well
 
     colour_bar_ax.set_title('NRMSE')
 
@@ -551,6 +579,9 @@ def define_protocol_order(chrono_fname):
 def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
                protocol_dict, vlim, args, well=None, prediction_df=None,
                **kws):
+
+    params_df = params_df.copy()
+
 
     if fitting_case in ['I', 'II'] or args.use_raw_data:
         data_label = 'before'
@@ -745,7 +776,7 @@ def setup_grid_single_case(fig, args):
     no_rows = 4
 
     gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[1, 1, .1],
-                  height_ratios=[0.1, 1, 1, 0.1])
+                  height_ratios=[0.1, 1, 1, 0.05])
 
     colour_bar_ax = fig.add_subplot(gs[:, -1])
 
@@ -759,7 +790,7 @@ def setup_grid_single_case(fig, args):
         cap = relabel_models_dict[model]
         ax.set_axis_off()
         # loc = 'left' if i%2 == 0 else 'right'
-        loc = center
+        loc = 'center'
         ax.set_title(cap, fontsize='12', loc=loc,
                      fontweight='bold')
     model_axs[0].set_axis_on()
@@ -776,8 +807,8 @@ def setup_best_worst_fig(fig):
     no_columns = 3
     no_rows = 4
 
-    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[1, 1, 0.05],
-                  height_ratios=[0.5, 0.5, 0.25, 1.2]
+    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[1, 1, 0.025],
+                  height_ratios=[0.5, 0.5, 0.25, 1]
                   )
 
     heatmap_axs = [fig.add_subplot(gs[-1, i]) for i in range(no_columns)]
