@@ -186,8 +186,8 @@ def main():
 
     do_summary_statistics(res)
 
-    best_worst_fig_plot_figsize = args.figsize.copy()
-    best_worst_fig_plot_figsize[1] = 7.5
+    # best_worst_fig_plot_figsize = args.figsize.copy()
+    # best_worst_fig_plot_figsize[1] = 7.5
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     protocol_order = define_protocol_order(args.chrono_file)
@@ -293,7 +293,7 @@ def main():
 
         autoAxis = best_ax.axis()
         rec = Rectangle(
-            (autoAxis[0] - 0.05 + fitting_protocol_i, autoAxis[2] - 0.05 + validation_protocol_i),
+ worstworst           (autoAxis[0] - 0.05 + fitting_protocol_i, autoAxis[2] - 0.05 + validation_protocol_i),
             1.1, 1.1,
             fill=False,
             color='yellow',
@@ -725,6 +725,9 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
 
     hm.set_yticklabels(hm.get_yticklabels(), rotation=0)
 
+    # Make tick label text smaller
+    ax.tick_params(axis='both', labelsize=8)
+
     return hm
 
 
@@ -807,7 +810,7 @@ def setup_best_worst_fig(fig):
     no_columns = 3
     no_rows = 4
 
-    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[1, 1, 0.025],
+    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[1, 1, 0.015],
                   height_ratios=[0.5, 0.5, 0.25, 1]
                   )
 
