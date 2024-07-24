@@ -167,8 +167,10 @@ def scatterplot_estimates(artefacts_df):
     }
 
     for var, var_est in param_pairs:
-        lam = np.linspace(artefacts_df[[var, var_est]].min(),
-                        artefacts_df[[var, var_est]].max(),
+        lim1 = max(artefacts_df[var].min(), artefacts_df[var_est].min())
+        lim2 = min(artefacts_df[var].max(), artefacts_df[var_est].max())
+        lam = np.linspace(lim1,
+                          lim2,
                         3)
         ax.plot(lam, lam, ls='--', color='grey', alpha=.2)
         artefacts_df['V_cat'] = artefacts_df['V_off'] > 0
@@ -200,10 +202,17 @@ def scatterplot_estimates(artefacts_df):
     artefacts_df['V_off_est_error'] = artefacts_df['V_off_est'] - artefacts_df['V_off']
     sns.scatterplot(artefacts_df, y='V_off_est_error', x='Rseries', ax=ax,
                     hue='QC', legend=False)
-
     ax.set_ylabel(r'$\hat V_\mathrm{off} - V_\mathrm{off}$')
     ax.set_xlabel(r'$R_\mathrm{series}$')
     fig.savefig(os.path.join(output_dir, f"V_off_error_R_series_scatter"))
+    ax.cla()
+
+    artefacts_df['V_off_est_error'] = artefacts_df['V_off_est'] - artefacts_df['V_off']
+    sns.scatterplot(artefacts_df, y='V_off_est_error', x='V_off', ax=ax,
+                    hue='QC', legend=False)
+    ax.set_ylabel(r'$\hat V_\mathrm{off} - V_\mathrm{off}$')
+    ax.set_xlabel(r'$V_\mathrm{off}$')
+    fig.savefig(os.path.join(output_dir, f"V_off_error_vs_V_off"))
     ax.cla()
 
     plt.close(fig)
