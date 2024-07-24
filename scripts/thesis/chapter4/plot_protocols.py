@@ -79,7 +79,7 @@ def main():
         label_axs[i].text(0.5, 0.5, relabel_dict[protocol], fontsize=9)
 
         plot_axes[i].set_xticks([0, 1])
-        plot_axes[i].set_xticklabels(['', f"{t_end*1e-3:.0f}"])
+        plot_axes[i].set_xticklabels(['0.0', f"{t_end*1e-3:.0f}"], fontsize=8)
 
         plot_axes[i].set_ylabel(r'$V_\text{m}$', rotation=0)
 

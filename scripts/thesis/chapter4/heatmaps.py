@@ -293,7 +293,7 @@ def main():
 
         autoAxis = best_ax.axis()
         rec = Rectangle(
- worstworst           (autoAxis[0] - 0.05 + fitting_protocol_i, autoAxis[2] - 0.05 + validation_protocol_i),
+            (autoAxis[0] - 0.05 + fitting_protocol_i, autoAxis[2] - 0.05 + validation_protocol_i),
             1.1, 1.1,
             fill=False,
             color='yellow',
@@ -314,11 +314,12 @@ def main():
                                        & prediction_df.well == best_well]['n_score'].values.astype(np.float64).mean()
 
 
-        ax.set_title(r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
-                     ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}")
+        # ax.set_title(r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
+        #              ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}")
+
         best_well_title = f"{best_well}" + r'\\' \
             + r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
-            ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}"
+            r",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}"
 
         best_ax.set_title(best_well_title)
 
@@ -328,7 +329,7 @@ def main():
                                        & (prediction_df.well == worst_well)]['n_score'].values.astype(np.float64).mean()
         worst_well_title = f"{worst_well}" + r'\\' \
             + r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
-            ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}"
+            r",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}"
 
         worst_ax.set_title(worst_well_title)
         worst_ax.axis('off')
@@ -415,9 +416,8 @@ def main():
                         cbar_kws=this_cbar_kws)
 
 
-        mean_training_score = sub_df[(sub_df.fitting_protocol == sub_df.validation_protocol)]['n_score'].values.astype(np.float64).mean()
-        mean_validation_score = sub_df[(sub_df.fitting_protocol != sub_df.validation_protocol)]['n_score'].values.astype(np.float64).mean()
-
+        mean_training_score = prediction_df[(prediction_df.fitting_protocol == prediction_df.validation_protocol)]['n_score'].values.astype(np.float64).mean()
+        mean_validation_score = prediction_df[(prediction_df.fitting_protocol != prediction_df.validation_protocol)]['n_score'].values.astype(np.float64).mean()
 
         ax.set_title(r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
                      ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}")
@@ -792,10 +792,9 @@ def setup_grid_single_case(fig, args):
     for i, (ax, model) in enumerate(zip(caption_axs, args.model_classes)):
         cap = relabel_models_dict[model]
         ax.set_axis_off()
-        # loc = 'left' if i%2 == 0 else 'right'
-        loc = 'center'
-        ax.set_title(cap, fontsize='12', loc=loc,
-                     fontweight='bold')
+        ax.text(.5, .5, cap, fontsize='12' ,
+                fontweight='bold',
+                horizontalalignment='center')
     model_axs[0].set_axis_on()
 
     # for ax in model_axs:
@@ -825,6 +824,14 @@ def setup_best_worst_fig(fig):
 
     for ax in prediction_axs + [voltage_ax]:
         ax.spines[['top', 'right']].set_visible(False)
+
+    prediction_axs[0].set_title('a', fontweight='bold', loc='left')
+    prediction_axs[1].set_title('b', fontweight='bold', loc='left')
+
+    voltage_ax.set_title('c', fontweight='bold', loc='left')
+
+    heatmap_axs[0].set_title('d', fontweight='bold', loc='left')
+    heatmap_axs[1].set_title('d', fontweight='bold', loc='left')
 
     return heatmap_axs, prediction_axs, voltage_ax
 

@@ -29,7 +29,7 @@ from markovmodels.voltage_protocols import get_protocol_list, make_voltage_funct
 from markovmodels.voltage_protocols import remove_spikes, detect_spikes
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-cutoff_threshold = 1.025
+cutoff_threshold = 1.01
 
 mpl.rcParams['axes.formatter.useoffset'] = True
 plt.rcParams["axes.formatter.use_mathtext"] = True
@@ -243,6 +243,11 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
                                   fontsize=title_font_size,
                                   loc='left')
 
+    occupations_ax.set_xticks(protocol_ax.get_xticks())
+    occupations_ax.set_xticklabels([])
+    current_ax.set_xticks(protocol_ax.get_xticks())
+    current_ax.set_xticklabels([])
+
     do_trace_plots(current_ax, protocol_ax, occupations_ax,
                    protocol, well, sweep, params_df, args)
     if args.plot_wip:
@@ -352,6 +357,16 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
 
     states, state_labels = make_model_of_class(args.model_class).compute_all_states(states)
 
+    # Hacky way of ensuring that the O state is at the bottom
+    open_index = state_labels.index('O')
+    state_labels.remove('O')
+    state_labels = ['O'] + state_labels
+
+    relabel_states_indices = [open_index] +\
+        [i for i in range(len(state_labels)) if i != open_index]
+
+    states = states[:, relabel_states_indices]
+
     if args.model_class in relabel_states:
         state_labels = [relabel_states[args.model_class][s] for s in state_labels]
 
@@ -380,8 +395,8 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
     current_ax.plot(times*1e-3, trace, color='grey', alpha=.5)
     current_ax.set_xlabel('')
     current_ax.set_ylabel(r'$I_\text{subtracted}$ (pA)')
-    occupations_ax.set_ylabel(r'state')
-    occupations_ax.set_xticks([])
+    occupations_ax.set_ylabel(r'$\mathbf{x}(t)$')
+    # occupations_ax.set_xticks([])
     protocol_ax.set_ylabel(r'$V_\text{cmd}$ (mV)')
     protocol_ax.set_xlabel('$t$ (ms)')
     protocol_ax.plot(times*1e-3, voltages, color='black')
@@ -428,12 +443,17 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
 
     # Limits for inset
     if highlight_indices.flatten().shape[0] > 0:
-        highlight_indices = np.array([np.argmin(scores)])
         xlims = (params_df[param_labels[0]].values[highlight_indices].min(),
                  params_df[param_labels[0]].values[highlight_indices].max())
 
         ylims = (params_df[param_labels[1]].values[highlight_indices].min(),
                  params_df[param_labels[1]].values[highlight_indices].max())
+
+        xlims[0] -= 0.05 * (xlims[1] - xlims[0])
+        xlims[1] += 0.05 * (xlims[1] - xlims[0])
+
+        ylims[0] -= 0.05 * (ylims[1] - ylims[0])
+        ylims[1] += 0.05 * (ylims[1] - ylims[0])
 
         if len(np.unique(xlims)) == 2:
             inset_ax.set_xlim(xlims)
@@ -531,13 +551,12 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
 
     default_params = m_model.get_default_parameters()
     solver = m_model.make_hybrid_solver_current(hybrid=False,
-                                                strict=False,
-                                                njitted=False)
+                                                strict=False)
 
     def compute_rmse(p):
         if np.any(p <= 0):
             return np.nan
-        return np.sqrt(np.mean((solver(p.flatten())[indices] - trace[indices])**2))
+        return np.sqrt(np.mean((solver(p)[indices] - trace[indices])**2))
 
     plot_var = np.linspace(-0.05, 1.05, 250)
 
