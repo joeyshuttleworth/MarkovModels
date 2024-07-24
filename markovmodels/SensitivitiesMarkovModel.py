@@ -20,7 +20,7 @@ class SensitivitiesMarkovModel(ODEModel):
             self.parameters_to_use = parameters_to_use
 
         self.rates_dict = markov_model.rates_dict
-        self.p = sp.sympify(self.markov_model.get_parameter_labels())
+        self.p = self.markov_model.p
         self.v = markov_model.v
         self.E_rev = self.markov_model.E_rev
 
@@ -46,7 +46,6 @@ class SensitivitiesMarkovModel(ODEModel):
         return self.default_parameters.copy()
 
     def get_no_state_vars(self):
-        # Include the additional Vm state (membrane voltage)
         return self.markov_model.get_no_state_vars() * (1 + self.n_params)
 
     def compute_steady_state_expressions(self, tend=5000):
@@ -59,15 +58,20 @@ class SensitivitiesMarkovModel(ODEModel):
         crhs = self.get_cfunc_rhs()
         crhs_ptr = crhs.address
 
+        n_max_steps = 64
+
         @njit
         def rhs_inf(p=p, v=-80):
-            data = np.append(p, 0)
+            data = np.append(p, 0.0)
+            data = np.concatenate((data, np.full(n_max_steps*4, 0.0))).flatten()
+
             res, _ = lsoda(crhs_ptr, y0,
                            np.array((-tend, .0)),
                            data=data,
                            rtol=rtol,
                            atol=atol,
                            exit_on_warning=True)
+
             return res[-1, :].flatten()
 
         self.rhs_inf = rhs_inf
@@ -98,7 +102,8 @@ class SensitivitiesMarkovModel(ODEModel):
                         protocol_description=desc)
 
             res = rhs(y, p, v).flatten()
-            dy[:] = res.flatten()
+
+            dy[:] = res
 
         return crhs
 

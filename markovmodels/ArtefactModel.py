@@ -114,7 +114,12 @@ class ArtefactModel(MarkovModel):
         @njit
         def rhs_inf(p=p, v=-80.0, E_rev=E_rev):
             data = np.append(p, 0.0)
-            data = np.concatenate((data, np.full(n_max_steps*4, 0))).flatten()
+
+            desc = np.full((n_max_steps, 4), 0.0)
+            desc[:, 2:] = v
+
+            data = np.concatenate((data, desc.flatten())).flatten()
+
             _y0 = y0.copy()
             _y0[-1] = v
 

@@ -18,10 +18,9 @@ from argparse import ArgumentParser
 from markovmodels.model_generation import make_model_of_class
 from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.BeattieModel import BeattieModel
-from markovmodels.fitting import infer_reversal_potential_with_artefact
 from markovmodels.SensitivitiesMarkovModel import SensitivitiesMarkovModel
 from markovmodels.voltage_protocols import detect_spikes, remove_spikes, get_design_space_representation
-from markovmodels.fitting import infer_reversal_potential_with_artefact, get_best_params
+from markovmodels.fitting import get_best_params
 from markovmodels.utilities import get_data, put_copy
 from numba import njit, jit
 from markovmodels.optimal_design import entropy_utility, D_opt_utility, prediction_spread_utility

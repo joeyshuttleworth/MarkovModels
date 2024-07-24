@@ -169,11 +169,10 @@ class ODEModel:
                                   E_rev=None):
 
         if protocol_description is None:
-            # if self.protocol_description is None:
-                # raise Exception("No protocol description has been provided")
-                # protocol_description = np.array([[0.0, np.inf, -80.0, -80.0]]).astype(np.float64)
-            # else:
-            protocol_description = np.array([[.0, 10000.0, -80.0, -80.0]])
+            if self.protocol_description is None:
+                protocol_description = np.array([[0.0, np.inf, -80.0, -80.0]]).astype(np.float64)
+            else:
+                protocol_description = self.protocol_description
 
         if crhs is None:
             crhs = self.get_cfunc_rhs()
@@ -218,6 +217,7 @@ class ODEModel:
                                  E_rev=E_rev):
 
             y0 = rhs_inf(p, holding_potential).flatten()
+
             solution = np.full((len(times), no_states), np.nan)
             solution[0, :] = y0
 
@@ -303,6 +303,7 @@ class ODEModel:
                                                         mxstep=_lsoda_n_max_steps)
 
                 if not np.all(np.isfinite(step_sol[start_int:end_int])):
+                    print("Warning solver returned non-finte values")
                     return np.full(solution.shape, np.nan)
 
                 if end_int == -1:
@@ -374,7 +375,7 @@ class ODEModel:
                                            atol=atol, rtol=rtol, hybrid=hybrid,
                                            crhs=crhs)
 
-        auxiliary_function = njit(self.define_auxiliary_function(**af_kws))
+        auxiliary_function = self.define_auxiliary_function(**af_kws, njitted=njitted)
         times = self.times
         if times is None:
             times = np.linspace(0, 15000, 30000)
