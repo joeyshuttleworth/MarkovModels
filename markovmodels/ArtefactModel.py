@@ -321,4 +321,12 @@ class ArtefactModel(MarkovModel):
                                                **kws)(p, times)
 
     def compute_all_states(self, states, return_voltage=False):
-        return self.channel_model.compute_all_states(states[:, :-1])
+        if not return_voltage:
+            return self.channel_model.compute_all_states(states[:, :-1].copy())
+        else:
+            Vm = states[:, -1].flatten
+            states, state_labels = self.channel_model.compute_all_states(states[:, :-1].copy())
+            state_labels = list(state_labels) + ['Vm']
+            states = np.vstack((states.T, Vm[None,:])).T
+            return state_labels, states
+

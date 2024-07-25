@@ -77,7 +77,7 @@ def main():
     parser.add_argument('--removal_duration', type=float, default=5.0)
     parser.add_argument('--experiment_name', '-e', default='newtonrun4')
     parser.add_argument('--validation_protocols', default=['longap'], nargs='+')
-    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.54, 7])
+    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.54, 6.5])
     parser.add_argument('--fig_title', '-t', default='')
     parser.add_argument('--nolegend', action='store_true')
     parser.add_argument('--dpi', '-d', default=500, type=int)
@@ -215,7 +215,7 @@ def main():
 
         # Find worst prediction in worst wells
         worst_well_predictions = prediction_df[prediction_df.well == worst_well].copy()
-        worst_prediction = worst_well_predictions.set_index(['fitting_protocol', 'validation_protocol'])['n_score'].idxmax()
+        worst_prediction = worst_well_predictions.groupby(['fitting_protocol', 'validation_protocol'])['n_score'].agg('max').idxmax()
 
         fitting_protocol, validation_protocol = worst_prediction
         sweep = 0
@@ -278,9 +278,13 @@ def main():
         fitting_protocol_i = protocol_order.index(fitting_protocol)
         validation_protocol_i = protocol_order.index(validation_protocol)
 
+        print(fitting_protocol, validation_protocol)
+        print(fitting_protocol_i, validation_protocol_i)
+
         no_protocols = len(protocol_order)
         rec = Rectangle(
-            (autoAxis[0] - 0.05 + fitting_protocol_i, autoAxis[2] - 0.05 + validation_protocol_i),
+            (autoAxis[0] - 0.05 + fitting_protocol_i,
+             autoAxis[3] - 0.05 + validation_protocol_i),
             1.1,
             1.1,
             fill=False,
@@ -293,7 +297,8 @@ def main():
 
         autoAxis = best_ax.axis()
         rec = Rectangle(
-            (autoAxis[0] - 0.05 + fitting_protocol_i, autoAxis[2] - 0.05 + validation_protocol_i),
+            (autoAxis[0] - 0.05 + fitting_protocol_i,
+             autoAxis[3] - 0.05 + validation_protocol_i),
             1.1, 1.1,
             fill=False,
             color='yellow',
@@ -317,9 +322,9 @@ def main():
         # ax.set_title(r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
         #              ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}")
 
-        best_well_title = f"{best_well}" + r'\\' \
-            + r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
-            r",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}"
+        best_well_title = f"{best_well} " + r'\n' \
+            + r'$\mathcal{E}_{\mathrm{train}} = $' f"{mean_training_score:.2E}" + \
+            r'\n' r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2E}"
 
         best_ax.set_title(best_well_title)
 
@@ -327,9 +332,9 @@ def main():
                                      & (prediction_df.well == worst_well)]['n_score'].values.astype(np.float64).mean()
         mean_validation_score = prediction_df[(prediction_df.fitting_protocol != prediction_df.validation_protocol)\
                                        & (prediction_df.well == worst_well)]['n_score'].values.astype(np.float64).mean()
-        worst_well_title = f"{worst_well}" + r'\\' \
-            + r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
-            r",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}"
+        worst_well_title = f"{worst_well} " + r'\n' \
+            + r'$\mathcal{E}_{\mathrm{train}} = $' f"{mean_training_score:.2E}" + \
+            r',\n' r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2E}"
 
         worst_ax.set_title(worst_well_title)
         worst_ax.axis('off')
@@ -779,7 +784,7 @@ def setup_grid_single_case(fig, args):
     no_rows = 4
 
     gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[1, 1, .1],
-                  height_ratios=[0.1, 1, 1, 0.05])
+                  height_ratios=[0.1, 1, 1, 0.1])
 
     colour_bar_ax = fig.add_subplot(gs[:, -1])
 

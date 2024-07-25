@@ -274,15 +274,20 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
             voltages = np.array([v_func(t, protocol_description=desc) for t in times])
             xmin, xmax = (0, 1)
             ymin, ymax = V_range
-            z = zs[well][protocol]
-            X = z[None, :].astype(np.float64)
-            im = ax.imshow(X, extent=(xmin, xmax, ymin, ymax), alpha=1,
-                           aspect='auto', norm=SymLogNorm(symlogthresh, vmin=vmin, vmax=vmax),
-                           cmap=cmap)
 
-            # ax.plot(times[indices]/times.max(), z[indices], label=model_names[model_class],
-            #         color=model_colour_dict[model_class], alpha=.5)
-            ax.plot(times/times.max(), voltages, color='black')
+            z = zs[well][protocol]
+            if np.all(np.isfinite(z)):
+                X = z[None, :].astype(np.float64)
+                im = ax.imshow(X, extent=(xmin, xmax, ymin, ymax), alpha=1,
+                            aspect='auto', norm=SymLogNorm(symlogthresh, vmin=vmin, vmax=vmax),
+                            cmap=cmap)
+
+                # ax.plot(times[indices]/times.max(), z[indices], label=model_names[model_class],
+                #         color=model_colour_dict[model_class], alpha=.5)
+                ax.plot(times/times.max(), voltages, color='black')
+            else:
+                # Grey out axes with no values
+                ax.set_facecolor((105/256, 105/256, 105/256, .5))
 
             ax.set_title(relabel_dict[protocol])
         if mode == 'prediction':
@@ -311,17 +316,21 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
                                                          args.removal_duration)
 
         z = np.vstack([zs[w][protocol] for w in wells]).mean(axis=0)
-        X = z[None, :]
 
-        # ax.plot(times[indices]/times.max(), z[indices], label=model_names[model_class],
-        #         color=model_colour_dict[model_class], alpha=.5)
-        im = ax.imshow(X, extent=(xmin, xmax, ymin, ymax), alpha=1,
-                       aspect='auto', norm=SymLogNorm(symlogthresh, vmin=vmin, vmax=vmax),
-                       cmap=cmap, interpolation=None)
-        ax.plot(times/times.max(), voltages, color='black')
+        if np.all(np.isfinite(z)):
+            X = z[None, :]
+            # ax.plot(times[indices]/times.max(), z[indices], label=model_names[model_class],
+            #         color=model_colour_dict[model_class], alpha=.5)
+            im = ax.imshow(X, extent=(xmin, xmax, ymin, ymax), alpha=1,
+                           aspect='auto', norm=SymLogNorm(symlogthresh, vmin=vmin,
+                                                          vmax=vmax),
+                           cmap=cmap, interpolation=None)
+            ax.plot(times/times.max(), voltages, color='black')
+        else:
+            # Grey out axes with no values
+            ax.set_facecolor((105/256, 105/256, 105/256, .5))
 
-        ax.set_title(relabel_dict[protocol])
-
+    ax.set_title(relabel_dict[protocol])
     fig.colorbar(im, cax=cbar_ax, shrink=.75, orientation='horizontal',
                  norm=SymLogNorm(symlogthresh, vmin=vmin, vmax=vmax),
                  label=label)

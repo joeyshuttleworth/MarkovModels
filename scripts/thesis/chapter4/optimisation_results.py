@@ -31,14 +31,8 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 cutoff_threshold = 1.01
 
-mpl.rcParams['axes.formatter.useoffset'] = True
-plt.rcParams["axes.formatter.use_mathtext"] = True
+mpl.rcParams['axes.formatter.useoffset'] = False
 
-# Threshold to add offset
-plt.rcParams["axes.formatter.offset_threshold"] = 2
-
-
-rc('font', **{'size': 12})
 # rc('text', usetex=True)
 # rc('figure', dpi=400, facecolor=[0]*4)
 # rc('axes', facecolor=[0]*4)
@@ -339,6 +333,7 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
 
     current, vp = get_data(well, protocol, args.data_dir, args.experiment_name,
                            sweep=sweep, label=args.data_label)
+
     desc = vp.get_all_sections()
     desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
 
@@ -354,13 +349,24 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
                                    current, voltages, label=args.data_label,
                                    return_states=True
                                    )
+    model = make_model_of_class(args.model_class)
+    if args.fitting_case in ['I', 'II']:
+        model = ArtefactModel(model)
 
-    states, state_labels = make_model_of_class(args.model_class).compute_all_states(states)
+    states, state_labels = model.compute_all_states(states)
 
     # Hacky way of ensuring that the O state is at the bottom
-    open_index = state_labels.index('O')
-    state_labels.remove('O')
-    state_labels = ['O'] + state_labels
+    open_state_labels = ['O_O2', 'O1_O2', 'O']
+
+    open_state_label = 'O'
+    for lab in open_state_labels:
+        if lab in state_labels:
+            open_state_label = lab
+            break
+
+    open_index = state_labels.index(open_state_label)
+    state_labels.remove(open_state_label)
+    state_labels = [open_state_label] + state_labels
 
     relabel_states_indices = [open_index] +\
         [i for i in range(len(state_labels)) if i != open_index]
@@ -391,15 +397,26 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
     occupations_ax.legend(fontsize=8, ncol=states.shape[1], loc='upper center')
     occupations_ax.set_ylim([0, 1.25])
 
-    current_ax.plot(times*1e-3, pred)
     current_ax.plot(times*1e-3, trace, color='grey', alpha=.5)
+    current_ax.plot(times*1e-3, pred)
     current_ax.set_xlabel('')
     current_ax.set_ylabel(r'$I_\text{subtracted}$ (pA)')
     occupations_ax.set_ylabel(r'$\mathbf{x}(t)$')
     # occupations_ax.set_xticks([])
-    protocol_ax.set_ylabel(r'$V_\text{cmd}$ (mV)')
+    protocol_ax.plot(times*1e-3, voltages, color='black', label=r'$V$ (mV)')
+    if args.fitting_case in ['I', 'II']:
+        protocol_ax.set_ylabel(r'$V$ (mV)')
+        pred, states = make_prediction(args.model_class, args, well, protocol, sweep,
+                                   protocol, sweep, params_df, subtraction_df,
+                                   args.fitting_case, args.reversal, protocol_dict,
+                                   current, voltages, label=args.data_label,
+                                   return_states=True
+                                   )
+        Vm = states[:, -1]
+        protocol_ax.plot(times*1e-3, Vm, label=r'$V_\mathrm{m}$')
+    else:
+        protocol_ax.set_ylabel(r'$V_\text{cmd}$ (mV)')
     protocol_ax.set_xlabel('$t$ (ms)')
-    protocol_ax.plot(times*1e-3, voltages, color='black')
 
 
 def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
@@ -443,32 +460,20 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
 
     # Limits for inset
     if highlight_indices.flatten().shape[0] > 0:
-        xlims = (params_df[param_labels[0]].values[highlight_indices].min(),
-                 params_df[param_labels[0]].values[highlight_indices].max())
+        xlims = [params_df[param_labels[0]].values[highlight_indices].min(),
+                 params_df[param_labels[0]].values[highlight_indices].max()]
 
-        ylims = (params_df[param_labels[1]].values[highlight_indices].min(),
-                 params_df[param_labels[1]].values[highlight_indices].max())
+        ylims = [params_df[param_labels[1]].values[highlight_indices].min(),
+                 params_df[param_labels[1]].values[highlight_indices].max()]
 
-        xlims[0] -= 0.05 * (xlims[1] - xlims[0])
-        xlims[1] += 0.05 * (xlims[1] - xlims[0])
 
-        ylims[0] -= 0.05 * (ylims[1] - ylims[0])
-        ylims[1] += 0.05 * (ylims[1] - ylims[0])
+        print(xlims, ylims)
 
-        if len(np.unique(xlims)) == 2:
-            inset_ax.set_xlim(xlims)
-        if len(np.unique(ylims)) == 2:
-            inset_ax.set_ylim(ylims)
         if xlims[0] != xlims[1] and ylims[0] != ylims[1]:
             inset_ax = inset_axes(scatter_ax,
-                                width="30%",
+                                width="50%",
                                 height="40%",
             )
-
-            inset_ax.set_xscale('log')
-            inset_ax.set_yscale('log')
-
-            mark_inset(scatter_ax, inset_ax, 2, 3, alpha=.4)
 
             scatter_ax.set_xlabel(r'$p_1$')
             scatter_ax.set_ylabel(r'$p_2$')
@@ -483,6 +488,20 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
             inset_ax.tick_params(axis='x', labelrotation=90)
             inset_ax.tick_params(axis='y')
 
+            # xlims[0] -= 0.05 * (xlims[1] - xlims[0])
+            # xlims[1] += 0.05 * (xlims[1] - xlims[0])
+
+            # ylims[0] -= 0.05 * (ylims[1] - ylims[0])
+            # ylims[1] += 0.05 * (ylims[1] - ylims[0])
+
+            # if len(np.unique(xlims)) == 2:
+            #     inset_ax.set_xlim(xlims)
+            # if len(np.unique(ylims)) == 2:
+            #     inset_ax.set_ylim(ylims)
+
+            # inset_ax.set_xscale('log')
+            # inset_ax.set_yscale('log')
+
             xticks = inset_ax.get_xticks()
             xticks = [xticks[0], xticks[-1]]
 
@@ -491,8 +510,11 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
 
             inset_ax.set_xticks(xticks)
             inset_ax.set_yticks(yticks)
+
+            mark_inset(scatter_ax, inset_ax, 2, 3, alpha=.4)
+
     else:
-        logging.warning(f"no highlited indices for {well} {protocol} sweep{sweep}")
+        logging.warning(f"no highlitec indices for {well} {protocol} sweep{sweep}")
 
 def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args):
 

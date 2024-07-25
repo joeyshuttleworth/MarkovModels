@@ -158,12 +158,12 @@ def scatterplot_estimates(artefacts_df):
     ]
 
     pretty_vars_dict = {
-        'gleak': r'$g_\text{l}$',
-        'gleak_est': r'$\hat g_\text{l}$',
-        'Eleak': r'$E_\text{l}$',
-        'Eleak_est': r'$\hat E_\text{l}$',
-        'V_off': r'$V_\text{off}$',
-        'V_off_est': r'$\hat V_\text{off}$',
+        'gleak': r'$g_\text{l} (nS)$',
+        'gleak_est': r'$\hat g_\text{l} (nS)$',
+        'Eleak': r'$E_\text{l} (mV)$',
+        'Eleak_est': r'$\hat E_\text{l} (mV)$',
+        'V_off': r'$V_\text{off} (mV)$',
+        'V_off_est': r'$\hat V_\text{off} (mV)$',
     }
 
     for var, var_est in param_pairs:
@@ -190,7 +190,7 @@ def scatterplot_estimates(artefacts_df):
     artefacts_df['Enernst-Erev'] = args.reversal - artefacts_df['E_obs']
     sns.scatterplot(artefacts_df, hue='QC', x='V_off', y='Enernst-Erev', ax=ax,
                     legend=False)
-    ax.set_ylabel(r'$E_\mathrm{Nernst} - E_\mathrm{obs}$')
+    ax.set_ylabel(r'$E_\mathrm{Nernst} - E_\mathrm{obs} (mV)$')
 
     lam = np.linspace(artefacts_df[['V_off']].min(),
                       artefacts_df[['V_off']].max(),
@@ -202,8 +202,8 @@ def scatterplot_estimates(artefacts_df):
     artefacts_df['V_off_est_error'] = artefacts_df['V_off_est'] - artefacts_df['V_off']
     sns.scatterplot(artefacts_df, y='V_off_est_error', x='Rseries', ax=ax,
                     hue='QC', legend=False)
-    ax.set_ylabel(r'$\hat V_\mathrm{off} - V_\mathrm{off}$')
-    ax.set_xlabel(r'$R_\mathrm{series}$')
+    ax.set_ylabel(r'$\hat V_\mathrm{off} - V_\mathrm{off} (mV)$')
+    ax.set_xlabel(r'$R_\mathrm{series} (G$\Ohm$)$')
     fig.savefig(os.path.join(output_dir, f"V_off_error_R_series_scatter"))
     ax.cla()
 
