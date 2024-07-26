@@ -345,7 +345,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
 
 
     # Start and end of leak ramp
-    leak_ramp_i = [i for i, l in enumerate(desc) if l[2] != l[3]][0]
+    leak_ramp_i = [i for i, l in enumerate(protocol_desc) if l[2] != l[3]][0]
     ramp_start = protocol_desc[leak_ramp_i, 0]
     ramp_end = protocol_desc[leak_ramp_i, 1]
 
@@ -454,17 +454,22 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                     ramp_end=ramp_end
                 )
 
-    print(pp_g_leak, pp_E_leak)
-
     # Fit leak parameters
     if use_artefact_model:
-        markov_model_leak = ArtefactModel(make_model_of_class('model3',
+        markov_model_leak = ArtefactModel(make_model_of_class(V_off_model_class,
                                                               protocol_description=protocol_desc,
                                                               times=times))
+        if artefact_default_kinetic_parameters is not None:
+            leak_initial_params = \
+                np.append(artefact_default_kinetic_parameters, default_parameters[-no_artefact_parameters:])
+        else:
+            leak_initial_params = \
+                np.append(make_model_of_class(V_off_model_class).get_default_parameters(),
+                            default_parameters[-no_artefact_parameters:])
 
-        leak_initial_params = \
-            np.append(artefact_default_kinetic_parameters, leak_initial_params)
-        gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak, protocol_desc,
+        default_parameters[-no_artefact_parameters] = E_rev
+        gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak,
+                                                         protocol_desc.astype(np.float64),
                                                          times, data, voltages,
                                                          default_parameters=leak_initial_params)
         default_parameters[-no_artefact_parameters + 1] = gleak
@@ -1112,8 +1117,6 @@ def find_V_off(protocol_desc, times, data,
     if not np.all(np.isfinite(bounds)):
         bounds = np.array([-20, 20])
 
-    print(list(zip(initial_x0s, initial_guess_scores)))
-    print("V_off_bounds ", bounds)
     res = scipy.optimize.minimize_scalar(opt_V_off_func,
                                          bracket=bounds,
                                          method='brent'
