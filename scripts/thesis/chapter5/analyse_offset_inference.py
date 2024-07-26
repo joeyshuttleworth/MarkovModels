@@ -114,6 +114,7 @@ def main():
         Cm = row['Cm']
         Rseries = row['Rseries']
 
+        default_artefact_parameters = a_model.get_default_parameters()
         default_artefact_parameters[-1] = Rseries
         default_artefact_parameters[-2] = Cm
         default_artefact_parameters[-no_artefact_parameters] = args.reversal
