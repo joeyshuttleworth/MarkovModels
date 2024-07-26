@@ -126,7 +126,7 @@ def main():
                       os.path.join(V_off_plots_dir,
                                    f"sample_{index}"),
                       args.reversal,
-                      default_artefact_parameters,
+                      default_artefact_parameters.copy(),
                       index,
                       V_off_plots_dir])
 
