@@ -1270,8 +1270,7 @@ def infer_reversal_potential(protocol_desc: np.array, current: np.array, times, 
 
     if plot:
         created_fig = False
-        if ax is None and output_path is not None:
-
+        if ax is None:
             created_fig = True
             fig = plt.figure()
             ax = fig.subplots()
