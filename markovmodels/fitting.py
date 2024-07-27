@@ -550,8 +550,16 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
     for i, row in fitting_df.iterrows():
         fitted_params = row[model.get_parameter_labels()].values.flatten()
         try:
-            ax.plot(times, solver(fitted_params), label='fitted parameters')
-            ax.plot(times, solver(initial_params), label='default parameters')
+            if data_label == 'before' and not use_artefact_model:
+                I_leak = pp_g_leak * (voltages - pp_E_leak)
+                ax.plot(times, solver(fitted_params) + I_leak,
+                        label='fitted parameters')
+                ax.plot(times, solver(initial_params) + I_leak,
+                        label='default parameters')
+            else:
+                ax.plot(times, solver(fitted_params), label='fitted parameters')
+                ax.plot(times, solver(initial_params), label='default parameters')
+
             ax.plot(times, data, color='grey', label='data', alpha=.5)
         except Exception:
             pass
