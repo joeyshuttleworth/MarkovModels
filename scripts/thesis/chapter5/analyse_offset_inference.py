@@ -148,9 +148,6 @@ def main():
 
 def scatterplot_estimates(artefacts_df):
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
-    ax = fig.subplots()
-
-    ax.spines[['top', 'right']].set_visible(False)
 
     param_pairs = [
         ['gleak', 'gleak_est'],
@@ -167,7 +164,14 @@ def scatterplot_estimates(artefacts_df):
         'V_off_est': r'$\hat V_\text{off} (mV)$',
     }
 
-    for var, var_est in param_pairs:
+    axs = fig.subplots(2, 2).flatten()
+    for ax in axs:
+        ax.spines[['top', 'right']].set_visible(False)
+
+    for ax, cap in zip(axs, ['a', 'b', 'c', 'd']):
+        ax.set_title(cap, fontweight='bold', loc='left')
+
+    for ax, (var, var_est) in zip(axs, param_pairs):
         lim1 = max(artefacts_df[var].min(), artefacts_df[var_est].min())
         lim2 = min(artefacts_df[var].max(), artefacts_df[var_est].max())
         lam = np.linspace(lim1,
@@ -184,9 +188,15 @@ def scatterplot_estimates(artefacts_df):
         ax.set_xlabel(pretty_vars_dict[var])
         ax.set_ylabel(pretty_vars_dict[var_est])
 
-        ax.spines[['top', 'right']].set_visible(False)
-        fig.savefig(os.path.join(output_dir, f"{var}_est_scatter"))
-        ax.cla()
+
+    artefacts_df['V_off_est_error'] = artefacts_df['V_off_est'] - artefacts_df['V_off']
+    sns.scatterplot(artefacts_df, y='V_off_est_error', x='Rseries', ax=axs[-1],
+                    hue='QC', legend=False)
+
+    fig.savefig(os.path.join(output_dir, "estimates_four_panel"))
+    fig.clf()
+
+    ax = fig.subplots()
 
     artefacts_df['Enernst-Erev'] = args.reversal - artefacts_df['E_obs']
     sns.scatterplot(artefacts_df, hue='QC', x='V_off', y='Enernst-Erev', ax=ax,
@@ -200,9 +210,6 @@ def scatterplot_estimates(artefacts_df):
     fig.savefig(os.path.join(output_dir, f"V_off_E_obs_scatter"))
     ax.cla()
 
-    artefacts_df['V_off_est_error'] = artefacts_df['V_off_est'] - artefacts_df['V_off']
-    sns.scatterplot(artefacts_df, y='V_off_est_error', x='Rseries', ax=ax,
-                    hue='QC', legend=False)
     ax.set_ylabel(r'$\hat V_\mathrm{off} - V_\mathrm{off} (mV)$')
     ax.set_xlabel(r'$R_\mathrm{series} (G$\Ohm$)$')
     fig.savefig(os.path.join(output_dir, f"V_off_error_R_series_scatter"))
