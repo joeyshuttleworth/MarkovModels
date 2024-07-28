@@ -322,9 +322,9 @@ def main():
         # ax.set_title(r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
         #              ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}")
 
-        best_well_title = f"{best_well} " + r'\n' \
+        best_well_title = f"{best_well} " + '\n' \
             + r'$\mathcal{E}_{\mathrm{train}} = $' f"{mean_training_score:.2E}" + \
-            r'\n' r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2E}"
+            ',\n' r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2E}"
 
         best_ax.set_title(best_well_title)
 
@@ -332,9 +332,9 @@ def main():
                                      & (prediction_df.well == worst_well)]['n_score'].values.astype(np.float64).mean()
         mean_validation_score = prediction_df[(prediction_df.fitting_protocol != prediction_df.validation_protocol)\
                                        & (prediction_df.well == worst_well)]['n_score'].values.astype(np.float64).mean()
-        worst_well_title = f"{worst_well} " + r'\n' \
+        worst_well_title = f"{worst_well} " + '\n' \
             + r'$\mathcal{E}_{\mathrm{train}} = $' f"{mean_training_score:.2E}" + \
-            r',\n' r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2E}"
+            ',\n' r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2E}"
 
         worst_ax.set_title(worst_well_title)
         worst_ax.axis('off')
