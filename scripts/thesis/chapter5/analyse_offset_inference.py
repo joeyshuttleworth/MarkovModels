@@ -162,6 +162,7 @@ def scatterplot_estimates(artefacts_df):
         'Eleak_est': r'$\hat E_\text{l} (mV)$',
         'V_off': r'$V_\text{off} (mV)$',
         'V_off_est': r'$\hat V_\text{off} (mV)$',
+        'Rseries': r'$R_\mathrm{series} (\mathrm{G}\Ohm)$',
     }
 
     axs = fig.subplots(2, 2).flatten()
@@ -192,6 +193,9 @@ def scatterplot_estimates(artefacts_df):
     artefacts_df['V_off_est_error'] = artefacts_df['V_off_est'] - artefacts_df['V_off']
     sns.scatterplot(artefacts_df, y='V_off_est_error', x='Rseries', ax=axs[-1],
                     hue='QC', legend=False)
+
+    axs[-1].set_xlabel(pretty_vars_dict['V_off_est_error'])
+    axs[-1].set_ylabel(pretty_vars_dict['Rseries'])
 
     fig.savefig(os.path.join(output_dir, "estimates_four_panel"))
     fig.clf()
