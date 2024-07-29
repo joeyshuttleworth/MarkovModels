@@ -79,7 +79,6 @@ def main():
         params_df = adjust_kinetics(args.model, params_df,
                                     subtraction_df, args.reversal)
 
-
     params_df.protocol = ['staircaseramp1' if prot in ['staircaseramp2', 'staircaseramp1_2'] else prot
                           for prot in params_df.protocol]
 
