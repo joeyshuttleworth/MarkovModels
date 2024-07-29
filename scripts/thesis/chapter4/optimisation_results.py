@@ -128,6 +128,10 @@ def main():
         args.adjust_kinetics = True
         args.infer_reversal_potential = True
         args.use_artefact_model = False
+    elif args.fitting_case == '0d':
+        args.adjust_kinetics = True
+        args.infer_reversal_potential = True
+        args.data_label = 'before'
     elif args.fitting_case == 'I':
         args.adjust_kinetics = False
         args.infer_reversal_potential = False
@@ -467,8 +471,6 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
                  params_df[param_labels[1]].values[highlight_indices].max()]
 
 
-        print(xlims, ylims)
-
         if xlims[0] != xlims[1] and ylims[0] != ylims[1]:
             inset_ax = inset_axes(scatter_ax,
                                 width="50%",
@@ -541,13 +543,6 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   args.removal_duration)
 
-    best_params = get_best_params(params_df)
-
-    row = best_params.set_index(['well', 'protocol', 'sweep']).loc[(well, protocol, sweep)]
-
-    param_labels = make_model_of_class(args.model_class).get_parameter_labels()
-    params = row[param_labels].values.flatten()
-
     if not args.infer_reversal_potential:
         E_rev = args.E_rev
     elif not args.use_artefact_model:
@@ -571,7 +566,13 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     if args.use_artefact_model:
         m_model = ArtefactModel(m_model)
 
+    best_params = get_best_params(params_df)
+    row = best_params.set_index(['well', 'protocol', 'sweep']).loc[(well, protocol, sweep)]
+    param_labels = m_model.get_parameter_labels()
+    params = row[param_labels].values.flatten()
+    print(param_labels)
     default_params = m_model.get_default_parameters()
+
     solver = m_model.make_hybrid_solver_current(hybrid=False,
                                                 strict=False)
 
