@@ -315,12 +315,13 @@ def main():
 
         mean_training_score = prediction_df[(prediction_df.fitting_protocol == prediction_df.validation_protocol)\
                                    & (prediction_df.well == best_well)]['n_score'].values.astype(np.float64).mean()
-        mean_validation_score = prediction_df[(prediction_df.fitting_protocol != prediction_df.validation_protocol)\
-                                       & prediction_df.well == best_well]['n_score'].values.astype(np.float64).mean()
 
+        mean_validation_score = prediction_df[(prediction_df.fitting_protocol
+                                               != prediction_df.validation_protocol)\ &
+                                              (prediction_df.well == best_well)\
+                                              &(prediction_df.fitting_sweep == prediction_df.prediction_sweep)
+                                              ]['n_score'].values.astype(np.float64).mean()
 
-        # ax.set_title(r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
-        #              ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}")
 
         best_well_title = f"{best_well} " + '\n' \
             + r'$\mathcal{E}_{\mathrm{train}} = $' f"{mean_training_score:.2E}" + \
@@ -330,8 +331,11 @@ def main():
 
         mean_training_score = prediction_df[(prediction_df.fitting_protocol == prediction_df.validation_protocol)\
                                      & (prediction_df.well == worst_well)]['n_score'].values.astype(np.float64).mean()
-        mean_validation_score = prediction_df[(prediction_df.fitting_protocol != prediction_df.validation_protocol)\
-                                       & (prediction_df.well == worst_well)]['n_score'].values.astype(np.float64).mean()
+        mean_validation_score = prediction_df[(prediction_df.fitting_protocol
+                                               != prediction_df.validation_protocol)\ &
+                                              (prediction_df.well == worst_well)\
+                                              (prediction_df.fitting_sweep == prediction_df.prediction_sweep)
+                                              ]['n_score'].values.astype(np.float64).mean()
         worst_well_title = f"{worst_well} " + '\n' \
             + r'$\mathcal{E}_{\mathrm{train}} = $' f"{mean_training_score:.2E}" + \
             ',\n' r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2E}"
@@ -814,8 +818,8 @@ def setup_best_worst_fig(fig):
     no_columns = 3
     no_rows = 4
 
-    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[1, 1, 0.015],
-                  height_ratios=[0.5, 0.5, 0.25, 1]
+    gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[1, 1, 0.05],
+                  height_ratios=[0.5, 0.5, 0.25, 1.1]
                   )
 
     heatmap_axs = [fig.add_subplot(gs[-1, i]) for i in range(no_columns)]
@@ -836,7 +840,7 @@ def setup_best_worst_fig(fig):
     voltage_ax.set_title('c', fontweight='bold', loc='left')
 
     heatmap_axs[0].set_title('d', fontweight='bold', loc='left')
-    heatmap_axs[1].set_title('d', fontweight='bold', loc='left')
+    heatmap_axs[1].set_title('e', fontweight='bold', loc='left')
 
     return heatmap_axs, prediction_axs, voltage_ax
 
