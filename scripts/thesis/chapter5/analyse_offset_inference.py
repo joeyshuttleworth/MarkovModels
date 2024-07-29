@@ -179,7 +179,7 @@ def scatterplot_estimates(artefacts_df):
         lam = np.linspace(lim1,
                           lim2,
                         3)
-        ax.plot(lam, lam, ls='--', color='grey', alpha=.2)
+        ax.plot(lam, lam, ls='--', color='grey', alpha=.5)
         artefacts_df['V_cat'] = artefacts_df['V_off'] > 0
 
         artefacts_df['QC'] = QC_filter(artefacts_df)
