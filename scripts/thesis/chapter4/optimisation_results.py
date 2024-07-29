@@ -137,10 +137,12 @@ def main():
         args.adjust_kinetics = False
         args.infer_reversal_potential = False
         args.use_artefact_model = True
+        args.data_label = 'before'
     elif args.fitting_case == 'II':
         args.adjust_kinetics = False
         args.infer_reversal_potential = False
         args.use_artefact_model = True
+        args.data_label = 'before'
 
     if args.fontsize:
         matplotlib.rcParams.update({'font.size': args.fontsize})
@@ -355,6 +357,7 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
                                    current, voltages, label=args.data_label,
                                    return_states=True
                                    )
+
     model = make_model_of_class(args.model_class)
     if args.fitting_case in ['I', 'II']:
         model = ArtefactModel(model)

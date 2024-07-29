@@ -1432,6 +1432,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                             logging.warning(f"Prediction failed {model_class} {fitting_case} \
                             {well}, {sim_protocol} {predict_sweep} using \
                             {protocol_fitted} {fitting_sweep}")
+                            logging.warning(f"non-finite solution at times {times[~np.isfinite(full_prediction)]}")
 
                         prediction = full_prediction[indices]
 
