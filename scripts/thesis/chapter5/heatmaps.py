@@ -320,8 +320,8 @@ def main():
                                    & (prediction_df.well == best_well)]['n_score'].values.astype(np.float64).mean()
 
         mean_validation_score = prediction_df[(prediction_df.fitting_protocol
-                                               != prediction_df.validation_protocol)\ &
-                                              (prediction_df.well == best_well)\
+                                               != prediction_df.validation_protocol)\
+                                              &(prediction_df.well == best_well)\
                                               &(prediction_df.fitting_sweep == prediction_df.prediction_sweep)
                                               ]['n_score'].values.astype(np.float64).mean()
 
@@ -335,9 +335,9 @@ def main():
         mean_training_score = prediction_df[(prediction_df.fitting_protocol == prediction_df.validation_protocol)\
                                      & (prediction_df.well == worst_well)]['n_score'].values.astype(np.float64).mean()
         mean_validation_score = prediction_df[(prediction_df.fitting_protocol
-                                               != prediction_df.validation_protocol)\ &
-                                              (prediction_df.well == worst_well)\
-                                              (prediction_df.fitting_sweep == prediction_df.prediction_sweep)
+                                               != prediction_df.validation_protocol)\
+                                              &(prediction_df.well == worst_well)\
+                                              &(prediction_df.fitting_sweep == prediction_df.prediction_sweep)
                                               ]['n_score'].values.astype(np.float64).mean()
         worst_well_title = f"{worst_well} " + '\n' \
             + r'$\mathcal{E}_{\mathrm{train}} = $' f"{mean_training_score:.2E}" + \
