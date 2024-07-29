@@ -1442,7 +1442,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                         df = params_df[params_df.well == well]
                         df = df[(df.protocol == protocol_fitted) & (df.sweep == fitting_sweep)]
                         if df.empty:
-                            return np.full(full_times.shape, None)
+                            raise Exception("Compute_prediction_df failed. Missing parameter set")
 
                         params = df.iloc[0][param_labels].values\
                                                             .astype(np.float64)\
