@@ -163,6 +163,7 @@ def scatterplot_estimates(artefacts_df):
         'V_off': r'$V_\text{off} (mV)$',
         'V_off_est': r'$\hat V_\text{off} (mV)$',
         'Rseries': r'$R_\mathrm{series} (\mathrm{G}\Ohm)$',
+        'V_off_est_error': r'$\hat V_\mathrm{off} - V_\mathrm{off}$'
     }
 
     axs = fig.subplots(2, 2).flatten()
