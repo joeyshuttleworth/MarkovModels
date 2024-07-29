@@ -479,8 +479,8 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
                                 height="40%",
             )
 
-            scatter_ax.set_xlabel(r'$p_1$')
-            scatter_ax.set_ylabel(r'$p_2$')
+            scatter_ax.set_xlabel(r'$p_1$ (ms$^{-1}$)')
+            scatter_ax.set_ylabel(r'$p_2$ (mv$^{-1}$)')
 
             inset_ax.scatter(params_df[param_labels[0]].values[highlight_indices],
                             params_df[param_labels[1]].values[highlight_indices],
