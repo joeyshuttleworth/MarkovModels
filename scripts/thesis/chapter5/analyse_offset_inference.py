@@ -162,7 +162,7 @@ def scatterplot_estimates(artefacts_df):
         'Eleak_est': r'$\hat E_\text{l} (mV)$',
         'V_off': r'$V_\text{off} (mV)$',
         'V_off_est': r'$\hat V_\text{off} (mV)$',
-        'Rseries': r'$R_\mathrm{series} (\mathrm{G}\Ohm)$',
+        'Rseries': r'$R_\mathrm{series} (\mathrm{G}\Omega)$',
         'V_off_est_error': r'$\hat V_\mathrm{off} - V_\mathrm{off}$'
     }
 
