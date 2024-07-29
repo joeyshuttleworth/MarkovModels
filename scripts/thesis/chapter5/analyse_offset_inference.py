@@ -194,8 +194,8 @@ def scatterplot_estimates(artefacts_df):
     sns.scatterplot(artefacts_df, y='V_off_est_error', x='Rseries', ax=axs[-1],
                     hue='QC', legend=False)
 
-    axs[-1].set_xlabel(pretty_vars_dict['V_off_est_error'])
-    axs[-1].set_ylabel(pretty_vars_dict['Rseries'])
+    axs[-1].set_ylabel(pretty_vars_dict['V_off_est_error'])
+    axs[-1].set_xlabel(pretty_vars_dict['Rseries'])
 
     fig.savefig(os.path.join(output_dir, "estimates_four_panel"))
     fig.clf()
