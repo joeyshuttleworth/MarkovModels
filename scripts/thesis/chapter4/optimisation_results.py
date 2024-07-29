@@ -132,6 +132,7 @@ def main():
         args.adjust_kinetics = True
         args.infer_reversal_potential = True
         args.data_label = 'before'
+        args.use_artefact_model = False
     elif args.fitting_case == 'I':
         args.adjust_kinetics = False
         args.infer_reversal_potential = False
@@ -341,6 +342,7 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
     desc = vp.get_all_sections()
     desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
 
+    global protocol_dict
     protocol_dict = {protocol: (desc, times)}
 
     prot_func = make_voltage_function_from_description(vp.get_all_sections())
@@ -516,10 +518,11 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
             mark_inset(scatter_ax, inset_ax, 2, 3, alpha=.4)
 
     else:
-        logging.warning(f"no highlitec indices for {well} {protocol} sweep{sweep}")
+        logging.warning(f"no highlited indices for {well} {protocol} sweep{sweep}")
 
 def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args):
 
+    subtraction_df = pd.read_csv(args.subtraction_df)
     times_fname = os.path.join(args.data_dir,
                                f"{args.experiment_name}-{protocol}-times.csv")
     trace, vp = get_data(well, protocol, args.data_dir,
@@ -551,7 +554,6 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     else:
         assert(False)
 
-
     if args.default_parameters_file:
         default_parameters = np.loadtxt(os.path.join(args.default_parameters_file))
         m_model = make_model_of_class(args.model_class, voltage=prot_func,
@@ -570,7 +572,6 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     row = best_params.set_index(['well', 'protocol', 'sweep']).loc[(well, protocol, sweep)]
     param_labels = m_model.get_parameter_labels()
     params = row[param_labels].values.flatten()
-    print(param_labels)
     default_params = m_model.get_default_parameters()
 
     solver = m_model.make_hybrid_solver_current(hybrid=False,
@@ -579,7 +580,17 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     def compute_rmse(p):
         if np.any(p <= 0):
             return np.nan
-        return np.sqrt(np.mean((solver(p)[indices] - trace[indices])**2))
+
+        full_prediction = make_prediction(args.model_class, args, well,
+                                          protocol, sweep, protocol, sweep,
+                                          best_params, subtraction_df,
+                                          args.fitting_case, args.reversal,
+                                          protocol_dict, trace, voltages,
+                                          label=args.data_label, solver=solver,
+                                          strict=False )
+
+
+        return np.sqrt(np.mean((full_prediction[indices] - trace[indices])**2))
 
     plot_var = np.linspace(-0.05, 1.05, 250)
 
