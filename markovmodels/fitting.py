@@ -122,7 +122,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     voltages = np.array([mm.voltage(t, protocol_description=desc) for t in times])
 
     if add_simple_leak:
-        leak_current = voltages * g_leak * (voltages - E_leak)
+        leak_current = g_leak * (voltages - E_leak)
 
     class PintsWrapper(pints.ForwardModelS1):
         def __init__(self, mm, parameters, fix_parameters=None):
@@ -1321,7 +1321,10 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                            data_label='', hybrid=False, strict=True,
                            tolerances=(None, None)):
 
-    param_labels = make_model_of_class(model_class).get_parameter_labels()
+    if fitting_case in ['I', 'II']:
+        param_labels = ArtefactModel(make_model_of_class(model_class)).get_parameter_labels()
+    else:
+        param_labels = make_model_of_class(model_class).get_parameter_labels()
     params_df = get_best_params(params_df, protocol_label='protocol')
     predictions_dir = os.path.join(output_dir, label)
 
@@ -1618,9 +1621,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                     return_states=False, strict=True, tolerances=(None, None)):
 
     params_df = params_df.copy()
-
     params_df = params_df[params_df.well == well].copy()
-
     atol, rtol = tolerances
 
     if fitting_case in ['I', 'II']:
@@ -1638,11 +1639,9 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     if use_artefacts:
         model = ArtefactModel(model)
 
-    # Set artefact params
-    # if use_artefacts:
-    #     params[no_artefact_parameters:] = artefact_params
+    param_labels = model.get_parameter_labels()
 
-    if fitting_case in ['0a', 'I']:
+    if fitting_case in ['0a', 'I', 'II']:
         pred_E_rev = E_rev
     else:
         inferred_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(sim_protocol, well, predict_sweep)]['E_rev']
@@ -1653,8 +1652,6 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
         new_E_rev = inferred_E_rev
         params_df = adjust_kinetics(model_class, params_df, subtractions_df,
                                     fitting_E_rev, new_E_rev, use_boundaries=False)
-
-    param_labels = model.get_parameter_labels()
 
     # Protocol we use for simulation
     desc, full_times = protocol_dict[sim_protocol]
@@ -1700,21 +1697,15 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
         else:
             return np.full(full_times.shape, np.nan)
 
-    if use_artefacts:
-        c_param_labels = model.channel_model.get_parameter_labels()
-    else:
-        c_param_labels = param_labels
-    params = df.iloc[0][c_param_labels].values\
-                                        .astype(np.float64)\
-                                        .flatten()
+    params = df.iloc[0][param_labels].values\
+                                     .astype(np.float64)\
+                                     .flatten()
 
     if fitting_case in ['I', 'II']:
-        params = np.concatenate((params, artefact_params))
-        # params[-no_artefact_parameters:] = artefact_params
         params[-no_artefact_parameters] = E_rev
-
         current = solver(params, times=full_times, protocol_description=desc,
                          atol=atol, rtol=rtol)
+
     else:
         current = solver(params, times=full_times, protocol_description=desc,
                          E_rev=pred_E_rev, atol=atol, rtol=rtol)
