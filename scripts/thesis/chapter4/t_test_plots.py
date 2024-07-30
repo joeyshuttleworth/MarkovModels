@@ -114,7 +114,7 @@ def main():
     if not args.validation_protocols:
         args.validation_protocols = list(subtraction_df.protocol.unique())
 
-    cases = ['0a', '0b', '0c', '0d', 'CaseII']
+    cases = ['0a', '0b', '0c', '0d', 'II']
     dirnames = ['Case0a', 'Case0b', 'Case0b', 'Case0d', 'CaseII']
 
     global case_relabel_dict
