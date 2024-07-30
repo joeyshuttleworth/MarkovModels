@@ -1703,7 +1703,8 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                                      .flatten()
 
     if fitting_case in ['I', 'II']:
-        params[-no_artefact_parameters] = E_rev
+        # params[-no_artefact_parameters] = E_rev
+        params = np.concatenate((params, forward_sim_parameters))
         current = solver(params, times=full_times, protocol_description=desc,
                          atol=atol, rtol=rtol)
 
