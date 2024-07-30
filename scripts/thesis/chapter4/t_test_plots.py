@@ -69,7 +69,8 @@ def main():
     parser.add_argument('fitting_results', type=str)
     parser.add_argument('subtraction_df')
     parser.add_argument('chrono_file')
-    parser.add_argument('--fitting_cases', nargs='+', default=['0a', '0b', '0c'])
+    parser.add_argument('--fitting_cases', nargs='+', default=['0a', '0b', '0c',
+                                                               'II', '0d'])
     parser.add_argument('--model_classes',
                         default=['model2', 'model3', 'model10', 'Wang'],
                         nargs='+')
@@ -113,7 +114,8 @@ def main():
     if not args.validation_protocols:
         args.validation_protocols = list(subtraction_df.protocol.unique())
 
-    cases = ['0a', '0b', '0c']
+    cases = ['0a', '0b', '0c', '0d', 'CaseII']
+    dirnames = ['Case0a', 'Case0b', 'Case0b', 'Case0d', 'CaseII']
 
     global case_relabel_dict
     case_relabel_dict = {
@@ -130,8 +132,6 @@ def main():
     relabel_dict = {p: r"$d_{" f"{i+1}" r"}$" for i, p
                     in enumerate(protocol_order)}
     print(relabel_dict)
-
-    dirnames = ['Case0a', 'Case0b', 'Case0b']
 
     # Get fitting results (dict of dicts)
     params_dfs = []
@@ -177,6 +177,9 @@ def main():
     for fitting_case in args.fitting_cases:
         for model_class in args.model_classes:
             print(f"plotting {fitting_case} {model_class}")
+
+            params_df = results_dict[(model_class, fitting_case)]
+
             plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
                                   protocol_dict, protocol_order, results_dict,
                                   subtraction_df, model_class, mode='prediction',
