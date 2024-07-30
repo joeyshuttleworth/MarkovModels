@@ -1319,7 +1319,8 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                            label='predictions', model_class=None,
                            default_artefact_kinetic_parameters=None, args=None,
                            data_label='', hybrid=False, strict=True,
-                           tolerances=(None, None)):
+                           tolerances=(None, None),
+                           plot=True):
 
     if fitting_case in ['I', 'II']:
         param_labels = ArtefactModel(make_model_of_class(model_class)).get_parameter_labels()
@@ -1335,11 +1336,12 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
     protocols_list = list(subtractions_df['protocol'].unique()) + ['longap']
     protocols_list = np.array(protocols_list).astype(str)
 
-    trace_fig = plt.figure(figsize=args.figsize)
-    trace_axs = trace_fig.subplots(2)
+    if plot:
+        trace_fig = plt.figure(figsize=args.figsize)
+        trace_axs = trace_fig.subplots(2)
 
-    all_models_fig = plt.figure(figsize=args.figsize)
-    all_models_axs = all_models_fig.subplots(2)
+        all_models_fig = plt.figure(figsize=args.figsize)
+        all_models_axs = all_models_fig.subplots(2)
 
     use_artefacts = True if fitting_case in ['I', 'II'] else False
 
@@ -1459,44 +1461,46 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                                                    predict_sweep, sim_protocol,
                                                    score, n_score, E_rev,
                                                    *params))
-                            # Output trace
-                            trace_axs[0].plot(full_times, full_prediction, label='prediction')
+                            if plot:
+                                # Output trace
+                                trace_axs[0].plot(full_times, full_prediction, label='prediction')
 
-                            trace_axs[1].set_xlabel("time / ms")
-                            trace_axs[0].set_ylabel("current / nA")
-                            trace_axs[0].plot(times, data, label='data', alpha=0.25, color='grey')
-                            trace_axs[0].legend()
-                            trace_axs[1].plot(full_times, voltages)
-                            trace_axs[1].set_ylabel('voltage / mV')
-                            fname = f"fitted_to_{protocol_fitted}_{fitting_sweep}.png" if protocol_fitted != sim_protocol or \
-                                fitting_sweep != predict_sweep else "fit.png"
+                                trace_axs[1].set_xlabel("time / ms")
+                                trace_axs[0].set_ylabel("current / nA")
+                                trace_axs[0].plot(times, data, label='data', alpha=0.25, color='grey')
+                                trace_axs[0].legend()
+                                trace_axs[1].plot(full_times, voltages)
+                                trace_axs[1].set_ylabel('voltage / mV')
+                                fname = f"fitted_to_{protocol_fitted}_{fitting_sweep}.png" if protocol_fitted != sim_protocol or \
+                                    fitting_sweep != predict_sweep else "fit.png"
 
-                            handles, labels = trace_axs[1].get_legend_handles_labels()
-                            by_label = dict(zip(labels, handles))
-                            plt.legend(by_label.values(), by_label.keys())
+                                handles, labels = trace_axs[1].get_legend_handles_labels()
+                                by_label = dict(zip(labels, handles))
+                                plt.legend(by_label.values(), by_label.keys())
 
-                            trace_fig.savefig(os.path.join(sub_dir, fname))
+                                trace_fig.savefig(os.path.join(sub_dir, fname))
 
-                            for ax in trace_axs:
-                                ax.cla()
+                                for ax in trace_axs:
+                                    ax.cla()
 
-                            all_models_axs[0].plot(full_times, full_prediction,
-                                                   label=f"{protocol_fitted}_{fitting_sweep}", color=colours[i])
+                                all_models_axs[0].plot(full_times, full_prediction,
+                                                    label=f"{protocol_fitted}_{fitting_sweep}", color=colours[i])
 
-                all_models_axs[1].set_xlabel("time / ms")
-                all_models_axs[0].set_ylabel("current / nA")
-                all_models_axs[0].plot(times, data, color='grey', alpha=0.5, label='data')
-                # all_models_axs[0].legend()
-                all_models_axs[0].set_title(f"{well} {sim_protocol} fits comparison")
-                all_models_axs[0].set_ylabel("Current / nA")
+                if plot:
+                    all_models_axs[1].set_xlabel("time / ms")
+                    all_models_axs[0].set_ylabel("current / nA")
+                    all_models_axs[0].plot(times, data, color='grey', alpha=0.5, label='data')
+                    # all_models_axs[0].legend()
+                    all_models_axs[0].set_title(f"{well} {sim_protocol} fits comparison")
+                    all_models_axs[0].set_ylabel("Current / nA")
 
-                all_models_axs[1].plot(full_times, voltages)
-                all_models_axs[1].set_ylabel('voltage / mV')
+                    all_models_axs[1].plot(full_times, voltages)
+                    all_models_axs[1].set_ylabel('voltage / mV')
 
-                all_models_fig.savefig(os.path.join(sub_dir, "all_fits.png"))
+                    all_models_fig.savefig(os.path.join(sub_dir, "all_fits.png"))
 
-                for ax in all_models_axs:
-                    ax.cla()
+                    for ax in all_models_axs:
+                        ax.cla()
 
     if len(predictions_df) == 0:
         raise Exception("No predictions produced")
@@ -1512,8 +1516,9 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
     predictions_df['RMSE'] = predictions_df['score'].astype(np.float64)
     predictions_df['sweep'] = predictions_df.fitting_sweep
 
-    plt.close(trace_fig)
-    plt.close(all_models_fig)
+    if plot:
+        plt.close(trace_fig)
+        plt.close(all_models_fig)
 
     return predictions_df
 
@@ -1676,9 +1681,30 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     times = full_times[indices]
 
     if fitting_case in ['I', 'II']:
-        param_row = params_df[(params_df.well == well) &
-                                (params_df.protocol == sim_protocol) &\
-                                (params_df.sweep == predict_sweep)].iloc[0]
+        print(well, sim_protocol, predict_sweep)
+        try:
+            param_row = params_df[(params_df.well == well) &
+                                  (params_df.protocol == sim_protocol) &\
+                                  (params_df.sweep == predict_sweep)].iloc[0]
+        except IndexError as exc:
+            print(str(exc))
+            # TODO
+            V_off = 0
+            gleak = 0
+            Eleak = 0
+            Rseries = 0.001
+            Cm = 0.001
+
+            param_row = {
+                'V_off': V_off,
+                'g_leak': gleak,
+                'E_leak': Eleak,
+                'E_rev': E_rev,
+                'g_leak_leftover': 0,
+                'E_leak_leftover': 0,
+                'R_s' : Rseries,
+                'C_m' : Cm
+            }
 
         a_params = [p for p in param_labels if p != 'E_Kr']
         forward_sim_parameters = model.get_default_parameters()
@@ -1687,6 +1713,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
             forward_sim_parameters[param_labels.index(p)] = param_row[p]
 
         artefact_params = forward_sim_parameters[-no_artefact_parameters:]
+        artefact_params[0] = E_rev
 
     data = full_data[indices]
 
@@ -1703,8 +1730,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                                      .flatten()
 
     if fitting_case in ['I', 'II']:
-        # params[-no_artefact_parameters] = E_rev
-        params = np.concatenate((params, forward_sim_parameters))
+        params[-no_artefact_parameters:] = artefact_params
         current = solver(params, times=full_times, protocol_description=desc,
                          atol=atol, rtol=rtol)
 
@@ -1737,6 +1763,9 @@ def get_ensemble_of_predictions(times, desc, params_df, protocol, well, sweep,
         model = make_model_of_class(model_class, voltage=voltage_func)
         param_labels = model.get_parameter_labels()
 
+        if fitting_case in ['I', 'II']:
+            model = ArtefactModel(model)
+
         if solver is None:
             solver = model.make_hybrid_solver_current(njitted=False,
                                                       hybrid=False,
@@ -1749,6 +1778,9 @@ def get_ensemble_of_predictions(times, desc, params_df, protocol, well, sweep,
     for _, row in params_df.iterrows():
         protocol_fitted = row['protocol']
         fit_sweep = row['sweep']
+
+        if protocol_fitted in args.ignore_protocols:
+            continue
 
         if ignore_fitted and protocol_fitted == protocol:
             continue

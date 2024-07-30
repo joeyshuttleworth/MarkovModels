@@ -14,6 +14,7 @@ from matplotlib import gridspec
 from matplotlib.gridspec import GridSpec
 from matplotlib.patches import ConnectionPatch, Rectangle
 
+from cycler import cycler
 from matplotlib import rc
 
 import markovmodels
@@ -27,10 +28,10 @@ from markovmodels.voltage_protocols import remove_spikes, detect_spikes
 multiprocessing_kws = {'maxtasksperchild': 1}
 
 plt.rcParams["axes.formatter.use_mathtext"] = True
-plt.rcParams['xtick.labelsize'] = 9
-plt.rcParams['ytick.labelsize'] = 9
+plt.rcParams['xtick.labelsize'] = 8
+plt.rcParams['ytick.labelsize'] = 8
 
-rc('font', **{'size': 9})
+rc('font', **{'size': 8})
 # rc('text', usetex=True)
 # rc('figure', dpi=400, facecolor=[0]*4)
 # rc('axes', facecolor=[0]*4)
@@ -157,8 +158,10 @@ def main():
 
     protocol_dict = {}
     for protocol in np.unique(list(itertools.chain(*[list(params_df.protocol.unique()) for params_df in params_dfs])) + args.validation_protocols):
-        v_func, desc = get_ramp_protocol_from_json(protocol, os.path.join(args.data_directory, 'protocols'),
-                                              args.experiment_name)
+        v_func, desc = get_ramp_protocol_from_json(protocol,
+                                                   os.path.join(args.data_directory,
+                                                                'protocols'),
+                                                   args.experiment_name)
 
         times = np.loadtxt(os.path.join(args.data_directory,
                                         f"{args.experiment_name}-{protocol}-times.csv")).astype(np.float64).flatten()
@@ -283,7 +286,8 @@ def main():
 
         no_protocols = len(protocol_order)
         rec = Rectangle(
-            (autoAxis[0] - 0.05 + fitting_protocol_i,
+            #d6 is at the front of the order but absent from the heatmap
+            (autoAxis[0] - 0.05 + fitting_protocol_i - 1.0,
              autoAxis[3] - 0.05 + validation_protocol_i),
             1.1,
             1.1,
@@ -297,7 +301,7 @@ def main():
 
         autoAxis = best_ax.axis()
         rec = Rectangle(
-            (autoAxis[0] - 0.05 + fitting_protocol_i,
+            (autoAxis[0] - 0.05 + fitting_protocol_i - 1.0,
              autoAxis[3] - 0.05 + validation_protocol_i),
             1.1, 1.1,
             fill=False,
@@ -428,7 +432,8 @@ def main():
         mean_training_score = prediction_df[(prediction_df.fitting_protocol == prediction_df.validation_protocol)]['n_score'].values.astype(np.float64).mean()
         mean_validation_score = prediction_df[(prediction_df.fitting_protocol != prediction_df.validation_protocol)]['n_score'].values.astype(np.float64).mean()
 
-        ax.set_title(r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
+        model_name = relabel_models_dict[model_class]
+        ax.set_title(r'\textbf{' model_class r'}' "\n" r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
                      ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}")
 
 
@@ -559,7 +564,6 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                                                data_label=data_label,
                                                hybrid=False,
                                                strict=False,
-                                               tolerances=(1e-6, 1e-6)
                                                )
         if args.ignore_wells:
             prediction_df = prediction_df[~prediction_df.well.isin(args.ignore_wells)]
@@ -605,9 +609,8 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
                                                model_class=model_class,
                                                label=f"{model_class}_{fitting_case}_predictions",
                                                data_label=data_label,
-                                               hybrid=True,
+                                               hybrid=False,
                                                strict=False,
-                                               tolerances=(1e-6, 1e-6),
                                                args=args)
 
     chrono_fname = os.path.join(args.chrono_file)
@@ -785,7 +788,7 @@ def setup_grid_single_case(fig, args):
     # Row for each model, a colorbar, and case labels
     no_models = len(args.model_classes)
     no_columns = 3
-    no_rows = 4
+    no_rows = 2
 
     gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[1, 1, .1],
                   height_ratios=[0.1, 1, 1, 0.1])
@@ -794,9 +797,6 @@ def setup_grid_single_case(fig, args):
 
     model_axs = [fig.add_subplot(gs[1, i]) for i in range(2)] \
         + [fig.add_subplot(gs[2, i]) for i in range(2)]
-
-    caption_axs = np.array([fig.add_subplot(gs[0, i]) for i in range(2)] \
-                         + [fig.add_subplot(gs[-1, i]) for i in range(2)]).flatten()
 
     for i, (ax, model) in enumerate(zip(caption_axs, args.model_classes)):
         cap = relabel_models_dict[model]
