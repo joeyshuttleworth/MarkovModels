@@ -433,7 +433,7 @@ def main():
         mean_validation_score = prediction_df[(prediction_df.fitting_protocol != prediction_df.validation_protocol)]['n_score'].values.astype(np.float64).mean()
 
         model_name = relabel_models_dict[model_class]
-        ax.set_title(r'\textbf{' model_class r'}' "\n" r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
+        ax.set_title(r'\textbf{' + model_class + r'}' + "\n"+ r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
                      ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}")
 
 
