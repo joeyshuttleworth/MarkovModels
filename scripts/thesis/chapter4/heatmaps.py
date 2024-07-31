@@ -791,7 +791,7 @@ def setup_grid_single_case(fig, args):
     no_rows = 2
 
     gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[1, 1, .1],
-                  height_ratios=[0.1, 1, 1, 0.1])
+                  height_ratios=[1, 1])
 
     colour_bar_ax = fig.add_subplot(gs[:, -1])
 
