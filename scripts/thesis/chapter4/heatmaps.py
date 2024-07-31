@@ -447,7 +447,7 @@ def main():
 
     colour_bar_ax.set_title('NRMSE')
 
-    for ax in model_axs:
+    for ax in model_axs[1:]:
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_xlabel('')
