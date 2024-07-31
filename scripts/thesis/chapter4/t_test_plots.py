@@ -279,8 +279,13 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
             xmin, xmax = (0, 1)
             ymin, ymax = V_range
 
+            if protocol not in zs[well]:
+                ax.set_facecolor((105/256, 105/256, 105/256, .5))
+                continue
+
             z = zs[well][protocol]
             if not np.any(z):
+                ax.set_facecolor((105/256, 105/256, 105/256, .5))
                 continue
 
             if np.all(np.isfinite(z)):
