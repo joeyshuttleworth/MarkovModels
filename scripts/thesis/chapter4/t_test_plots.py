@@ -254,8 +254,9 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
 
             z = get_t_test_statistic(model_class, fitting_case, params_df,
                                      subtraction_df, protocol, well, sweep,
-                                     protocol_dict, args,
-                                     mode=mode)
+                                     protocol_dict, args, mode=mode)
+            if not np.any(z):
+                continue
 
             max_z = max(z[indices].max(), max_z)
             min_z = min(z[indices].min(), min_z)
@@ -279,6 +280,9 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
             ymin, ymax = V_range
 
             z = zs[well][protocol]
+            if not np.any(z):
+                continue
+
             if np.all(np.isfinite(z)):
                 X = z[None, :].astype(np.float64)
                 im = ax.imshow(X, extent=(xmin, xmax, ymin, ymax), alpha=1,
@@ -318,7 +322,7 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
             markovmodels.voltage_protocols.remove_spikes(times, voltages, spike_times,
                                                          args.removal_duration)
 
-        z = np.vstack([zs[w][protocol] for w in wells]).mean(axis=0)
+        z = np.vstack([zs[w][protocol] for w in wells if np.any(zs[w][protocol])]).mean(axis=0)
 
         if np.all(np.isfinite(z)):
             X = z[None, :]
@@ -351,6 +355,10 @@ def get_t_test_statistic(model_class, fitting_case, params_df,
        subtraction_df.set_index(['well', 'protocol', 'sweep']).index:
         return False
 
+    if (well, validation_protocol, sweep) not in \
+       params_df.set_index(['well', 'protocol', 'sweep']).index:
+        return False
+
     params_df = params_df[params_df.well == well]
 
     new_E_rev = subtraction_df.set_index(['well', 'protocol', 'sweep']).loc[well, validation_protocol, sweep]['E_rev']
@@ -360,7 +368,9 @@ def get_t_test_statistic(model_class, fitting_case, params_df,
                                     new_E_rev=new_E_rev)
 
     model = make_model_of_class(model_class, voltage=voltage_func)
-    param_labels = model.get_parameter_labels()
+
+    if fitting_case in ['I', 'II']:
+        model = ArtefactModel(model)
 
     solver = model.make_hybrid_solver_current(njitted=False,
                                               hybrid=False,
@@ -381,12 +391,15 @@ def get_t_test_statistic(model_class, fitting_case, params_df,
     else:
         disallowed_protocols = [validation_protocol]
 
-    sub_df = params_df[~params_df.protocol.isin(disallowed_protocols)]
+    # sub_df = params_df[~params_df.protocol.isin(disallowed_protocols)]
 
     noise = data[:200].std(ddof=1)
 
     if mode == 'prediction':
-        predictions = get_ensemble_of_predictions(times, desc, sub_df,
+        print(well)
+        print(params_df)
+
+        predictions = get_ensemble_of_predictions(times, desc, params_df,
                                                   validation_protocol, well, sweep,
                                                   subtraction_df, fitting_case,
                                                   args.reversal, model_class, data,
