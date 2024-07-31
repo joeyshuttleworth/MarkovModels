@@ -327,6 +327,14 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
             markovmodels.voltage_protocols.remove_spikes(times, voltages, spike_times,
                                                          args.removal_duration)
 
+        w = wells[0]
+        if protocol not in zs[w]:
+            ax.set_facecolor((105/256, 105/256, 105/256, .5))
+            continue
+        if not np.any(zs[w][protocol]):
+            ax.set_facecolor((105/256, 105/256, 105/256, .5))
+            continue
+
         z = np.vstack([zs[w][protocol] for w in wells if np.any(zs[w][protocol])]).mean(axis=0)
 
         if np.all(np.isfinite(z)):
