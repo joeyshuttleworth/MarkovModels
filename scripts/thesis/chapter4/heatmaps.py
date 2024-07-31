@@ -284,8 +284,14 @@ def main():
         # Highlight worst cell
         autoAxis = worst_ax.axis()
         # Works unless one of the protocols is a staircase protocol
-        fitting_protocol_i = protocol_order.index(fitting_protocol) + 1
-        validation_protocol_i = protocol_order.index(validation_protocol) + 2
+        fitting_protocol_i = protocol_order.index(fitting_protocol) - 1
+        validation_protocol_i = protocol_order.index(validation_protocol) + 1
+
+        if validation_protocol_i < protocol_order.index('longap'):
+            validation_protocol += 1
+
+        if fitting_protocol_i > protocol_order.index('longap'):
+            fitting_protocol -= 1
 
         print(fitting_protocol, validation_protocol)
         print(fitting_protocol_i, validation_protocol_i)
@@ -593,10 +599,6 @@ def define_protocol_order(chrono_fname):
         protocol_order.insert(1, 'staircaseramp1_sweep2')
         protocol_order.append('staircaseramp1_2_sweep2')
 
-    if 'longap' in protocol_order:
-        protocol_order.remove('longap')
-        protocol_order.insert(0, 'longap')
-
     return protocol_order
 
 
@@ -811,10 +813,9 @@ def setup_grid_single_case(fig, args):
     model_axs = [fig.add_subplot(gs[0, i]) for i in range(2)] \
         + [fig.add_subplot(gs[1, i]) for i in range(2)]
 
-    model_axs[0].set_axis_on()
-
     for ax in model_axs:
         ax.set_axis_off()
+    model_axs[0].set_axis_on()
 
     # for ax in model_axs:
     #     ax.spines[['top', 'right']].set_visible(False)
