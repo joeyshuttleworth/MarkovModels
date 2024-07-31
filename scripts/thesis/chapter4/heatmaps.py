@@ -795,8 +795,8 @@ def setup_grid_single_case(fig, args):
 
     colour_bar_ax = fig.add_subplot(gs[:, -1])
 
-    model_axs = [fig.add_subplot(gs[1, i]) for i in range(2)] \
-        + [fig.add_subplot(gs[2, i]) for i in range(2)]
+    model_axs = [fig.add_subplot(gs[0, i]) for i in range(2)] \
+        + [fig.add_subplot(gs[1, i]) for i in range(2)]
 
     for i, (ax, model) in enumerate(zip(caption_axs, args.model_classes)):
         cap = relabel_models_dict[model]
