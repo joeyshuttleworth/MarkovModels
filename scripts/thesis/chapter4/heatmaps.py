@@ -30,6 +30,7 @@ multiprocessing_kws = {'maxtasksperchild': 1}
 plt.rcParams["axes.formatter.use_mathtext"] = True
 plt.rcParams['xtick.labelsize'] = 8
 plt.rcParams['ytick.labelsize'] = 8
+plt.rcParams["text.usetex"] = True
 
 rc('font', **{'size': 8})
 # rc('text', usetex=True)
@@ -91,6 +92,7 @@ def main():
     parser.add_argument('--no_cpus', '-c', default=1, type=int)
     parser.add_argument('--model_classes', nargs='+')
     parser.add_argument('--cases', nargs='+')
+    parser.add_argument('--dont_plot_predictions', action='store_true')
 
     global args
     args = parser.parse_args()
@@ -221,6 +223,9 @@ def main():
         worst_prediction = worst_well_predictions.groupby(['fitting_protocol', 'validation_protocol'])['n_score'].agg('max').idxmax()
 
         fitting_protocol, validation_protocol = worst_prediction
+
+        print(fitting_protocol, validation_protocol)
+
         sweep = 0
 
         # Plot voltage of worst prediction
@@ -278,8 +283,9 @@ def main():
 
         # Highlight worst cell
         autoAxis = worst_ax.axis()
-        fitting_protocol_i = protocol_order.index(fitting_protocol)
-        validation_protocol_i = protocol_order.index(validation_protocol)
+        # Works unless one of the protocols is a staircase protocol
+        fitting_protocol_i = protocol_order.index(fitting_protocol) + 1
+        validation_protocol_i = protocol_order.index(validation_protocol) + 2
 
         print(fitting_protocol, validation_protocol)
         print(fitting_protocol_i, validation_protocol_i)
@@ -287,7 +293,7 @@ def main():
         no_protocols = len(protocol_order)
         rec = Rectangle(
             #d6 is at the front of the order but absent from the heatmap
-            (autoAxis[0] - 0.05 + fitting_protocol_i - 1.0,
+            (autoAxis[0] - 0.05 + fitting_protocol_i,
              autoAxis[3] - 0.05 + validation_protocol_i),
             1.1,
             1.1,
@@ -301,7 +307,7 @@ def main():
 
         autoAxis = best_ax.axis()
         rec = Rectangle(
-            (autoAxis[0] - 0.05 + fitting_protocol_i - 1.0,
+            (autoAxis[0] - 0.05 + fitting_protocol_i,
              autoAxis[3] - 0.05 + validation_protocol_i),
             1.1, 1.1,
             fill=False,
@@ -397,8 +403,7 @@ def main():
     fig.clf()
 
     # Plot Case III only
-    model_axs, colour_bar_ax, _\
-        = setup_grid_single_case(fig, args)
+    model_axs, colour_bar_ax = setup_grid_single_case(fig, args)
     done_colour_bar = False
 
     for task, prediction_df in res:
@@ -433,8 +438,8 @@ def main():
         mean_validation_score = prediction_df[(prediction_df.fitting_protocol != prediction_df.validation_protocol)]['n_score'].values.astype(np.float64).mean()
 
         model_name = relabel_models_dict[model_class]
-        ax.set_title(r'\textbf{' + model_class + r'}' + "\n"+ r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
-                     ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}")
+        ax.set_title(r'\textbf{' + model_name + r'}' + "\n"+ r'$\mathcal{E}_{\mathrm{train}} = $' f"{mean_training_score:.2E}" + \
+                     ",\n" r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2E}")
 
 
         validation_protocol = 'longap'
@@ -564,6 +569,7 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                                                data_label=data_label,
                                                hybrid=False,
                                                strict=False,
+                                               plot=not args.dont_plot_predictions
                                                )
         if args.ignore_wells:
             prediction_df = prediction_df[~prediction_df.well.isin(args.ignore_wells)]
@@ -586,6 +592,11 @@ def define_protocol_order(chrono_fname):
         protocol_order = [line.split(' ')[0] for line in lines]
         protocol_order.insert(1, 'staircaseramp1_sweep2')
         protocol_order.append('staircaseramp1_2_sweep2')
+
+    if 'longap' in protocol_order:
+        protocol_order.remove('longap')
+        protocol_order.insert(0, 'longap')
+
     return protocol_order
 
 
@@ -611,7 +622,9 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
                                                data_label=data_label,
                                                hybrid=False,
                                                strict=False,
-                                               args=args)
+                                               args=args,
+                                               plot=not args.dont_plot_predictions
+                                               )
 
     chrono_fname = os.path.join(args.chrono_file)
     protocol_order = define_protocol_order(chrono_fname)
@@ -713,8 +726,8 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     mean_training_score = sub_df[sub_df.fitting_protocol == sub_df.validation_protocol]['n_score'].values.astype(np.float64).mean()
     mean_validation_score = sub_df[sub_df.fitting_protocol != sub_df.validation_protocol]['n_score'].values.astype(np.float64).mean()
 
-    ax.set_title(r'$\mathcal{E}_{\text{train}} = $' f"{mean_training_score:.2E}" + \
-    ",\n" r'$\mathcal{E}_{\text{predict}} = $' + f"{mean_validation_score:.2E}")
+    ax.set_title(r'$\mathcal{E}_{\mathrm{train}} = $' f"{mean_training_score:.2E}" + \
+    ",\n" r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2E}")
 
     hm = sns.heatmap(pivot_df, ax=ax, square=True, norm=norm,
                      cmap=cmap, **kws)
@@ -798,19 +811,17 @@ def setup_grid_single_case(fig, args):
     model_axs = [fig.add_subplot(gs[0, i]) for i in range(2)] \
         + [fig.add_subplot(gs[1, i]) for i in range(2)]
 
-    for i, (ax, model) in enumerate(zip(caption_axs, args.model_classes)):
-        cap = relabel_models_dict[model]
-        ax.set_axis_off()
-        ax.text(.5, .5, cap, fontsize='12' ,
-                fontweight='bold',
-                horizontalalignment='center')
     model_axs[0].set_axis_on()
+
+    for ax in model_axs:
+        ax.set_axis_off()
 
     # for ax in model_axs:
     #     ax.spines[['top', 'right']].set_visible(False)
 
     # colour_bar_ax.set_axis_off()
-    return model_axs, colour_bar_ax, caption_axs
+
+    return model_axs, colour_bar_ax
 
 
 def setup_best_worst_fig(fig):
