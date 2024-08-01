@@ -243,7 +243,7 @@ def main():
             times = np.loadtxt(times_fname).flatten()
             Vcmd = np.array([voltage_func(t, protocol_description=desc) for t in times])
 
-            voltage_ax.plot(times * 1e-3, Vcmd, color='black')
+            voltage_ax.plot(times * 1e-3, Vcmd, color='black', lw=1)
             prediction_axs[0].plot(times * 1e-3, worst_data, alpha=.5, color='red',
                                    lw=.6)
             prediction_axs[1].plot(times * 1e-3, best_data, alpha=.5, color='red',

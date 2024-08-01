@@ -1345,6 +1345,8 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
     if use_artefacts:
         model = ArtefactModel(model)
 
+    param_labels = model.get_parameter_labels()
+
     prot_func = None
 
     solver = None
