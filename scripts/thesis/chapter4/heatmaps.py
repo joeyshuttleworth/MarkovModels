@@ -848,7 +848,7 @@ def setup_best_worst_fig(fig):
     for ax in prediction_axs + [voltage_ax]:
         ax.spines[['top', 'right']].set_visible(False)
 
-    subfigure_captions = [r'$\textbf{' str(lab) r'}$' for lab in
+    subfigure_captions = [r'$\textbf{' + str(lab) + r'}$' for lab in
                           ['a', 'b', 'c', 'd', 'e', 'f']]
 
     for i, ax in enumerate(prediction_axs):
