@@ -87,7 +87,7 @@ def main():
     parser.add_argument('--fig_title', '-t', default='')
     parser.add_argument('--nolegend', action='store_true')
     parser.add_argument('--dpi', '-d', default=500, type=int)
-    parser.add_argument('--fontsize', type=int, default=12)
+    parser.add_argument('--fontsize', type=int, default=8)
     parser.add_argument('--show_uncertainty', action='store_true')
     parser.add_argument('--shared_plot_limits', action='store_true')
     parser.add_argument('--file_format', default='')
@@ -131,7 +131,6 @@ def main():
     global relabel_dict
     relabel_dict = {p: r"$d_{" f"{i+1}" r"}$" for i, p
                     in enumerate(protocol_order)}
-    print(relabel_dict)
 
     # Get fitting results (dict of dicts)
     params_dfs = []
@@ -255,13 +254,10 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
             z = get_t_test_statistic(model_class, fitting_case, params_df,
                                      subtraction_df, protocol, well, sweep,
                                      protocol_dict, args, mode=mode)
-            if not np.any(z):
-                continue
-
-            max_z = max(z[indices].max(), max_z)
-            min_z = min(z[indices].min(), min_z)
             zs[well][protocol] = z
-
+            if np.any(z):
+                max_z = max(z[indices].max(), max_z)
+                min_z = min(z[indices].min(), min_z)
 
     # vmin = -np.max(np.abs([min_z, max_z]))
     # vmax = +np.max(np.abs([min_z, max_z]))
@@ -278,6 +274,7 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
             voltages = np.array([v_func(t, protocol_description=desc) for t in times])
             xmin, xmax = (0, 1)
             ymin, ymax = V_range
+            ax.plot(times/times.max(), voltages, color='black')
 
             if protocol not in zs[well]:
                 ax.set_facecolor((105/256, 105/256, 105/256, .5))
@@ -296,7 +293,6 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
 
                 # ax.plot(times[indices]/times.max(), z[indices], label=model_names[model_class],
                 #         color=model_colour_dict[model_class], alpha=.5)
-                ax.plot(times/times.max(), voltages, color='black')
             else:
                 # Grey out axes with no values
                 ax.set_facecolor((105/256, 105/256, 105/256, .5))
@@ -326,6 +322,7 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
         _, _, indices = \
             markovmodels.voltage_protocols.remove_spikes(times, voltages, spike_times,
                                                          args.removal_duration)
+        ax.plot(times/times.max(), voltages, color='black')
 
         w = wells[0]
         if protocol not in zs[w]:
@@ -345,7 +342,6 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
                            aspect='auto', norm=SymLogNorm(symlogthresh, vmin=vmin,
                                                           vmax=vmax),
                            cmap=cmap, interpolation=None)
-            ax.plot(times/times.max(), voltages, color='black')
         else:
             # Grey out axes with no values
             ax.set_facecolor((105/256, 105/256, 105/256, .5))
@@ -409,9 +405,6 @@ def get_t_test_statistic(model_class, fitting_case, params_df,
     noise = data[:200].std(ddof=1)
 
     if mode == 'prediction':
-        print(well)
-        print(params_df)
-
         predictions = get_ensemble_of_predictions(times, desc, params_df,
                                                   validation_protocol, well, sweep,
                                                   subtraction_df, fitting_case,
