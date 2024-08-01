@@ -1322,10 +1322,6 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                            tolerances=(None, None),
                            plot=True):
 
-    if fitting_case in ['I', 'II']:
-        param_labels = ArtefactModel(make_model_of_class(model_class)).get_parameter_labels()
-    else:
-        param_labels = make_model_of_class(model_class).get_parameter_labels()
     params_df = get_best_params(params_df, protocol_label='protocol')
     predictions_dir = os.path.join(output_dir, label)
 
@@ -1346,6 +1342,8 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
     use_artefacts = True if fitting_case in ['I', 'II'] else False
 
     model = make_model_of_class(model_class)
+    if use_artefacts:
+        model = ArtefactModel(model)
 
     prot_func = None
 
