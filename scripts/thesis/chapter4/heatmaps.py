@@ -302,8 +302,11 @@ def main():
             rec_1 = worst_ax.add_patch(rec)
             rec_1.set_clip_on(False)
 
-            best_data, vp = get_data(worst_well, validation_protocol,
-                                    args.data_directory, args.experiment_name, sweep=sweep)
+            fitting_protocol, validation_protocol, \
+                fit_sweep, predict_sweep = best_prediction
+            best_data, vp = get_data(best_well, validation_protocol,
+                                     args.data_directory, args.experiment_name,
+                                     sweep=predict_sweep)
             desc = vp.get_all_sections()
 
             fitting_protocol, validation_protocol, fitting_sweep, prediction_sweep \
@@ -321,6 +324,7 @@ def main():
                                            best_data, Vcmd,
                                            label=data_label,
                                            return_states=True )
+
             prediction_axs[1].plot(times * 1e-3, best_data, alpha=.5, color='red',
                                    lw=.6)
             prediction_axs[1].plot(times * 1e-3, best_pred, alpha=.5, lw=.6)
