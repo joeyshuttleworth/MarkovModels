@@ -1369,8 +1369,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
             solver = model.make_hybrid_solver_current(hybrid=hybrid,
                                                       njitted=False,
                                                       strict=strict,
-                                                      protocol_description=desc,
-                                                      voltage=prot_func)
+                                                      protocol_description=desc)
 
         spike_times, spike_indices = markovmodels.voltage_protocols.detect_spikes(full_times, voltages,
                                                                                   threshold=10)

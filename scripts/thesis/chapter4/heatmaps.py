@@ -79,7 +79,7 @@ def main():
     parser.add_argument('--removal_duration', type=float, default=5.0)
     parser.add_argument('--experiment_name', '-e', default='newtonrun4')
     parser.add_argument('--validation_protocols', default=['longap'], nargs='+')
-    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.54, 6.5])
+    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.54, 7.2])
     parser.add_argument('--fig_title', '-t', default='')
     parser.add_argument('--nolegend', action='store_true')
     parser.add_argument('--dpi', '-d', default=500, type=int)
@@ -121,7 +121,10 @@ def main():
     cases = args.cases
     dirnames_dict = { '0a': 'Case0a',
                       '0b': 'Case0b',
-                      '0c': 'Case0b'}
+                      '0c': 'Case0b',
+                      '0d': 'Case0d',
+                      'II': 'CaseII'
+                     }
 
     dirnames = [dirnames_dict[case] for case in cases]
 
@@ -202,7 +205,7 @@ def main():
         # Compare best and worst wells
         fig.clf()
         # axs = fig.subplots(1, 3, width_ratios=[1, 1, 0.1])
-        heatmap_axs, prediction_axs, voltage_ax  = setup_best_worst_fig(fig)
+        heatmap_axs, prediction_axs, voltage_axs  = setup_best_worst_fig(fig)
         best_ax, worst_ax, cbar_ax = heatmap_axs
 
         if fitting_case in ['I', 'II'] or args.use_raw_data:
@@ -222,53 +225,15 @@ def main():
         worst_well_predictions = prediction_df[prediction_df.well == worst_well].copy()
         worst_prediction = worst_well_predictions.groupby(['fitting_protocol', 'validation_protocol'])['n_score'].agg('max').idxmax()
 
+        best_well_predictions = prediction_df[prediction_df.well == worst_well].copy()
+        best_prediction = best_well_predictions.groupby(['fitting_protocol', 'validation_protocol',
+                                                         'fitting_sweep', 'prediction_sweep'])['n_score'].agg('max').idxmin()
+
         fitting_protocol, validation_protocol = worst_prediction
 
         print(fitting_protocol, validation_protocol)
 
         sweep = 0
-
-        # Plot voltage of worst prediction
-        if not args.use_mock_data:
-            worst_data, vp = get_data(worst_well, validation_protocol,
-                                    args.data_directory, args.experiment_name, sweep=sweep)
-
-            best_data, _ = get_data(worst_well, validation_protocol,
-                                    args.data_directory, args.experiment_name, sweep=sweep)
-
-            desc = vp.get_all_sections()
-            desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
-            times_fname = os.path.join(args.data_directory,
-                                    f"{args.experiment_name}-{validation_protocol}-times.csv")
-            times = np.loadtxt(times_fname).flatten()
-            Vcmd = np.array([voltage_func(t, protocol_description=desc) for t in times])
-
-            voltage_ax.plot(times * 1e-3, Vcmd, color='black', lw=1)
-            prediction_axs[0].plot(times * 1e-3, worst_data, alpha=.5, color='red',
-                                   lw=.6)
-            prediction_axs[1].plot(times * 1e-3, best_data, alpha=.5, color='red',
-                                   lw=.6)
-
-            worst_pred, _ = make_prediction(model_class, args, worst_well,
-                                            validation_protocol, sweep,
-                                            fitting_protocol, sweep, sub_df,
-                                            subtraction_df, case,
-                                            args.reversal, protocol_dict,
-                                            worst_data, Vcmd,
-                                            label=data_label,
-                                            return_states=True )
-
-            best_pred, _ = make_prediction(model_class, args, best_well,
- validation_protocol, sweep,
-                                           fitting_protocol, sweep, sub_df,
-                                           subtraction_df, case,
-                                           args.reversal, protocol_dict,
-                                           best_data, Vcmd,
-                                           label=data_label,
-                                           return_states=True )
-
-            prediction_axs[0].plot(times * 1e-3, worst_pred, alpha=.5, lw=.6)
-            prediction_axs[1].plot(times * 1e-3, best_pred, alpha=.5, lw=.6)
 
         best_worst_cbar_kws = cbar_kws.copy()
         best_worst_cbar_kws['orientation'] = 'vertical'
@@ -283,50 +248,107 @@ def main():
                    prediction_df=prediction_df, cbar_ax=cbar_ax,
                    cbar_kws=best_worst_cbar_kws)
 
-        # Highlight worst cell
-        autoAxis = worst_ax.axis()
-        # Works unless one of the protocols is a staircase protocol
-        fitting_protocol_i = protocol_order.index(fitting_protocol) + 1
-        validation_protocol_i = protocol_order.index(validation_protocol) + 1
+        # Plot voltage of worst prediction
+        if not args.use_mock_data:
+            worst_data, vp = get_data(worst_well, validation_protocol,
+                                    args.data_directory, args.experiment_name, sweep=sweep)
+            desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
+            times_fname = os.path.join(args.data_directory,
+                                    f"{args.experiment_name}-{validation_protocol}-times.csv")
+            times = np.loadtxt(times_fname).flatten()
+            Vcmd = np.array([voltage_func(t, protocol_description=desc) for t in times])
 
-        if validation_protocol_i > protocol_order.index('longap'):
-            validation_protocol_i -= 1
+            voltage_axs[0].plot(times * 1e-3, Vcmd, color='black', lw=1)
+            worst_pred, _ = make_prediction(model_class, args, worst_well,
+                                            validation_protocol, sweep,
+                                            fitting_protocol, sweep, sub_df,
+                                            subtraction_df, case,
+                                            args.reversal, protocol_dict,
+                                            worst_data, Vcmd,
+                                            label=data_label,
+                                            return_states=True )
 
-        if fitting_protocol_i > protocol_order.index('longap'):
-            fitting_protocol_i -= 1
+            prediction_axs[0].plot(times * 1e-3, worst_data, alpha=.5, color='red',
+                                   lw=.6)
+            prediction_axs[0].plot(times * 1e-3, worst_pred, alpha=.5, lw=.6)
 
-        print(fitting_protocol, validation_protocol)
-        print(fitting_protocol_i, validation_protocol_i)
+            # Highlight worst cell
+            autoAxis = worst_ax.axis()
+            # Works unless one of the protocols is a staircase protocol
+            fitting_protocol_i = protocol_order.index(fitting_protocol) + 1
+            validation_protocol_i = protocol_order.index(validation_protocol) + 1
 
-        no_protocols = len(protocol_order)
-        rec = Rectangle(
-            #d6 is at the front of the order but absent from the heatmap
-            (autoAxis[0] - 0.05 + fitting_protocol_i,
-             autoAxis[3] - 0.05 + validation_protocol_i),
-            1.1,
-            1.1,
-            fill=False,
-            color='yellow',
-            lw=.75
-            )
+            if validation_protocol_i > protocol_order.index('longap'):
+                validation_protocol_i -= 1
 
-        rec_1 = worst_ax.add_patch(rec)
-        rec_1.set_clip_on(False)
+            if fitting_protocol_i > protocol_order.index('longap'):
+                fitting_protocol_i -= 1
 
-        autoAxis = best_ax.axis()
-        rec = Rectangle(
-            (autoAxis[0] - 0.05 + fitting_protocol_i,
-             autoAxis[3] - 0.05 + validation_protocol_i),
-            1.1, 1.1,
-            fill=False,
-            color='yellow',
-            lw=.75
-            )
+            print(fitting_protocol, validation_protocol)
+            print(fitting_protocol_i, validation_protocol_i)
 
-        rec_2 = best_ax.add_patch(rec)
-        rec_2.set_clip_on(False)
+            no_protocols = len(protocol_order)
+            rec = Rectangle(
+                #d6 is at the front of the order but absent from the heatmap
+                (autoAxis[0] - 0.05 + fitting_protocol_i,
+                autoAxis[3] - 0.05 + validation_protocol_i),
+                1.1,
+                1.1,
+                fill=False,
+                color='yellow',
+                lw=.75
+                )
 
-        for ax in prediction_axs:
+            rec_1 = worst_ax.add_patch(rec)
+            rec_1.set_clip_on(False)
+
+            best_data, vp = get_data(worst_well, validation_protocol,
+                                    args.data_directory, args.experiment_name, sweep=sweep)
+            desc = vp.get_all_sections()
+
+            fitting_protocol, validation_protocol, fitting_sweep, prediction_sweep \
+                = best_prediction
+            times_fname = os.path.join(args.data_directory,
+                                    f"{args.experiment_name}-{validation_protocol}-times.csv")
+            times = np.loadtxt(times_fname).flatten()
+            Vcmd = np.array([voltage_func(t, protocol_description=desc) for t in times])
+            voltage_axs[1].plot(times * 1e-3, Vcmd, color='black', lw=1)
+            best_pred, _ = make_prediction(model_class, args, best_well,
+                                           validation_protocol, prediction_sweep,
+                                           fitting_protocol, fitting_sweep, sub_df,
+                                           subtraction_df, case,
+                                           args.reversal, protocol_dict,
+                                           best_data, Vcmd,
+                                           label=data_label,
+                                           return_states=True )
+            prediction_axs[1].plot(times * 1e-3, best_data, alpha=.5, color='red',
+                                   lw=.6)
+            prediction_axs[1].plot(times * 1e-3, best_pred, alpha=.5, lw=.6)
+            voltage_axs[1].plot(times * 1e-3, Vcmd, color='black', lw=1)
+
+            fitting_protocol_i = protocol_order.index(fitting_protocol) + 1 + fitting_sweep
+            validation_protocol_i = protocol_order.index(validation_protocol) + 1 + prediction_sweep
+
+            if validation_protocol_i > protocol_order.index('longap'):
+                validation_protocol_i -= 1
+
+            if fitting_protocol_i > protocol_order.index('longap'):
+                fitting_protocol_i -= 1
+
+            autoAxis = best_ax.axis()
+            rec = Rectangle(
+                (autoAxis[0] - 0.05 + fitting_protocol_i,
+                autoAxis[3] - 0.05 + validation_protocol_i),
+                1.1, 1.1,
+                fill=False,
+                color='yellow',
+                lw=.75
+                )
+
+            rec_2 = best_ax.add_patch(rec)
+            rec_2.set_clip_on(False)
+
+        for ax in voltage_axs:
             ax.set_xticklabels([])
 
         cbar_ax.set_title('NRMSE')
@@ -830,40 +852,43 @@ def setup_grid_single_case(fig, args):
 def setup_best_worst_fig(fig):
     no_models = len(args.model_classes)
     no_columns = 3
-    no_rows = 4
+    no_rows = 5
 
     gs = GridSpec(no_rows, no_columns, figure=fig, width_ratios=[1, 1, 0.05],
-                  height_ratios=[0.5, 0.5, 0.25, 1.1]
+                  height_ratios=[0.25, 0.5, 0.25, .5, 1.25]
                   )
 
     heatmap_axs = [fig.add_subplot(gs[-1, i]) for i in range(no_columns)]
-    prediction_axs = [fig.add_subplot(gs[i, :]) for i in range(2)]
-    voltage_ax = fig.add_subplot(gs[2, :])
+    prediction_axs = [fig.add_subplot(gs[2*i + 1, :]) for i in range(2)]
+    voltage_axs = [fig.add_subplot(gs[0, :]), fig.add_subplot(gs[2, :])]
 
-    voltage_ax.set_xlabel(r'$t$ (ms)')
+    voltage_axs[-1].set_xlabel(r'$t$ (ms)')
 
     for ax in prediction_axs:
         ax.set_ylabel(r'$I_\mathrm{Kr} (pA)$')
 
-    for ax in prediction_axs + [voltage_ax]:
+    for ax in list(prediction_axs) + list(voltage_axs):
         ax.spines[['top', 'right']].set_visible(False)
 
     subfigure_captions = [r'$\textbf{' + str(lab) + r'}$' for lab in
                           ['a', 'b', 'c', 'd', 'e', 'f']]
 
     for i, ax in enumerate(prediction_axs):
-        prediction_axs[i].set_title(subfigure_captions[i],
+        prediction_axs[i].set_title(subfigure_captions[2*i + 1],
                                     fontweight='bold', loc='left')
 
-    voltage_ax.set_title(subfigure_captions[2],
-                         fontweight='bold', loc='left')
+    voltage_axs[0].set_title(subfigure_captions[0],
+                          fontweight='bold', loc='left')
 
-    heatmap_axs[0].set_title(subfigure_captions[3],
+    voltage_axs[1].set_title(subfigure_captions[2],
+                          fontweight='bold', loc='left')
+
+    heatmap_axs[0].set_title(subfigure_captions[4],
                              fontweight='bold', loc='left')
-    heatmap_axs[1].set_title(subfigure_captions[4],
+    heatmap_axs[1].set_title(subfigure_captions[5],
                              fontweight='bold', loc='left')
 
-    return heatmap_axs, prediction_axs, voltage_ax
+    return heatmap_axs, prediction_axs, voltage_axs
 
 
 if __name__ == "__main__":
