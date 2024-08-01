@@ -290,10 +290,10 @@ def main():
         validation_protocol_i = protocol_order.index(validation_protocol) + 2
 
         if validation_protocol_i > protocol_order.index('longap'):
-            validation_protocol -= 1
+            validation_protocol_i -= 1
 
         if fitting_protocol_i > protocol_order.index('longap'):
-            fitting_protocol -= 1
+            fitting_protocol_i -= 1
 
         print(fitting_protocol, validation_protocol)
         print(fitting_protocol_i, validation_protocol_i)
