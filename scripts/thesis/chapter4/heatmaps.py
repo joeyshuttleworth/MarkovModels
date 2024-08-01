@@ -244,8 +244,10 @@ def main():
             Vcmd = np.array([voltage_func(t, protocol_description=desc) for t in times])
 
             voltage_ax.plot(times * 1e-3, Vcmd, color='black')
-            prediction_axs[0].plot(times * 1e-3, worst_data, color='grey', alpha=.5)
-            prediction_axs[1].plot(times * 1e-3, best_data, color='grey', alpha=.5)
+            prediction_axs[0].plot(times * 1e-3, worst_data, color='grey', alpha=.5, color='red',
+                                   lw=.6)
+            prediction_axs[1].plot(times * 1e-3, best_data, color='grey', alpha=.5, color='red',
+                                   lw=.6)
 
             worst_pred, _ = make_prediction(model_class, args, worst_well,
                                             validation_protocol, sweep,
@@ -265,8 +267,8 @@ def main():
                                            label=data_label,
                                            return_states=True )
 
-            prediction_axs[0].plot(times * 1e-3, worst_pred)
-            prediction_axs[1].plot(times * 1e-3, best_pred)
+            prediction_axs[0].plot(times * 1e-3, worst_pred, alpha=.5, lw=.6)
+            prediction_axs[1].plot(times * 1e-3, best_pred, alpha=.5, lw=.6)
 
         best_worst_cbar_kws = cbar_kws.copy()
         best_worst_cbar_kws['orientation'] = 'vertical'
@@ -284,11 +286,11 @@ def main():
         # Highlight worst cell
         autoAxis = worst_ax.axis()
         # Works unless one of the protocols is a staircase protocol
-        fitting_protocol_i = protocol_order.index(fitting_protocol) - 1
-        validation_protocol_i = protocol_order.index(validation_protocol) + 1
+        fitting_protocol_i = protocol_order.index(fitting_protocol) + 1
+        validation_protocol_i = protocol_order.index(validation_protocol) + 2
 
-        if validation_protocol_i < protocol_order.index('longap'):
-            validation_protocol += 1
+        if validation_protocol_i > protocol_order.index('longap'):
+            validation_protocol -= 1
 
         if fitting_protocol_i > protocol_order.index('longap'):
             fitting_protocol -= 1
