@@ -287,7 +287,7 @@ def main():
         autoAxis = worst_ax.axis()
         # Works unless one of the protocols is a staircase protocol
         fitting_protocol_i = protocol_order.index(fitting_protocol) + 1
-        validation_protocol_i = protocol_order.index(validation_protocol) + 2
+        validation_protocol_i = protocol_order.index(validation_protocol) + 1
 
         if validation_protocol_i > protocol_order.index('longap'):
             validation_protocol_i -= 1
@@ -848,15 +848,23 @@ def setup_best_worst_fig(fig):
     for ax in prediction_axs + [voltage_ax]:
         ax.spines[['top', 'right']].set_visible(False)
 
-    prediction_axs[0].set_title('a', fontweight='bold', loc='left')
-    prediction_axs[1].set_title('b', fontweight='bold', loc='left')
+    subfigure_captions = [r'$\textbf{' str(lab) r'}$' for lab in
+                          ['a', 'b', 'c', 'd', 'e', 'f']]
 
-    voltage_ax.set_title('c', fontweight='bold', loc='left')
+    for i, ax in enumerate(prediction_axs):
+        prediction_axs[i].set_title(subfigure_captions[i],
+                                    fontweight='bold', loc='left')
 
-    heatmap_axs[0].set_title('d', fontweight='bold', loc='left')
-    heatmap_axs[1].set_title('e', fontweight='bold', loc='left')
+    voltage_ax.set_title(subfigure_captions[2],
+                         fontweight='bold', loc='left')
+
+    heatmap_axs[0].set_title(subfigure_captions[3],
+                             fontweight='bold', loc='left')
+    heatmap_axs[1].set_title(subfigure_captions[4],
+                             fontweight='bold', loc='left')
 
     return heatmap_axs, prediction_axs, voltage_ax
+
 
 if __name__ == "__main__":
     main()
