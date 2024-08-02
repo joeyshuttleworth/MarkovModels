@@ -1738,7 +1738,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
         a_params = [p for p in param_labels if p != 'E_Kr']
         forward_sim_parameters = model.get_default_parameters()
 
-        forward_sim_parameters[:no_artefact_parameters] = param_row[:no_artefact_parameters]
+        forward_sim_parameters[:no_artefact_parameters] = param_row[param_labels].values.flatten()[:no_artefact_parameters]
 
         artefact_params = forward_sim_parameters[-no_artefact_parameters:]
         artefact_params[0] = E_rev
