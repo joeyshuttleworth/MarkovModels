@@ -231,6 +231,8 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
     wells = np.array([w for w in params_df.well.unique() if w not in args.ignore_wells])
     zs = {}
 
+    v_func = make_voltage_function_from_description()
+
     max_z, min_z = -np.inf, np.inf
     for well in wells:
         if well in args.ignore_wells:
@@ -253,7 +255,9 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
 
             z = get_t_test_statistic(model_class, fitting_case, params_df,
                                      subtraction_df, protocol, well, sweep,
-                                     protocol_dict, args, mode=mode)
+                                     protocol_dict, args, mode=mode,
+                                     voltage_func=v_func
+                                     )
             zs[well][protocol] = z
             if np.any(z):
                 max_z = max(z[indices].max(), max_z)
@@ -384,8 +388,6 @@ def get_t_test_statistic(model_class, fitting_case, params_df,
     solver = model.make_hybrid_solver_current(njitted=False,
                                               hybrid=False,
                                               strict=False)
-
-    voltage_func = model.voltage
 
     data, vp = get_data(well, validation_protocol, args.data_directory,
                        args.experiment_name, label=args.data_label,
