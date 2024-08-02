@@ -1645,7 +1645,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     param_labels = model.get_parameter_labels()
 
-        inferred_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(sim_protocol, well, predict_sweep)]['E_rev']
+    inferred_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(sim_protocol, well, predict_sweep)]['E_rev']
     if fitting_case in ['0a', 'I', 'II']:
         pred_E_rev = E_rev
     else:
