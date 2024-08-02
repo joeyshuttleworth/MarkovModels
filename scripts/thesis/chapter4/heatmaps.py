@@ -262,7 +262,7 @@ def main():
             worst_pred, _ = make_prediction(model_class, args, worst_well,
                                             validation_protocol, sweep,
                                             fitting_protocol, sweep, sub_df,
-                                            subtraction_df, case,
+                                            subtraction_df.copy(), case,
                                             args.reversal, protocol_dict,
                                             worst_data, Vcmd,
                                             label=data_label,
@@ -270,7 +270,7 @@ def main():
 
             prediction_axs[0].plot(times * 1e-3, worst_data, alpha=.5, color='red',
                                    lw=.6)
-            prediction_axs[0].plot(times * 1e-3, worst_pred, alpha=.5, lw=.6)
+            prediction_axs[0].plot(times * 1e-3, worst_pred, alpha=.5, lw=.9)
 
             # Highlight worst cell
             autoAxis = worst_ax.axis()
@@ -322,7 +322,7 @@ def main():
             best_pred, _ = make_prediction(model_class, args, best_well,
                                            validation_protocol, predict_sweep,
                                            fitting_protocol, fit_sweep, sub_df,
-                                           subtraction_df, case,
+                                           subtraction_df.copy(), case,
                                            args.reversal, protocol_dict,
                                            best_data, Vcmd,
                                            label=data_label,
@@ -330,11 +330,11 @@ def main():
 
             prediction_axs[1].plot(times * 1e-3, best_data, alpha=.5, color='red',
                                    lw=.6)
-            prediction_axs[1].plot(times * 1e-3, best_pred, alpha=.5, lw=.6)
+            prediction_axs[1].plot(times * 1e-3, best_pred, alpha=.5, lw=.9)
             voltage_axs[1].plot(times * 1e-3, Vcmd, color='black', lw=1)
 
-            fitting_protocol_i = protocol_order.index(fitting_protocol) + 1 + fitting_sweep
-            validation_protocol_i = protocol_order.index(validation_protocol) + 1 + prediction_sweep
+            fitting_protocol_i = protocol_order.index(fitting_protocol) + 1 + int(fitting_sweep)
+            validation_protocol_i = protocol_order.index(validation_protocol) + 1 + int(prediction_sweep)
 
             if validation_protocol_i > protocol_order.index('longap'):
                 validation_protocol_i -= 1

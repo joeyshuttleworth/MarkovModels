@@ -1645,14 +1645,17 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     param_labels = model.get_parameter_labels()
 
-    inferred_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(sim_protocol, well, predict_sweep)]['E_rev']
+    subtractions_df = subtractions_df.copy()
+    subtractions_df['sweep'] = subtractions_df['sweep'].astype(int)
+
+    inferred_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(sim_protocol, well, int(predict_sweep))]['E_rev']
     if fitting_case in ['0a', 'I', 'II']:
         pred_E_rev = E_rev
     else:
         pred_E_rev = inferred_E_rev
 
     if fitting_case == '0c':
-        fitting_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(protocol_fitted, well, fitting_sweep)]['E_rev']
+        fitting_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(protocol_fitted, well, int(fitting_sweep))]['E_rev']
         new_E_rev = inferred_E_rev
         params_df = adjust_kinetics(model_class, params_df, subtractions_df,
                                     fitting_E_rev, new_E_rev, use_boundaries=False)
@@ -1731,7 +1734,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     data = full_data[indices]
 
     df = params_df[params_df.well == well]
-    df = df[(df.protocol == protocol_fitted) & (df.sweep == fitting_sweep)]
+    df = df[(df.protocol == protocol_fitted) & (df.sweep.astype(int) == int(fitting_sweep))]
     if df.empty:
         print(f"No parameters for {model_class} {fitting_case} {protocol_fitted} sweep {fitting_sweep}")
         if return_states:
