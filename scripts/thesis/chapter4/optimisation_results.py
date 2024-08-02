@@ -406,8 +406,9 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
     occupations_ax.legend(fontsize=8, ncol=states.shape[1], loc='upper center')
     occupations_ax.set_ylim([0, 1.25])
 
-    current_ax.plot(times*1e-3, trace, color='grey', alpha=.5)
-    current_ax.plot(times*1e-3, pred)
+    current_ax.plot(times*1e-3, trace, color='grey', alpha=.5, lw=.5,
+                    color='red')
+    current_ax.plot(times*1e-3, pred, alpha=.5, lw=.8)
     current_ax.set_xlabel('')
     current_ax.set_ylabel(r'$I_\text{subtracted}$ (pA)')
     occupations_ax.set_ylabel(r'$\mathbf{x}(t)$')
