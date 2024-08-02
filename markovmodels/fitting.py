@@ -1694,7 +1694,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     if fitting_case in ['I', 'II']:
         row = subtractions_df[(subtractions_df.well == well) & (subtractions_df.protocol == sim_protocol) &
-                    (subtractions_df.sweep == sweep)]
+                    (subtractions_df.sweep == predict_sweep)]
         assert(row.shape[0] == 1)
 
         Rseries, Cm = row.iloc[0][['Rseries', 'Cm']]
