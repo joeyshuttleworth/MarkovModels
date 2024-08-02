@@ -1710,7 +1710,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
         ]).flatten()
 
         data_label = 'before'
-        V_off, success = find_V_off(desc, times,
+        V_off, success = find_V_off(desc, full_times,
                                     full_data, V_off_model_class,
                                     V_off_initial_params, E_rev,
                                     data_label=data_label
