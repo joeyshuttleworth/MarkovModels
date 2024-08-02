@@ -368,7 +368,7 @@ def get_t_test_statistic(model_class, fitting_case, params_df,
        subtraction_df.set_index(['well', 'protocol', 'sweep']).index:
         return False
 
-    if (well, validation_protocol, sweep) not in \
+    if mode == 'fitting' and (well, validation_protocol, sweep) not in \
        params_df.set_index(['well', 'protocol', 'sweep']).index:
         return False
 
