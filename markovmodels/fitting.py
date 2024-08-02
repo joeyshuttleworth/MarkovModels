@@ -1395,17 +1395,13 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                 if not os.path.exists(sub_dir):
                     os.makedirs(sub_dir)
 
-                data_label = ''
-                if args:
-                    if 'data_label' in args:
-                        data_label = args.data_label
                 try:
                     full_data, vp = markovmodels.utilities.get_data(well,
                                                                     sim_protocol,
                                                                     args.data_directory,
                                                                     experiment_name=args.experiment_name,
-                                                                   label=data_label,
-                                                                   sweep=predict_sweep)
+                                                                    label=data_label,
+                                                                    sweep=predict_sweep)
                 except (FileNotFoundError, StopIteration) as exc:
                     print(str(exc))
                     continue
@@ -1664,12 +1660,27 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     desc, full_times = protocol_dict[sim_protocol]
 
     if solver is None:
-        solver = model.make_hybrid_solver_current(hybrid=False,
-                                                  njitted=False,
-                                                  strict=strict,
-                                                  protocol_description=desc,
-                                                  atol=atol,
-                                                  rtol=rtol)
+        if use_artefact_model:
+            if data_label == 'before':
+                return_var = 'I_out'
+            else:
+                return_var = 'I_Kr'
+
+            solver = model.make_hybrid_solver_current(hybrid=False,
+                                                      njitted=False,
+                                                      strict=strict,
+                                                      protocol_description=desc,
+                                                      atol=atol,
+                                                      rtol=rtol,
+                                                      return_var=return_var)
+        else:
+            solver = model.make_hybrid_solver_current(hybrid=False,
+                                                      njitted=False,
+                                                      strict=strict,
+                                                      protocol_description=desc,
+                                                      atol=atol,
+                                                      rtol=rtol)
+
 
     if do_spike_removal:
         spike_times, spike_indices = markovmodels.voltage_protocols.detect_spikes(full_times, voltages,
@@ -1682,7 +1693,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     times = full_times[indices]
 
     if fitting_case in ['I', 'II']:
-        row = subtraction_df[(subtractions_df.well == well) & (subtractions_df.protocol == protocol) &
+        row = subtractions_df[(subtractions_df.well == well) & (subtractions_df.protocol == protocol) &
                     (subtractions_df.sweep == sweep)]
         assert(row.shape[0] == 1)
 
