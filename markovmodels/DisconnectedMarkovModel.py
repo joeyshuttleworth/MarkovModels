@@ -107,7 +107,7 @@ class DisconnectedMarkovModel(MarkovModel):
 
         else:
             def analytic_solution_func(times, voltage, p, y0):
-                rates = rates_func(p, voltage).flatten()
+                rates = rates_func(p, voltage).flatten().astype(np.float64)
                 _A = A_func(rates)
                 _B = B_func(rates).flatten()
 
