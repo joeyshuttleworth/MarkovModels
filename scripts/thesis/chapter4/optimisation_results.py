@@ -600,7 +600,7 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
 
         y = solver(p)
 
-        if case == '0d':
+        if args.fitting_case == '0d':
             y = y + I_leak
 
         return np.sqrt(np.mean((y[indices] - trace[indices])**2))
