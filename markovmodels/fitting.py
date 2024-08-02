@@ -1716,7 +1716,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                                     data_label=data_label
                                     )
 
-        markov_model_leak = make_model_of_type(V_off_model_class, voltage=voltage,
+        markov_model_leak = make_model_of_class(V_off_model_class, voltage=voltage,
                                                times=times)
         gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak,
                                                          desc.astype(np.float64),
