@@ -1710,14 +1710,14 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
         ]).flatten()
 
         data_label = 'before'
-        V_off, success = find_V_off(protocol_desc, times,
-                                            data, V_off_model_class,
-                                            V_off_initial_params, E_rev,
-                                            data_label=data_label
+        V_off, success = find_V_off(desc, times,
+                                    data, V_off_model_class,
+                                    V_off_initial_params, E_rev,
+                                    data_label=data_label
                                     )
 
         gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak,
-                                                         protocol_desc.astype(np.float64),
+                                                         desc.astype(np.float64),
                                                          times, data, voltages,
                                                          default_parameters=leak_initial_params)
         #TODO ensure args.reversal is Erev used to fit model
