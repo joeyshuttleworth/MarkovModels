@@ -896,7 +896,7 @@ def setup_best_worst_fig(fig):
     for ax in prediction_axs:
         ax.set_ylabel(r'$I_\mathrm{Kr} (pA)$')
 
-    prediction_ax[-1].set_xlabel(r'$t$ (ms)')
+    prediction_axs[-1].set_xlabel(r'$t$ (ms)')
 
     for ax in list(prediction_axs) + list(voltage_axs):
         ax.spines[['top', 'right']].set_visible(False)
