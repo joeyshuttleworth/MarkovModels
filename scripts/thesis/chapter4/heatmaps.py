@@ -318,7 +318,6 @@ def main():
                                     f"{args.experiment_name}-{validation_protocol}-times.csv")
             times = np.loadtxt(times_fname).flatten()
             Vcmd = np.array([voltage_func(t, protocol_description=desc) for t in times])
-            voltage_axs[1].plot(times * 1e-3, Vcmd, color='black', lw=1)
 
             voltage_axs[1].set_title(get_protocol_label(protocol_order, fitting_protocol,
                                                         fitting_sweep))
@@ -444,8 +443,9 @@ def main():
     fig.savefig(os.path.join(output_dir, "averaged_well_heatmaps"))
     fig.clf()
 
+    comparison_fig = plt.fig(figsize=[args.figsize[0], 6.5])
     # Plot Case III only
-    model_axs, colour_bar_ax = setup_grid_single_case(fig, args)
+    model_axs, colour_bar_ax = setup_grid_single_case(comparison_fig, args)
     done_colour_bar = False
 
     for task, prediction_df in res:
@@ -495,8 +495,9 @@ def main():
         ax.set_xlabel('')
         ax.set_ylabel('')
 
-    fig.savefig(os.path.join(output_dir, 'Case0c_heatmap_comparison'))
-    fig.clf()
+    comparison_fig.savefig(os.path.join(output_dir, 'Case0c_heatmap_comparison'))
+    comparison_fig.clf()
+    plt.close(comparison_fig)
 
     axs = setup_grid(fig, args)
     model_axs, model_label_axs, case_label_axs, cbar_ax = axs
@@ -919,7 +920,7 @@ def setup_best_worst_fig(fig):
     heatmap_axs[1].set_title(subfigure_captions[5],
                              fontweight='bold', loc='left')
 
-    return heatmap_axs, prediction_axs, voltage_axs
+    return heatmap_axs, reversed(list(prediction_axs)), reversed(list(voltage_axs))
 
 
 if __name__ == "__main__":
