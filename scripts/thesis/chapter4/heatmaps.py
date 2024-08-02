@@ -223,7 +223,7 @@ def main():
 
         # Find worst prediction in worst wells
         worst_well_predictions = prediction_df[prediction_df.well == worst_well].copy()
-        worst_prediction = worst_well_predictions.groupby(['fitting_protocol', 'validation_protocol', 'fitting_sweep', 'prediction_swee'])['n_score'].agg('max').idxmax()
+        worst_prediction = worst_well_predictions.groupby(['fitting_protocol', 'validation_protocol', 'fitting_sweep', 'prediction_sweep'])['n_score'].agg('max').idxmax()
 
         best_well_predictions = prediction_df[prediction_df.well == worst_well].copy()
         best_prediction = best_well_predictions.groupby(['fitting_protocol', 'validation_protocol',
