@@ -597,6 +597,12 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
 
     if not args.use_mock_data:
         args.model = model_class
+
+        if fitting_case in ['I', 'II']:
+            tolerances = (1e-6, 1e-6)
+        else:
+            tolerances = (1e-8, 1e-8)
+
         prediction_df = compute_predictions_df(params_df, output_dir,
                                                protocol_dict, fitting_case,
                                                args.reversal, subtraction_df,
@@ -606,6 +612,7 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                                                data_label=data_label,
                                                hybrid=False,
                                                strict=False,
+                                               tolerances=tolerances,
                                                plot=not args.dont_plot_predictions
                                                )
         if args.ignore_wells:
