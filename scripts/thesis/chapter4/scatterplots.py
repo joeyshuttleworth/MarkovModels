@@ -370,7 +370,7 @@ def do_per_plots(protocol, well, params_df, p1, p2, output_dir, beta=None,
                     well_only_effect = inverse_log_transform(well_only_effect,
                                                              p1, p2)
 
-                ax.scatter(*(well_only_effect).T, color='gold', marker='s')
+                ax.scatter(*(well_only_effect).T, color='blue', marker='s')
             elif per_variable=='protocol':
                 mean_well_effect = beta[no_protocols - 1:, [p1_index, p2_index]].mean(axis=0)
                 protocol_only_effect = mean_well_effect + protocol_effect
@@ -379,14 +379,14 @@ def do_per_plots(protocol, well, params_df, p1, p2, output_dir, beta=None,
                     protocol_only_effect = inverse_log_transform(protocol_only_effect,
                                                             p1, p2)
 
-                ax.scatter(*(protocol_only_effect).T, color='gold', marker='s')
+                ax.scatter(*(protocol_only_effect).T, color='blue', marker='s')
 
             combined_effect = well_effect + protocol_effect
 
             if args.log_a:
                 combined_effect = inverse_log_transform(combined_effect, p1, p2)
 
-            ax.scatter(*(combined_effect).T, color='gold', marker='*')
+            ax.scatter(*(combined_effect).T, color='blue', marker='*')
 
     if args.log_a:
         if p1 in logged_params:
