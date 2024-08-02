@@ -1721,7 +1721,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
         gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak,
                                                          desc.astype(np.float64),
                                                          times, full_data, voltages,
-                                                         default_parameters=leak_initial_params)
+                                                         )
         #TODO ensure args.reversal is Erev used to fit model
 
         param_row = {
