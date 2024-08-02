@@ -571,6 +571,8 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
 
     if args.use_artefact_model:
         model = ArtefactModel(m_model)
+    else:
+        model = m_model
 
     best_params = get_best_params(params_df)
     row = best_params.set_index(['well', 'protocol', 'sweep']).loc[(well, protocol, sweep)]
@@ -581,7 +583,7 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     if args.use_artefact_model:
         default_params[-no_artefact_parameters:] = params[-no_artefact_parameters:]
 
-    solver = m_model.make_hybrid_solver_current(hybrid=False,
+    solver = model.make_hybrid_solver_current(hybrid=False,
                                                 strict=False)
 
     row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol)
