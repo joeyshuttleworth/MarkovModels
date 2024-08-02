@@ -530,7 +530,7 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
                                f"{args.experiment_name}-{protocol}-times.csv")
     trace, vp = get_data(well, protocol, args.data_dir,
                          args.experiment_name, sweep=sweep,
-                         data_label=args.data_label)
+                         label=args.data_label)
 
     trace = trace.flatten()
 
@@ -578,6 +578,9 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     params = row[param_labels].values.flatten()
     default_params = model.get_default_parameters()
 
+    if args.use_artefact_model:
+        default_params[-no_artefact_parameters:] = params[-no_artefact_parameters:]
+
     solver = m_model.make_hybrid_solver_current(hybrid=False,
                                                 strict=False)
 
@@ -604,6 +607,8 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
 
     params = [params + (default_params - params) * l for l in plot_var]
     scores = [compute_rmse(p.flatten()) for p in params]
+
+    print(scores)
 
     baseline_profile_ax.plot(plot_var, scores)
 
