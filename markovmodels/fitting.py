@@ -1645,10 +1645,10 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     param_labels = model.get_parameter_labels()
 
+        inferred_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(sim_protocol, well, predict_sweep)]['E_rev']
     if fitting_case in ['0a', 'I', 'II']:
         pred_E_rev = E_rev
     else:
-        inferred_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(sim_protocol, well, predict_sweep)]['E_rev']
         pred_E_rev = inferred_E_rev
 
     if fitting_case == '0c':
@@ -1679,29 +1679,45 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     times = full_times[indices]
 
     if fitting_case in ['I', 'II']:
-        try:
-            param_row = params_df[(params_df.well == well) &
-                                  (params_df.protocol == sim_protocol) &\
-                                  (params_df.sweep == predict_sweep)].iloc[0]
-        except IndexError as exc:
-            print(str(exc))
-            # TODO
-            V_off = 0
-            gleak = 0
-            Eleak = 0
-            Rseries = 0.001
-            Cm = 0.001
+        row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol) &
+                    (subtraction_df.sweep == sweep)]
+        assert(row.shape[0] == 1)
 
-            param_row = {
-                'V_off': V_off,
-                'g_leak': gleak,
-                'E_leak': Eleak,
-                'E_rev': E_rev,
-                'g_leak_leftover': 0,
-                'E_leak_leftover': 0,
-                'R_s' : Rseries,
-                'C_m' : Cm
-            }
+        Rseries, Cm = row.iloc[0][['Rseries', 'Cm']]
+        Rseries = Rseries * 1e-9
+        Cm = Cm * 1e9
+
+        V_off_model_class = 'model3'
+
+        V_off_initial_params = make_model_of_class(V_off_model_class).get_default_parameters()
+        V_off_initial_params = np.concat([
+            V_off_initial_params,
+            [args.reversal, 0, 0, 0, 0, 0, Cm, Rseries]
+        ]).flatten()
+
+        data_label = 'before'
+        V_off, success = find_V_off(protocol_desc, times,
+                                            data, V_off_model_class,
+                                            V_off_initial_params, E_rev,
+                                            data_label=data_label
+                                    )
+
+        gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak,
+                                                         protocol_desc.astype(np.float64),
+                                                         times, data, voltages,
+                                                         default_parameters=leak_initial_params)
+        #TODO ensure args.reversal is Erev used to fit model
+
+        param_row = {
+            'V_off': V_off,
+            'g_leak': gleak,
+            'E_leak': Eleak,
+            'E_rev': args.reversal,
+            'g_leak_leftover': 0,
+            'E_leak_leftover': 0,
+            'R_s' : Rseries,
+            'C_m' : Cm
+        }
 
         a_params = [p for p in param_labels if p != 'E_Kr']
         forward_sim_parameters = model.get_default_parameters()
