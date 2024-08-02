@@ -1717,6 +1717,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     df = params_df[params_df.well == well]
     df = df[(df.protocol == protocol_fitted) & (df.sweep == fitting_sweep)]
     if df.empty:
+        print(f"No parameters for {protocol_fitted} sweep {fitting_sweep}")
         if return_states:
             no_states = model.n_state_vars
             return np.full(full_times.shape, np.nan), np.full((full_times.shape[0], no_states), np.nan)
