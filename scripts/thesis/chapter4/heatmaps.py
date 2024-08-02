@@ -275,7 +275,7 @@ def main():
             # Highlight worst cell
             autoAxis = worst_ax.axis()
             # Works unless one of the protocols is a staircase protocol
-            fitting_protocol_i = protocol_order.index(fitting_protocol) + 1
+            fitting_protocol_i = protocol_order.index(fitting_protocol)
             validation_protocol_i = protocol_order.index(validation_protocol) + 1
 
             if validation_protocol_i > protocol_order.index('longap'):
@@ -775,7 +775,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     autoAxis = ax.axis()
     rec = Rectangle(
         (autoAxis[0] - 0.05, autoAxis[3] - 0.05),
-        (autoAxis[1] - autoAxis[0] + 0.1),
+        (autoAxis[1] - autoAxis[0] + 0.05),
         1.1,
         fill=False,
         color='yellow',
@@ -876,10 +876,10 @@ def setup_best_worst_fig(fig):
     prediction_axs = [fig.add_subplot(gs[2*i + 1, :]) for i in range(2)]
     voltage_axs = [fig.add_subplot(gs[0, :]), fig.add_subplot(gs[2, :])]
 
-    voltage_axs[-1].set_xlabel(r'$t$ (ms)')
-
     for ax in prediction_axs:
         ax.set_ylabel(r'$I_\mathrm{Kr} (pA)$')
+
+    prediction_ax[-1].set_xlabel(r'$t$ (ms)')
 
     for ax in list(prediction_axs) + list(voltage_axs):
         ax.spines[['top', 'right']].set_visible(False)
