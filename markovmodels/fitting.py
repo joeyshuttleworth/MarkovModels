@@ -1695,7 +1695,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     if fitting_case in ['I', 'II']:
 
         try:
-            artefact_params_row = params_df.set_index(['well', 'protocol', 'sweep']).loc[(well, fitting_protocol, fitting_sweep)]
+            artefact_params_row = params_df.set_index(['well', 'protocol', 'sweep']).loc[(well, protocol_fitted, fitting_sweep)]
             artefact_params = artefact_params_row[param_labels].values.flatten()[:no_artefact_parameters]
         except KeyError as exc:
             print(str(exc))
