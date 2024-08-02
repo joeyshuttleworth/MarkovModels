@@ -1660,7 +1660,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     desc, full_times = protocol_dict[sim_protocol]
 
     if solver is None:
-        if use_artefact_model:
+        if use_artefacts:
             if data_label == 'before':
                 return_var = 'I_out'
             else:
