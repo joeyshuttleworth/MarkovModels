@@ -1682,8 +1682,8 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     times = full_times[indices]
 
     if fitting_case in ['I', 'II']:
-        row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol) &
-                    (subtraction_df.sweep == sweep)]
+        row = subtraction_df[(subtractions_df.well == well) & (subtractions_df.protocol == protocol) &
+                    (subtractions_df.sweep == sweep)]
         assert(row.shape[0] == 1)
 
         Rseries, Cm = row.iloc[0][['Rseries', 'Cm']]
