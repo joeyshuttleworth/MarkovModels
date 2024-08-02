@@ -219,7 +219,7 @@ class ArtefactModel(MarkovModel):
                                    njitted=False, analytic_solver=None,
                                    strict=True, cond_threshold=None, atol=None,
                                    rtol=None, hybrid=True, return_var='I_Kr',
-                                   cfunc=None, times=None):
+                                   cfunc=None, times=None, voltage=None):
 
         af_kws = {'return_var': return_var}
 
@@ -237,7 +237,7 @@ class ArtefactModel(MarkovModel):
                 strict=strict,
                 cond_threshold=cond_threshold,
                 atol=atol, rtol=rtol, af_kws=af_kws,
-                hybrid=False, cfunc=cfunc
+                hybrid=False, cfunc=cfunc, voltage=voltage
             )
 
         if njitted:

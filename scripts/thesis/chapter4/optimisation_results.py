@@ -529,7 +529,8 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     times_fname = os.path.join(args.data_dir,
                                f"{args.experiment_name}-{protocol}-times.csv")
     trace, vp = get_data(well, protocol, args.data_dir,
-                         args.experiment_name, sweep=sweep)
+                         args.experiment_name, sweep=sweep,
+                         data_label=args.data_label)
 
     trace = trace.flatten()
 
@@ -569,31 +570,35 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
                                       times=times, E_rev=E_rev)
 
     if args.use_artefact_model:
-        m_model = ArtefactModel(m_model)
+        model = ArtefactModel(m_model)
 
     best_params = get_best_params(params_df)
     row = best_params.set_index(['well', 'protocol', 'sweep']).loc[(well, protocol, sweep)]
-    param_labels = m_model.get_parameter_labels()
+    param_labels = model.get_parameter_labels()
     params = row[param_labels].values.flatten()
-    default_params = m_model.get_default_parameters()
+    default_params = model.get_default_parameters()
 
     solver = m_model.make_hybrid_solver_current(hybrid=False,
                                                 strict=False)
+
+    row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol)
+                            & (subtraction_df.sweep == sweep)].iloc[0]
+    gleak, Eleak = row[['gleak_before', 'E_leak_before']]
+    gleak = float(gleak)
+    Eleak = float(Eleak)
+
+    Ileak = gleak * (voltages - Eleak)
 
     def compute_rmse(p):
         if np.any(p <= 0):
             return np.nan
 
-        full_prediction = make_prediction(args.model_class, args, well,
-                                          protocol, sweep, protocol, sweep,
-                                          best_params, subtraction_df,
-                                          args.fitting_case, args.reversal,
-                                          protocol_dict, trace, voltages,
-                                          label=args.data_label, solver=solver,
-                                          strict=False )
+        y = solver(p)
 
+        if case == '0d':
+            y = y + I_leak
 
-        return np.sqrt(np.mean((full_prediction[indices] - trace[indices])**2))
+        return np.sqrt(np.mean((y[indices] - trace[indices])**2))
 
     plot_var = np.linspace(-0.05, 1.05, 250)
 

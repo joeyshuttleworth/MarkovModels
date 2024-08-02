@@ -1412,7 +1412,6 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
 
                 data = full_data[indices]
                 for i, protocol_fitted in enumerate(params_df.protocol.unique()):
-                    # print(protocol_fitted)
                     for fitting_sweep in params_df[params_df.protocol == protocol_fitted].sweep.unique():
                         full_prediction = make_prediction(model_class, args,
                                                           well, sim_protocol,
@@ -1433,7 +1432,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                             logging.warning(f"Prediction failed {model_class} {fitting_case} \
                             {well}, {sim_protocol} {predict_sweep} using \
                             {protocol_fitted} {fitting_sweep}")
-                            logging.warning(f"non-finite solution at times {times[~np.isfinite(full_prediction)]}")
+                            logging.warning(f"non-finite solution at times {full_times[~np.isfinite(full_prediction)]}")
 
                         prediction = full_prediction[indices]
 
@@ -1680,7 +1679,6 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     times = full_times[indices]
 
     if fitting_case in ['I', 'II']:
-        print(well, sim_protocol, predict_sweep)
         try:
             param_row = params_df[(params_df.well == well) &
                                   (params_df.protocol == sim_protocol) &\
@@ -1720,6 +1718,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     df = df[(df.protocol == protocol_fitted) & (df.sweep == fitting_sweep)]
     if df.empty:
         if return_states:
+            no_states = model.n_state_vars
             return np.full(full_times.shape, np.nan), np.full((full_times.shape[0], no_states), np.nan)
         else:
             return np.full(full_times.shape, np.nan)

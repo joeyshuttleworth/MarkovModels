@@ -110,6 +110,7 @@ class MarkovModel(ODEModel):
 
             data = np.append(p, 0.0)
             data = np.concatenate((data, np.full(n_max_steps*4, 0))).flatten()
+
             _y0 = y0.copy()
 
             res, _ = lsoda(crhs_ptr, _y0,
