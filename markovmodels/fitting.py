@@ -1693,55 +1693,64 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     times = full_times[indices]
 
     if fitting_case in ['I', 'II']:
-        row = subtractions_df[(subtractions_df.well == well) & (subtractions_df.protocol == sim_protocol) &
-                    (subtractions_df.sweep == predict_sweep)]
-        assert(row.shape[0] == 1)
 
-        Rseries, Cm = row.iloc[0][['Rseries', 'Cm']]
-        Rseries = Rseries * 1e-9
-        Cm = Cm * 1e9
+        try:
+            artefact_params_row = params_df.set_index(['well', 'protocol', 'sweep']).loc[('well', 'fitting_protocol', 'fitting_sweep')]
+            artefact_params = artefact_params_row[param_labels].values.flatten()[:no_artefact_parameters]
+        except IndexError as exc:
+            print(str(exc))
+            artefact_params = None
 
-        V_off_model_class = 'model3'
+        if artefact_params is None:
+            row = subtractions_df[(subtractions_df.well == well) & (subtractions_df.protocol == sim_protocol) &
+                        (subtractions_df.sweep == predict_sweep)]
+            assert(row.shape[0] == 1)
 
-        V_off_initial_params = make_model_of_class(V_off_model_class).get_default_parameters()
-        V_off_initial_params = np.concatenate([
-            V_off_initial_params,
-            [args.reversal, 0, 0, 0, 0, 0, Cm, Rseries]
-        ]).flatten()
+            Rseries, Cm = row.iloc[0][['Rseries', 'Cm']]
+            Rseries = Rseries * 1e-9
+            Cm = Cm * 1e9
 
-        data_label = 'before'
-        V_off, success = find_V_off(desc, full_times,
-                                    full_data, V_off_model_class,
-                                    V_off_initial_params, E_rev,
-                                    data_label=data_label
-                                    )
+            V_off_model_class = 'model3'
 
-        markov_model_leak = make_model_of_class(V_off_model_class,
-                                               times=times)
-        gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak,
-                                                         desc.astype(np.float64),
-                                                         times, full_data, voltages,
-                                                         )
-        #TODO ensure args.reversal is Erev used to fit model
+            V_off_initial_params = make_model_of_class(V_off_model_class).get_default_parameters()
+            V_off_initial_params = np.concatenate([
+                V_off_initial_params,
+                [args.reversal, 0, 0, 0, 0, 0, Cm, Rseries]
+            ]).flatten()
 
-        param_row = {
-            'V_off': V_off,
-            'g_leak': gleak,
-            'E_leak': Eleak,
-            'E_rev': args.reversal,
-            'g_leak_leftover': 0,
-            'E_leak_leftover': 0,
-            'R_s' : Rseries,
-            'C_m' : Cm
-        }
+            data_label = 'before'
+            V_off, success = find_V_off(desc, full_times,
+                                        full_data, V_off_model_class,
+                                        V_off_initial_params, E_rev,
+                                        data_label=data_label
+                                        )
 
-        a_params = [p for p in param_labels if p != 'E_Kr']
-        forward_sim_parameters = model.get_default_parameters()
+            markov_model_leak = make_model_of_class(V_off_model_class,
+                                                times=times)
+            gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak,
+                                                            desc.astype(np.float64),
+                                                            times, full_data, voltages,
+                                                            )
+            #TODO ensure args.reversal is Erev used to fit model
 
-        forward_sim_parameters[:no_artefact_parameters] = param_row[param_labels].values.flatten()[:no_artefact_parameters]
+            param_row = {
+                'V_off': V_off,
+                'g_leak': gleak,
+                'E_leak': Eleak,
+                'E_rev': args.reversal,
+                'g_leak_leftover': 0,
+                'E_leak_leftover': 0,
+                'R_s' : Rseries,
+                'C_m' : Cm
+            }
 
-        artefact_params = forward_sim_parameters[-no_artefact_parameters:]
-        artefact_params[0] = E_rev
+            a_params = [p for p in param_labels if p != 'E_Kr']
+            forward_sim_parameters = model.get_default_parameters()
+
+            forward_sim_parameters[:no_artefact_parameters] = param_row[param_labels].values.flatten()[:no_artefact_parameters]
+
+            artefact_params = forward_sim_parameters[-no_artefact_parameters:]
+            artefact_params[0] = E_rev
 
     data = full_data[indices]
 
