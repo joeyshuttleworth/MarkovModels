@@ -223,15 +223,18 @@ def main():
 
         # Find worst prediction in worst wells
         worst_well_predictions = prediction_df[prediction_df.well == worst_well].copy()
-        worst_prediction = worst_well_predictions.groupby(['fitting_protocol', 'validation_protocol'])['n_score'].agg('max').idxmax()
+        worst_prediction = worst_well_predictions.groupby(['fitting_protocol', 'validation_protocol', 'fitting_sweep', 'prediction_swee'])['n_score'].agg('max').idxmax()
 
         best_well_predictions = prediction_df[prediction_df.well == worst_well].copy()
         best_prediction = best_well_predictions.groupby(['fitting_protocol', 'validation_protocol',
                                                          'fitting_sweep', 'prediction_sweep'])['n_score'].agg('max').idxmin()
 
-        fitting_protocol, validation_protocol = worst_prediction
-
+        fitting_protocol, validation_protocol, fit_sweep, predict_sweep\
+            = worst_prediction
         print(fitting_protocol, validation_protocol)
+
+        voltage_axs[0].set_title(get_protocol_label(protocol_order, fitting_protocol,
+                                                    fit_sweep))
 
         sweep = 0
 
@@ -317,6 +320,9 @@ def main():
             Vcmd = np.array([voltage_func(t, protocol_description=desc) for t in times])
             voltage_axs[1].plot(times * 1e-3, Vcmd, color='black', lw=1)
 
+            voltage_axs[1].set_title(get_protocol_label(protocol_order, fitting_protocol,
+                                                        fitting_sweep))
+
             print(best_prediction)
 
             best_pred, _ = make_prediction(model_class, args, best_well,
@@ -327,7 +333,6 @@ def main():
                                            best_data, Vcmd,
                                            label=data_label,
                                            return_states=True )
-
             prediction_axs[1].plot(times * 1e-3, best_data, alpha=.5, color='red',
                                    lw=.6)
             prediction_axs[1].plot(times * 1e-3, best_pred, alpha=.5, lw=.9)
@@ -639,6 +644,18 @@ def define_protocol_order(chrono_fname):
 
     return protocol_order
 
+def get_protocol_label(protocol_order, protocol, sweep):
+    sweep = int(sweep)
+    ret_str = r'$d_{' + str(protocol_order.index(protocol) + 1) \
+        + r'}'
+    if protocol == 'staircaseramp1':
+        ret_str += r'^{' + str(sweep + 1) + r'}$'
+    elif protocol == 'staircaseramp1_2':
+        ret_str += r'^{' + str(sweep + 3) + r'}$'
+    else:
+        ret_str += r'$'
+
+    return ret_str
 
 def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
                protocol_dict, vlim, args, well=None, prediction_df=None,
