@@ -1704,7 +1704,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
         V_off_model_class = 'model3'
 
         V_off_initial_params = make_model_of_class(V_off_model_class).get_default_parameters()
-        V_off_initial_params = np.concat([
+        V_off_initial_params = np.concatenate([
             V_off_initial_params,
             [args.reversal, 0, 0, 0, 0, 0, Cm, Rseries]
         ]).flatten()
