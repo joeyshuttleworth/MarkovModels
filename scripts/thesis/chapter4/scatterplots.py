@@ -396,9 +396,10 @@ def do_per_plots(protocol, well, params_df, p1, p2, output_dir, beta=None,
             for ax in axs:
                 ax.set_yscale('log')
 
-    for ax in axs:
+    for ax in axs[::2]:
         ax.set_xlabel(f"{convert_to_latex(p1)} ({units[p1]})")
         ax.set_ylabel(f"{convert_to_latex(p2)} ({units[p2]})")
+
     if all_data_ax:
         all_data_ax.set_xlabel(f"{convert_to_latex(p1)} ({units[p1]})")
         all_data_ax.set_ylabel(f"{convert_to_latex(p2)} ({units[p2]})")
