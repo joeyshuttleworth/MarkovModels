@@ -461,7 +461,7 @@ def do_multivariate_regression(params_df, param_labels,
         beta = Y.mean(axis=0).flatten()
 
     else:
-        beta = np.linalg.inv(X.T @ X) @ X.T @ Y
+        beta = np.linalg.solve(X.T @ X, @ X.T @ Y)
         residuals = Y - (X @ beta)
 
     n = params_df.values.shape[0]
