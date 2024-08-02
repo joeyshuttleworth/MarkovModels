@@ -1693,7 +1693,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     times = full_times[indices]
 
     if fitting_case in ['I', 'II']:
-        row = subtractions_df[(subtractions_df.well == well) & (subtractions_df.protocol == protocol) &
+        row = subtractions_df[(subtractions_df.well == well) & (subtractions_df.protocol == sim_protocol) &
                     (subtractions_df.sweep == sweep)]
         assert(row.shape[0] == 1)
 
