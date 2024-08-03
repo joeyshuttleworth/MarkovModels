@@ -255,6 +255,8 @@ def main():
         if not args.use_mock_data:
             worst_data, vp = get_data(worst_well, validation_protocol,
                                     args.data_directory, args.experiment_name, sweep=sweep)
+            desc = vp.get_all_sections()
+
             desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
             times_fname = os.path.join(args.data_directory,
                                     f"{args.experiment_name}-{validation_protocol}-times.csv")
@@ -443,7 +445,7 @@ def main():
     fig.savefig(os.path.join(output_dir, "averaged_well_heatmaps"))
     fig.clf()
 
-    comparison_fig = plt.fig(figsize=[args.figsize[0], 6.5])
+    comparison_fig = plt.figure(figsize=[args.figsize[0], 6.5])
     # Plot Case III only
     model_axs, colour_bar_ax = setup_grid_single_case(comparison_fig, args)
     done_colour_bar = False
