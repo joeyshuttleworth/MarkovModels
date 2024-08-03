@@ -920,7 +920,7 @@ def setup_best_worst_fig(fig):
     heatmap_axs[1].set_title(subfigure_captions[5],
                              fontweight='bold', loc='left')
 
-    return heatmap_axs, reversed(list(prediction_axs)), reversed(list(voltage_axs))
+    return heatmap_axs, list(reversed(prediction_axs)), list(reversed(voltage_axs))
 
 
 if __name__ == "__main__":
