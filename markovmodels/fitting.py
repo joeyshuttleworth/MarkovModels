@@ -1352,7 +1352,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
 
     solver = None
     for sim_protocol in np.unique(protocols_list):
-        if sim_protocol in ignore_valdiation_protocols:
+        if sim_protocol in ignore_validation_protocols:
             continue
 
         desc, full_times = protocol_dict[sim_protocol]
