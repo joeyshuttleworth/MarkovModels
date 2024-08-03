@@ -1320,7 +1320,8 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
                            default_artefact_kinetic_parameters=None, args=None,
                            data_label='', hybrid=False, strict=True,
                            tolerances=(None, None),
-                           plot=True):
+                           plot=True,
+                           ignore_validation_protocols=[]):
 
     params_df = get_best_params(params_df, protocol_label='protocol')
     predictions_dir = os.path.join(output_dir, label)
@@ -1351,6 +1352,8 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
 
     solver = None
     for sim_protocol in np.unique(protocols_list):
+        if sim_protocol in ignore_valdiation_protocols:
+            continue
 
         desc, full_times = protocol_dict[sim_protocol]
 
@@ -1661,7 +1664,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     if solver is None:
         if use_artefacts:
-            if data_label == 'before':
+            if label == 'before':
                 return_var = 'I_out'
             else:
                 return_var = 'I_Kr'
@@ -1702,8 +1705,10 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
             artefact_params = None
 
         if artefact_params is None:
-            row = subtractions_df[(subtractions_df.well == well) & (subtractions_df.protocol == sim_protocol) &
-                        (subtractions_df.sweep == predict_sweep)]
+            row = subtractions_df[(subtractions_df.well == well) &
+                                  (subtractions_df.protocol == sim_protocol) &
+                                  (subtractions_df.sweep.astype(int) == int(predict_sweep))]
+            print(row)
             assert(row.shape[0] == 1)
 
             Rseries, Cm = row.iloc[0][['Rseries', 'Cm']]
@@ -1711,7 +1716,6 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
             Cm = Cm * 1e9
 
             V_off_model_class = 'model3'
-
             V_off_initial_params = make_model_of_class(V_off_model_class).get_default_parameters()
             V_off_initial_params = np.concatenate([
                 V_off_initial_params,
