@@ -326,13 +326,13 @@ class ODEModel:
         if solver_type is None:
             solver = self.make_forward_solver_current(**kws)
         elif solver_type == 'default':
-            solver = self.make_forward_solver_current(**kws)
+            solver = self.make_hybrid_solver_current(hybrid=False, **kws)
         elif solver_type == 'hybrid':
             solver = self.make_hybrid_solver_current(**kws)
-        elif solver_type == 'ida':
-            solver = self.make_ida_solver_current(**kws)
-        elif solver_type == 'dop853':
-            solver = self.make_forward_solver_current(solver_type='dop853', **kws)
+        # elif solver_type == 'ida':
+        #     solver = self.make_ida_solver_current(**kws)
+        # elif solver_type == 'dop853':
+        #     solver = self.make_forward_solver_current(solver_type='dop853', **kws)
         else:
             raise Exception(f"Invalid solver type: {solver_type}")
         return solver

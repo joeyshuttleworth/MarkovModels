@@ -503,12 +503,13 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                 assert solver_type is None or solver_type=='default'
                 solver = model.make_hybrid_solver_current(strict=strict, return_var='I_out',
                                                           hybrid=False)
+                solver()
             else:
                 solver = model.make_forward_solver_of_type(solver_type,
                                                            strict=strict)
-            solver()
+                solver()
 
-        except numba.core.errors.TypingError as exc:
+        except Exception as exc:
             logging.warning(f"unable to make nopython forward solver {str(exc)}")
             solver = model.make_forward_solver_of_type(solver_type, njitted=False,
                                                        strict=strict)
@@ -1698,17 +1699,19 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     if fitting_case in ['I', 'II']:
 
         try:
-            artefact_params_row = params_df.set_index(['well', 'protocol', 'sweep']).loc[(well, protocol_fitted, fitting_sweep)]
-            artefact_params = artefact_params_row[param_labels].values.flatten()[:no_artefact_parameters]
+            artefact_params_row = params_df.set_index(['well', 'protocol', 'sweep']).sort_index().loc[(well, protocol_fitted, str(fitting_sweep))]
+            artefact_params = artefact_params_row[param_labels].values.flatten()[-no_artefact_parameters:]
+            print(artefact_params)
         except KeyError as exc:
             print(str(exc))
-            artefact_params = None
+            artefact_params = np.full(no_artefact_parameters, np.nan)
+        if not np.all(np.isfinite(artefact_params)):
+            artefact_params = np.full(no_artefact_parameters, np.nan)
 
-        if artefact_params is None:
+        if not np.all(np.isfinite(artefact_params)) is None:
             row = subtractions_df[(subtractions_df.well == well) &
                                   (subtractions_df.protocol == sim_protocol) &
                                   (subtractions_df.sweep.astype(int) == int(predict_sweep))]
-            print(row)
             assert(row.shape[0] == 1)
 
             Rseries, Cm = row.iloc[0][['Rseries', 'Cm']]
@@ -1731,7 +1734,9 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
             markov_model_leak = make_model_of_class(V_off_model_class,
                                                 times=times)
-            gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak,
+            a_leak_model = ArtefactModel(markov_model_leak)
+
+            gleak, Eleak = fit_leak_parameters_with_artefact(a_leak_model,
                                                             desc.astype(np.float64),
                                                             times, full_data, voltages,
                                                             )
@@ -1751,7 +1756,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
             a_params = [p for p in param_labels if p != 'E_Kr']
             forward_sim_parameters = model.get_default_parameters()
 
-            forward_sim_parameters[:no_artefact_parameters] = param_row[param_labels].values.flatten()[:no_artefact_parameters]
+            forward_sim_parameters[-no_artefact_parameters:] = param_row[param_labels].values.flatten()[-no_artefact_parameters:]
 
             artefact_params = forward_sim_parameters[-no_artefact_parameters:]
             artefact_params[0] = E_rev

@@ -94,7 +94,7 @@ def main():
     parser.add_argument('--artefact_default_kinetic_param_file')
     parser.add_argument('--refit', action='store_true')
     parser.add_argument('--dont_infer_Erev', action='store_true')
-    parser.add_argument('--solver_type', default='hybrid')
+    parser.add_argument('--solver_type', default='default')
     parser.add_argument('--selection_file')
     parser.add_argument('--ignore_protocols', nargs='+', default=[])
     parser.add_argument('--ignore_wells', nargs='+', default=[])
@@ -222,7 +222,7 @@ def main():
 
             default_parameters = markovmodels.model_generation.make_model_of_class(args.model).get_default_parameters()
             starting_parameters = np.append(default_parameters,
-                                            [args.reversal, gleak, Eleak, 0, 0, 0, Cm, Rseries])
+                                            [args.reversal, gleak, Eleak, 0, 0, 0, Cm, Rseries]).astype(np.float)
 
         tasks.append([protocol, well, args.model, starting_parameters, args.reversal,
                       not args.dont_randomise_initial_guess, prefix, sweep, output_dir, args,

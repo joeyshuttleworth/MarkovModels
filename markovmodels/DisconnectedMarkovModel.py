@@ -153,7 +153,7 @@ class DisconnectedMarkovModel(MarkovModel):
                                        atol=atol, rtol=rtol, crhs=crhs)
 
     def make_solver_states(self, protocol_description=None, njitted=False,
-                           strict=True, hybrid=True, solver_type='lsoda',
+                           strict=True, hybrid=True, solver_type='default',
                            atol=None, rtol=None, cond_threshold=None, crhs=None,
                            E_rev=None):
 
@@ -176,7 +176,7 @@ class DisconnectedMarkovModel(MarkovModel):
         p = self.get_default_parameters()
         eps = np.finfo(float).eps
 
-        if solver_type != 'lsoda':
+        if solver_type != 'default' and solver_type != 'lsoda':
             raise NotImplementedError()
 
         if E_rev is None:
