@@ -648,13 +648,22 @@ def define_protocol_order(chrono_fname):
     return protocol_order
 
 def get_protocol_label(protocol_order, protocol, sweep):
-    sweep = int(sweep)
+    sweep = int(sweep) + 1
+    p_protocol = protocol
+    if p_protocol == 'staircaseramp1_2':
+        p_protocol = 'staircaseramp1'
+
+    protocol_order = [prot for prot in protocol_order
+                      if prot not in ['staircaseramp1_sweep2',
+                                      'staircaseramp1_2_sweep2']]
+
+    prot_index = protocol_order.index(protocol)
     ret_str = r'$d_{' + str(protocol_order.index(protocol) + 1) \
         + r'}'
-    if protocol == 'staircaseramp1':
-        ret_str += r'^{' + str(sweep + 1) + r'}$'
-    elif protocol == 'staircaseramp1_2':
-        ret_str += r'^{' + str(sweep + 3) + r'}$'
+    if p_protocol == 'staircaseramp1':
+        ret_str += r'^{(' + str(sweep) + r')}$'
+    elif p_protocol == 'staircaseramp1_2':
+        ret_str += r'^{(' + str(sweep + 2) + r')}$'
     else:
         ret_str += r'$'
 
