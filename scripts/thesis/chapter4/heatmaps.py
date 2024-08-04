@@ -233,7 +233,7 @@ def main():
             = worst_prediction
         print(fitting_protocol, validation_protocol)
 
-        voltage_axs[0].set_title(get_protocol_label(protocol_order, fitting_protocol,
+        voltage_axs[0].set_title(get_protocol_label(protocol_order, validation_protocol,
                                                     fit_sweep))
 
         sweep = 0
@@ -321,7 +321,7 @@ def main():
             times = np.loadtxt(times_fname).flatten()
             Vcmd = np.array([voltage_func(t, protocol_description=desc) for t in times])
 
-            voltage_axs[1].set_title(get_protocol_label(protocol_order, fitting_protocol,
+            voltage_axs[1].set_title(get_protocol_label(protocol_order, validation_protocol,
                                                         fitting_sweep))
 
             print(best_prediction)
