@@ -9,7 +9,6 @@ import matplotlib
 import multiprocessing
 import matplotlib.pyplot as plt
 import numpy as np
-from numba import njit
 import pandas as pd
 import seaborn as sns
 import matplotlib as mpl
@@ -115,6 +114,7 @@ def main():
         if args.fitting_case[:4] == 'Case':
             args.fitting_case = args.fitting_case[4:]
 
+    args.data_label = ''
     # Case describing how was the was model fitted
     if args.fitting_case == '0a':
         args.adjust_kinetics = False
@@ -584,7 +584,8 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
         default_params[-no_artefact_parameters:] = params[-no_artefact_parameters:]
 
     solver = model.make_hybrid_solver_current(hybrid=False,
-                                                strict=False)
+                                              strict=False,
+                                              njitted=False)
 
     row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol)
                             & (subtraction_df.sweep == sweep)].iloc[0]
