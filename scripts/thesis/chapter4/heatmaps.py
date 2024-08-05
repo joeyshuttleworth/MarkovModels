@@ -343,7 +343,7 @@ def main():
             Vcmd = np.array([voltage_func(t, protocol_description=desc) for t in times])
 
             voltage_axs[1].set_title(get_protocol_label(protocol_order, validation_protocol,
-                                                        fitting_sweep))
+                                                        fit_sweep))
 
             params_df = results_dict[model][case].copy()
             best_pred, _ = make_prediction(model_class, args, best_well,
