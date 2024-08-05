@@ -72,7 +72,8 @@ def main():
     parser.add_argument('--protocols', nargs='+')
     parser.add_argument('--use_mock_data', action='store_true')
     parser.add_argument('--use_raw_data', action='store_true')
-    parser.add_argument('--ignore_protocols', nargs='+', default=['longap'], type=str)
+    parser.add_argument('--ignore_validation_protocols', nargs='+', default=['longap'], type=str)
+    parser.add_argument('--ignore_fitting_protocols', nargs='+', default=['longap'], type=str)
     parser.add_argument('--ignore_wells', nargs='+', default=['M06'], type=str)
     parser.add_argument('--fontsize', type=int)
     parser.add_argument('-w', '--wells', type=str, nargs='+')
@@ -110,11 +111,6 @@ def main():
 
     subtraction_df = pd.read_csv(args.subtraction_df)
 
-    if args.protocols:
-        subtraction_df = subtraction_df[subtraction_df.protocol.isin(args.protocols)]
-    if args.ignore_wells:
-        subtraction_df = subtraction_df[~subtraction_df.well.isin(args.ignore_wells)]
-
     if not args.cases:
         args.cases = ['0a', '0b', '0c']
 
@@ -134,6 +130,7 @@ def main():
     results_dict = {}
     params_dfs = []
     params_df_dict = {}
+
     for model in args.model_classes:
         results_dict[model] = {}
         for case, dirname in zip(cases, dirnames):
@@ -144,6 +141,7 @@ def main():
                                  "combined_fitting_results.csv")
 
             params_df = pd.read_csv(fname)
+            params_df = get_best_params(params_df)
 
             if args.protocols:
                 params_df = params_df[params_df.protocol.isin(args.protocols)].copy()
@@ -170,7 +168,18 @@ def main():
 
         times = np.loadtxt(os.path.join(args.data_directory,
                                         f"{args.experiment_name}-{protocol}-times.csv")).astype(np.float64).flatten()
+
         protocol_dict[protocol] = desc, times
+
+    if 'I' in args.cases or 'II' in args.cases:
+        artefact_params_df = fit_artefact_parameters(params_df, ['longap'], protocol_dict, args)
+
+        for model in args.model_classes:
+            for case in args.cases:
+                params_df = results_dict[model][case]
+                params_df = pd.concat([params_df, artefact_params_df], ignore_index=True,
+                                      axis=0)
+                results_dict[model][case] = params_df
 
     if args.figsize:
         individual_fig_height = 3.0
@@ -208,7 +217,7 @@ def main():
         heatmap_axs, prediction_axs, voltage_axs  = setup_best_worst_fig(fig)
         best_ax, worst_ax, cbar_ax = heatmap_axs
 
-        if fitting_case in ['I', 'II'] or args.use_raw_data:
+        if case in ['I', 'II', '0d'] or args.use_raw_data:
             data_label = 'before'
         else:
             data_label = ''
@@ -231,7 +240,7 @@ def main():
 
         fitting_protocol, validation_protocol, fit_sweep, predict_sweep\
             = worst_prediction
-        print(fitting_protocol, validation_protocol)
+        print(fitting_protocol, validation_protocol, fit_sweep, predict_sweep)
 
         voltage_axs[0].set_title(get_protocol_label(protocol_order, validation_protocol,
                                                     fit_sweep))
@@ -254,7 +263,10 @@ def main():
         # Plot voltage of worst prediction
         if not args.use_mock_data:
             worst_data, vp = get_data(worst_well, validation_protocol,
-                                    args.data_directory, args.experiment_name, sweep=sweep)
+                                      args.data_directory,
+                                      args.experiment_name, sweep=sweep,
+                                      label=data_label)
+
             desc = vp.get_all_sections()
 
             desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
@@ -264,9 +276,10 @@ def main():
             Vcmd = np.array([voltage_func(t, protocol_description=desc) for t in times])
 
             voltage_axs[0].plot(times * 1e-3, Vcmd, color='black', lw=1)
+            params_df = results_dict[model][case].copy()
             worst_pred, _ = make_prediction(model_class, args, worst_well,
                                             validation_protocol, sweep,
-                                            fitting_protocol, sweep, sub_df,
+                                            fitting_protocol, sweep, params_df,
                                             subtraction_df.copy(), case,
                                             args.reversal, protocol_dict,
                                             worst_data, Vcmd,
@@ -279,9 +292,17 @@ def main():
 
             # Highlight worst cell
             autoAxis = worst_ax.axis()
-            # Works unless one of the protocols is a staircase protocol
-            fitting_protocol_i = protocol_order.index(fitting_protocol)
-            validation_protocol_i = protocol_order.index(validation_protocol) + 1
+
+            _protocol_order = [prot for prot in protocol_order if prot\
+                               not in args.ignore_validation_protocols]
+
+            validation_protocols = [
+                prot for prot in args.validation_protocols
+                if prot not in args.ignore_validation_protocols
+                                    ]
+
+            fitting_protocol_i = _protocol_order.index(fitting_protocol) + int(fitting_sweep)
+            validation_protocol_i = _protocol_order.index(validation_protocol) + 1 + int(prediction_sweep)
 
             if validation_protocol_i > protocol_order.index('longap'):
                 validation_protocol_i -= 1
@@ -311,6 +332,7 @@ def main():
                 fit_sweep, predict_sweep = best_prediction
             best_data, vp = get_data(best_well, validation_protocol,
                                      args.data_directory, args.experiment_name,
+                                     label=data_label,
                                      sweep=predict_sweep)
             desc = vp.get_all_sections()
 
@@ -324,23 +346,24 @@ def main():
             voltage_axs[1].set_title(get_protocol_label(protocol_order, validation_protocol,
                                                         fitting_sweep))
 
-            print(best_prediction)
-
+            params_df = results_dict[model][case].copy()
             best_pred, _ = make_prediction(model_class, args, best_well,
                                            validation_protocol, predict_sweep,
-                                           fitting_protocol, fit_sweep, sub_df,
+                                           fitting_protocol, fit_sweep, params_df,
                                            subtraction_df.copy(), case,
                                            args.reversal, protocol_dict,
                                            best_data, Vcmd,
                                            label=data_label,
-                                           return_states=True )
+                                           return_states=True
+                                           )
+
             prediction_axs[1].plot(times * 1e-3, best_data, alpha=.5, color='red',
                                    lw=.6)
             prediction_axs[1].plot(times * 1e-3, best_pred, alpha=.5, lw=.9)
             voltage_axs[1].plot(times * 1e-3, Vcmd, color='black', lw=1)
 
-            fitting_protocol_i = protocol_order.index(fitting_protocol) + 1 + int(fitting_sweep)
-            validation_protocol_i = protocol_order.index(validation_protocol) + 1 + int(prediction_sweep)
+            fitting_protocol_i = _protocol_order.index(fitting_protocol) + int(fitting_sweep)
+            validation_protocol_i = _protocol_order.index(validation_protocol) + 1 + int(prediction_sweep)
 
             if validation_protocol_i > protocol_order.index('longap'):
                 validation_protocol_i -= 1
@@ -593,9 +616,6 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
              fitting_case):
     subtraction_df = pd.read_csv(args.subtraction_df)
 
-    if args.protocols:
-        subtraction_df = subtraction_df[subtraction_df.protocol.isin(args.protocols)]
-
     ax = None
 
     if fitting_case in ['I', 'II', '0d'] or args.use_raw_data:
@@ -621,6 +641,7 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                                                hybrid=False,
                                                strict=False,
                                                tolerances=tolerances,
+                                               ignore_validation_protocols=args.ignore_validation_protocols,
                                                plot=not args.dont_plot_predictions
                                                )
         if args.ignore_wells:
@@ -636,6 +657,89 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
         prediction_df['n_score'] = prediction_df['RMSE']
 
     return prediction_df
+
+
+def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
+    subtraction_df = pd.read_csv(args.subtraction_df)
+    data_label = 'before'
+
+    V_off_model_class = 'model3'
+
+    V_off_model = make_model_of_class(V_off_model_class)
+
+    V_off_initial_params = make_model_of_class(V_off_model_class).get_default_parameters()
+    solver_current = V_off_model.make_hybrid_solver_current(hybrid=False,
+                                                    njitted=False,
+                                                    strict=False,
+                                                            return_var='I_out')
+    solver_states = V_off_model.make_hybrid_solver_states(hybrid=False,
+                                                          njitted=False,
+                                                          strict=False
+                                                          )
+    new_rows = []
+    for protocol in protocols:
+        # Protocol we use for simulation
+        desc, times = protocol_dict[protocol]
+
+        if protocol in args.ignore_validation_protocols:
+            continue
+
+        for well in params_df.well.unique():
+            for sweep in params_df.sweep.unique():
+                if (well, protocol, sweep) not in \
+                   params_df.set_index(['well', 'protocol', 'sweep']).sort_index().index:
+                    continue
+
+            row = subtraction_df.set_index(('well', 'protocol', 'sweep')).sort_index().loc[(well, protocol, sweep)]
+
+            assert(row.shape[0] == 1)
+
+            Rseries, Cm = row.iloc[0][['Rseries', 'Cm']]
+            Rseries = Rseries * 1e-9
+            Cm = Cm * 1e9
+
+            p = default_parameters.copy()
+
+            p[-2] = Cm
+            p[-1] = Rseries
+            p[-no_artefact_parameters] = reversal
+            V_off_initial_params = np.concatenate([
+                V_off_initial_params.copy(),
+                [args.reversal, 0, 0, 0, 0, 0, Cm, Rseries]
+            ]).flatten()
+
+            # TODO get data
+            V_off, success = find_V_off(desc, times, data,
+                                        V_off_model_class, p,
+                                        E_rev, data_label=data_label,
+                                        solver_current=solver_current,
+                                        solver_states=solver_states )
+
+        markov_model_leak = make_model_of_class(V_off_model_class,
+                                            times=times)
+        gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak,
+                                                         desc.astype(np.float64),
+                                                         times, full_data,
+                                                         voltages,
+                                                         solver_current=solver_current
+                                                         )
+        param_dict = {
+            'E_rev': reversal,
+            'g_leak': gleak,
+            'E_leak': Eleak,
+            'V_off': V_off,
+            'Cm': Cm,
+            'Rseries': Rseries,
+            'well': well,
+            'protocol': protocol,
+            'sweep': sweep
+        }
+
+        new_rows.append(param_dict)
+
+    new_df = pd.DataFrame.from_records(new_rows)
+
+    return pd.concat([params_df, new_df])
 
 
 def define_protocol_order(chrono_fname):
@@ -692,6 +796,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
                                                hybrid=False,
                                                strict=False,
                                                args=args,
+                                               ignore_validation_protocols=args.ignore_validation_protocols,
                                                plot=not args.dont_plot_predictions
                                                )
 
@@ -709,7 +814,8 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
 
         return row
 
-    prediction_df = prediction_df[~prediction_df.fitting_protocol.isin(args.ignore_protocols)]
+    prediction_df = prediction_df[~prediction_df.fitting_protocol.isin(args.ignore_fitting_protocols)]
+    prediction_df = prediction_df[~prediction_df.validation_protocol.isin(args.ignore_validation_protocols)]
     prediction_df = prediction_df[~prediction_df.well.isin(args.ignore_wells)]
 
     prediction_df.fitting_sweep = prediction_df.fitting_sweep.astype(int)
