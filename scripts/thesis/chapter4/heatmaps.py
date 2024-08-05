@@ -313,9 +313,6 @@ def main():
             if fitting_protocol_i > protocol_order.index('longap'):
                 fitting_protocol_i -= 1
 
-            print(fitting_protocol, validation_protocol)
-            print(fitting_protocol_i, validation_protocol_i)
-
             no_protocols = len(protocol_order)
             rec = Rectangle(
                 #d6 is at the front of the order but absent from the heatmap
@@ -349,7 +346,7 @@ def main():
             voltage_axs[1].set_title(get_protocol_label(protocol_order, validation_protocol,
                                                         fit_sweep))
 
-            params_df = results_dict[model][case].copy()
+            params_df = results_dict[model_class][case].copy()
             best_pred, _ = make_prediction(model_class, args, best_well,
                                            validation_protocol, predict_sweep,
                                            fitting_protocol, fit_sweep, params_df,
