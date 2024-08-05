@@ -277,7 +277,7 @@ def main():
             Vcmd = np.array([voltage_func(t, protocol_description=desc) for t in times])
 
             voltage_axs[0].plot(times * 1e-3, Vcmd, color='black', lw=1)
-            params_df = results_dict[model][case].copy()
+            params_df = results_dict[model_class][case].copy()
             worst_pred, _ = make_prediction(model_class, args, worst_well,
                                             validation_protocol, predict_sweep,
                                             fitting_protocol, fit_sweep, params_df,
