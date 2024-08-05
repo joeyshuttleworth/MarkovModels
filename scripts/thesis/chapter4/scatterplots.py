@@ -399,7 +399,7 @@ def do_per_plots(protocol, well, params_df, p1, p2, output_dir, beta=None,
     for ax in axs[::2]:
         ax.set_ylabel(f"{convert_to_latex(p2)} ({units[p2]})")
 
-    for ax in axs.flatten()[-2:]
+    for ax in axs.flatten()[-2:]:
         ax.set_xlabel(f"{convert_to_latex(p1)} ({units[p1]})")
 
     if all_data_ax:
