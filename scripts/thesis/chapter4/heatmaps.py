@@ -362,7 +362,7 @@ def main():
             voltage_axs[1].plot(times * 1e-3, Vcmd, color='black', lw=1)
 
             fitting_protocol_i = _protocol_order.index(fitting_protocol) + int(fit_sweep)
-            validation_protocol_i = _protocol_order.index(validation_protocol) + 1 + int(prediction_sweep)
+            validation_protocol_i = _protocol_order.index(validation_protocol) + 1 + int(predict_sweep)
 
             if validation_protocol_i > protocol_order.index('longap'):
                 validation_protocol_i -= 1
