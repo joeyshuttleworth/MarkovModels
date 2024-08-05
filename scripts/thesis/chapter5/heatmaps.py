@@ -239,8 +239,8 @@ def main():
             Vcmd = np.array([voltage_func(t, protocol_description=desc) for t in times])
 
             voltage_ax.plot(times * 1e-3, Vcmd, color='black')
-            prediction_axs[0].plot(times * 1e-3, worst_data, color='grey', alpha=.5)
-            prediction_axs[1].plot(times * 1e-3, best_data, color='grey', alpha=.5)
+            prediction_axs[0].plot(times * 1e-3, worst_data, color='red', alpha=.5, lw=.75)
+            prediction_axs[1].plot(times * 1e-3, best_data, color='red', alpha=.5, lw=.75)
 
             worst_pred, _ = make_prediction(model_class, args, worst_well,
                                             validation_protocol, sweep,
@@ -260,8 +260,8 @@ def main():
                                            label=data_label,
                                            return_states=True )
 
-            prediction_axs[0].plot(times * 1e-3, worst_pred)
-            prediction_axs[1].plot(times * 1e-3, best_pred)
+            prediction_axs[0].plot(times * 1e-3, worst_pred, lw=.75, alpha=.5)
+            prediction_axs[1].plot(times * 1e-3, best_pred, lw=.75, alpha=.5)
 
         best_worst_cbar_kws = cbar_kws.copy()
         best_worst_cbar_kws['orientation'] = 'vertical'
@@ -280,9 +280,6 @@ def main():
         autoAxis = worst_ax.axis()
         fitting_protocol_i = protocol_order.index(fitting_protocol)
         validation_protocol_i = protocol_order.index(validation_protocol)
-
-        print(fitting_protocol, validation_protocol)
-        print(fitting_protocol_i, validation_protocol_i)
 
         no_protocols = len(protocol_order)
         rec = Rectangle(
