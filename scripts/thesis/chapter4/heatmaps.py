@@ -171,8 +171,10 @@ def main():
 
         protocol_dict[protocol] = desc, times
 
-    if 'I' in args.cases or 'II' in args.cases:
-        artefact_params_df = fit_artefact_parameters(params_df, ['longap'], protocol_dict, args)
+    if 'I' in args.cases or 'II' in args.cases\
+       and len([p for p in args.validation_protocols if p not in args.ignore_validation_protocols]) > 0:
+        artefact_params_df = fit_artefact_parameters(params_df, args.validation_protocols,
+                                                     protocol_dict, args)
         print(f"Fitted artefact parameters {artefact_params_df}")
 
         for model in args.model_classes:

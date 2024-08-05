@@ -1356,6 +1356,9 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
         if sim_protocol in ignore_validation_protocols:
             continue
 
+        if sim_protocol not in list(params_df.protocol.unique()):
+            continue
+
         desc, full_times = protocol_dict[sim_protocol]
 
         # Temporary solver hack
@@ -1369,11 +1372,17 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
         if solver is None:
             if use_artefacts:
                 hybrid = False
-
-            solver = model.make_hybrid_solver_current(hybrid=hybrid,
-                                                      njitted=False,
-                                                      strict=strict,
-                                                      protocol_description=desc)
+                solver = model.make_hybrid_solver_current(hybrid=hybrid,
+                                                          njitted=False,
+                                                          strict=strict,
+                                                          protocol_description=desc,
+                                                          return_var='I_out'
+                                                          )
+            else:
+                solver = model.make_hybrid_solver_current(hybrid=hybrid,
+                                                          njitted=False,
+                                                          strict=strict,
+                                                          protocol_description=desc)
 
         spike_times, spike_indices = markovmodels.voltage_protocols.detect_spikes(full_times, voltages,
                                                                                   threshold=10)
@@ -1626,6 +1635,9 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     params_df = params_df.copy()
     params_df = params_df[params_df.well == well].copy()
+
+    params_df = get_best_params(params_df)
+
     atol, rtol = tolerances
 
     if fitting_case in ['I', 'II']:
@@ -1699,16 +1711,17 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     if fitting_case in ['I', 'II']:
 
         try:
-            artefact_params_row = params_df.set_index(['well', 'protocol', 'sweep']).sort_index().loc[(well, protocol_fitted, str(fitting_sweep))]
-            artefact_params = artefact_params_row[param_labels].values.flatten()[-no_artefact_parameters:]
-            print(artefact_params)
+            artefact_params_row = params_df.set_index(['well', 'protocol', 'sweep']).sort_index().loc[(well, protocol_fitted, int(fitting_sweep))]
+            artefact_params = artefact_params_row[param_labels].values.flatten()[-no_artefact_parameters:].copy().astype(np.float64)
         except KeyError as exc:
             print(str(exc))
             artefact_params = np.full(no_artefact_parameters, np.nan)
+
         if not np.all(np.isfinite(artefact_params)):
             artefact_params = np.full(no_artefact_parameters, np.nan)
 
-        if not np.all(np.isfinite(artefact_params)) is None:
+        if not np.all(np.isfinite(artefact_params)):
+            print("Inferring artefact parameters")
             row = subtractions_df[(subtractions_df.well == well) &
                                   (subtractions_df.protocol == sim_protocol) &
                                   (subtractions_df.sweep.astype(int) == int(predict_sweep))]
@@ -1753,13 +1766,21 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                 'C_m' : Cm
             }
 
-            a_params = [p for p in param_labels if p != 'E_Kr']
+            artefact_params= np.array([
+                args.reversal,
+                gleak,
+                Eleak,
+                0.0,
+                0.0,
+                V_off,
+                Cm,
+                Rseries
+            ]).astype(np.float64).flatten()
+
+            print(f"Inferred artefact parameters {artefact_parameters}")
+
             forward_sim_parameters = model.get_default_parameters()
-
-            forward_sim_parameters[-no_artefact_parameters:] = param_row[param_labels].values.flatten()[-no_artefact_parameters:]
-
-            artefact_params = forward_sim_parameters[-no_artefact_parameters:]
-            artefact_params[0] = E_rev
+            forward_sim_parameters[-no_artefact_parameters:] = artefact_params
 
     data = full_data[indices]
 
@@ -1779,12 +1800,20 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     if fitting_case in ['I', 'II']:
         params[-no_artefact_parameters:] = artefact_params
+        assert np.all(np.isfinite(params))
         current = solver(params, times=full_times, protocol_description=desc,
                          atol=atol, rtol=rtol)
 
     else:
         current = solver(params, times=full_times, protocol_description=desc,
                          E_rev=pred_E_rev, atol=atol, rtol=rtol)
+
+    if not use_artefacts and label=='before':
+
+        gleak, Eleak = subtractions_df.set_index(['protocol', 'well', 'sweep'])\
+                                      .loc[(sim_protocol, well, int(predict_sweep))][['gleak_before', 'E_leak_before']]
+        ideal_leak = gleak * (voltages - Eleak)
+        current = current + ideal_leak
 
     if return_states:
         states_solver = model.make_hybrid_solver_states(hybrid=False,
