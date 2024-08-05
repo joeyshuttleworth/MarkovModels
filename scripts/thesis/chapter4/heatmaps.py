@@ -263,7 +263,7 @@ def main():
         if not args.use_mock_data:
             worst_data, vp = get_data(worst_well, validation_protocol,
                                       args.data_directory,
-                                      args.experiment_name, sweep=sweep,
+                                      args.experiment_name, sweep=predict_sweep,
                                       label=data_label)
 
             desc = vp.get_all_sections()
@@ -301,7 +301,7 @@ def main():
                                     ]
 
             fitting_protocol_i = _protocol_order.index(fitting_protocol) + int(fit_sweep)
-            validation_protocol_i = _protocol_order.index(validation_protocol) + 1 + int(prediction_sweep)
+            validation_protocol_i = _protocol_order.index(validation_protocol) + 1 + int(predict_sweep)
 
             if validation_protocol_i > protocol_order.index('longap'):
                 validation_protocol_i -= 1
@@ -335,7 +335,7 @@ def main():
                                      sweep=predict_sweep)
             desc = vp.get_all_sections()
 
-            fitting_protocol, validation_protocol, fitting_sweep, prediction_sweep \
+            fitting_protocol, validation_protocol, fit_sweep, predict_sweep \
                 = best_prediction
             times_fname = os.path.join(args.data_directory,
                                     f"{args.experiment_name}-{validation_protocol}-times.csv")
@@ -361,7 +361,7 @@ def main():
             prediction_axs[1].plot(times * 1e-3, best_pred, alpha=.5, lw=.9)
             voltage_axs[1].plot(times * 1e-3, Vcmd, color='black', lw=1)
 
-            fitting_protocol_i = _protocol_order.index(fitting_protocol) + int(fitting_sweep)
+            fitting_protocol_i = _protocol_order.index(fitting_protocol) + int(fit_sweep)
             validation_protocol_i = _protocol_order.index(validation_protocol) + 1 + int(prediction_sweep)
 
             if validation_protocol_i > protocol_order.index('longap'):
