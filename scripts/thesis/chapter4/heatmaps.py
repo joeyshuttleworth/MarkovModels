@@ -173,6 +173,7 @@ def main():
 
     if 'I' in args.cases or 'II' in args.cases:
         artefact_params_df = fit_artefact_parameters(params_df, ['longap'], protocol_dict, args)
+        print(f"Fitted artefact parameters {artefact_params_df}")
 
         for model in args.model_classes:
             for case in args.cases:
@@ -245,8 +246,6 @@ def main():
         voltage_axs[0].set_title(get_protocol_label(protocol_order, validation_protocol,
                                                     fit_sweep))
 
-        sweep = 0
-
         best_worst_cbar_kws = cbar_kws.copy()
         best_worst_cbar_kws['orientation'] = 'vertical'
         best_worst_cbar_kws['label'] = ''
@@ -278,8 +277,8 @@ def main():
             voltage_axs[0].plot(times * 1e-3, Vcmd, color='black', lw=1)
             params_df = results_dict[model][case].copy()
             worst_pred, _ = make_prediction(model_class, args, worst_well,
-                                            validation_protocol, sweep,
-                                            fitting_protocol, sweep, params_df,
+                                            validation_protocol, predict_sweep,
+                                            fitting_protocol, fit_sweep, params_df,
                                             subtraction_df.copy(), case,
                                             args.reversal, protocol_dict,
                                             worst_data, Vcmd,
@@ -301,7 +300,7 @@ def main():
                 if prot not in args.ignore_validation_protocols
                                     ]
 
-            fitting_protocol_i = _protocol_order.index(fitting_protocol) + int(fitting_sweep)
+            fitting_protocol_i = _protocol_order.index(fitting_protocol) + int(fit_sweep)
             validation_protocol_i = _protocol_order.index(validation_protocol) + 1 + int(prediction_sweep)
 
             if validation_protocol_i > protocol_order.index('longap'):
