@@ -177,6 +177,8 @@ def main():
 
         for model in args.model_classes:
             for case in args.cases:
+                if case not in ['I', 'II', '0d']:
+                    continue
                 params_df = results_dict[model][case]
                 params_df = pd.concat([params_df, artefact_params_df], ignore_index=True,
                                       axis=0)
