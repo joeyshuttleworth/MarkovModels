@@ -748,7 +748,7 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
                                                       desc.astype(np.float64),
                                                       times, data,
                                                       voltages,
-                                                      solver_current=solver_current
+                                                      a_solver_current=solver_current
                                                       )
                 param_dict = {
                     'E_rev': args.reversal,
