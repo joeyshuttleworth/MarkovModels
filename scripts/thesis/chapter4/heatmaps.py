@@ -140,7 +140,8 @@ def main():
     params_df_dict = {}
 
     if args.ignore_validation_protocols:
-        args.validation_protocols = [p for p in args.validation_protocols if p not in args.ignore_validation]
+        args.validation_protocols = [p for p in args.validation_protocols\
+                                     if p not in args.ignore_validation_protocols]
 
     for model in args.model_classes:
         results_dict[model] = {}
@@ -752,8 +753,9 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
                 }
 
                 new_rows.append(param_dict)
-
     new_df = pd.DataFrame.from_records(new_rows)
+
+    print(new_df)
 
     return pd.concat([params_df, new_df])
 
