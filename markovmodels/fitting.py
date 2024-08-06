@@ -1332,6 +1332,9 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case,
                            validation_protocols=[]):
 
     params_df = get_best_params(params_df, protocol_label='protocol')
+
+    params_df.sweep = params_df.sweep.astype(int)
+
     predictions_dir = os.path.join(output_dir, label)
 
     if not os.path.exists(predictions_dir):
@@ -1722,6 +1725,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
         if not np.all(np.isfinite(artefact_params)):
             logging.warning(f"Got non-finite artefact parameters: {artefact_params}")
+            print(artefact_params_row)
             artefact_params = np.full(no_artefact_parameters, np.nan)
 
         if not np.all(np.isfinite(artefact_params)):
