@@ -90,7 +90,6 @@ class MarkovModel(ODEModel):
 
         n_state_vars = self.get_no_state_vars()
         n_max_steps = 64
-        desc = self.protocol_description
 
         E_rev = self.E_rev
 
