@@ -122,6 +122,14 @@ def main():
                       'II': 'CaseII'
                      }
 
+    relabel_case_dict = {
+        '0a': 'Case I',
+        '0b': 'Case II',
+        '0c': 'Case III',
+        '0d': 'Case IV',
+        'II': 'Case V'
+    }
+
     dirnames = [dirnames_dict[case] for case in cases]
 
     voltage_func = make_voltage_function_from_description()
@@ -972,6 +980,9 @@ def setup_grid(fig, args):
                       verticalalignment='center')
 
     case_labels = ['Case I', 'Case II', 'Case III']
+
+    case_labels = [relabel_case_dict[case] for case in args.cases]
+
     for i, (label_ax, case_label) in enumerate(zip(case_label_axs, case_labels)):
         case_label = case_labels[i]
         label_ax.text(.5, .5, case_label, horizontalalignment='center',
