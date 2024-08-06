@@ -718,6 +718,9 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
                    logging.warning(f"{[well, protocol, sweep]} not in df")
                    continue
 
+                if subtraction_df.set_index(['well', 'protocol', 'sweep']).index.isin([(well, protocol, sweep)]).any():
+                   continue
+
                 row = subtraction_df.set_index(['well', 'protocol', 'sweep']).sort_index().loc[(well, protocol, sweep)]
                 Rseries, Cm = row[['Rseries', 'Cm']]
                 Rseries = Rseries * 1e-9
