@@ -248,8 +248,7 @@ def main():
 
         fitting_protocol, validation_protocol, fit_sweep, predict_sweep\
             = worst_prediction
-        print(fitting_protocol, validation_protocol, fit_sweep, predict_sweep)
-
+ 
         voltage_axs[0].set_title(get_protocol_label(protocol_order, validation_protocol,
                                                     fit_sweep))
 
@@ -310,11 +309,12 @@ def main():
             fitting_protocol_i = _protocol_order.index(fitting_protocol) + int(fit_sweep)
             validation_protocol_i = _protocol_order.index(validation_protocol) + len(args.validation_protocols) + int(predict_sweep)
 
-            if validation_protocol_i > protocol_order.index('longap'):
-                validation_protocol_i -= 1
+            for validation_protocol in args.validation_protocols:
+                if validation_protocol_i > protocol_order.index(validation_protocol):
+                    validation_protocol_i -= 1
 
-            if fitting_protocol_i > protocol_order.index('longap'):
-                fitting_protocol_i -= 1
+                if fitting_protocol_i > protocol_order.index(validation_protocol):
+                    fitting_protocol_i -= 1
 
             no_protocols = len(protocol_order)
             rec = Rectangle(
@@ -328,9 +328,8 @@ def main():
                 lw=.75
                 )
 
-            if len(args.ignore_validation_protocols):
-                rec_1 = worst_ax.add_patch(rec)
-                rec_1.set_clip_on(False)
+            rec_1 = worst_ax.add_patch(rec)
+            rec_1.set_clip_on(False)
 
             fitting_protocol, validation_protocol, \
                 fit_sweep, predict_sweep = best_prediction
@@ -369,11 +368,12 @@ def main():
             fitting_protocol_i = _protocol_order.index(fitting_protocol) + int(fit_sweep)
             validation_protocol_i = _protocol_order.index(validation_protocol) + len(args.validation_protocols) + int(predict_sweep)
 
-            if validation_protocol_i > protocol_order.index('longap'):
-                validation_protocol_i -= 1
+            for protocol in args.validation_protocols:
+                if validation_protocol_i > protocol_order.index(protocol):
+                    validation_protocol_i -= 1
 
-            if fitting_protocol_i > protocol_order.index('longap'):
-                fitting_protocol_i -= 1
+                    if fitting_protocol_i > protocol_order.index(protocol):
+                        fitting_protocol_i -= 1
 
             autoAxis = best_ax.axis()
             rec = Rectangle(
@@ -635,6 +635,9 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
         else:
             tolerances = (1e-8, 1e-8)
 
+        if args.protocols:
+            params_df = params_df[params_df.protocol.isin(args.protocols)].copy()
+
         prediction_df = compute_predictions_df(params_df, output_dir,
                                                protocol_dict, fitting_case,
                                                args.reversal, subtraction_df,
@@ -645,8 +648,8 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                                                hybrid=False,
                                                strict=False,
                                                tolerances=tolerances,
-                                               ignore_validation_protocols=args.ignore_validation_protocols,
-                                               plot=not args.dont_plot_predictions
+                                               plot=not args.dont_plot_predictions,
+                                               validation_protocols=args.validation_protocols
                                                )
         if args.ignore_wells:
             prediction_df = prediction_df[~prediction_df.well.isin(args.ignore_wells)]
@@ -792,6 +795,8 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
 
     if prediction_df is None:
         args.model = model_class
+        if args.protocols:
+            params_df = params_df[params_df.protocol.isin(args.protocols)].copy()
         prediction_df = compute_predictions_df(params_df, output_dir,
                                                protocol_dict, fitting_case,
                                                args.reversal, subtractions_df,
@@ -801,8 +806,8 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
                                                hybrid=False,
                                                strict=False,
                                                args=args,
-                                               ignore_validation_protocols=args.ignore_validation_protocols,
-                                               plot=not args.dont_plot_predictions
+                                               plot=not args.dont_plot_predictions,
+                                               validation_protocols=args.validation_protocols
                                                )
 
     chrono_fname = os.path.join(args.chrono_file)
@@ -922,8 +927,9 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
         lw=.75
         )
 
-    rec = ax.add_patch(rec)
-    rec.set_clip_on(False)
+    if len(args.validation_protocols) > 0:
+        rec = ax.add_patch(rec)
+        rec.set_clip_on(False)
 
     ax.set_ylabel('validation protocol')
     ax.set_xlabel('fitting protocol')

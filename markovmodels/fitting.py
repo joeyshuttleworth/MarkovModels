@@ -245,7 +245,11 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                                                        padding=0.1,
                                                        evaluations=100)
 
-        fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_default'))
+        try:
+            fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_default'))
+        except Exception as exc:
+            logging.warning(str(exc))
+
         plt.close(fig)
 
         if randomise_initial_guess:
@@ -255,7 +259,10 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                                                            point_2=point_2,
                                                            padding=0.1,
                                                            evaluations=100)
-            fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_initial_guess'))
+            try:
+                fig.savefig(os.path.join(output_dir, 'best_fitting_profile_from_initial_guess'))
+            except Exception as exc:
+                logging.warning(str(exc))
             plt.close(fig)
 
     if len(fix_parameters) > 0:
@@ -1316,13 +1323,13 @@ def infer_reversal_potential(protocol_desc: np.array, current: np.array, times, 
     return min(roots[-1], voltages.max())
 
 
-def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E_rev, subtractions_df,
-                           label='predictions', model_class=None,
+def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case,
+                           E_rev, subtractions_df, label='predictions',
+                           model_class=None,
                            default_artefact_kinetic_parameters=None, args=None,
                            data_label='', hybrid=False, strict=True,
-                           tolerances=(None, None),
-                           plot=True,
-                           ignore_validation_protocols=[]):
+                           tolerances=(None, None), plot=True,
+                           validation_protocols=[]):
 
     params_df = get_best_params(params_df, protocol_label='protocol')
     predictions_dir = os.path.join(output_dir, label)
@@ -1331,7 +1338,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
         os.makedirs(predictions_dir)
 
     predictions_df = []
-    protocols_list = list(subtractions_df['protocol'].unique()) + ['longap']
+    protocols_list = list(params_df['protocol'].unique()) + list(validation_protocols)
     protocols_list = np.array(protocols_list).astype(str)
 
     if plot:
@@ -1353,12 +1360,6 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case, E
 
     solver = None
     for sim_protocol in np.unique(protocols_list):
-        if sim_protocol in ignore_validation_protocols:
-            continue
-
-        if sim_protocol not in list(params_df.protocol.unique()):
-            continue
-
         desc, full_times = protocol_dict[sim_protocol]
 
         # Temporary solver hack
