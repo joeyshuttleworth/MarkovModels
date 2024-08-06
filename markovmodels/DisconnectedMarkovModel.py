@@ -32,6 +32,11 @@ class DisconnectedMarkovModel(MarkovModel):
 
         self.y = [var for y in ys for var in y]
 
+        if protocol_description is not None:
+            self.protocol_description = protocol_description
+        else:
+            self.protocol_description = np.array([[.0, 1000.0, -80.0, -80.0]])
+
         super().__init__(symbols, A, B, rates_dict, times, GKr_index=GKr_index,
                          *args, **kwargs)
         self.n_state_vars = sum([len(y) for y in self.ys])
