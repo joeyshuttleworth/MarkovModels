@@ -1670,6 +1670,8 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     subtractions_df['sweep'] = subtractions_df['sweep'].astype(int)
 
     inferred_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(sim_protocol, well, int(predict_sweep))]['E_rev']
+
+
     if fitting_case in ['0a', 'I', 'II']:
         pred_E_rev = E_rev
     else:
@@ -1721,6 +1723,9 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
         try:
             artefact_params_row = params_df.set_index(['well', 'protocol', 'sweep']).sort_index().loc[(well, protocol_fitted, int(fitting_sweep))]
             artefact_params = artefact_params_row[param_labels].values.flatten()[-no_artefact_parameters:].copy().astype(np.float64)
+
+            artefact_params[0] = E_rev
+
         except KeyError as exc:
             print(str(exc))
             artefact_params = np.full(no_artefact_parameters, np.nan)

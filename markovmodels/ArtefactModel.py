@@ -163,14 +163,13 @@ class ArtefactModel(MarkovModel):
         def auxiliary_func(x, p, _, E_rev=E_rev, return_var=return_var):
             _E_rev, g_leak, E_leak, g_leak_leftover, E_leak_leftover, V_off, C_m, R_s = p[-no_artefact_parameters:]
 
-            if E_rev is None:
-                E_rev = _E_rev
+            # Ignore E_rev and use _E_rev instead
 
             V_m = x[-1, :]
             p = p.astype(np.float64)
 
             I_Kr = channel_auxiliary_function(x[:-1], p[:-no_artefact_parameters], V_m,
-                                              E_rev)
+                                              _E_rev)
 
             I_leak = g_leak * (V_m - E_leak - V_off)
             I_leak_leftover = g_leak_leftover * (V_m - E_leak_leftover)
