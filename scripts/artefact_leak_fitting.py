@@ -13,16 +13,20 @@ import markovmodels
 import pcpostprocess
 from markovmodels.ArtefactModel import ArtefactModel, no_artefact_parameters
 from markovmodels.model_generation import make_model_of_class
-from subtract_leak import subtract_leak
 import seaborn as sns
+    if use_artefacts:
+        c_param_labels = model.channel_model.get_parameter_labels()
+    else:
+        c_param_labels = param_labels
 from numba import njit
 from quality_control.leak_fit import fit_leak_lr
 import markovmodels.utilities as utilities
-from markovmodels.fitting import infer_reversal_potential
-from markovmodels.voltage_protocols import get_ramp_protocol_from_json
-from markovmodels.utilities import calculate_reversal_potential
+from markovmodels.fitting import infer_reversal_potential, find_V_off, fit_leak_parameters_with_artefact, _find_conductance, adjust_kinetics
+from markovmodels.voltage_protocols import get_ramp_protocol_from_json, make_voltage_function_from_description
+from markovmodels.utilities import calculate_reversal_potential, get_data
 
 import matplotlib
+from matplotlib.pyplot import cycler
 matplotlib.use('Agg')
 
 # params_for_Erev = np.loadtxt(os.path.join('data', 'Beattie_Sinusoidal_params.csv'),
@@ -31,22 +35,23 @@ matplotlib.use('Agg')
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('postprocess_data_dir')
-    parser.add_argument("--experiment_name")
+    parser.add_argument("--experiment_name", default='25112022_MW')
     parser.add_argument("--parameters", default=None)
     parser.add_argument("-w", "--wells", nargs='+')
+    parser.add_argument("--ignore_wells", nargs='+', default=['M06'])
     parser.add_argument("--sweeps", nargs='+', default=[])
     parser.add_argument("--model", default='model3')
     parser.add_argument("--output", "-o", default=None)
     parser.add_argument("--no_plot", action='store_true')
     parser.add_argument('-P', '--protocols', nargs='+', default=['staircaseramp'])
     parser.add_argument('--noise', default=0.00, type=float)
-    parser.add_argument('--reversal', '-e', type=float, default=-91.71)
+    parser.add_argument('--reversal', '-e', type=float, default=-89.5)
     parser.add_argument('--cpus', '-c', default=1, type=int)
     parser.add_argument('--use_hybrid_solver', action='store_true')
     parser.add_argument('--sampling_frequency', default=0.1, type=float)
-    parser.add_argument('--figsize', type=int, nargs=2, default=[8, 12])
+    parser.add_argument('--figsize', type=int, nargs=2, default=[5.3, 6])
     parser.add_argument('--no_noise', action='store_true')
-    parser.add_argument('--dont_correct_post', action='store_true')
+    parser.add_argument('--removal_duration', type=float, default=5.0)
 
     global args
     args = parser.parse_args()
@@ -76,6 +81,7 @@ def main():
     with open(os.path.join(selection_file)) as fin:
         global passed_wells
         passed_wells = fin.read().splitlines()
+        passed_wells = [w for w in passed_wells if w not in args.ignore_wells]
 
     subtraction_results_file = os.path.join(args.postprocess_data_dir,
                                             'subtraction_qc.csv')
@@ -104,11 +110,12 @@ def main():
         Cm = leak_row['Cm'] * 1e9
         E_obs = leak_row['E_rev']
         noise, gkr = estimate_noise_and_conductance(well, protocol, sweep,
-                                                    gleak, Eleak, Rseries, Cm, E_obs)
+                                                    gleak, Eleak, Rseries, Cm, args.reversal)
 
         if args.no_noise:
             noise = 0
-        tasks.append((protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev, args))
+        tasks.append((protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev, args,
+                      output_dir))
 
     print(f"tasks are {tasks}")
     with multiprocessing.Pool(args.cpus) as pool:
@@ -116,7 +123,7 @@ def main():
 
     dfs = []
     for fname, task in zip(res, tasks):
-        protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev, _ = task
+        protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev, _, _ = task
         if well not in args.wells and args.wells:
             continue
         _args = parser.parse_args()
@@ -144,7 +151,7 @@ def main():
 
 
 def compare_synth_real_postprocess_data(df, leak_df):
-    fig = plt.figure(figsize=args.figsize)
+    fig = plt.figure(figsize=args.figsize, constrainted_layout=True)
     ax = fig.subplots()
 
     leak_df = leak_df.reset_index()
@@ -230,7 +237,7 @@ def compare_synth_real_postprocess_data(df, leak_df):
 
 
 def do_scatterplots(df, qc_df):
-    fig = plt.figure(figsize=args.figsize)
+    fig = plt.figure(figsize=args.figsize, constrainted_layout=True)
     ax = fig.subplots()
 
     df = df.reset_index().set_index(['protocol', 'well', 'sweep'])
@@ -270,7 +277,7 @@ def do_scatterplots(df, qc_df):
 
 
 def plot_overlaid_traces(df):
-    fig = plt.figure(figsize=args.figsize)
+    fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     axs = fig.subplots(2)
 
     for key, row in df.iterrows():
@@ -311,7 +318,8 @@ def plot_overlaid_traces(df):
 
         model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm, R_series=Rseries)
 
-        solver = model.make_hybrid_solver_states(hybrid=False)
+        solver = model.make_hybrid_solver_states(hybrid=False,
+                                                 return_var='I_out')
         states = solver(_parameters)
         Vm = states[:, -1].flatten()
 
@@ -328,14 +336,6 @@ def plot_overlaid_traces(df):
         gkr_index = c_model.GKr_index
         no_g_p[gkr_index] = .0
         Vm2 = solver(no_g_p)[:, -1].flatten()
-
-        print('voltage with gkr=0', Vm2)
-
-        E_rev_g_0 = infer_reversal_potential('staircaseramp1', subtracted_trace, times,
-                                             output_path=os.path.join(output_dir, 'reversal_plots',
-                                                                      f"{protocol}-{well}-sweep{sweep}_Vm_gkr=0"),
-                                             known_Erev=Erev,
-                                             voltages=Vm2)
 
         true_IKr = model.define_auxiliary_function()(states.T, model.get_default_parameters(), Vm)
 
@@ -421,7 +421,8 @@ def plot_overlaid_traces(df):
             # gleak = gleak * 1e-3
             model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm, R_series=Rseries)
 
-            state_solver = model.make_hybrid_solver_states(hybrid=False)
+            state_solver = model.make_hybrid_solver_states(hybrid=False,
+                                                           return_var='I_out')
             states = state_solver()
 
             Vm = states[:, -1].flatten()
@@ -434,20 +435,21 @@ def plot_overlaid_traces(df):
             I_Kr = c_model.define_auxiliary_function()(states[:, :-1].T, _parameters, Vm)
             I_Kr = I_Kr / I_Kr.std()
 
-            axs[0].plot(times, subtracted_trace / subtracted_trace.std(),
+            axs[0].plot(times*1e-3, subtracted_trace / subtracted_trace.std(),
                         label=f"{well} sweep {sweep}", color=colour, alpha=.25)
-            axs[1].plot(times, I_Kr, label=r'$I_\mathrm{Kr}$' f"{well} sweep {sweep}")
-            axs[2].plot(times, Vm, label=f"{well} sweep {sweep}", color=colour)
+            axs[1].plot(times*1e-3, I_Kr, label=r'$I_\mathrm{Kr}$' f"{well} sweep {sweep}")
+            axs[2].plot(times*1e-3, Vm, label=f"{well} sweep {sweep}", color=colour)
 
         axs[0].set_ylabel('Normalised subtracted current')
         axs[1].set_ylabel(r'$I_\mathrm{Kr}$ normalised')
         axs[2].set_ylabel(r'$V_m$')
 
-        axs[2].set_xlabel(r'$t$ (ms)')
+        axs[2].set_xlabel(r'$t$ (s)')
         fig.savefig(os.path.join(output_dir, f"{protocol}-overlaid-normalised"))
 
 
-def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries, Cm, E_obs):
+def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries, Cm, E_rev,
+                                   use_V_off=True):
     traces_dir = os.path.join(args.postprocess_data_dir, 'traces')
     # get data
     # TODO Add .csv to the end of these filenames
@@ -459,8 +461,6 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
 
     times_filename = f"{args.experiment_name}-{protocol}-times.csv"
     times = pd.read_csv(os.path.join(traces_dir, times_filename), header=None).values.flatten()
-
-    print(times)
 
     protocol_dir = os.path.join(args.postprocess_data_dir, 'traces',
                                 'protocols')
@@ -475,109 +475,245 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
     protocol_voltages = np.array([prot_func(t) for t in times])
     dt = times[1] - times[0]
 
-    g_leak_before, E_leak_before, _, _, _, x, y = fit_leak_lr(
-        protocol_voltages, before_trace, dt=dt,
-        ramp_start=ramp_start,
-        ramp_end=ramp_end
-    )
+    model_class = 'model3'
 
-    g_leak_after, E_leak_after, _, _, _, x, y = fit_leak_lr(
-        protocol_voltages, after_trace, dt=dt,
-        ramp_start=ramp_start,
-        ramp_end=ramp_end
-    )
+    markov_model_leak = ArtefactModel(make_model_of_class(model_class,
+                                                          protocol_description=desc,
+                                                          times=times))
 
-    before_corrected = before_trace - g_leak_before * (protocol_voltages - E_leak_before)
-
-    after_corrected = after_trace - g_leak_after * (protocol_voltages - E_leak_after)
-    subtracted_trace = before_corrected - after_corrected
+    gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak, desc,
+                                                     times, before_trace,
+                                                     protocol_voltages)
 
     noise = before_trace[:200].std()
 
+    Erev = infer_reversal_potential(desc, before_trace,
+                                    times, plot=False,
+                                    )
+
     c_model = make_model_of_class(args.model,
-                                  voltage=prot_func, times=times, E_rev=args.reversal,
+                                  voltage=prot_func, times=times, E_rev=Erev,
                                   default_parameters=parameters,
                                   protocol_description=desc)
 
-    model = ArtefactModel(c_model, R_series=Rseries, C_m=Cm, g_leak=g_leak_before,
-                          E_leak=E_leak_before)
+    model = ArtefactModel(c_model, R_series=Rseries, C_m=Cm, g_leak=gleak,
+                          E_leak=Eleak)
     default_parameters = model.get_default_parameters().flatten()
 
-    print(default_parameters)
-
-    solver = model.make_forward_solver_current(njitted=False)
+    solver = model.make_forward_solver_current(njitted=False,
+                                               return_var='I_out')
 
     assert np.all(np.isfinite(solver()))
 
-    def min_func(g_kr):
-        p = default_parameters.copy()
-        p[-no_artefact_parameters - 1] = g_kr
-        pred = solver(p.flatten())
-        return np.sum((pred - subtracted_trace) ** 2)
+    indices = np.array([i for i in range(len(times))])
+    spike_times, spike_indices = \
+    markovmodels.voltage_protocols.detect_spikes(times, protocol_voltages)
+    _, _, indices = markovmodels.voltage_protocols.remove_spikes(times,
+                                                                 protocol_voltages,
+                                                                 spike_times,
+                                                                 time_to_remove=args.removal_duration)
+
+    gkr_index = c_model.GKr_index
+
+    voltages = np.array([model.voltage(t) for t in model.times])
+    leak_ramp_i = [i for i, l in enumerate(desc) if l[2] != l[3]][0]
+    ramp_start = desc[leak_ramp_i, 0]
+    ramp_end = desc[leak_ramp_i, 1]
+
+    istart = np.argmax(times > ramp_start)
+    iend = np.argmax(times > ramp_end)
+
+    dt = times[1] - times[0]
+    pp_gleak, pp_Eleak, _, _, _, _, _ = fit_leak_lr(
+        voltages, before_trace, dt=dt,
+        ramp_start=ramp_start,
+        ramp_end=ramp_end
+    )
+
+    params_df = pd.DataFrame(c_model.get_default_parameters()[None, :],
+                             columns=c_model.get_parameter_labels())
+    params_df['well'] = well
+    params_df['protocol'] = protocol
+    params_df['sweep'] = sweep
+
+    E_rev_df = pd.DataFrame.from_records([
+        {
+            'well': well,
+            'protocol': protocol,
+            'sweep': sweep,
+            'E_rev': Erev
+        }
+    ]
+                                         )
+    params_df = adjust_kinetics(model_class, params_df, E_rev_df, args.reversal)
+
+    param_labels = c_model.get_parameter_labels()
+    ideal_params = params_df[param_labels].values.flatten()
+
+    c_solver = c_model.make_hybrid_solver_current(hybrid=False)
+    Ileak_ideal = pp_gleak * (voltages - pp_Eleak)
+    # Find gkr which best fits the data
+    def ideal_opt_g(g):
+        p = ideal_params.copy()
+        p[-1] = g
+        IKr = c_solver(p)
+        I_out = IKr + Ileak_ideal
+        return np.sum((I_out[indices] - before_trace[indices]) ** 2)
+
+    options = {
+    }
+    res = scipy.optimize.minimize_scalar(ideal_opt_g, bracket=[0, 10 *
+                                                               (before_trace[indices][:5000] /
+                                                                (protocol_voltages[indices][:5000] -
+                                                                 Erev)).max()], options=options )
+
+    if res.success:
+        ideal_gkr = res.x
+    else:
+        raise ValueError('Failed to find ideal gkr')
+
+    p = c_model.get_default_parameters()
+
+    p[-1] = ideal_gkr
+    ideal_current = Ileak_ideal + c_solver(p)
+
+    V_off, success = find_V_off(desc, model.times, before_trace, 'model3',
+                                default_parameters, args.reversal,
+                                data_label='before')
+
+    if not success:
+        raise ValueError('Couldnt infer V_iff')
+
+    p_w_V_off = default_parameters.copy()
+    p_w_V_off[-3] = V_off
+
+    gkr_w_V_off = _find_conductance(solver, desc, times, before_trace, indices,
+                            voltages, p_w_V_off, args.reversal,
+                            gkr_index, model)
+    p_w_V_off[c_model.GKr_index] = gkr_w_V_off
+
+    gkr = _find_conductance(solver, desc, times, before_trace, indices,
+                            voltages, default_parameters, args.reversal,
+                            gkr_index, model)
+    p_no_V_off = default_parameters.copy()
+    p_no_V_off[c_model.GKr_index] = gkr
 
     # Minimise SSE to find best conductance
-    b_indices = np.argwhere(np.abs(protocol_voltages + 120)<1e-2)
-    bounds = np.unique([0, (subtracted_trace[b_indices]/(protocol_voltages[b_indices] - args.reversal)).max() * 10])
-
-    bounds[0] = bounds[1] / 100
-    res = scipy.optimize.minimize_scalar(min_func, method='bounded', bounds=bounds)
-
-    gkr = res.x
-    print('gkr is', gkr)
-
     # Plot stuff
     if not args.no_plot:
-        fig = plt.figure(figsize=args.figsize)
-        ax = fig.subplots()
-
-        ax.plot(times, subtracted_trace, label='subtracted trace', color='grey')
+        fig = plt.figure(figsize=args.figsize, constrained_layout=True)
+        voltage_ax, ax = fig.subplots(2, height_ratios=[0.25, 1])
 
         p = default_parameters.copy()
         p[-no_artefact_parameters - 1] = gkr
+        ax.plot(times*1e-3, before_trace, label='raw pre-drug trace', color='grey', alpha=.5)
+        # ax.plot(times*1e-3, solver(p_no_V_off.flatten()), label='Case V')
+        ax.plot(times*1e-3, solver(p_w_V_off.flatten()), label='with artefacts')
+        ax.plot(times*1e-3, ideal_current, label='without artefacts)')
 
-        ax.plot(times, solver(p.flatten()), label='ideal current')
+        handles, labels = plt.gca().get_legend_handles_labels()
+        order = [0,2,1]
+        plt.legend([handles[idx] for idx in order],[labels[idx] for idx in order])
+
         ax.legend()
 
-    if not os.path.exists(os.path.join(output_dir, "conductance_estimation")):
-        os.makedirs(os.path.join(output_dir, "conductance_estimation"))
-    fig.savefig(os.path.join(output_dir, "conductance_estimation", f"{well}-{protocol}-sweep{sweep}"))
-    plt.close(fig)
+        ax.set_xlabel(r'$t$ (s)')
+        ax.set_ylabel(r'$I$ (pA)')
+
+        ax.set_ylim(np.quantile(before_trace, [0.01, 0.999]))
+
+        state_solver = model.make_hybrid_solver_states(hybrid=False, njitted=False)
+        states = state_solver(p_w_V_off, times=times)
+        Vm_V_off = states[:, -1].flatten()
+        states = state_solver(p_no_V_off, times=times)
+        Vm_no_V_off = states[:, -1].flatten()
+
+        voltage_ax.plot(times*1e-3, voltages, color='black')
+        # voltage_ax.plot(times*1e-3, Vm_no_V_off)
+        voltage_ax.plot(times*1e-3, Vm_V_off)
+
+        ax.set_title('b', loc='left', fontweight='bold')
+        voltage_ax.set_title('a', loc='left', fontweight='bold')
+
+        ax.spines[['top', 'right']].set_visible(False)
+        voltage_ax.spines[['top', 'right']].set_visible(False)
+
+        if not os.path.exists(os.path.join(output_dir, "conductance_estimation")):
+            os.makedirs(os.path.join(output_dir, "conductance_estimation"))
+
+        ax.set_xticklabels([])
+        fig.savefig(os.path.join(output_dir, "conductance_estimation", f"{well}-{protocol}-sweep{sweep}"))
+        plt.close(fig)
+
+    print(f"noise, gkr: {noise} {gkr}")
+
+    if use_V_off:
+        return noise, gkr_w_V_off
+
     return noise, gkr
 
 
-def generate_data(protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev, args):
+def generate_data(protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev, args,
+                  output_dir):
     if Erev is None:
         Erev = markovmodels.utilities.calculate_reversal_potential()
 
-    prot_func, desc = get_protocol(protocol, args)
+    trace_dir = os.path.join(args.postprocess_data_dir,
+                             'traces')
+    trace, prot = get_data(well, protocol, trace_dir,
+                           args.experiment_name, label='before')
+
+    desc = prot.get_all_sections()
+    desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
+    voltage_func = make_voltage_function_from_description(desc)
+
     traces_dir = os.path.join(args.postprocess_data_dir, 'traces')
-    times_df = np.loadtxt(os.path.join(traces_dir,
+    times = np.loadtxt(os.path.join(traces_dir,
                                        f"{args.experiment_name}-{protocol}-times.csv"))
-    times = times_df.to_numpy().flatten()
 
     if not os.path.exists(os.path.join(output_dir, f"{args.experiment_name}-{protocol}-times.csv")):
         np.savetxt(os.path.join(output_dir, f"{args.experiment_name}-{protocol}-times.csv"),
                    times)
 
-    _parameters = parameters.copy()
-    _parameters[-1] = gkr
 
     c_model = make_model_of_class(args.model,
-                                  voltage=prot_func, times=times, E_rev=Erev,
-                                  default_parameters=_parameters,
+                                  voltage=voltage_func, times=times, E_rev=Erev,
                                   protocol_description=desc)
-    # V_off = args.reversal - E_obs
-    V_off = 0
+
+    a_model = ArtefactModel(c_model, C_m=Cm, R_series=Rseries,
+                            g_leak=gleak, E_leak=Eleak)
+
+    a_solver_current = a_model.make_hybrid_solver_current(hybrid=False, njitted=False,
+                                                        strict=False,
+                                                        return_var='I_out')
+    a_solver_states = a_model.make_hybrid_solver_states(hybrid=False, njitted=False,
+                                                      strict=False)
+
+    aux_func = a_model.define_auxiliary_function(return_var='I_out')
+
+    _parameters = a_model.get_default_parameters()
+    _parameters[c_model.GKr_index] = gkr
+
+    default_parameters = a_model.get_default_parameters()
+
+    V_off_model_class = 'model3'
+
+    V_off, success =  find_V_off(desc, times, trace,
+                                 V_off_model_class,
+                                 _parameters,
+                                 Erev, a_solver_states=a_solver_states,
+                                 a_solver_current=a_solver_current,
+                                 aux_func=aux_func
+                                 )
 
     model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm,
                           R_series=Rseries, V_off=V_off)
 
     # Output Iout
-    model.auxiliary_function = njit(model.define_auxiliary_function(return_var = 'I_post'))
-    solver = model.make_forward_solver_current(njitted=True)
+    model.auxiliary_function = njit(model.define_auxiliary_function(return_var = 'I_out'))
+    solver = model.make_hybrid_solver_current(njitted=False,
+                                              hybrid=False)
     I_out = solver()
-    # voltages = np.array([prot_func(t) for t in times])
-    # I_leak = gleak * (voltages - Eleak)
     mean = I_out
 
     data = np.random.normal(mean, noise, times.shape)
@@ -590,14 +726,11 @@ def generate_data(protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, 
     # Assume 0 conductance after drug addition
     _p = model.get_default_parameters()
     _p[gkr_index] = 0.0
-    print(_p)
     state_solver = model.make_hybrid_solver_states(hybrid=False,
                                                    njitted=True)
     Vm2 = state_solver(_p)[:, -1].flatten()
-    print(Vm2)
 
     V_m = state_solver()[:, -1]
-    print(V_m)
 
     data_after = np.random.normal(solver(_p), noise, times.shape)
     out_fname = os.path.join(output_dir, f"{args.experiment_name}-{protocol}-{well}-after-sweep1.csv")
@@ -639,7 +772,201 @@ def get_protocol(protocol_name, args):
 
     desc = voltage_protocol.get_all_sections()
 
-    return markovmodels.voltage_protocols.make_voltage_function_from_description(desc), desc
+    return make_voltage_function_from_description(desc), desc
+
+
+def subtract_leak(well, protocol, args, output_dir=None):
+    nsweeps = 1
+    sweep2_fname = f"{args.experiment_name}-{protocol}-{well}-before-sweep2.csv"
+    if os.path.exists(os.path.join(args.data_directory, sweep2_fname)):
+        nsweeps = 2
+
+    # if not args.no_plot:
+    #     protocol_axs, before_axs, after_axs, corrected_axs, subtracted_ax, \
+    #         long_protocol_ax = setup_subtraction_grid(fig, nsweeps)
+
+    protocol_dir = os.path.join(args.postprocess_data_dir, 'traces',
+                                'protocols')
+    protocol_func, desc = get_ramp_protocol_from_json(protocol, protocol_dir,
+                                                      experiment_name=args.experiment_name)
+
+    # TODO
+    # Find ramp start and end from desc
+    leak_ramp = [line for line in desc if line[2] != line[3]][0]
+    ramp_start = leak_ramp[0]
+    ramp_end = leak_ramp[1]
+
+    observation_times = np.loadtxt(os.path.join(
+        args.data_directory, f"{args.experiment_name}-{protocol}-times.csv"))
+    protocol_voltages = np.array([protocol_func(t) for t in observation_times])
+    dt = observation_times[1] - observation_times[0]
+
+    df = []
+    for sweep in range(1, nsweeps + 1):
+        before_filename = f"{args.experiment_name}-{protocol}-{well}-before-sweep{sweep}.csv"
+        after_filename = f"{args.experiment_name}-{protocol}-{well}-after-sweep{sweep}.csv"
+
+        indices_to_plot = [i for i, t in enumerate(observation_times) if t
+                           <= ramp_end * 2]
+
+        tracename = 'subtracted'
+
+        try:
+            before_trace_df = pd.read_csv(os.path.join(args.data_directory, before_filename))
+            before_trace = before_trace_df[before_trace_df.columns[-1]].to_numpy().flatten().astype(np.float64)
+        except FileNotFoundError as exc:
+            before_trace = None
+            print(str(exc))
+
+        try:
+            after_trace_df = pd.read_csv(os.path.join(args.data_directory, after_filename))
+            after_trace = after_trace_df[after_trace_df.columns[-1]].to_numpy().flatten().astype(np.float64)
+        except FileNotFoundError as exc:
+            after_trace = None
+            print(str(exc))
+
+        if before_trace is not None and np.all(np.isfinite(before_trace)):
+            g_leak_before, E_leak_before, _, _, _, x, y = fit_leak_lr(
+                protocol_voltages, before_trace, dt=dt,
+                ramp_start=ramp_start,
+                ramp_end=ramp_end
+            )
+
+            n = len(x)
+            # msres = (((x - E_leak_before) * g_leak_before - y)**2 / (n - 2)).sum()
+
+            infer_reversal_potential(desc,
+                                     before_trace - g_leak_before * (protocol_voltages - E_leak_before),
+                                     observation_times, plot=True,
+                                     # output_path=os.path.join(reversal_plot_dir,
+                                     #                          f"{well}_{protocol}_sweep{sweep}_before"),
+                                     known_Erev=args.Erev
+                                     )
+        else:
+            g_leak_before = np.nan
+            E_leak_before = np.nan
+
+        if after_trace is not None and np.all(np.isfinite(after_trace)):
+            g_leak_after, E_leak_after, _, _, _, x, y = fit_leak_lr(
+                protocol_voltages, after_trace, dt=dt,
+                ramp_start=ramp_start,
+                ramp_end=ramp_end
+            )
+            n = len(x)
+            # msres = (((x - E_leak_before) * g_leak_before - y)**2 / (n - 2)).sum()
+
+            infer_reversal_potential(desc, before_trace,
+                                     observation_times, plot=True,
+                                     # output_path=os.path.join(reversal_plot_dir,
+                                     #                          f"{well}_{protocol}_sweep{sweep}_after"))
+                                     )
+        else:
+            g_leak_after = np.nan
+            E_leak_after = np.nan
+
+        if before_trace is not None:
+            before_corrected = before_trace - (g_leak_before * (protocol_voltages - E_leak_before))
+            infer_reversal_potential(desc, before_corrected,
+                                     observation_times,
+                                     # output_path=os.path.join(reversal_plot_dir,
+                                     # f"{protocol}_{well}_before_drug_leak_corrected"),
+                                     plot=not args.no_plot)
+
+        if after_trace is not None:
+            if not args.dont_correct_post:
+                after_corrected = after_trace - (g_leak_after * (protocol_voltages - E_leak_after))
+                infer_reversal_potential(desc, after_corrected,
+                                     observation_times,
+                                     # output_path=os.path.join(reversal_plot_dir,
+                                     #                          f"{protocol}_{well}_after_drug_leak_corrected"),
+                                     plot=not args.no_plot)
+
+            else:
+                after_corrected = np.full(after_trace.shape, 0)
+
+        if before_trace is not None and after_trace is not None:
+            subtracted_trace = before_corrected - after_corrected
+        else:
+            subtracted_trace = np.array([np.nan])
+
+        if np.all(np.isfinite(subtracted_trace)):
+            fitted_E_rev = infer_reversal_potential(protocol,
+                                                    subtracted_trace,
+                                                    observation_times,
+                                                    known_Erev=args.Erev,
+                                                    # output_path=os.path.join(reversal_plot_dir,
+                                                    #                          f"{protocol}_{well}_subtracted"),
+                                                    plot=not args.no_plot)
+
+        else:
+            fitted_E_rev = np.nan
+
+        passed1 = False
+
+        if before_trace is not None and after_trace is not None:
+            subtracted_trace_df = pd.DataFrame(np.column_stack(
+                (observation_times, subtracted_trace)), columns=('time', 'current'))
+
+            fname = f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}.csv"
+            subtracted_trace_df.to_csv(os.path.join(full_subtracted_trace_dir, fname))
+
+            subtracted_trace_df['time'].to_csv(os.path.join(
+                full_subtracted_trace_dir, f"{args.experiment_name}-{protocol}-times.csv"))
+
+            # Check that the current isn't negative on the first step after the leak ramp
+            first_step = [(i, v) for i, v in enumerate(protocol_voltages) if v > 30]
+            lst = []
+            for i, (j, voltage) in enumerate(first_step):
+                if j - i > first_step[0][0]:
+                    # Moved past the first step
+                    break
+                lst.append(j)
+                # Ignore first few timesteps
+            first_step_indices = lst[10:-10]
+
+            ax_col = sweep - 1
+
+            tracename, trace = ('subtracted', subtracted_trace)
+            estimated_noise = trace[0:200].std()
+            trace = trace[first_step_indices]
+            n = len(trace)
+            if trace.mean() > -2*estimated_noise:
+                print(f"{protocol} {well} {tracename} \tpassed QC6")
+                passed1 = True
+            else:
+                print(f"{protocol}, {well}, {tracename} \tfailed QC6")
+                passed1 = False
+
+        # Can we infer reversal potential from subtracted trace
+        Erev = infer_reversal_potential(protocol, subtracted_trace,
+                                        observation_times,
+                                        plot=False)
+
+        if Erev > -50 or Erev < -120:
+            print(f"{protocol}, {well} \tfailed QC.Erev")
+            passed_Erev = False
+        else:
+            print(f"{protocol}, {well} \tpassed QC.Erev")
+            passed_Erev = True
+
+        if after_trace is not None:
+            R_leftover = np.sqrt(np.sum(after_corrected**2)/(np.sum(before_corrected**2)))
+        else:
+            R_leftover = np.nan
+
+        df.append((protocol, well, sweep, tracename, fitted_E_rev,
+                   passed1, passed_Erev, R_leftover,
+                   g_leak_before, g_leak_after, E_leak_before,
+                   E_leak_after))
+
+    df = pd.DataFrame(df, columns=('protocol', 'well', 'sweep', 'before/after',
+                                   'fitted_E_rev', 'passed QC6',
+                                   'passed QC.Erev', 'R_leftover', 'pre-drug'
+                                   ' leak conductance', 'post-drug leak'
+                                   ' conductance', 'pre-drug leak reversal',
+                                   'post-drug leak reversal'))
+
+    return df
 
 
 if __name__ == "__main__":
