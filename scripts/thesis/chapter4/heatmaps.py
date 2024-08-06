@@ -196,7 +196,7 @@ def main():
                     continue
                 params_df = results_dict[model][case]
 
-                c_param_labels = make_model_of_class(model)
+                c_param_labels = make_model_of_class(model).get_parameter_labels()
 
                 _artefact_params_df = artefact_params_df.copy()
                 for lab in c_param_labels:
