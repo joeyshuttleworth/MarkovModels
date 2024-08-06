@@ -19,7 +19,7 @@ from matplotlib import rc
 
 import markovmodels
 from markovmodels.model_generation import make_model_of_class
-from markovmodels.fitting import get_best_params, compute_predictions_df, get_ensemble_of_predictions, make_prediction
+from markovmodels.fitting import get_best_params, compute_predictions_df, get_ensemble_of_predictions, make_prediction, fit_leak_parameters_with_artefact
 from markovmodels.ArtefactModel import ArtefactModel
 from markovmodels.utilities import setup_output_directory, get_data, get_all_wells_in_directory
 from markovmodels.voltage_protocols import get_protocol_list, get_ramp_protocol_from_json, make_voltage_function_from_description
@@ -72,7 +72,7 @@ def main():
     parser.add_argument('--protocols', nargs='+')
     parser.add_argument('--use_mock_data', action='store_true')
     parser.add_argument('--use_raw_data', action='store_true')
-    parser.add_argument('--ignore_validation_protocols', nargs='+', default=['longap'], type=str)
+    parser.add_argument('--ignore_validation_protocols', nargs='+', default=[], type=str)
     parser.add_argument('--ignore_fitting_protocols', nargs='+', default=['longap'], type=str)
     parser.add_argument('--ignore_wells', nargs='+', default=['M06'], type=str)
     parser.add_argument('--fontsize', type=int)
@@ -130,6 +130,9 @@ def main():
     results_dict = {}
     params_dfs = []
     params_df_dict = {}
+
+    if args.ignore_validation_protocols:
+        args.validation_protocols = [p for p in args.validation_protocols if p not in args.ignore_vlaidation_protocols]
 
     for model in args.model_classes:
         results_dict[model] = {}
@@ -305,7 +308,7 @@ def main():
                                     ]
 
             fitting_protocol_i = _protocol_order.index(fitting_protocol) + int(fit_sweep)
-            validation_protocol_i = _protocol_order.index(validation_protocol) + 1 + int(predict_sweep)
+            validation_protocol_i = _protocol_order.index(validation_protocol) + len(args.validation_protocols) + int(predict_sweep)
 
             if validation_protocol_i > protocol_order.index('longap'):
                 validation_protocol_i -= 1
@@ -325,8 +328,9 @@ def main():
                 lw=.75
                 )
 
-            rec_1 = worst_ax.add_patch(rec)
-            rec_1.set_clip_on(False)
+            if len(args.ignore_validation_protocol):
+                rec_1 = worst_ax.add_patch(rec)
+                rec_1.set_clip_on(False)
 
             fitting_protocol, validation_protocol, \
                 fit_sweep, predict_sweep = best_prediction
@@ -363,7 +367,7 @@ def main():
             voltage_axs[1].plot(times * 1e-3, Vcmd, color='black', lw=1)
 
             fitting_protocol_i = _protocol_order.index(fitting_protocol) + int(fit_sweep)
-            validation_protocol_i = _protocol_order.index(validation_protocol) + 1 + int(predict_sweep)
+            validation_protocol_i = _protocol_order.index(validation_protocol) + len(args.validation_protocols) + int(predict_sweep)
 
             if validation_protocol_i > protocol_order.index('longap'):
                 validation_protocol_i -= 1
@@ -690,52 +694,53 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
                    params_df.set_index(['well', 'protocol', 'sweep']).sort_index().index:
                     continue
 
-            row = subtraction_df.set_index(('well', 'protocol', 'sweep')).sort_index().loc[(well, protocol, sweep)]
+                row = subtraction_df.set_index(['well', 'protocol', 'sweep']).sort_index().loc[[well, protocol, sweep]]
 
-            assert(row.shape[0] == 1)
+                Rseries, Cm = row.iloc[0][['Rseries', 'Cm']]
+                Rseries = Rseries * 1e-9
+                Cm = Cm * 1e9
 
-            Rseries, Cm = row.iloc[0][['Rseries', 'Cm']]
-            Rseries = Rseries * 1e-9
-            Cm = Cm * 1e9
+                p = default_parameters.copy()
 
-            p = default_parameters.copy()
+                p[-2] = Cm
+                p[-1] = Rseries
+                p[-no_artefact_parameters] = reversal
+                V_off_initial_params = np.concatenate([
+                    V_off_initial_params.copy(),
+                    [args.reversal, 0, 0, 0, 0, 0, Cm, Rseries]
+                ]).flatten()
 
-            p[-2] = Cm
-            p[-1] = Rseries
-            p[-no_artefact_parameters] = reversal
-            V_off_initial_params = np.concatenate([
-                V_off_initial_params.copy(),
-                [args.reversal, 0, 0, 0, 0, 0, Cm, Rseries]
-            ]).flatten()
+                data, _ = get_data(well, protocol,
+                                   args.data_directory,
+                                   args.experiment_name, sweep=sweep,
+                                   label=data_label)
+                V_off, success = find_V_off(desc, times, data,
+                                            V_off_model_class, p,
+                                            E_rev, data_label=data_label,
+                                            solver_current=solver_current,
+                                            solver_states=solver_states )
 
-            # TODO get data
-            V_off, success = find_V_off(desc, times, data,
-                                        V_off_model_class, p,
-                                        E_rev, data_label=data_label,
-                                        solver_current=solver_current,
-                                        solver_states=solver_states )
+                markov_model_leak = make_model_of_class(V_off_model_class,
+                                                    times=times)
+                gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak,
+                                                                desc.astype(np.float64),
+                                                                times, data,
+                                                                voltages,
+                                                                solver_current=solver_current
+                                                                )
+                param_dict = {
+                    'E_rev': reversal,
+                    'g_leak': gleak,
+                    'E_leak': Eleak,
+                    'V_off': V_off,
+                    'Cm': Cm,
+                    'Rseries': Rseries,
+                    'well': well,
+                    'protocol': protocol,
+                    'sweep': sweep
+                }
 
-        markov_model_leak = make_model_of_class(V_off_model_class,
-                                            times=times)
-        gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak,
-                                                         desc.astype(np.float64),
-                                                         times, full_data,
-                                                         voltages,
-                                                         solver_current=solver_current
-                                                         )
-        param_dict = {
-            'E_rev': reversal,
-            'g_leak': gleak,
-            'E_leak': Eleak,
-            'V_off': V_off,
-            'Cm': Cm,
-            'Rseries': Rseries,
-            'well': well,
-            'protocol': protocol,
-            'sweep': sweep
-        }
-
-        new_rows.append(param_dict)
+                new_rows.append(param_dict)
 
     new_df = pd.DataFrame.from_records(new_rows)
 
