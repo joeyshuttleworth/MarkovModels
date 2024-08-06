@@ -69,7 +69,7 @@ class ODEModel:
         if protocol_description is not None:
             self.protocol_description = protocol_description
         else:
-            protocol_description = np.array([[.0, 1000.0, -80.0, -80.0]])
+            self.protocol_description = np.array([[.0, 1000.0, -80.0, -80.0]])
 
         self.window_locs = None
 
