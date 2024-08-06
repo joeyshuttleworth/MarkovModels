@@ -726,11 +726,6 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
                 Rseries = Rseries * 1e-9
                 Cm = Cm * 1e9
 
-                V_off_initial_params = np.concatenate([
-                    V_off_initial_params.copy(),
-                    [args.reversal, .0, .0, .0, .0, .0, Cm, Rseries]
-                ]).flatten()
-
                 data, _ = get_data(well, protocol,
                                    args.data_directory,
                                    args.experiment_name, sweep=sweep,
@@ -750,11 +745,18 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
 
                 voltages = np.array([voltage_func(t, protocol_description=desc)
                                      for t in times])
+
+                params = np.concatenate([
+                    V_off_initial_params.copy(),
+                    [args.reversal, .0, .0, .0, .0, .0, Cm, Rseries]
+                ]).flatten()
+                params[-3] = V_off
+
                 gleak, Eleak = \
                     fit_leak_parameters_with_artefact(markov_model_leak,
                                                       desc.astype(np.float64),
-                                                      times, data,
-                                                      voltages,
+                                                      times, data, voltages,
+                                                      default_parameters=params,
                                                       a_solver_current=solver_current
                                                       )
                 param_dict = {
