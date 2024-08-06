@@ -691,7 +691,7 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
 
     V_off_model_class = 'model3'
 
-    V_off_model = make_model_of_class(V_off_model_class)
+    V_off_model = ArtefactModel(make_model_of_class(V_off_model_class))
 
     V_off_initial_params = make_model_of_class(V_off_model_class).get_default_parameters()
     solver_current = V_off_model.make_hybrid_solver_current(hybrid=False,
@@ -717,7 +717,6 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
                    continue
 
                 row = subtraction_df.set_index(['well', 'protocol', 'sweep']).sort_index().loc[(well, protocol, sweep)]
-                print(row)
                 Rseries, Cm = row[['Rseries', 'Cm']]
                 Rseries = Rseries * 1e-9
                 Cm = Cm * 1e9

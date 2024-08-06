@@ -1067,10 +1067,11 @@ def find_V_off(protocol_desc, times, data,
     _leak_parameters = default_parameters.copy()
     _leak_parameters[-3] = 0.0
     gleak, Eleak = fit_leak_parameters_with_artefact(model, protocol_desc,
-                                                    times, data, Vcmd, _leak_parameters,
-                                                    a_solver_current=a_solver_current,
-                                                    pp_gleak=pp_gleak,
-                                                    pp_Eleak=pp_Eleak)
+                                                     times, data, Vcmd,
+                                                     _leak_parameters,
+                                                     a_solver_current=a_solver_current,
+                                                     pp_gleak=pp_gleak,
+                                                     pp_Eleak=pp_Eleak)
 
     default_E_leak = Eleak
 
