@@ -53,6 +53,14 @@ relabel_models_dict = {
     'Wang': 'Wang'
 }
 
+relabel_case_dict = {
+    '0a': 'Case I',
+    '0b': 'Case II',
+    '0c': 'Case III',
+    '0d': 'Case IV',
+    'II': 'Case V'
+}
+
 model_colour_dict = {
     'model2': '#a6cee3',
     'Wang': '#1f78b4',
@@ -121,14 +129,6 @@ def main():
                       '0d': 'Case0d',
                       'II': 'CaseII'
                      }
-
-    relabel_case_dict = {
-        '0a': 'Case I',
-        '0b': 'Case II',
-        '0c': 'Case III',
-        '0d': 'Case IV',
-        'II': 'Case V'
-    }
 
     dirnames = [dirnames_dict[case] for case in cases]
 
