@@ -695,6 +695,7 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
     voltage_func = V_off_model.channel_model.voltage
 
     V_off_initial_params = make_model_of_class(V_off_model_class).get_default_parameters()
+
     solver_current = V_off_model.make_hybrid_solver_current(hybrid=False,
                                                     njitted=False,
                                                     strict=False,
@@ -724,7 +725,7 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
 
                 V_off_initial_params = np.concatenate([
                     V_off_initial_params.copy(),
-                    [args.reversal, 0, 0, 0, 0, 0, Cm, Rseries]
+                    [args.reversal, .0, .0, .0, .0, .0, Cm, Rseries]
                 ]).flatten()
 
                 data, _ = get_data(well, protocol,
@@ -739,8 +740,11 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
                                             a_solver_current=solver_current,
                                             a_solver_states=solver_states )
 
-                markov_model_leak = make_model_of_class(V_off_model_class,
-                                                    times=times)
+                markov_model_leak =
+                ArtefactModel(make_model_of_class(V_off_model_class,
+                                                  times=times,
+                                                  protocol_description=desc))
+
                 voltages = np.array([voltage_func(t, protocol_description=desc)
                                      for t in times])
                 gleak, Eleak = \
