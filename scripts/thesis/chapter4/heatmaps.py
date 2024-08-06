@@ -722,11 +722,6 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
                 Rseries = Rseries * 1e-9
                 Cm = Cm * 1e9
 
-                p = V_off_initial_params.copy()
-
-                p[-2] = Cm
-                p[-1] = Rseries
-                p[-no_artefact_parameters] = args.reversal
                 V_off_initial_params = np.concatenate([
                     V_off_initial_params.copy(),
                     [args.reversal, 0, 0, 0, 0, 0, Cm, Rseries]
@@ -737,7 +732,8 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
                                    args.experiment_name, sweep=sweep,
                                    label=data_label)
                 V_off, success = find_V_off(desc, times, data,
-                                            V_off_model_class, p,
+                                            V_off_model_class,
+                                            V_off_initial_params,
                                             args.reversal,
                                             data_label=data_label,
                                             a_solver_current=solver_current,
