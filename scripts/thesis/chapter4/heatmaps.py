@@ -692,7 +692,7 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
     V_off_model_class = 'model3'
 
     V_off_model = ArtefactModel(make_model_of_class(V_off_model_class))
-    voltage_func = V_off_model.c_model.voltage
+    voltage_func = V_off_model.channel_model.voltage
 
     V_off_initial_params = make_model_of_class(V_off_model_class).get_default_parameters()
     solver_current = V_off_model.make_hybrid_solver_current(hybrid=False,
