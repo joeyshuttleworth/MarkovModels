@@ -71,9 +71,6 @@ class ODEModel:
         else:
             protocol_description = np.array([[.0, 1000.0, -80.0, -80.0]])
 
-        if self.protocol_description is None:
-            protocol_description = np.array([0., np.inf, -80, -80])
-
         self.window_locs = None
 
         self.y = symbols['y']
