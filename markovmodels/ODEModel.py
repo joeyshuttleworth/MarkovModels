@@ -66,7 +66,10 @@ class ODEModel:
 
         self.model_name = name
 
-        self.protocol_description = protocol_description
+        if protocol_description:
+            self.protocol_description = protocol_description
+        else:
+            protocol_description = np.array([[.0, 1000.0, -80.0, -80.0]])
 
         if self.protocol_description is None:
             protocol_description = np.array([0., np.inf, -80, -80])
