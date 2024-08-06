@@ -740,10 +740,10 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
                                             a_solver_current=solver_current,
                                             a_solver_states=solver_states )
 
-                markov_model_leak =
-                ArtefactModel(make_model_of_class(V_off_model_class,
-                                                  times=times,
-                                                  protocol_description=desc))
+                markov_model_leak =\
+                    ArtefactModel(make_model_of_class(V_off_model_class,
+                                                      times=times,
+                                                      protocol_description=desc))
 
                 voltages = np.array([voltage_func(t, protocol_description=desc)
                                      for t in times])
