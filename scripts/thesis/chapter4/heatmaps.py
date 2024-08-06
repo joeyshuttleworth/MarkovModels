@@ -19,8 +19,8 @@ from matplotlib import rc
 
 import markovmodels
 from markovmodels.model_generation import make_model_of_class
-from markovmodels.fitting import get_best_params, compute_predictions_df, get_ensemble_of_predictions, make_prediction, fit_leak_parameters_with_artefact
-from markovmodels.ArtefactModel import ArtefactModel
+from markovmodels.fitting import get_best_params, compute_predictions_df, get_ensemble_of_predictions, make_prediction, fit_leak_parameters_with_artefact, find_V_off
+from markovmodels.ArtefactModel import ArtefactModel, no_artefact_parameters
 from markovmodels.utilities import setup_output_directory, get_data, get_all_wells_in_directory
 from markovmodels.voltage_protocols import get_protocol_list, get_ramp_protocol_from_json, make_voltage_function_from_description
 from markovmodels.voltage_protocols import remove_spikes, detect_spikes
@@ -712,18 +712,17 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
 
         for well in params_df.well.unique():
             for sweep in params_df.sweep.unique():
-                   params_df.set_index(['well', 'protocol', 'sweep'])\
-                            .sort_index().index.isin([(well, protocol, sweep)]).any():
+                if params_df.set_index(['well', 'protocol', 'sweep']).index.isin([(well, protocol, sweep)]).any():
                    logging.warning(f"{[well, protocol, sweep]} not in df")
                    continue
 
-                row = subtraction_df.set_index(['well', 'protocol', 'sweep']).sort_index().loc[[well, protocol, sweep]]
-
-                Rseries, Cm = row.iloc[0][['Rseries', 'Cm']]
+                row = subtraction_df.set_index(['well', 'protocol', 'sweep']).sort_index().loc[(well, protocol, sweep)]
+                print(row)
+                Rseries, Cm = row[['Rseries', 'Cm']]
                 Rseries = Rseries * 1e-9
                 Cm = Cm * 1e9
 
-                p = default_parameters.copy()
+                p = V_off_initial_params.copy()
 
                 p[-2] = Cm
                 p[-1] = Rseries
@@ -739,7 +738,8 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
                                    label=data_label)
                 V_off, success = find_V_off(desc, times, data,
                                             V_off_model_class, p,
-                                            E_rev, data_label=data_label,
+                                            args.reversal,
+                                            data_label=data_label,
                                             solver_current=solver_current,
                                             solver_states=solver_states )
 
