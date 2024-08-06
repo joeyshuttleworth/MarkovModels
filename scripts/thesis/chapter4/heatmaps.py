@@ -740,8 +740,8 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
                                             V_off_model_class, p,
                                             args.reversal,
                                             data_label=data_label,
-                                            solver_current=solver_current,
-                                            solver_states=solver_states )
+                                            a_solver_current=solver_current,
+                                            a_solver_states=solver_states )
 
                 markov_model_leak = make_model_of_class(V_off_model_class,
                                                     times=times)
