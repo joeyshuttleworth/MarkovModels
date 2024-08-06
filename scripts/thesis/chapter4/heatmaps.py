@@ -328,7 +328,7 @@ def main():
                 lw=.75
                 )
 
-            if len(args.ignore_validation_protocol):
+            if len(args.ignore_validation_protocols):
                 rec_1 = worst_ax.add_patch(rec)
                 rec_1.set_clip_on(False)
 
