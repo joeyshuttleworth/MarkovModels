@@ -692,6 +692,7 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
     V_off_model_class = 'model3'
 
     V_off_model = ArtefactModel(make_model_of_class(V_off_model_class))
+    voltage_func = V_off_model.c_model.voltage
 
     V_off_initial_params = make_model_of_class(V_off_model_class).get_default_parameters()
     solver_current = V_off_model.make_hybrid_solver_current(hybrid=False,
@@ -740,12 +741,15 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
 
                 markov_model_leak = make_model_of_class(V_off_model_class,
                                                     times=times)
-                gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak,
-                                                                desc.astype(np.float64),
-                                                                times, data,
-                                                                voltages,
-                                                                solver_current=solver_current
-                                                                )
+                voltages = np.array([voltage_func(t, protocol_description=desc)
+                                     for t in times])
+                gleak, Eleak = \
+                    fit_leak_parameters_with_artefact(markov_model_leak,
+                                                      desc.astype(np.float64),
+                                                      times, data,
+                                                      voltages,
+                                                      solver_current=solver_current
+                                                      )
                 param_dict = {
                     'E_rev': args.reversal,
                     'g_leak': gleak,
