@@ -1552,7 +1552,7 @@ def get_best_params(fitting_df, protocol_label='protocol', param_labels=[]):
                 if len(sub_df.index) == 0:
                     continue
                 if param_labels:
-                    sub_df = sub_df[np.all(np.isfinite(sub_df[param_labels].isfinite()),
+                    sub_df = sub_df[np.all(np.isfinite(sub_df[param_labels]),
                                            axis=1)]
                 best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
 
