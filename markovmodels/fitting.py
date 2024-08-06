@@ -1531,7 +1531,7 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case,
     return predictions_df
 
 
-def get_best_params(fitting_df, protocol_label='protocol'):
+def get_best_params(fitting_df, protocol_label='protocol', param_labels=[]):
     best_params = []
 
     # Ensure score is a float - it may be read from csv file
@@ -1551,6 +1551,8 @@ def get_best_params(fitting_df, protocol_label='protocol'):
                 # Get index of min score
                 if len(sub_df.index) == 0:
                     continue
+                if param_labels:
+                    sub_df = sub_df[sub_df[param_labels].isfinite()]
                 best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
 
     if not best_params:

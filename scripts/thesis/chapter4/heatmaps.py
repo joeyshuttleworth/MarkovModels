@@ -153,7 +153,8 @@ def main():
                                  "combined_fitting_results.csv")
 
             params_df = pd.read_csv(fname)
-            params_df = get_best_params(params_df)
+            param_labels = make_model_of_class(model).get_parameter_labels()
+            params_df = get_best_params(params_df, param_labesl=param_labels)
 
             if args.protocols:
                 params_df = params_df[params_df.protocol.isin(args.protocols)].copy()
