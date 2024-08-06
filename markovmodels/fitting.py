@@ -1024,8 +1024,8 @@ def find_V_off(protocol_desc, times, data,
                                                             strict=False,
                                                             return_var='I_out')
 
-    assert np.all(np.isfinite(a_solver_current()))
-    assert np.all(np.isfinite(a_solver_states()))
+    assert np.all(np.isfinite(a_solver_current(protocol_description=protocol_desc)))
+    assert np.all(np.isfinite(a_solver_states(protocol_description=protocol_desc)))
     return_var = 'I_out'
 
     if not aux_func:
