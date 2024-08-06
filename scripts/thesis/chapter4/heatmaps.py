@@ -712,9 +712,10 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
 
         for well in params_df.well.unique():
             for sweep in params_df.sweep.unique():
-                if (well, protocol, sweep) not in \
-                   params_df.set_index(['well', 'protocol', 'sweep']).sort_index().index:
-                    continue
+                   params_df.set_index(['well', 'protocol', 'sweep'])\
+                            .sort_index().index.isin([(well, protocol, sweep)]).any():
+                   logging.warning(f"{[well, protocol, sweep]} not in df")
+                   continue
 
                 row = subtraction_df.set_index(['well', 'protocol', 'sweep']).sort_index().loc[[well, protocol, sweep]]
 
