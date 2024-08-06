@@ -88,7 +88,7 @@ def main():
     parser.add_argument('--shared_plot_limits', action='store_true')
     parser.add_argument('--no_voltage', action='store_true')
     parser.add_argument('--file_format', default='')
-    parser.add_argument('--reversal', default=-89.5, type=float)
+    parser.add_argument('--reversal', default=-89.83, type=float)
     parser.add_argument('--output', '-o')
     parser.add_argument('--no_cpus', '-c', default=1, type=int)
     parser.add_argument('--model_classes', nargs='+')
@@ -717,7 +717,7 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
 
                 p[-2] = Cm
                 p[-1] = Rseries
-                p[-no_artefact_parameters] = reversal
+                p[-no_artefact_parameters] = args.reversal
                 V_off_initial_params = np.concatenate([
                     V_off_initial_params.copy(),
                     [args.reversal, 0, 0, 0, 0, 0, Cm, Rseries]
@@ -742,7 +742,7 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
                                                                 solver_current=solver_current
                                                                 )
                 param_dict = {
-                    'E_rev': reversal,
+                    'E_rev': args.reversal,
                     'g_leak': gleak,
                     'E_leak': Eleak,
                     'V_off': V_off,
