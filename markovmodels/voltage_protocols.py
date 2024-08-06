@@ -176,6 +176,10 @@ def make_voltage_function_from_description(desc=None, holding_potential=-80.0):
     @njit
     def protocol_func(t: np.float64, offset=0.0,
                       protocol_description=desc):
+
+        if desc is None:
+            return holding_potential
+
         desc = protocol_description.reshape(-1, 4).astype(np.float64)
         t = t + offset
 
