@@ -1331,7 +1331,16 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case,
                            tolerances=(None, None), plot=True,
                            validation_protocols=[]):
 
-    params_df = get_best_params(params_df, protocol_label='protocol')
+    use_artefacts = True if fitting_case in ['I', 'II'] else False
+
+    model = make_model_of_class(model_class)
+    if use_artefacts:
+        model = ArtefactModel(model)
+
+    param_labels = model.get_parameter_labels()
+
+    params_df = get_best_params(params_df, protocol_label='protocol',
+                                param_labels=param_labels)
 
     params_df.sweep = params_df.sweep.astype(int)
 
@@ -1350,14 +1359,6 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case,
 
         all_models_fig = plt.figure(figsize=args.figsize)
         all_models_axs = all_models_fig.subplots(2)
-
-    use_artefacts = True if fitting_case in ['I', 'II'] else False
-
-    model = make_model_of_class(model_class)
-    if use_artefacts:
-        model = ArtefactModel(model)
-
-    param_labels = model.get_parameter_labels()
 
     prot_func = None
 
@@ -1559,8 +1560,8 @@ def get_best_params(fitting_df, protocol_label='protocol', param_labels=[]):
                 if param_labels:
                     _sub_df = sub_df[np.all(np.isfinite(sub_df[param_labels]),
                                             axis=1)]
-                if _sub_df.shape[0] > 0:
-                    sub_df = _sub_df.copy()
+                    if _sub_df.shape[0] > 0:
+                        sub_df = _sub_df.copy()
 
                 best_params.append(sub_df[sub_df.score == sub_df.score.min()].head(1).copy())
 
