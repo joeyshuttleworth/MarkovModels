@@ -52,8 +52,6 @@ class MarkovModel(ODEModel):
 
         self.model_name = name
 
-        self.protocol_description = protocol_description
-
         self.window_locs = None
 
         self.y = symbols['y']
