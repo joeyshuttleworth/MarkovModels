@@ -1710,7 +1710,6 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     times = full_times[indices]
 
     if fitting_case in ['I', 'II']:
-
         try:
             artefact_params_row = params_df.set_index(['well', 'protocol', 'sweep']).sort_index().loc[(well, protocol_fitted, int(fitting_sweep))]
             artefact_params = artefact_params_row[param_labels].values.flatten()[-no_artefact_parameters:].copy().astype(np.float64)
@@ -1719,7 +1718,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
             artefact_params = np.full(no_artefact_parameters, np.nan)
 
         if not np.all(np.isfinite(artefact_params)):
-            logging.warning("Got non-finite artefact parameters: {artefact_params}")
+            logging.warning(f"Got non-finite artefact parameters: {artefact_params}")
             artefact_params = np.full(no_artefact_parameters, np.nan)
 
         if not np.all(np.isfinite(artefact_params)):
