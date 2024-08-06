@@ -1719,6 +1719,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
             artefact_params = np.full(no_artefact_parameters, np.nan)
 
         if not np.all(np.isfinite(artefact_params)):
+            logging.warning("Got non-finite artefact parameters: {artefact_params}")
             artefact_params = np.full(no_artefact_parameters, np.nan)
 
         if not np.all(np.isfinite(artefact_params)):
@@ -1788,7 +1789,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     df = params_df[params_df.well == well]
     df = df[(df.protocol == protocol_fitted) & (df.sweep.astype(int) == int(fitting_sweep))]
     if df.empty:
-        print(f"No parameters for {model_class} {fitting_case} {protocol_fitted} sweep {fitting_sweep}")
+        print(f"No parameters for {model_class} {fitting_case} {well} {protocol_fitted} sweep {fitting_sweep}")
         if return_states:
             no_states = model.n_state_vars
             return np.full(full_times.shape, np.nan), np.full((full_times.shape[0], no_states), np.nan)

@@ -132,7 +132,7 @@ def main():
     params_df_dict = {}
 
     if args.ignore_validation_protocols:
-        args.validation_protocols = [p for p in args.validation_protocols if p not in args.ignore_vlaidation_protocols]
+        args.validation_protocols = [p for p in args.validation_protocols if p not in args.ignore_validation]
 
     for model in args.model_classes:
         results_dict[model] = {}
