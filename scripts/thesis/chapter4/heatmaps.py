@@ -192,11 +192,20 @@ def main():
 
         for model in args.model_classes:
             for case in args.cases:
-                if case not in ['I', 'II', '0d']:
+                if case not in ['I', 'II']:
                     continue
                 params_df = results_dict[model][case]
-                params_df = pd.concat([params_df, artefact_params_df], ignore_index=True,
+
+                c_param_labels = make_model_of_class(model)
+
+                _artefact_params_df = artefact_params_df.copy()
+                for lab in c_param_labels:
+                    _artefact_params_df[lab] = 0.0
+
+                params_df = pd.concat([params_df,
+                                       _artefact_params_df], ignore_index=True,
                                       axis=0)
+
                 results_dict[model][case] = params_df
 
     if args.figsize:
