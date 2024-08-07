@@ -189,26 +189,28 @@ def main():
 
     if 'I' in args.cases or 'II' in args.cases\
        and len([p for p in args.validation_protocols if p not in args.ignore_validation_protocols]) > 0:
-        artefact_params_df = fit_artefact_parameters(params_df, args.validation_protocols,
+        new_artefact_params_df = fit_artefact_parameters(params_df, args.validation_protocols,
                                                      protocol_dict, args)
-        print(f"Fitted artefact parameters {artefact_params_df}")
+        print(f"Fitted artefact parameters {new_artefact_params_df}")
 
         for model in args.model_classes:
             for case in args.cases:
                 if case not in ['I', 'II']:
                     continue
+
                 params_df = results_dict[model][case]
+                print(model, case, params_df.columns)
 
-                c_param_labels = make_model_of_class(model).get_parameter_labels()
+                _artefact_params_df = new_artefact_params_df.copy()
 
-                _artefact_params_df = artefact_params_df.copy()
-                for lab in c_param_labels:
+                for lab in [lab for lab in params_df.columns\
+                            if lab not in _artefact_params_df.columns]:
                     _artefact_params_df[lab] = 0.0
 
                 params_df = pd.concat([params_df,
                                        _artefact_params_df], ignore_index=True,
                                       axis=0)
-
+                print(params_df)
                 results_dict[model][case] = params_df
 
     if args.figsize:
@@ -691,6 +693,8 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
     subtraction_df = pd.read_csv(args.subtraction_df)
     data_label = 'before'
 
+    params_df = params_df.copy()
+
     V_off_model_class = 'model3'
 
     V_off_model = ArtefactModel(make_model_of_class(V_off_model_class))
@@ -758,12 +762,12 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
                                                       a_solver_current=solver_current
                                                       )
                 param_dict = {
-                    'E_rev': args.reversal,
+                    'E_Kr': args.reversal,
                     'g_leak': gleak,
                     'E_leak': Eleak,
                     'V_off': V_off,
-                    'Cm': Cm,
-                    'Rseries': Rseries,
+                    'C_m': Cm,
+                    'R_s': Rseries,
                     'well': well,
                     'protocol': protocol,
                     'sweep': sweep
@@ -772,9 +776,7 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
                 new_rows.append(param_dict)
     new_df = pd.DataFrame.from_records(new_rows)
 
-    print(new_df)
-
-    return pd.concat([params_df, new_df])
+    return new_df
 
 
 def define_protocol_order(chrono_fname):
