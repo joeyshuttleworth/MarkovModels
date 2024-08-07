@@ -1652,6 +1652,9 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                     return_states=False, strict=True, tolerances=(None, None)):
 
     params_df = params_df.copy()
+    subtractions_df = subtractions_df.copy()
+    subtractions_df.sweep = subtractions_df.sweep.astype(int)
+
     params_df = params_df[params_df.well == well].copy()
 
     params_df = get_best_params(params_df)
@@ -1688,7 +1691,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     else:
         pred_E_rev = inferred_E_rev
 
-    if fitting_case == '0c':
+    if fitting_case == '0c' or fitting_case == '0d':
         fitting_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(protocol_fitted, well, int(fitting_sweep))]['E_rev']
         new_E_rev = inferred_E_rev
         params_df = adjust_kinetics(model_class, params_df, subtractions_df,
