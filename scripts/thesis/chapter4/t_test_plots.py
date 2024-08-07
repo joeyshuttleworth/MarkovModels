@@ -349,8 +349,8 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
         else:
             # Grey out axes with no values
             ax.set_facecolor((105/256, 105/256, 105/256, .5))
+        ax.set_title(relabel_dict[protocol])
 
-    ax.set_title(relabel_dict[protocol])
     fig.colorbar(im, cax=cbar_ax, shrink=.75, orientation='horizontal',
                  norm=SymLogNorm(symlogthresh, vmin=vmin, vmax=vmax),
                  label=label)
