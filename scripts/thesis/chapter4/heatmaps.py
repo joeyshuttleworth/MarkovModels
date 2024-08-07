@@ -855,6 +855,7 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     prediction_df = prediction_df[~prediction_df.fitting_protocol.isin(args.ignore_fitting_protocols)]
     prediction_df = prediction_df[~prediction_df.validation_protocol.isin(args.ignore_validation_protocols)]
     prediction_df = prediction_df[~prediction_df.well.isin(args.ignore_wells)]
+    prediction_df = prediction_df[~prediction_df.fitting_protocol.isin(args.validation_protocols)]
 
     prediction_df.fitting_sweep = prediction_df.fitting_sweep.astype(int)
     prediction_df.prediction_sweep = prediction_df.prediction_sweep.astype(int)
@@ -1008,7 +1009,7 @@ def setup_grid(fig, args):
         label_ax.text(.5, .5, case_label, horizontalalignment='center',
                       verticalalignment='center')
 
-    for ax in list(model_axs.flatten()) + model_label_axs + case_label_axs:
+    for ax in list(model_axs.flatten()[1:]) + model_label_axs + case_label_axs:
         ax.set_axis_off()
 
     return model_axs, model_label_axs, case_label_axs, colour_bar_ax
