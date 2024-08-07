@@ -1741,7 +1741,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
             artefact_params = np.full(no_artefact_parameters, np.nan)
 
         if not np.all(np.isfinite(artefact_params)):
-            logging.warning(f"{fitting_case} {model_class} Got non-finite artefact parameters: {artefact_params}")
+            logging.warning(f"{fitting_case} {model_class} {well} {protocol} {sweep} Got non-finite artefact parameters: {artefact_params}")
             artefact_params = np.full(no_artefact_parameters, np.nan)
 
         if not np.all(np.isfinite(artefact_params)):

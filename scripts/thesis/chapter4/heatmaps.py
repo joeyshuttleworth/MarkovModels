@@ -199,7 +199,6 @@ def main():
                     continue
 
                 params_df = results_dict[model][case]
-                print(model, case, params_df.columns)
 
                 _artefact_params_df = new_artefact_params_df.copy()
 
