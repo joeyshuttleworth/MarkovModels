@@ -179,8 +179,11 @@ def main():
                                                                 'protocols'),
                                                    args.experiment_name)
 
+
+
         times = np.loadtxt(os.path.join(args.data_directory,
                                         f"{args.experiment_name}-{protocol}-times.csv")).astype(np.float64).flatten()
+        desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
 
         protocol_dict[protocol] = desc, times
 
@@ -292,7 +295,6 @@ def main():
                                       label=data_label)
 
             desc = vp.get_all_sections()
-
             desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
             times_fname = os.path.join(args.data_directory,
                                     f"{args.experiment_name}-{validation_protocol}-times.csv")
@@ -697,8 +699,8 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
     params = make_model_of_class(V_off_model_class).get_default_parameters()
 
     solver_current = V_off_model.make_hybrid_solver_current(hybrid=False,
-                                                    njitted=False,
-                                                    strict=False,
+                                                            njitted=False,
+                                                            strict=False,
                                                             return_var='I_out')
     solver_states = V_off_model.make_hybrid_solver_states(hybrid=False,
                                                           njitted=False,
@@ -743,21 +745,16 @@ def fit_artefact_parameters(params_df, protocols, protocol_dict, args):
                                             a_solver_current=solver_current,
                                             a_solver_states=solver_states )
 
-                markov_model_leak =\
-                    ArtefactModel(make_model_of_class(V_off_model_class,
-                                                      times=times,
-                                                      protocol_description=desc))
-
                 voltages = np.array([voltage_func(t, protocol_description=desc)
                                      for t in times])
 
                 V_off_initial_params[-3] = V_off
 
                 gleak, Eleak = \
-                    fit_leak_parameters_with_artefact(markov_model_leak,
+                    fit_leak_parameters_with_artefact(V_off_model,
                                                       desc.astype(np.float64),
                                                       times, data, voltages,
-                                                      default_parameters=params,
+                                                      default_parameters=V_off_initial_params,
                                                       a_solver_current=solver_current
                                                       )
                 param_dict = {
