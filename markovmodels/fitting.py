@@ -1429,6 +1429,8 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case,
 
                 data = full_data[indices]
                 for i, protocol_fitted in enumerate(params_df.protocol.unique()):
+                    if protocol_fitted in validation_protocols:
+                        continue
                     for fitting_sweep in params_df[params_df.protocol == protocol_fitted].sweep.unique():
                         full_prediction = make_prediction(model_class, args,
                                                           well, sim_protocol,
@@ -1697,11 +1699,10 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     if solver is None:
         if use_artefacts:
-            if label == 'before':
+            if fitting_case in ['I', 'II']:
                 return_var = 'I_out'
             else:
                 return_var = 'I_Kr'
-
             solver = model.make_hybrid_solver_current(hybrid=False,
                                                       njitted=False,
                                                       strict=strict,
@@ -1740,7 +1741,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
             artefact_params = np.full(no_artefact_parameters, np.nan)
 
         if not np.all(np.isfinite(artefact_params)):
-            logging.warning(f"{fitting_case} {model} Got non-finite artefact parameters: {artefact_params}")
+            logging.warning(f"{fitting_case} {model_class} Got non-finite artefact parameters: {artefact_params}")
             artefact_params = np.full(no_artefact_parameters, np.nan)
 
         if not np.all(np.isfinite(artefact_params)):
@@ -1758,7 +1759,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
             V_off_initial_params = make_model_of_class(V_off_model_class).get_default_parameters()
             V_off_initial_params = np.concatenate([
                 V_off_initial_params,
-                [args.reversal, 0, 0, 0, 0, 0, Cm, Rseries]
+                [args.reversal, .0, .0, .0, .0, .0, Cm, Rseries]
             ]).flatten()
 
             data_label = 'before'
@@ -1789,7 +1790,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                 'C_m' : Cm
             }
 
-            artefact_params= np.array([
+            artefact_params = np.array([
                 args.reversal,
                 gleak,
                 Eleak,
@@ -1825,7 +1826,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
         params[-no_artefact_parameters:] = artefact_params
         assert np.all(np.isfinite(params))
         current = solver(params, times=full_times, protocol_description=desc,
-                         atol=atol, rtol=rtol)
+                         atol=atol, rtol=rtol, E_rev=pred_E_rev)
 
     else:
         current = solver(params, times=full_times, protocol_description=desc,
