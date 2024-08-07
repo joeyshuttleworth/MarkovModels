@@ -579,6 +579,7 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     param_labels = model.get_parameter_labels()
     params = row[param_labels].values.flatten()
     default_params = model.get_default_parameters()
+    default_params[m_model.GKr_index] = params[m_model.GKr_index]
 
     if args.use_artefact_model:
         default_params[-no_artefact_parameters:] = params[-no_artefact_parameters:]
