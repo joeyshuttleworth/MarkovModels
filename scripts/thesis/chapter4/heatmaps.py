@@ -210,7 +210,6 @@ def main():
                 params_df = pd.concat([params_df,
                                        _artefact_params_df], ignore_index=True,
                                       axis=0)
-                print(params_df)
                 results_dict[model][case] = params_df
 
     if args.figsize:
