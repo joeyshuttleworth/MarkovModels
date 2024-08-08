@@ -222,7 +222,7 @@ def main():
 
             default_parameters = markovmodels.model_generation.make_model_of_class(args.model).get_default_parameters()
             starting_parameters = np.append(default_parameters,
-                                            [args.reversal, gleak, Eleak, 0, 0, 0, Cm, Rseries]).astype(np.float)
+                                            [args.reversal, gleak, Eleak, 0, 0, 0, Cm, Rseries]).astype(np.float64)
 
         tasks.append([protocol, well, args.model, starting_parameters, args.reversal,
                       not args.dont_randomise_initial_guess, prefix, sweep, output_dir, args,
