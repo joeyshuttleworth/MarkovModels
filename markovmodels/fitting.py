@@ -1556,7 +1556,6 @@ def get_best_params(fitting_df, protocol_label='protocol', param_labels=[]):
                 sub_df = fitting_df[(fitting_df['well'] == well)
                                     & (fitting_df[protocol_label] == protocol)].copy()
                 sub_df = sub_df[sub_df.sweep == sweep]
-                sub_df = sub_df.dropna()
                 # Get index of min score
                 if len(sub_df.index) == 0:
                     continue
@@ -1810,11 +1809,10 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
             forward_sim_parameters = model.get_default_parameters()
             forward_sim_parameters[-no_artefact_parameters:] = artefact_params
 
-    data = full_data[indices]
+    df = params_df[params_df.well == well].copy()
+    df = df[(df.protocol == protocol_fitted) & (df.sweep.astype(int) == int(fitting_sweep))].copy()
 
-    df = params_df[params_df.well == well]
-    df = df[(df.protocol == protocol_fitted) & (df.sweep.astype(int) == int(fitting_sweep))]
-    if df.empty:
+    if df.shape[0]==0:
         print(f"No parameters for {model_class} {fitting_case} {well} {protocol_fitted} sweep {fitting_sweep}")
         if return_states:
             no_states = model.n_state_vars
