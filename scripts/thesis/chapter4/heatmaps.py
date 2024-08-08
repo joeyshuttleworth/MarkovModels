@@ -156,6 +156,8 @@ def main():
             param_labels = make_model_of_class(model).get_parameter_labels()
             params_df = get_best_params(params_df, param_labels=param_labels)
 
+            params_df.to_csv(os.path.join(output_dir, f"{model}_{case}_best_params.csv"))
+
             if args.protocols:
                 params_df = params_df[params_df.protocol.isin(args.protocols)].copy()
 
