@@ -33,7 +33,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
               randomise_initial_guess=True, output_dir=None, solver_type=None,
               no_conductance_boundary=False, use_artefact_model=False,
               rng=None, population_size=None, add_simple_leak=False, g_leak=None,
-              E_leak=None):
+              E_leak=None, data_label=''):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -123,8 +123,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     if voltages is None:
         voltages = np.array([mm.voltage(t, protocol_description=desc) for t in times])
 
-    if add_simple_leak:
-        leak_current = g_leak * (voltages - E_leak)
+    leak_current = g_leak * (voltages - E_leak)
 
     class PintsWrapper(pints.ForwardModelS1):
         def __init__(self, mm, parameters, fix_parameters=None):
@@ -178,7 +177,12 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         unfixed_indices = list(range(len(starting_parameters)))
         params_not_fixed = starting_parameters
 
-    boundaries = FittingBoundaries(starting_parameters, mm, data,
+    if data_label == 'before':
+        s_data = data - leak_current
+    else:
+        s_data = data
+
+    boundaries = FittingBoundaries(starting_parameters, mm, s_data,
                                    voltages, rng, fix_parameters,
                                    use_artefact_model=use_artefact_model)
 
@@ -541,6 +545,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                                  starting_parameters=initial_params,
                                                  max_iterations=max_iterations,
                                                  subset_indices=indices,
+                                                 data_label=data_label,
                                                  parallel=parallel,
                                                  voltages=voltages,
                                                  randomise_initial_guess=randomise_initial_guess,
