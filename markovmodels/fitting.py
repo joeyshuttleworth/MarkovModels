@@ -118,9 +118,8 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         subset_indices = np.array(list(range(len(mm.times))))
 
     fix_parameters = np.unique(fix_parameters)
-    desc = mm.protocol_description
-    voltages = np.array([mm.voltage(t, protocol_description=desc) for t in times])
 
+    voltages = np.array([mm.voltage(t) for t in mm.times])
     if add_simple_leak:
         leak_current = g_leak * (voltages - E_leak)
 
@@ -176,6 +175,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         unfixed_indices = list(range(len(starting_parameters)))
         params_not_fixed = starting_parameters
 
+    voltages = np.array([mm.voltage(t) for t in times])
     boundaries = FittingBoundaries(starting_parameters, mm, data,
                                    voltages, rng, fix_parameters,
                                    use_artefact_model=use_artefact_model)
@@ -335,7 +335,6 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                       label=data_label, sweep=sweep)
 
     protocol_desc = voltage_protocol.get_all_sections()
-
     # Temporary solver hack
     protocol_desc = np.vstack((protocol_desc, [[protocol_desc[-1, 1], np.inf, -80.0, -80.0]]))
 
@@ -357,6 +356,8 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
     ramp_end = protocol_desc[leak_ramp_i, 1]
 
     V_off = 0.0
+    V_off_model_class = 'model3'
+
     if infer_E_rev:
         if output_dir:
             plot = True
@@ -375,8 +376,6 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         if use_artefact_model:
             # Use the artefact to forward simulate the voltages (using literature kinetics)
             params_for_Erev = default_parameters.copy()
-
-            V_off_model_class = 'model3'
 
             if artefact_default_kinetic_parameters is not None:
                 V_off_initial_params = \
@@ -482,6 +481,10 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         default_parameters[-no_artefact_parameters + 1] = gleak
         default_parameters[-no_artefact_parameters + 2] = Eleak
 
+
+    protocol_desc = voltage_protocol.get_all_sections()
+    # Temporary solver hack
+    protocol_desc = np.vstack((protocol_desc, [[protocol_desc[-1, 1], np.inf, -80.0, -80.0]]))
     m_model = make_model_of_class(model_class_name, voltage=voltage_func,
                                   times=times,
                                   E_rev=E_rev,
@@ -509,11 +512,11 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
             if use_artefact_model and data_label == 'before':
                 assert solver_type is None or solver_type=='default'
                 solver = model.make_hybrid_solver_current(strict=strict, return_var='I_out',
-                                                          hybrid=False)
+                                                          hybrid=False, protocol_description=protocol_desc)
                 solver()
             else:
                 solver = model.make_forward_solver_of_type(solver_type,
-                                                           strict=strict)
+                                                           strict=strict, protocol_description=protocol_desc)
                 solver()
 
         except Exception as exc:
@@ -522,15 +525,8 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                                        strict=strict)
 
     if not np.all(np.isfinite(solver(initial_params.flatten()))):
-        if use_artefact_model:
-            print(model.SimulateForwardModel(initial_params))
-
         bad_indices = np.argwhere(~np.isfinite(solver(initial_params.flatten())))
-
-        state_solver = model.make_hybrid_solver_states(hybrid=False, njitted=False)
-        print(state_solver()[bad_indices, :])
-
-        raise Exception("Default parameters gave non-finite output \n"
+        logging.warning("Default parameters gave non-finite output \n"
                         f"{well} {protocol} {sweep} {initial_params} {E_rev}")
 
 
@@ -723,7 +719,7 @@ class FittingBoundaries(pints.Boundaries):
             self.full_parameters = full_parameters
             self.mm = model
 
-        indices = np.argwhere(voltages - -120.0 < 1e-5)[10:200]
+        indices = np.argwhere(np.abs(voltages - -120.0) < 1e-5)[10:200]
         conductances = (current / (voltages - self.mm.E_rev))[indices]
 
         self.max_conductance = np.abs(conductances.max()) * 100
@@ -1471,7 +1467,6 @@ def compute_predictions_df(params_df, output_dir, protocol_dict, fitting_case,
                         if not np.all(np.isfinite(prediction)):
                             logging.warning(f"running {sim_protocol} with parameters "
                                             f"from {protocol_fitted} gave non-finite values")
-                            print(times[~np.isfinite(prediction)])
                         else:
                             predictions_df.append((well, protocol_fitted,
                                                    fitting_sweep,

@@ -214,11 +214,8 @@ def main():
             Rseries = Rseries * 1e-9
             Cm = Cm * 1e9
 
-            row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol)
-                                 & (subtraction_df.sweep == sweep)].iloc[0]
-            gleak, Eleak = row[['gleak_before', 'E_leak_before']]
-            gleak = float(gleak)
-            Eleak = float(Eleak)
+            gleak = 0.0
+            Eleak = 0.0
 
             default_parameters = markovmodels.model_generation.make_model_of_class(args.model).get_default_parameters()
             starting_parameters = np.append(default_parameters,

@@ -88,11 +88,7 @@ class ODEModel:
         if voltage is not None:
             self.voltage = voltage
         else:
-
-            example_desc = np.array([[0.0, 1000.0, -80.0, -80.0],
-                                     [1000.1, np.inf, -80.0, -80.0]])
-            voltage = make_voltage_function_from_description(example_desc)
-
+            voltage = make_voltage_function_from_description(self.protocol_description)
             self.voltage = voltage
 
         if voltage is not None:
