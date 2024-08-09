@@ -227,6 +227,7 @@ def main():
         tasks.append([protocol, well, args.model, starting_parameters, args.reversal,
                       not args.dont_randomise_initial_guess, prefix, sweep, output_dir, args,
                       default_artefact_kinetic_parameters])
+        print(f"Tasks are {tasks}")
 
         protocols_list.append(protocol)
 
