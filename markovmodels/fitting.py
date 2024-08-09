@@ -29,7 +29,7 @@ from markovmodels.ArtefactModel import ArtefactModel, no_artefact_parameters
 def fit_model(mm, data, times=None, starting_parameters=None,
               fix_parameters=[], max_iterations=None, subset_indices=None,
               method=pints.CMAES, solver=None, log_transform=True, repeats=1,
-              return_fitting_df=False, parallel=False,
+              return_fitting_df=False, parallel=False, voltages=None,
               randomise_initial_guess=True, output_dir=None, solver_type=None,
               no_conductance_boundary=False, use_artefact_model=False,
               rng=None, population_size=None, add_simple_leak=False, g_leak=None,
@@ -119,7 +119,9 @@ def fit_model(mm, data, times=None, starting_parameters=None,
 
     fix_parameters = np.unique(fix_parameters)
     desc = mm.protocol_description
-    voltages = np.array([mm.voltage(t, protocol_description=desc) for t in times])
+
+    if voltages is None:
+        voltages = np.array([mm.voltage(t, protocol_description=desc) for t in times])
 
     if add_simple_leak:
         leak_current = g_leak * (voltages - E_leak)
@@ -341,11 +343,10 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
 
     voltage_func = make_voltage_function_from_description(protocol_desc)
 
-    times = pd.read_csv(os.path.join(data_directory, f"{experiment_name}-{protocol}-times.csv"),
-                        header=None).values.flatten()
+    times = np.loadtxt(os.path.join(data_directory, f"{experiment_name}-{protocol}-times.csv")).flatten().astype(np.float64)
     dt = times[1] - times[0]
 
-    voltages = np.array([voltage_func(t) for t in times])
+    voltages = np.array([voltage_func(t, protocol_description=protocol_desc) for t in times])
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   removal_duration)
@@ -444,6 +445,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
             inferred_E_rev = E_rev
             default_parameters[-3] = V_off
             E_rev = E_rev
+            default_parameters[-no_artefact_parameters] = E_rev
         else:
             inferred_E_rev = E_obs
 
@@ -464,7 +466,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
     # Fit leak parameters
     if use_artefact_model:
         markov_model_leak = ArtefactModel(make_model_of_class(V_off_model_class,
-                                                              protocol_description=protocol_desc,
+                                                              protocol_description=protocol_desc.copy(),
                                                               times=times))
         if artefact_default_kinetic_parameters is not None:
             leak_initial_params = \
@@ -476,7 +478,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
 
         default_parameters[-no_artefact_parameters] = E_rev
         gleak, Eleak = fit_leak_parameters_with_artefact(markov_model_leak,
-                                                         protocol_desc.astype(np.float64),
+                                                         protocol_desc.astype(np.float64).copy(),
                                                          times, data, voltages,
                                                          default_parameters=leak_initial_params)
         default_parameters[-no_artefact_parameters + 1] = gleak
@@ -490,6 +492,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
 
     if use_artefact_model:
         model = ArtefactModel(m_model)
+        model.protocol_description=protocol_desc
     else:
         model = m_model
 
@@ -539,6 +542,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                                  max_iterations=max_iterations,
                                                  subset_indices=indices,
                                                  parallel=parallel,
+                                                 voltages=voltages,
                                                  randomise_initial_guess=randomise_initial_guess,
                                                  return_fitting_df=True,
                                                  repeats=repeats,
@@ -552,6 +556,9 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                                  E_leak=pp_E_leak,
                                                  add_simple_leak=add_simple_leak
                                                  )
+
+    fitting_df['score'] = fitting_df['RMSE']
+    fitting_df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
 
     fig = plt.figure(figsize=(14, 12))
     ax = fig.subplots()
@@ -569,7 +576,8 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                 ax.plot(times, solver(initial_params), label='default parameters')
 
             ax.plot(times, data, color='grey', label='data', alpha=.5)
-        except Exception:
+        except Exception as exc:
+            print(str(exc))
             pass
 
         ax.legend()
@@ -586,8 +594,6 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
             ax.cla()
     plt.close(fig)
 
-    fitting_df['score'] = fitting_df['RMSE']
-    fitting_df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
     return fitting_df
 
 
@@ -723,7 +729,7 @@ class FittingBoundaries(pints.Boundaries):
             self.full_parameters = full_parameters
             self.mm = model
 
-        indices = np.argwhere(voltages - -120.0 < 1e-5)[10:200]
+        indices = np.argwhere(np.abs(voltages - -120.0) < 1e-5)[10:200]
         conductances = (current / (voltages - self.mm.E_rev))[indices]
 
         self.max_conductance = np.abs(conductances.max()) * 100
