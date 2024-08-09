@@ -16,7 +16,7 @@ no_artefact_parameters = 8
 class ArtefactModel(MarkovModel):
     def __init__(self, channel_model, E_leak=0, g_leak=0, C_m=5e-3,
                  R_series=5e-3, g_leak_leftover=0, E_leak_leftover=0, V_off=0,
-                 ignore_states=[]):
+                 ignore_states=[], protocol_description=None):
 
         # Membrane capacitance (nF)
         self.C_m = C_m
@@ -51,8 +51,11 @@ class ArtefactModel(MarkovModel):
 
         self.times = channel_model.times
 
-        self.protocol_description = channel_model.protocol_description
-
+        if protocol_description is not None:
+            self.protocol_description = protocol_description
+        else:
+            self.protocol_description = np.array([[0.0, 1000.0, -80.0, -80.0]])
+    
         self.solver_tolerances = channel_model.solver_tolerances
         self.E_rev = channel_model.E_rev
         self.channel_model.compute_steady_state_expressions()
