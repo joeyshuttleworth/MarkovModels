@@ -70,6 +70,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
     res_df['protocol'] = protocol
     res_df['sweep'] = sweep if sweep is not None else -1
 
+    print(res_df)
     return res_df
 
 
@@ -135,6 +136,8 @@ def main():
         args.output,
         f"fitting_{args.experiment_name}_{args.model}"
     )
+
+    print(f"outputting to {output_dir}")
 
     args.sweeps = list(set(args.sweeps))
 
@@ -230,12 +233,6 @@ def main():
     assert len(tasks) > 0, "no valid protocol/well combinations provided"
     protocols_list = np.unique(protocols_list)
     pool_size = min(args.cores, len(tasks))
-
-    # with loky.get_reusable_executor(pool_size, timeout=None) as pool:
-    #     future_res = [pool.submit(fit_func, *args) for args in tasks]
-
-    #     loky.wait(future_res)
-    #     res = [x.result() for x in future_res]
 
     with multiprocessing.Pool(pool_size, **pool_kws) as pool:
         res = pool.starmap(fit_func, tasks)

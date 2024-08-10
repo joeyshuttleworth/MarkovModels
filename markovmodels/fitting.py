@@ -334,6 +334,9 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
     if max_iterations == 0 or not np.all(np.isfinite(default_parameters)):
         df = pd.DataFrame(default_parameters[None, :], columns=parameter_labels)
         df['score'] = np.inf
+
+        logging.warning(f"Optimisation not performed:\n{df}")
+
         return df
 
     data, voltage_protocol = get_data(well, protocol, data_directory, experiment_name,
@@ -517,12 +520,16 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         try:
             if use_artefact_model and data_label == 'before':
                 assert solver_type is None or solver_type=='default'
-                solver = model.make_hybrid_solver_current(strict=strict, return_var='I_out',
-                                                          hybrid=False, protocol_description=protocol_desc)
+                solver = model.make_hybrid_solver_current(strict=strict,
+                                                          return_var='I_out',
+                                                          hybrid=False,
+                                                          protocol_description=protocol_desc)
                 solver()
+
             else:
                 solver = model.make_forward_solver_of_type(solver_type,
-                                                           strict=strict, protocol_description=protocol_desc)
+                                                           strict=strict,
+                                                           protocol_description=protocol_desc)
                 solver()
 
         except Exception as exc:
@@ -577,8 +584,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
 
             ax.plot(times, data, color='grey', label='data', alpha=.5)
         except Exception as exc:
-            print(str(exc))
-            pass
+            print(f"Couldn't plot fits " + str(exc))
 
         ax.legend()
 
