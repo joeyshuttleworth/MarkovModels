@@ -444,7 +444,7 @@ def main():
             ',\n' r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2E}"
 
         worst_ax.set_title(worst_well_title)
-        worst_ax.axis('off')
+        # worst_ax.axis('off')
         # worst_ax.set_xticks([])
         worst_ax.set_yticks([])
         best_ax.tick_params(axis='x', labelrotation=90.0)
@@ -587,9 +587,9 @@ def main():
 
             individual_fig.savefig(os.path.join(output_dir,
                                                 f"{well}_{case}_{model_class}_heatmap"))
-        for ax in model_axs.flatten():
-            ax.xaxis.set_visible(False)
-            ax.yaxis.set_visible(False)
+        # for ax in model_axs.flatten():
+            # ax.xaxis.set_visible(False)
+            # ax.yaxis.set_visible(False)
         fig.savefig(os.path.join(output_dir,
                                  f"{well}_heatmaps"))
         fig.clf()
@@ -976,7 +976,7 @@ def setup_grid(fig, args):
     # Row for each model, a colorbar, and case labels
     no_rows = 2 + len(args.model_classes)
 
-    no_cases = 3
+    no_cases = len(args.cases)
     no_models = len(args.model_classes)
     no_columns = 1 + no_cases
 
@@ -1010,8 +1010,8 @@ def setup_grid(fig, args):
         label_ax.text(.5, .5, case_label, horizontalalignment='center',
                       verticalalignment='center')
 
-    for ax in list(model_axs.flatten()[1:]) + model_label_axs + case_label_axs:
-        ax.set_axis_off()
+    # for ax in list(model_axs.flatten()[1:]) + model_label_axs + case_label_axs:
+    #     ax.set_axis_off()
 
     return model_axs, model_label_axs, case_label_axs, colour_bar_ax
 
@@ -1030,9 +1030,9 @@ def setup_grid_single_case(fig, args):
     model_axs = [fig.add_subplot(gs[0, i]) for i in range(2)] \
         + [fig.add_subplot(gs[1, i]) for i in range(2)]
 
-    for ax in model_axs:
-        ax.set_axis_off()
-    model_axs[0].set_axis_on()
+    # for ax in model_axs:
+    #     ax.set_axis_off()
+    # model_axs[0].set_axis_on()
 
     # for ax in model_axs:
     #     ax.spines[['top', 'right']].set_visible(False)
