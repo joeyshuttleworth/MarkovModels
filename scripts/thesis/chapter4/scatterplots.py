@@ -132,6 +132,8 @@ def main():
     if args.protocols:
         params_df = params_df[params_df.protocol.isin(args.protocols)]
 
+    do_coloured_scatterplots(params_df, param_labels[0], param_labels[1])
+
     # Drop conductance parameter
     params_df = params_df.drop(param_labels[-1], axis='columns')
     param_labels = param_labels[:-1]
