@@ -89,7 +89,7 @@ def main():
     parser.add_argument('--fig_title', '-t', default='')
     parser.add_argument('--nolegend', action='store_true')
     parser.add_argument('--dpi', '-d', default=500, type=int)
-    parser.add_argument('--fontsize', type=int, default=9)
+    parser.add_argument('--fontsize', type=int, default=8)
     parser.add_argument('--show_uncertainty', action='store_true')
     parser.add_argument('--shared_plot_limits', action='store_true')
     parser.add_argument('--no_voltage', action='store_true')
@@ -264,6 +264,7 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
     do_rank_plot(rank_ax, params_df, protocol, well, sweep, args)
 
     # Plot everything
+    fig.align_ylabels([occupations_ax, current_ax, protocol_ax, rank_ax, scatter_ax])
     fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}.pdf"))
     plt.close(fig)
 
@@ -409,7 +410,12 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
     current_ax.plot(times*1e-3, trace, alpha=.5, lw=.5, color='red')
     current_ax.plot(times*1e-3, pred, alpha=.5, lw=.8)
     current_ax.set_xlabel('')
-    current_ax.set_ylabel(r'$I_\text{subtracted}$ (pA)')
+
+    if args.fitting_case in ['0a', '0b']:
+        current_ax.set_ylabel(r'$I_\mathrm{obs} - I_\mathrm{L}$ (pA)')
+    else:
+        current_ax.set_ylabel(r'$I_\mathrm{obs}$ (pA)')
+
     occupations_ax.set_ylabel(r'$\mathbf{x}(t)$')
     # occupations_ax.set_xticks([])
     protocol_ax.plot(times*1e-3, voltages, color='black', label=r'$V$ (mV)')
@@ -501,24 +507,31 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
             # ylims[0] -= 0.05 * (ylims[1] - ylims[0])
             # ylims[1] += 0.05 * (ylims[1] - ylims[0])
 
-            # if len(np.unique(xlims)) == 2:
-            #     inset_ax.set_xlim(xlims)
-            # if len(np.unique(ylims)) == 2:
-            #     inset_ax.set_ylim(ylims)
-
             # inset_ax.set_xscale('log')
             # inset_ax.set_yscale('log')
 
             xticks = inset_ax.get_xticks()
-            xticks = [xticks[0], xticks[-1]]
+            xticks = [xlims[0], xlims[-1]]
 
             yticks = inset_ax.get_yticks()
-            yticks = [yticks[0], yticks[-1]]
+            yticks = [ylims[0], ylimsu[-1]]
+
+            xspread = xlims[1] - xlimes[0]
+            xlims[0] -= xspread * 0.1
+            xlims[1] += xspread * 0.1
+
+            yspread = ylims[1] - ylimes[0]
+            ylims[0] -= yspread * 0.1
+            ylims[1] += yspread * 0.1
+            if len(np.unique(ylims)) == 2:
+                inset_ax.set_xlim(xlims)
+            if len(np.unique(ylims)) == 2:
+                inset_ax.set_ylim(ylims)
 
             inset_ax.set_xticks(xticks)
             inset_ax.set_yticks(yticks)
 
-            mark_inset(scatter_ax, inset_ax, 2, 3, alpha=.4)
+            mark_inset(scatter_ax, inset_ax, 2, 3, alpha=.25)
 
     else:
         logging.warning(f"no highlited indices for {well} {protocol} sweep{sweep}")
