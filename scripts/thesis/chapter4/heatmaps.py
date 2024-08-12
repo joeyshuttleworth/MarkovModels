@@ -493,6 +493,14 @@ def main():
         individual_fig.savefig(os.path.join(output_dir,
                                             f"average_{case}_{model_class}_heatmap"))
 
+    for ax in model_axs[:-1, :].flatten():
+        ax.set_xticklabels([])
+        ax.set_xlabel('')
+
+    for ax in model_axs[:, :-1]:
+        ax.set_yticklabels([])
+        ax.set_ylabel('')
+
     fig.savefig(os.path.join(output_dir, "averaged_well_heatmaps"))
     fig.clf()
 
