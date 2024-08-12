@@ -542,8 +542,8 @@ def main():
     colour_bar_ax.set_title('NRMSE')
 
     for ax in model_axs[1:]:
-        ax.set_xticks([])
-        ax.set_yticks([])
+        ax.set_xticklabels([])
+        ax.set_xticklabels([])
         ax.set_xlabel('')
         ax.set_ylabel('')
 
@@ -980,8 +980,8 @@ def setup_grid(fig, args):
     no_models = len(args.model_classes)
     no_columns = 1 + no_cases
 
-    gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[.15] + [1] *
-                  no_models + [0.25], width_ratios=[.3] + no_cases*[1])
+    gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[.075] + [1] *
+                  no_models + [0.075], width_ratios=[.075] + no_cases*[1])
 
     model_label_axs = [fig.add_subplot(gs[i, 0]) for i in range(1, no_rows - 1)]
     case_label_axs = [fig.add_subplot(gs[0, i]) for i in range(1, no_columns)]
@@ -1010,8 +1010,8 @@ def setup_grid(fig, args):
         label_ax.text(.5, .5, case_label, horizontalalignment='center',
                       verticalalignment='center')
 
-    # for ax in list(model_axs.flatten()[1:]) + model_label_axs + case_label_axs:
-    #     ax.set_axis_off()
+    for ax in model_label_axs + case_label_axs:
+        ax.set_axis_off()
 
     return model_axs, model_label_axs, case_label_axs, colour_bar_ax
 
@@ -1029,15 +1029,6 @@ def setup_grid_single_case(fig, args):
 
     model_axs = [fig.add_subplot(gs[0, i]) for i in range(2)] \
         + [fig.add_subplot(gs[1, i]) for i in range(2)]
-
-    # for ax in model_axs:
-    #     ax.set_axis_off()
-    # model_axs[0].set_axis_on()
-
-    # for ax in model_axs:
-    #     ax.spines[['top', 'right']].set_visible(False)
-
-    # colour_bar_ax.set_axis_off()
 
     return model_axs, colour_bar_ax
 
