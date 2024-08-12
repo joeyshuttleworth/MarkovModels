@@ -446,11 +446,12 @@ def main():
         worst_ax.set_title(worst_well_title)
         # worst_ax.axis('off')
         # worst_ax.set_xticks([])
-        worst_ax.set_yticks([])
+        worst_ax.set_yticklabels([])
+        worst_ax.set_ylabel('')
         best_ax.tick_params(axis='x', labelrotation=90.0)
         worst_ax.tick_params(axis='x', labelrotation=90.0)
 
-        fig.savefig(os.path.join(output_dir, f"best_worst_{case}_{model_class}_heatmap_best_worst"))
+        fig.savefig(os.path.join(output_dir, f"best_worst_{case}_{model_class}_heatmap"))
         fig.clf()
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
@@ -541,11 +542,16 @@ def main():
 
     colour_bar_ax.set_title('NRMSE')
 
-    for ax in model_axs[1:]:
-        ax.set_xticklabels([])
+    for ax in model_axs[1::2]:
+        ax.set_yticklabels([])
+        ax.set_ylabel('')
+
+    model_axs[1].set_yticklabels([])
+    model_axs[3].set_yticklabels([])
+
+    for ax in model_axs[:2]:
         ax.set_xticklabels([])
         ax.set_xlabel('')
-        ax.set_ylabel('')
 
     comparison_fig.savefig(os.path.join(output_dir, 'Case0c_heatmap_comparison'))
     comparison_fig.clf()
