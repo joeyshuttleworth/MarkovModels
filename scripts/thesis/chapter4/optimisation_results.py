@@ -514,7 +514,7 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
             xticks = [xlims[0], xlims[-1]]
 
             yticks = inset_ax.get_yticks()
-            yticks = [ylims[0], ylimsu[-1]]
+            yticks = [ylims[0], ylims[-1]]
 
             xspread = xlims[1] - xlimes[0]
             xlims[0] -= xspread * 0.1
