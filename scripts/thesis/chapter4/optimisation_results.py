@@ -265,6 +265,7 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
 
     # Plot everything
     fig.align_ylabels([occupations_ax, current_ax, protocol_ax, rank_ax, scatter_ax])
+
     fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}.pdf"))
     plt.close(fig)
 
@@ -394,18 +395,20 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
         colour = colours[i]
         label = state_labels[i]
 
-        occupations_ax.plot(times, culm_states + states[:, i].flatten(),
+        occupations_ax.plot(times*1e-3, culm_states + states[:, i].flatten(),
                             color='grey', lw=.3)
 
-        occupations_ax.fill_between(times, culm_states,
+        occupations_ax.fill_between(times*1e-3, culm_states,
                                     culm_states + states[:, i].flatten(),
                                     color=colour,
                                     label=label)
 
         culm_states += states[:, i].flatten()
 
-    occupations_ax.legend(fontsize=8, ncol=states.shape[1], loc='upper center')
-    occupations_ax.set_ylim([0, 1.25])
+    occupations_ax.legend(fontsize=8, ncol=states.shape[1], loc='lower center',
+                          bbox_to_anchor=[times[-1] / 2, 1.0])
+
+    occupations_ax.set_ylim([0, 1])
 
     current_ax.plot(times*1e-3, trace, alpha=.5, lw=.5, color='red')
     current_ax.plot(times*1e-3, pred, alpha=.5, lw=.8)
@@ -417,7 +420,6 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
         current_ax.set_ylabel(r'$I_\mathrm{obs}$ (pA)')
 
     occupations_ax.set_ylabel(r'$\mathbf{x}(t)$')
-    # occupations_ax.set_xticks([])
     protocol_ax.plot(times*1e-3, voltages, color='black', label=r'$V$ (mV)')
     if args.fitting_case in ['I', 'II']:
         protocol_ax.set_ylabel(r'$V$ (mV)')
@@ -607,7 +609,7 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     gleak = float(gleak)
     Eleak = float(Eleak)
 
-    Ileak = gleak * (voltages - Eleak)
+    I_leak = gleak * (voltages - Eleak)
 
     def compute_rmse(p):
         if np.any(p <= 0):
