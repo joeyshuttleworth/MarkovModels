@@ -497,7 +497,7 @@ def main():
         ax.set_xticklabels([])
         ax.set_xlabel('')
 
-    for ax in model_axs[:, :-1]:
+    for ax in model_axs[:, :-1].flatten():
         ax.set_yticklabels([])
         ax.set_ylabel('')
 
