@@ -88,7 +88,7 @@ def main():
     parser.add_argument('--removal_duration', type=float, default=5.0)
     parser.add_argument('--experiment_name', '-e', default='newtonrun4')
     parser.add_argument('--validation_protocols', default=['longap'], nargs='+')
-    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.54, 7.2])
+    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.54, 7.8])
     parser.add_argument('--fig_title', '-t', default='')
     parser.add_argument('--nolegend', action='store_true')
     parser.add_argument('--dpi', '-d', default=500, type=int)
@@ -272,7 +272,7 @@ def main():
 
         fitting_protocol, validation_protocol, fit_sweep, predict_sweep\
             = worst_prediction
- 
+
         voltage_axs[0].set_title(get_protocol_label(protocol_order, validation_protocol,
                                                     fit_sweep))
 
@@ -430,7 +430,7 @@ def main():
             + r'$\mathcal{E}_{\mathrm{fit}} = $' f"{mean_training_score:.2f}" + \
             ',\n' r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2f}"
 
-        best_ax.set_title(best_well_title)
+        best_ax.set_title(best_well_title, fontsize=args.fontsize)
 
         mean_training_score = prediction_df[(prediction_df.fitting_protocol == prediction_df.validation_protocol)\
                                      & (prediction_df.well == worst_well)]['n_score'].values.astype(np.float64).mean()
@@ -443,7 +443,7 @@ def main():
             + r'$\mathcal{E}_{\mathrm{fit}} = $' f"{mean_training_score:.2f}" + \
             ',\n' r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2f}"
 
-        worst_ax.set_title(worst_well_title)
+        worst_ax.set_title(worst_well_title, fontsize=args.fontsize)
         # worst_ax.axis('off')
         # worst_ax.set_xticks([])
         worst_ax.set_yticklabels([])
@@ -497,7 +497,7 @@ def main():
         ax.set_xticklabels([])
         ax.set_xlabel('')
 
-    for ax in model_axs[:, :-1].flatten():
+    for ax in model_axs[:, 1:].flatten():
         ax.set_yticklabels([])
         ax.set_ylabel('')
 
@@ -542,7 +542,8 @@ def main():
 
         model_name = relabel_models_dict[model_class]
         ax.set_title(r'\textbf{' + model_name + r'}' + "\n"+ r'$\mathcal{E}_{\mathrm{fit}} = $' f"{mean_training_score:.2f}" + \
-                     ",\n" r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2f}")
+                     ",\n" r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2f}",
+                     fontsize=args.fontsize)
 
 
         validation_protocol = 'longap'
@@ -995,7 +996,7 @@ def setup_grid(fig, args):
     no_columns = 1 + no_cases
 
     gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[.075] + [1] *
-                  no_models + [0.075], width_ratios=[.075] + no_cases*[1])
+                  no_models + [0.075], width_ratios=[.005] + no_cases*[1])
 
     model_label_axs = [fig.add_subplot(gs[i, 0]) for i in range(1, no_rows - 1)]
     case_label_axs = [fig.add_subplot(gs[0, i]) for i in range(1, no_columns)]
