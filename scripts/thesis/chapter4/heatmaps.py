@@ -446,7 +446,7 @@ def main():
         worst_ax.set_title(worst_well_title, fontsize=args.fontsize)
         # worst_ax.axis('off')
         # worst_ax.set_xticks([])
-        worst_ax.set_yticklabels([])
+        worst_ax.set_yticks([])
         worst_ax.set_ylabel('')
         best_ax.tick_params(axis='x', labelrotation=90.0)
         worst_ax.tick_params(axis='x', labelrotation=90.0)
@@ -494,6 +494,7 @@ def main():
                                             f"average_{case}_{model_class}_heatmap"))
 
     for ax in model_axs[:-1, :].flatten():
+        ax.set_xlabel(None)
         ax.get_xaxis().set_visible(False)
 
     for ax in model_axs[-1, :].flatten():
@@ -501,6 +502,9 @@ def main():
 
     for ax in model_axs[:, 1:].flatten():
         ax.get_yaxis().set_visible(False)
+
+    # Adjust the padding of the layout engine to remove any additional space
+    fig.get_layout_engine().set(w_pad=0 / 72, h_pad=0 / 72, hspace=0, wspace=0)
 
     fig.savefig(os.path.join(output_dir, "averaged_well_heatmaps"))
     fig.clf()
@@ -552,13 +556,13 @@ def main():
 
     colour_bar_ax.set_title('NRMSE')
 
-    for ax in model_axs[:2].flatten():
+    for ax in model_axs[:2]:
         ax.get_xaxis().set_visible(False)
 
-    for ax in model_axs[2:].flatten():
+    for ax in model_axs[2:]:
         ax.tick_params('x', labelrotation=90)
 
-    for ax in model_axs[1::2].flatten():
+    for ax in model_axs[1::2]:
         ax.get_yaxis().set_visible(False)
 
     comparison_fig.savefig(os.path.join(output_dir, 'Case0c_heatmap_comparison'))
@@ -704,6 +708,7 @@ def map_func(model_class, case, params_df, args, output_dir, protocol_dict,
                  'fitting_protocol': f_p, 'validation_protocol': v_p, 'RMSE':
                  np.random.uniform(3e2, 1e4)} for v_p in protocols for f_p in
                 protocols for well in ['Z01', 'Z02', 'Z03']]
+
         prediction_df = pd.DataFrame.from_records(rows)
         prediction_df['n_score'] = prediction_df['RMSE']
 
@@ -1003,7 +1008,7 @@ def setup_grid(fig, args):
     no_columns = 1 + no_cases
 
     gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[.075] + [1] *
-                  no_models + [0.075], width_ratios=[.005] + no_cases*[1])
+                  no_models + [0.075], width_ratios=[.1] + no_cases*[1])
 
     model_label_axs = [fig.add_subplot(gs[i, 0]) for i in range(1, no_rows - 1)]
     case_label_axs = [fig.add_subplot(gs[0, i]) for i in range(1, no_columns)]
@@ -1022,8 +1027,6 @@ def setup_grid(fig, args):
         label = relabel_models_dict[model_label]
         label_ax.text(.5, .5, label, horizontalalignment='center',
                       verticalalignment='center')
-
-    case_labels = ['Case I', 'Case II', 'Case III']
 
     case_labels = [relabel_case_dict[case] for case in args.cases]
 
