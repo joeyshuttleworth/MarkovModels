@@ -304,7 +304,7 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
 
 
     n_data = len(indices)
-    scores = np.sqrt(scores / n_data) * 1e3
+    scores = np.sqrt(scores / n_data)
 
     ranks = np.array(list(range(len(scores))))
 
