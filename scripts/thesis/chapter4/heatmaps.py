@@ -495,19 +495,19 @@ def main():
 
     for ax in model_axs[:-1, :].flatten():
         ax.set_xticklabels([])
-        ax.set_xlabel('')
+        ax.set_xlabel(None)
 
     for ax in model_axs[-1, :].flatten():
         ax.tick_params('x', labelrotation=90)
 
     for ax in model_axs[:, 1:].flatten():
         ax.set_yticklabels([])
-        ax.set_ylabel('')
+        ax.set_ylabel(None)
 
     fig.savefig(os.path.join(output_dir, "averaged_well_heatmaps"))
     fig.clf()
 
-    comparison_fig = plt.figure(figsize=[args.figsize[0], 6.5])
+    comparison_fig = plt.figure(figsize=[args.figsize[0], 6.5], constrained_layout=True)
     # Plot Case III only
     model_axs, colour_bar_ax = setup_grid_single_case(comparison_fig, args)
     done_colour_bar = False
@@ -556,14 +556,16 @@ def main():
 
     for ax in model_axs[1::2]:
         ax.set_yticklabels([])
-        ax.set_ylabel('')
+        ax.set_ylabel(None)
+        ax.get_yaxis().set_visible(False)
 
     model_axs[1].set_yticklabels([])
     model_axs[3].set_yticklabels([])
 
     for ax in model_axs[:2]:
         ax.set_xticklabels([])
-        ax.set_xlabel('')
+        ax.set_xlabel(None)
+        ax.get_xaxis().set_visible(False)
 
     for ax in model_axs[2:]:
         ax.tick_params('x', labelrotation=90)
@@ -609,10 +611,12 @@ def main():
             for ax in model_axs[:-1, :].flatten():
                 ax.set_xticklabels([])
                 ax.set_xlabel('')
+                ax.get_xaxis().set_visible(False)
 
             for ax in model_axs[:, 1:].flatten():
                 ax.set_yticklabels([])
                 ax.set_ylabel('')
+                ax.get_yaxis().set_visible(False)
 
             individual_fig.savefig(os.path.join(output_dir,
                                                 f"{well}_{case}_{model_class}_heatmap"))
