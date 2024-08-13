@@ -552,17 +552,14 @@ def main():
 
     colour_bar_ax.set_title('NRMSE')
 
-    for ax in model_axs[:-1, :].flatten():
+    for ax in model_axs[:2].flatten():
         ax.get_xaxis().set_visible(False)
 
-    for ax in model_axs[-1, :].flatten():
+    for ax in model_axs[2:].flatten():
         ax.tick_params('x', labelrotation=90)
 
-    for ax in model_axs[:, 1:].flatten():
+    for ax in model_axs[1::2].flatten():
         ax.get_yaxis().set_visible(False)
-
-    for ax in model_axs[2:]:
-        ax.tick_params('x', labelrotation=90)
 
     comparison_fig.savefig(os.path.join(output_dir, 'Case0c_heatmap_comparison'))
     comparison_fig.clf()
