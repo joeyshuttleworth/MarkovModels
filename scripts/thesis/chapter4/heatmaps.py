@@ -428,7 +428,7 @@ def main():
 
         best_well_title = f"{best_well} " + '\n' \
             + r'$\mathcal{E}_{\mathrm{fit}} = $' f"{mean_training_score:.2f}" + \
-            r'\,,' r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2f}"
+            r',\n' r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2f}"
 
         best_ax.set_title(best_well_title, fontsize=args.fontsize)
 
@@ -441,7 +441,7 @@ def main():
                                               ]['n_score'].values.astype(np.float64).mean()
         worst_well_title = f"{worst_well} " + '\n' \
             + r'$\mathcal{E}_{\mathrm{fit}} = $' f"{mean_training_score:.2f}" + \
-            r'\,,' r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2f}"
+            r',\n' r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2f}"
 
         worst_ax.set_title(worst_well_title, fontsize=args.fontsize)
         # worst_ax.axis('off')
@@ -968,7 +968,8 @@ def do_heatmap(ax, model_class, fitting_case, params_df, subtraction_df,
     mean_validation_score = sub_df[sub_df.fitting_protocol != sub_df.validation_protocol]['n_score'].values.astype(np.float64).mean()
 
     ax.set_title(r'$\mathcal{E}_{\mathrm{fit}} = $' f"{mean_training_score:.2f}" + \
-    r'\,,' r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2f}")
+                 r',\n' r'$\mathcal{E}_{\mathrm{predict}} = $' + f"{mean_validation_score:.2f}",
+                 fontsize=args.fontsize)
 
     hm = sns.heatmap(pivot_df, ax=ax, square=True, norm=norm,
                      cmap=cmap, **kws)
