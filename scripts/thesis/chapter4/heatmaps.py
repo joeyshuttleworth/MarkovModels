@@ -494,16 +494,12 @@ def main():
                                             f"average_{case}_{model_class}_heatmap"))
 
     for ax in model_axs[:-1, :].flatten():
-        ax.set_xticklabels([])
-        ax.set_xlabel(None)
         ax.get_xaxis().set_visible(False)
 
     for ax in model_axs[-1, :].flatten():
         ax.tick_params('x', labelrotation=90)
 
     for ax in model_axs[:, 1:].flatten():
-        ax.set_yticklabels([])
-        ax.set_ylabel(None)
         ax.get_yaxis().set_visible(False)
 
     fig.savefig(os.path.join(output_dir, "averaged_well_heatmaps"))
@@ -556,18 +552,14 @@ def main():
 
     colour_bar_ax.set_title('NRMSE')
 
-    for ax in model_axs[1::2]:
-        ax.set_yticklabels([])
-        ax.set_ylabel(None)
-        ax.get_yaxis().set_visible(False)
-
-    model_axs[1].set_yticklabels([])
-    model_axs[3].set_yticklabels([])
-
-    for ax in model_axs[:2]:
-        ax.set_xticklabels([])
-        ax.set_xlabel(None)
+    for ax in model_axs[:-1, :].flatten():
         ax.get_xaxis().set_visible(False)
+
+    for ax in model_axs[-1, :].flatten():
+        ax.tick_params('x', labelrotation=90)
+
+    for ax in model_axs[:, 1:].flatten():
+        ax.get_yaxis().set_visible(False)
 
     for ax in model_axs[2:]:
         ax.tick_params('x', labelrotation=90)
