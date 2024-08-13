@@ -565,7 +565,7 @@ def main():
         ax.set_xticklabels([])
         ax.set_xlabel('')
 
-    for ax in model_axs[2:].flatten():
+    for ax in model_axs[2:]:
         ax.tick_params('x', labelrotation=90)
 
     comparison_fig.savefig(os.path.join(output_dir, 'Case0c_heatmap_comparison'))
