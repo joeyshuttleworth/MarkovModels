@@ -230,11 +230,11 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
 
     title_font_size = args.fontsize
 
-    occupations_ax.set_title('a', fontweight='bold', fontsize=title_font_size,
+    occupations_ax.set_title('b', fontweight='bold', fontsize=title_font_size,
                          loc='left')
-    current_ax.set_title('b', fontweight='bold', fontsize=title_font_size,
+    current_ax.set_title('c', fontweight='bold', fontsize=title_font_size,
                          loc='left')
-    protocol_ax.set_title('c', fontweight='bold', fontsize=title_font_size,
+    protocol_ax.set_title('a', fontweight='bold', fontsize=title_font_size,
                           loc='left')
     scatter_ax.set_title('d', fontweight='bold', fontsize=title_font_size,
                          loc='left')
@@ -243,12 +243,13 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
     baseline_profile_ax.set_title('f', fontweight='bold',
                                   fontsize=title_font_size,
                                   loc='left')
-
     do_trace_plots(current_ax, protocol_ax, occupations_ax,
                    protocol, well, sweep, params_df, args)
+
+    do_scatter_plot(scatter_ax, params_df, well, protocol,
+                    sweep, args)
     if args.plot_wip:
-        do_scatter_plot(scatter_ax, params_df, well, protocol,
-                        sweep, args)
+        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}.pdf"))
     if args.plot_wip:
         fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}.pdf"))
     do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args)
@@ -259,10 +260,12 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
     do_rank_plot(rank_ax, params_df, protocol, well, sweep, args)
 
     # Make sure ticks and limits match for top 3 subfigures
-    occupations_ax.set_xticks(protocol_ax.get_xticks())
+    occupations_ax.set_xticks(current_ax.get_xticks())
+    occupations_ax.set_xlim(current_ax.get_xlim())
     occupations_ax.set_xticklabels([])
-    current_ax.set_xticks(protocol_ax.get_xticks())
-    current_ax.set_xticklabels([])
+    protocol_ax.set_xticks(current_ax.get_xticks())
+    protocol_ax.set_xticks(current_ax.get_xticks())
+    protocol_ax.set_xticklabels([])
 
     # Plot everything
     fig.align_ylabels([occupations_ax, current_ax, protocol_ax, rank_ax, scatter_ax])
@@ -407,7 +410,7 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
         culm_states += states[:, i].flatten()
 
     occupations_ax.legend(fontsize=8, ncol=states.shape[1], loc='lower center',
-                          bbox_to_anchor=[1e-3*times[-1] / 2, 1.0])
+                          bbox_to_anchor=[.5, 1.0])
 
     occupations_ax.set_ylim([0, 1])
 
@@ -549,12 +552,10 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
                          label=args.data_label)
 
     trace = trace.flatten()
-
     desc = vp.get_all_sections()
 
     # Temporary solver hack
     desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
-
     prot_func = make_voltage_function_from_description(desc)
 
     times = np.loadtxt(times_fname).flatten().astype(np.float64)
@@ -593,7 +594,8 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     best_params = get_best_params(params_df)
     row = best_params.set_index(['well', 'protocol', 'sweep']).loc[(well, protocol, sweep)]
     param_labels = model.get_parameter_labels()
-    params = row[param_labels].values.flatten()
+    params = row[param_labels].values.flatten().astype(np.float64)
+
     default_params = model.get_default_parameters()
     default_params[m_model.GKr_index] = params[m_model.GKr_index]
 
@@ -602,11 +604,11 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
 
     if args.fitting_case in ['0a', '0b', '0d']:
         solver = model.make_hybrid_solver_current(hybrid=False,
-                                                  strict=False,
+                                                  strict=True,
                                                   njitted=False)
     else:
         solver = model.make_hybrid_solver_current(hybrid=False,
-                                                  strict=False,
+                                                  strict=True,
                                                   njitted=False,
                                                   return_var='I_out')
 
@@ -624,14 +626,13 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
         elif args.use_artefact_model and np.any(p[:-no_artefact_parameters] <= 0):
             return np.na
 
-        y = solver(p)
-
+        y = solver(p, times=times, protocol_description=desc)
         if args.fitting_case == '0d':
             y = y + I_leak
 
         return np.sqrt(np.mean((y[indices] - trace[indices])**2))
 
-    plot_var = np.linspace(-0.05, 1.05, 250)
+    plot_var = np.linspace(-0.05, 1.05, 100)
 
     params = [params + (default_params - params) * l for l in plot_var]
     scores = [compute_rmse(p.flatten()) for p in params]
@@ -653,9 +654,9 @@ def setup_grid(fig):
     no_rows = 5
     gs = GridSpec(no_rows, no_columns, figure=fig, height_ratios=[.5, .5, .5, 1, 1])
 
-    occupations_ax = fig.add_subplot(gs[0, :])
-    current_ax = fig.add_subplot(gs[1, :])
-    protocol_ax = fig.add_subplot(gs[2, :])
+    protocol_ax = fig.add_subplot(gs[0, :])
+    occupations_ax = fig.add_subplot(gs[1, :])
+    current_ax = fig.add_subplot(gs[2, :])
     scatter_ax = fig.add_subplot(gs[3, :])
     baseline_profile_ax = fig.add_subplot(gs[4, 1])
     rank_ax = fig.add_subplot(gs[4, 0])
