@@ -262,10 +262,11 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
     # Make sure ticks and limits match for top 3 subfigures
     occupations_ax.set_xticks(current_ax.get_xticks())
     occupations_ax.set_xlim(current_ax.get_xlim())
+
     occupations_ax.set_xticklabels([])
-    protocol_ax.set_xticks(current_ax.get_xticks())
-    protocol_ax.set_xticks(current_ax.get_xticks())
     protocol_ax.set_xticklabels([])
+    protocol_ax.set_xticks(current_ax.get_xticks())
+    protocol_ax.set_xlim(current_ax.get_xlim())
 
     # Plot everything
     fig.align_ylabels([occupations_ax, current_ax, protocol_ax, rank_ax, scatter_ax])
