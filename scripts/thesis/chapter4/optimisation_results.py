@@ -407,7 +407,7 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
         culm_states += states[:, i].flatten()
 
     occupations_ax.legend(fontsize=8, ncol=states.shape[1], loc='lower center',
-                          bbox_to_anchor=[times[-1] / 2, 1.0])
+                          bbox_to_anchor=[1e-3*times[-1] / 2, 1.0])
 
     occupations_ax.set_ylim([0, 1])
 
