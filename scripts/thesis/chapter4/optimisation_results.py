@@ -228,7 +228,7 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
 
     occupations_ax, current_ax, protocol_ax, rank_ax, scatter_ax, baseline_profile_ax = axs
 
-    title_font_size = 9
+    title_font_size = args.fontsize
 
     occupations_ax.set_title('a', fontweight='bold', fontsize=title_font_size,
                          loc='left')
@@ -244,11 +244,6 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
                                   fontsize=title_font_size,
                                   loc='left')
 
-    occupations_ax.set_xticks(protocol_ax.get_xticks())
-    occupations_ax.set_xticklabels([])
-    current_ax.set_xticks(protocol_ax.get_xticks())
-    current_ax.set_xticklabels([])
-
     do_trace_plots(current_ax, protocol_ax, occupations_ax,
                    protocol, well, sweep, params_df, args)
     if args.plot_wip:
@@ -262,6 +257,12 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
     if args.plot_wip:
         fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}.pdf"))
     do_rank_plot(rank_ax, params_df, protocol, well, sweep, args)
+
+    # Make sure ticks and limits match for top 3 subfigures
+    occupations_ax.set_xticks(protocol_ax.get_xticks())
+    occupations_ax.set_xticklabels([])
+    current_ax.set_xticks(protocol_ax.get_xticks())
+    current_ax.set_xticklabels([])
 
     # Plot everything
     fig.align_ylabels([occupations_ax, current_ax, protocol_ax, rank_ax, scatter_ax])
@@ -518,11 +519,11 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
             yticks = inset_ax.get_yticks()
             yticks = [ylims[0], ylims[-1]]
 
-            xspread = xlims[1] - xlimes[0]
+            xspread = xlims[1] - xlims[0]
             xlims[0] -= xspread * 0.1
             xlims[1] += xspread * 0.1
 
-            yspread = ylims[1] - ylimes[0]
+            yspread = ylims[1] - ylims[0]
             ylims[0] -= yspread * 0.1
             ylims[1] += yspread * 0.1
             if len(np.unique(ylims)) == 2:
@@ -599,9 +600,15 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     if args.use_artefact_model:
         default_params[-no_artefact_parameters:] = params[-no_artefact_parameters:]
 
-    solver = model.make_hybrid_solver_current(hybrid=False,
-                                              strict=False,
-                                              njitted=False)
+    if args.fitting_case in ['0a', '0b', '0d']:
+        solver = model.make_hybrid_solver_current(hybrid=False,
+                                                  strict=False,
+                                                  njitted=False)
+    else:
+        solver = model.make_hybrid_solver_current(hybrid=False,
+                                                  strict=False,
+                                                  njitted=False,
+                                                  return_var='I_out')
 
     row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol)
                             & (subtraction_df.sweep == sweep)].iloc[0]
@@ -612,8 +619,10 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     I_leak = gleak * (voltages - Eleak)
 
     def compute_rmse(p):
-        if np.any(p <= 0):
+        if np.any(p <= 0) and not args.use_artefact_model:
             return np.nan
+        elif args.use_artefact_model and np.any(p[:-no_artefact_parameters] <= 0):
+            return np.na
 
         y = solver(p)
 
