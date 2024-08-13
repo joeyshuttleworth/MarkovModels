@@ -496,6 +496,7 @@ def main():
     for ax in model_axs[:-1, :].flatten():
         ax.set_xticklabels([])
         ax.set_xlabel(None)
+        ax.get_xaxis().set_visible(False)
 
     for ax in model_axs[-1, :].flatten():
         ax.tick_params('x', labelrotation=90)
@@ -503,6 +504,7 @@ def main():
     for ax in model_axs[:, 1:].flatten():
         ax.set_yticklabels([])
         ax.set_ylabel(None)
+        ax.get_yaxis().set_visible(False)
 
     fig.savefig(os.path.join(output_dir, "averaged_well_heatmaps"))
     fig.clf()
