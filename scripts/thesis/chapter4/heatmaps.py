@@ -600,11 +600,16 @@ def main():
                        cbar=True,
                        cbar_ax=individual_cbar_ax)
 
+            for ax in model_axs[:-1, :].flatten():
+                ax.set_xticklabels([])
+                ax.set_xlabel('')
+
+            for ax in model_axs[:, 1:].flatten():
+                ax.set_yticklabels([])
+                ax.set_ylabel('')
+
             individual_fig.savefig(os.path.join(output_dir,
                                                 f"{well}_{case}_{model_class}_heatmap"))
-        # for ax in model_axs.flatten():
-            # ax.xaxis.set_visible(False)
-            # ax.yaxis.set_visible(False)
         fig.savefig(os.path.join(output_dir,
                                  f"{well}_heatmaps"))
         fig.clf()
