@@ -284,7 +284,7 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
 
     params_df = params_df[np.isfinite(params_df.score.values)]
 
-    scores = list(sorted(list(params_df.score.unique().flatten().astype(np.float64))))
+    scores = list(sorted(list(params_df.RMSE.unique().flatten().astype(np.float64))))
     times_fname = os.path.join(args.data_dir,
                                f"{args.experiment_name}-{protocol}-times.csv")
     times = np.loadtxt(times_fname).flatten()
@@ -304,12 +304,7 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
 
 
     n_data = len(indices)
-    scores = np.sqrt(scores / n_data)
-
     ranks = np.array(list(range(len(scores))))
-
-    # Convert score to RMSE
-    scores = np.sqrt(scores/len(indices))
 
     # Highlight 25% best results
     # lq = np.quantile(scores, .25)
