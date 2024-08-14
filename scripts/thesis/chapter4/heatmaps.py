@@ -451,6 +451,9 @@ def main():
         best_ax.tick_params(axis='x', labelrotation=90.0)
         worst_ax.tick_params(axis='x', labelrotation=90.0)
 
+        fig.align_ylabels(list(prediction_axs) + list(voltage_axs) \
+                          + [best_ax])
+
         fig.savefig(os.path.join(output_dir, f"best_worst_{case}_{model_class}_heatmap"))
         fig.clf()
 
