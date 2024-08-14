@@ -81,7 +81,7 @@ def main():
         plot_axes[i].set_xticks([0, 1])
         plot_axes[i].set_xticklabels(['0.0', f"{t_end*1e-3:.0f}"], fontsize=8)
 
-        plot_axes[i].set_ylabel(r'$V_\text{m}$', rotation=0)
+        plot_axes[i].set_ylabel(r'$V_\text{cmd}$', rotation=0)
 
 
     plot_axes[-1].set_xticks([0, 1])
