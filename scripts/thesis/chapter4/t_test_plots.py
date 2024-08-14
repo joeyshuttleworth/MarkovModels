@@ -212,7 +212,7 @@ def setup_axes(fig, no_protocols):
         ax.set_xticklabels([0, r'$t_\text{end}$'])
 
     for ax in axs[:, 0]:
-        ax.set_ylabel(r'$V$ (mV)')
+        ax.set_ylabel(r'$V_\mathrm{cmd}$ (mV)')
 
     return axs.flatten(), cbar_ax
 
@@ -464,7 +464,7 @@ def setup_axes(fig, no_protocols):
         ax.set_yticks([])
 
     for ax in axs[:, 0]:
-        ax.set_ylabel(r'$V$ (mV)')
+        ax.set_ylabel(r'$V_\mathrm{cmd}$ (mV)')
 
     return axs.flatten(), cbar_ax
 
