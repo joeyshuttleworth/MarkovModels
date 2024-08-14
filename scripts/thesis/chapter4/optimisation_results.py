@@ -285,6 +285,8 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
     params_df = params_df[np.isfinite(params_df.score.values)]
 
     scores = list(sorted(list(params_df.score.unique().flatten().astype(np.float64))))
+    scores = np.sqrt(scores / n_data)
+
     times_fname = os.path.join(args.data_dir,
                                f"{args.experiment_name}-{protocol}-times.csv")
     times = np.loadtxt(times_fname).flatten()
@@ -302,14 +304,10 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   args.removal_duration)
 
-
     n_data = len(indices)
     ranks = np.array(list(range(len(scores))))
 
-    scores = np.sqrt(scores / n_data)
-
     # Highlight 25% best results
-    # lq = np.quantile(scores, .25)
     cutoff = scores.min() * cutoff_threshold
     highlight_indices = np.argwhere((scores <= cutoff) & (scores != scores.min()))
 
