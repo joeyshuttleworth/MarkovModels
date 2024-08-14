@@ -380,6 +380,7 @@ def main():
     axs[1, 0].legend(fontsize=8)
     axs[2, 0].legend(ncol=2, fontsize=8)
 
+    fig.align_ylabels(axs[:, 0])
 
     for ax in axs[:-1, :].flatten():
         ax.set_xticklabels([])
