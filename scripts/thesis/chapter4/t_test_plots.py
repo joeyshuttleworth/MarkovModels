@@ -303,7 +303,7 @@ def plot_fitting_z_scores(sweep, fitting_case, params_df, protocols,
                 ax.set_facecolor((105/256, 105/256, 105/256, .5))
 
         if mode == 'prediction':
-            label = r'$Z_\text{T}$'
+            label = r'$T$'
         else:
             label = r'$\frac{1}{\hat\sigma}(y_i - z_i)$'
         fig.colorbar(im, cax=cbar_ax, shrink=.75, orientation='horizontal',
