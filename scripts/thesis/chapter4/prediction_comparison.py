@@ -215,7 +215,7 @@ def main():
     for ax in axs[-1, :].flatten():
         ax.set_xlabel(r'$t$ (ms)')
 
-    axs[0, 0].set_ylabel(r'$V_\mathrm{m}$ (mV)')
+    axs[0, 0].set_ylabel(r'$V_\mathrm{cmd}$ (mV)')
 
     # Staircase protocol, predictions from each model
     protocol = 'staircaseramp1'
@@ -298,7 +298,7 @@ def main():
     for ax in axs[-1, :].flatten():
         ax.set_xlabel(r'$t$ (ms)')
 
-    axs[0, 0].set_ylabel(r'$V_\mathrm{m}$ (mV)')
+    axs[0, 0].set_ylabel(r'$V_\mathrm{cmd}$ (mV)')
 
     # longap protocol, predictions from each model's staircase estimates
     protocol = 'longap'
