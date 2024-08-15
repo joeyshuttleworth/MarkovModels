@@ -243,21 +243,18 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
     baseline_profile_ax.set_title('f', fontweight='bold',
                                   fontsize=title_font_size,
                                   loc='left')
+    do_rank_plot(rank_ax, params_df, protocol, well, sweep, args)
+    if args.plot_wip:
+        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}.pdf"))
     do_trace_plots(current_ax, protocol_ax, occupations_ax,
                    protocol, well, sweep, params_df, args)
-
+    if args.plot_wip:
+        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}.pdf"))
     do_scatter_plot(scatter_ax, params_df, well, protocol,
                     sweep, args)
     if args.plot_wip:
         fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}.pdf"))
-    if args.plot_wip:
-        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}.pdf"))
     do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args)
-    if args.plot_wip:
-        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}.pdf"))
-    if args.plot_wip:
-        fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}.pdf"))
-    do_rank_plot(rank_ax, params_df, protocol, well, sweep, args)
 
     # Make sure ticks and limits match for top 3 subfigures
     occupations_ax.set_xticks(current_ax.get_xticks())
@@ -279,19 +276,19 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
     params_df = params_df[(params_df.well == well)
                           & (params_df.protocol == protocol)
                           & (params_df.sweep == sweep)].copy()
-
     params_df.score = params_df.score.astype(np.float64)
-
     params_df = params_df[np.isfinite(params_df.score.values)]
 
     scores = list(sorted(list(params_df.score.unique().flatten().astype(np.float64))))
-    scores = np.sqrt(scores / n_data)
+
+    # Error in RMSE calculation
+    scores = np.array(scores)
+    scores = np.sqrt(scores)
 
     times_fname = os.path.join(args.data_dir,
-                               f"{args.experiment_name}-{protocol}-times.csv")
+                              f"{args.experiment_name}-{protocol}-times.csv")
     times = np.loadtxt(times_fname).flatten()
 
-    scores = np.array(scores)
     trace, vp = get_data(well, protocol, args.data_dir,
                          args.experiment_name, sweep=sweep)
 
@@ -303,8 +300,9 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   args.removal_duration)
-
+    scores = np.sqrt(scores / n_data)
     n_data = len(indices)
+
     ranks = np.array(list(range(len(scores))))
 
     # Highlight 25% best results
