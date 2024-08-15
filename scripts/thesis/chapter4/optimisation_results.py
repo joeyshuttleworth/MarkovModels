@@ -300,8 +300,8 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
     spike_times, _ = detect_spikes(times, voltages, window_size=0)
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   args.removal_duration)
-    scores = np.sqrt(scores / n_data)
     n_data = len(indices)
+    scores = np.sqrt(scores / n_data)
 
     ranks = np.array(list(range(len(scores))))
 
