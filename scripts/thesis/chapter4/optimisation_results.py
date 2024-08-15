@@ -281,8 +281,8 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
 
     scores = list(sorted(list(params_df.score.unique().flatten().astype(np.float64))))
 
-    # Error in RMSE calculation
-    scores = np.array(scores)
+    # 'RMSE' in the data is actually just MSE due to bug
+    # scores = np.sqrt(scores / n_data)
     scores = np.sqrt(scores)
 
     times_fname = os.path.join(args.data_dir,
@@ -301,10 +301,6 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   args.removal_duration)
     n_data = len(indices)
-
-    # 'RMSE' in the data is actually just MSE due to bug
-    # scores = np.sqrt(scores / n_data)
-    scores = np.sqrt(scores)
 
     ranks = np.array(list(range(len(scores))))
 
