@@ -301,7 +301,10 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   args.removal_duration)
     n_data = len(indices)
-    scores = np.sqrt(scores / n_data)
+
+    # 'RMSE' in the data is actually just MSE due to bug
+    # scores = np.sqrt(scores / n_data)
+    scores = np.sqrt(scores)
 
     ranks = np.array(list(range(len(scores))))
 
