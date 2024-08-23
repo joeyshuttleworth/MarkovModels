@@ -1815,7 +1815,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
                 Rseries
             ]).astype(np.float64).flatten()
 
-            print(f"Inferred artefact parameters {artefact_parameters}")
+            print(f"Inferred artefact parameters {artefact_params}")
 
             forward_sim_parameters = model.get_default_parameters()
             forward_sim_parameters[-no_artefact_parameters:] = artefact_params

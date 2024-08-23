@@ -161,7 +161,7 @@ def main():
 
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
-    axs = fig.subplots(3, height_ratios=[1, 1, .25],
+    axs = fig.subplots(3, height_ratios=[.25, 1, 1],
                        sharex=True)
 
     desc, times = protocol_dict[protocol]
@@ -199,8 +199,8 @@ def main():
 
     axs[1].legend()
     axs[0].plot(times, voltages, color='black', lw=.6)
-    axs[1].set_ylabel(r'$I_\text{subtracted}$ (pA)')
-    axs[2].set_ylabel(r'$I_\text{subtracted}$ (pA)')
+    axs[1].set_ylabel(r'$I_\text{post}$ (pA)')
+    axs[2].set_ylabel(r'$I_\text{post}$ (pA)')
 
     axs[0].set_ylabel(r'$V_\text{cmd}$ (mV)')
     axs[0].set_xlabel(r'$t$ (s)')
@@ -233,7 +233,7 @@ def main():
         ax.set_title(model_names[model_class])
         if model_class not in args.model_classes:
             pass
-        for case in ['0a', '0b']:
+        for case in ['0a', '0c']:
             if case not in args.cases:
                 continue
             params_df = results_dict[model_class][case].copy()
@@ -243,12 +243,11 @@ def main():
                                      line_colour=case_colour_dict[case],
                                      label=f"{case_relabel_dict[case]}",
                                      voltage_func=voltage_func)
-        ax.legend()
 
     axs[0].plot(times, voltages, color='black', lw=.6)
     axs[0].set_ylabel(r'$V_\text{cmd}$ (mV)')
-    axs[1].set_ylabel(r'$I_\text{subtracted}$ (pA)')
-    axs[2].set_ylabel(r'$I_\text{subtracted}$ (pA)')
+    axs[1].set_ylabel(r'$I_\text{post}$ (pA)')
+    axs[2].set_ylabel(r'$I_\text{post}$ (pA)')
     axs[1].legend()
     axs[2].set_xlabel(r'$t$ (s)')
 
@@ -256,10 +255,17 @@ def main():
     ticks = ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x*1e-3))
     axs[-1].xaxis.set_major_formatter(ticks)
 
-    fig.savefig(os.path.join(output_dir,
-                             f"{well}_{model_class}_{prediction_protocol}_cases_I_II_models_2_3.pdf"))
+    for cap, ax in zip('abcdef', axs):
+        ax.set_title(cap, fontweight='bold', loc='left')
 
+    fig.savefig(os.path.join(output_dir,
+                             f"{well}_{model_class}_{prediction_protocol}_cases_I_III_models_2_3.pdf"))
     fig.clf()
+
+    axs[1].cla()
+    axs[2].cla()
+
+
     voltage_ax, current_ax = setup_axes(fig)
     # Compare all cases
     for protocol in args.validation_protocols:
@@ -302,7 +308,7 @@ def main():
                         ticks = ticker.FuncFormatter(lambda x, pos: '{0:g}'.format(x*1e-3))
                         axs[-1].xaxis.set_major_formatter(ticks)
                         fig.savefig(os.path.join(output_dir,
-                                                 f"{well}_{model_class}_{prediction_protocol}_cases_I_II_models_2_3.pdf"))
+                                                 f"{well}_{model_class}_{prediction_protocol}_cases_I_II_case_{case}.pdf"))
                         current_ax.cla()
                     voltage_ax, current_ax = setup_axes(fig)
 
@@ -369,7 +375,7 @@ def do_spread_of_predictions(ax, model_class, fitting_case, params_df,
     model = make_model_of_class(model_class, voltage=voltage_func)
     param_labels = model.get_parameter_labels()
 
-    solver = model.make_hybrid_solver_current(njitted=True,
+    solver = model.make_hybrid_solver_current(njitted=False,
                                               hybrid=False,
                                               strict=False)
 

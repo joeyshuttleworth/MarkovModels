@@ -271,10 +271,13 @@ def do_coloured_scatterplots(params_df, p1, p2):
     sns.scatterplot(params_df, x=p1, y=p2, legend=False, ax=all_ax)
     # all_ax.set_title('well')
 
-    sns.scatterplot(params_df, x=p1, y=p2, hue='well', legend=False, ax=well_ax)
+    sns.scatterplot(params_df, x=p1, y=p2, hue='well', style='well',
+                    legend=False, ax=well_ax)
     well_ax.set_title('coloured by well')
 
-    sns.scatterplot(params_df, x=p1, y=p2, hue='protocol', legend=False, ax=protocol_ax)
+    sns.scatterplot(params_df, x=p1, y=p2, hue='protocol',
+                    style='protocol',legend=False, ax=protocol_ax)
+
     protocol_ax.set_title('coloured by protocol')
 
     for ax in axs:

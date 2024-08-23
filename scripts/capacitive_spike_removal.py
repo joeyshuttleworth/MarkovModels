@@ -24,6 +24,7 @@ from numba import njit
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from matplotlib.pyplot import cycler
 
 # Don't use scientific notation offsets on plots (it's confusing)
 mpl.rcParams["axes.formatter.useoffset"] = False
@@ -183,13 +184,14 @@ def main():
 
         axs[0].plot(times*1e-3, voltages)
         for t in spike_times:
-            axs[0].axvspan(t, t + time_to_remove, alpha=0.4, color='red', lw=0)
+            axs[0].axvspan(1e-3 * t, (t + time_to_remove)*1e-3, alpha=0.4, color='red', lw=0)
 
         # Plot the observations under consideration
         axs[1].plot(times*1e-3, data[:, 0].flatten(), color='grey',
                     alpha=.5)
         axs[1].plot(times*1e-3, solver(params))
         axs[1].set_xlabel(r'$t$ (s)')
+        axs[1].set_xticklabels([])
         axs[0].set_ylabel(r'$V$ (mV)')
         axs[0].set_xticklabels([])
         axs[1].set_ylabel(r'$I_\mathrm{Kr}$ (pA)')
@@ -254,20 +256,19 @@ def main():
     fig.savefig(os.path.join(output_dir, "criteria.pdf"))
 
     # Now plot it zoomed in on the first 25ms
-    ax.set_xlim([0, 25])
-
     fig.savefig(os.path.join(output_dir, "criteria_zoomed_in.pdf"))
+
+    plt.close(fig)
 
     fig = plt.figure(figsize=[args.figsize[0], args.figsize[1]/2],
                                constrained_layout=True)
     ax = fig.subplots()
     df[df.index <= 25.0].plot(legend=True, subplots=False, ax=ax)
-    ax.set_xlim([0, 25])
     ax.set_xlabel(r'$t$ (s)')
     ax.set_ylabel('')
 
     xticks = ax.get_xticks()
-    xticks = list(xticks) + [5.0, 10.0]
+    xticks = list(xticks) + [5.0e-3, 1e-2]
     ax.set_xticks(np.unique(xticks))
     fig.savefig(os.path.join(output_dir, "criteria_shared_zoomed.pdf"))
 
@@ -290,19 +291,23 @@ def main():
     sample_fig.clf()
     sample_axs = sample_fig.subplots(2, height_ratios=[0.33, 1])
 
-    print(covs)
-    plot_regions(covs[::10], labels, params, output_dir,
-                 spike_removal_durations, conf_fig, sigma2, p_of_interest=(4, 6))
-    plot_regions(covs[::10], labels, params, output_dir,
-                 spike_removal_durations, conf_fig, sigma2, (5, 7))
+    indices_to_plot = [0, 2, 10, 20, 40]
+    covs_to_plot = [covs[i] for i in indices_to_plot]
+    durations_to_plot = [covs[i] for i in indices_to_plot]
 
-    plot_regions(covs[::10], labels, params, output_dir,
-                 spike_removal_durations, conf_fig, sigma2, (4, 5))
+    plot_regions(covs_to_plot, labels, params, output_dir,
+                 durations_to_plot, conf_fig, sigma2, p_of_interest=(4, 6))
+    plot_regions(covs_to_plot, labels, params, output_dir,
+                 durations_to_plot, conf_fig, sigma2, (5, 7))
 
-    plot_regions(covs[::10], labels, params, output_dir,
-                 spike_removal_durations, conf_fig, sigma2, (6, 7))
+    plot_regions(covs_to_plot, labels, params, output_dir,
+                 durations_to_plot, conf_fig, sigma2, (4, 5))
 
+    plot_regions(covs_to_plot, labels, params, output_dir,
+                 durations_to_plot, conf_fig, sigma2, (6, 7))
 
+    plot_regions(covs_to_plot, labels, params, output_dir,
+                 durations_to_plot, conf_fig, sigma2, (0, 1))
 
     for time_to_remove, cov in list(zip(spike_removal_durations, covs)):
         for ax in sample_axs:
@@ -324,10 +329,10 @@ def plot_sample_trajectories(solver, times, voltages, removal_duration, params, 
     axs[1].plot(times*1e-3, mean_param_trajectory, 'blue')
     axs[1].set_ylim(np.min(mean_param_trajectory) * 1.5, np.max(mean_param_trajectory) * 1.5)
 
-    axs[0].plot(times, voltages)
+    axs[0].plot(times * 1e-3, voltages)
 
     for spike in spike_indices:
-        axs[0].axvspan(times[spike]*1e-3, times[spike] + removal_duration, alpha=0.2, color='red', lw=0)
+        axs[0].axvspan(times[spike]*1e-3, (times[spike] + removal_duration) * 1e-3, alpha=0.2, color='red', lw=0)
 
     def get_trajectory(p):
         try:
@@ -382,13 +387,18 @@ def plot_regions(covs, labels, params, output_dir, spike_removal_durations,
     eigvals, eigvecs = np.linalg.eigh(cov)
 
     fig.clf()
-    ax = fig.subplots()
+    axs = fig.subplots(2)
 
-    print(len(covs))
+    cmap = sns.cubehelix_palette(start=2, as_cmap=True)
+    n = len(covs)
+    colors = [cmap(i/n) for i in range(n)]
+
+    axs[0].set_prop_cycle(cycler('color', colors))
+    axs[1].set_prop_cycle(cycler('color', colors))
 
     # Plot smallest region on top plot
     cov_ellipse(cov, nsig=1,
-                ax=ax,
+                ax=axs[0],
                 resize_axes=True,
                 color=colors[0 % len(colors)],
                 offset=offset,
@@ -400,7 +410,9 @@ def plot_regions(covs, labels, params, output_dir, spike_removal_durations,
     # removed)
     first_rotation = np.arctan2(*eigvecs[::-1, 0])
 
-    for i, cov in reversed(list(enumerate(covs[0:10]))):
+    no_regions = len(list(covs))
+
+    for i, cov in reversed(list(enumerate(covs))):
         sub_cov = cov[p_of_interest, :]
         sub_cov = sub_cov[:, p_of_interest]
         eigvals, eigvecs = np.linalg.eigh(sub_cov)
@@ -408,18 +420,17 @@ def plot_regions(covs, labels, params, output_dir, spike_removal_durations,
         rotation = np.arctan2(*eigvecs[::-1, 0])
 
         cov_ellipse(sub_cov, q=[0.95],
-                    ax=ax,
+                    ax=axs[1],
                     offset=offset,
                     color=colors[i % len(colors)],
-                    # rotate=rotation - first_rotation,
-                    # resize_axes=(i == len(covs)-1),
                     label=labels[i])
 
-    ax.set_title(f"95% confidence regions after spike removal")
-    ax.plot(*offset, 'x', color='red',
-                label=f"p{p_of_interest[0]+1} = {offset[0]}, p{p_of_interest[1]+1} = {offset[1]}")
+    axs[0].set_title(f"95% confidence regions after spike removal")
+    axs[0].plot(*offset, 'x', color='red')
+    axs[1].plot(*offset, 'x', color='red')
 
-    ax.spines[['top', 'right']].set_visible(False)
+    for ax in axs:
+        ax.spines[['top', 'right']].set_visible(False)
 
     ax.legend()
     fig.savefig(os.path.join(output_dir,

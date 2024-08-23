@@ -607,7 +607,7 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
 
     row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol)
                             & (subtraction_df.sweep == sweep)].iloc[0]
-    gleak, Eleak = row[['gleak_before', 'E_leak_before']]
+    gleak, Eleak = row[['gleak_before', 'E_leak_before']].values.flatten().astype(np.float64)
     gleak = float(gleak)
     Eleak = float(Eleak)
 
