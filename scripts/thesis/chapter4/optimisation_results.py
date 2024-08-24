@@ -625,8 +625,6 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     params = [params + (default_params - params) * l for l in plot_var]
     scores = [compute_rmse(p.flatten()) for p in params]
 
-    print(list(zip(params, scores)))
-
     baseline_profile_ax.plot(plot_var, scores)
 
     baseline_profile_ax.set_ylabel('RMSE (pA)')
