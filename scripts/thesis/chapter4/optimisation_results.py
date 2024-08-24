@@ -597,11 +597,11 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
 
     if args.fitting_case in ['0a', '0b', '0d']:
         solver = model.make_hybrid_solver_current(hybrid=False,
-                                                  strict=True,
+                                                  strict=False,
                                                   njitted=False)
     else:
         solver = model.make_hybrid_solver_current(hybrid=False,
-                                                  strict=True,
+                                                  strict=False,
                                                   njitted=False,
                                                   return_var='I_out')
 
@@ -624,6 +624,8 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
 
     params = [params + (default_params - params) * l for l in plot_var]
     scores = [compute_rmse(p.flatten()) for p in params]
+
+    print(list(zip(params, scores)))
 
     baseline_profile_ax.plot(plot_var, scores)
 
