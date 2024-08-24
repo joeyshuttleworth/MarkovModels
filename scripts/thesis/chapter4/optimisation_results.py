@@ -616,8 +616,8 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     def compute_rmse(p):
         if np.any(p <= 0) and not args.use_artefact_model:
             return np.nan
-        elif args.use_artefact_model and np.any(p[:-no_artefact_parameters] <= 0):
-            return np.na
+        elif args.use_artefact_model and np.any(p[:-no_artefact_parameters] < 0):
+            return np.nan
 
         y = solver(p, times=times, protocol_description=desc)
         if args.fitting_case == '0d':
