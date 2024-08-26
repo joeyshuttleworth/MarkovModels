@@ -552,7 +552,7 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     prot_func = make_voltage_function_from_description(desc)
 
     times = np.loadtxt(times_fname).flatten().astype(np.float64)
-    voltages = np.array([prot_func(t) for t in times])
+    voltages = np.array([prot_func(t, protocol_description=desc) for t in times])
 
     assert(np.all(np.isfinite(voltages)))
 
@@ -614,9 +614,9 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     I_leak = gleak * (voltages - Eleak)
 
     def compute_rmse(p):
-        y = solver(p, times=times, protocol_description=desc)
+        y = solver(p.flatten(), times=times, protocol_description=desc)
         if args.fitting_case == '0d':
-            y = y + I_leak
+            y = y.flatten() + I_leak.flatten()
 
         return np.sqrt(np.mean((y[indices] - trace[indices])**2))
 
