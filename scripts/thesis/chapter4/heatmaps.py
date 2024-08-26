@@ -268,7 +268,7 @@ def main():
 
         best_well_predictions = prediction_df[prediction_df.well == worst_well].copy()
         best_prediction = best_well_predictions.groupby(['fitting_protocol', 'validation_protocol',
-                                                         'fitting_sweep', 'prediction_sweep'])['n_score'].agg('max').idxmin()
+                                                         'fitting_sweep', 'prediction_sweep'])['n_score'].agg('min').idxmin()
 
         fitting_protocol, validation_protocol, fit_sweep, predict_sweep\
             = worst_prediction
