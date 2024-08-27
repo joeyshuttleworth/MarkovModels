@@ -273,12 +273,14 @@ def do_coloured_scatterplots(params_df, p1, p2):
 
     sns.scatterplot(params_df, x=p1, y=p2, hue='well', style='well',
                     legend=False, ax=well_ax)
-    well_ax.set_title('coloured by well')
+    well_ax.set_title('categroised by well')
+    well_ax.set_title('a', loc='left', fontweight='bold')
 
     sns.scatterplot(params_df, x=p1, y=p2, hue='protocol',
                     style='protocol',legend=False, ax=protocol_ax)
 
-    protocol_ax.set_title('coloured by protocol')
+    protocol_ax.set_title('categorised by protocol')
+    protocol_ax.set_title('b', loc='left', fontweight='bold')
 
     for ax in axs:
         ax.set_xlabel(f"{convert_to_latex(p1)} ({units[p1]})")
