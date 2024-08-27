@@ -88,7 +88,7 @@ def main():
     parser.add_argument('--removal_duration', type=float, default=5.0)
     parser.add_argument('--experiment_name', '-e', default='newtonrun4')
     parser.add_argument('--validation_protocols', default=['longap'], nargs='+')
-    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.54, 8])
+    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.54, 8.1])
     parser.add_argument('--fig_title', '-t', default='')
     parser.add_argument('--nolegend', action='store_true')
     parser.add_argument('--dpi', '-d', default=500, type=int)
