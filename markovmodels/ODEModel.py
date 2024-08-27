@@ -297,7 +297,6 @@ class ODEModel:
                                                         data=data, rtol=rtol,
                                                         atol=atol, exit_on_warning=strict,
                                                         mxstep=_lsoda_n_max_steps)
-
                 if not np.all(np.isfinite(step_sol[start_int:end_int])):
                     print("Warning solver returned non-finte values")
                     return np.full(solution.shape, np.nan)
@@ -312,7 +311,6 @@ class ODEModel:
                 else:
                     y0 = step_sol[-1, :]
                     solution[istart:iend, ] = step_sol[1:-1, ]
-
 
             return solution
 
@@ -397,7 +395,7 @@ class ODEModel:
                                    protocol_description=protocol_description,
                                    E_rev=E_rev)
 
-            return (auxiliary_function(states.T, p, voltages, E_rev)).flatten()
+            return auxiliary_function(states.T, p, voltages, E_rev)
 
         return njit(hybrid_forward_solve) if njitted else hybrid_forward_solve
 
@@ -417,33 +415,6 @@ class ODEModel:
                                                atol=atol, rtol=rtol,
                                                hybrid=False,
                                                **kws)
-
-    # def make_solver_current(self, solver_states, voltages=None, atol=None,
-    #                         rtol=None, njitted=False, protocol_description=None):
-    #     if atol is None:
-    #         atol = self.solver_tolerances[0]
-
-    #     if rtol is None:
-    #         rtol = self.solver_tolerances[1]
-
-    #     if voltages is None:
-    #         voltages = self.GetVoltage()
-
-    #     times = self.times
-    #     default_parameters = self.get_default_parameters()
-    #     auxiliary_function = self.auxiliary_function
-
-    #     def forward_solver(p=default_parameters, times=times,
-    #                        voltages=voltages, atol=atol, rtol=rtol,
-    #                        protocol_description=protocol_description):
-    #         states = solver_states(p, times, atol, rtol,
-    #                                protocol_description=protocol_description)
-
-    #         return (auxiliary_function(states.T, p, voltages)).flatten()
-
-    #     if njitted:
-    #         forward_solver = njit(forward_solver)
-        # return forward_solver
 
     def solve_rhs(self, p=None, times=None):
         """ Solve the RHS of the system and return the open state probability at each timestep

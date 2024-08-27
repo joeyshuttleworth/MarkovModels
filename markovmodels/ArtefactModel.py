@@ -55,7 +55,7 @@ class ArtefactModel(MarkovModel):
             self.protocol_description = protocol_description
         else:
             self.protocol_description = np.array([[0.0, 1000.0, -80.0, -80.0]])
-    
+
         self.solver_tolerances = channel_model.solver_tolerances
         self.E_rev = channel_model.E_rev
         self.channel_model.compute_steady_state_expressions()
@@ -331,4 +331,3 @@ class ArtefactModel(MarkovModel):
             state_labels = list(state_labels) + ['Vm']
             states = np.vstack((states.T, Vm[None,:])).T
             return state_labels, states
-

@@ -33,7 +33,7 @@ class DisconnectedMarkovModel(MarkovModel):
         self.y = [var for y in ys for var in y]
 
         if protocol_description is not None:
-            self.protocol_description = protocol_description
+            self.protocol_description = protocol_description.copy()
         else:
             self.protocol_description = np.array([[.0, 1000.0, -80.0, -80.0]])
 

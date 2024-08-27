@@ -98,10 +98,6 @@ class MarkovModel(ODEModel):
 
         @njit
         def rhs_inf(p=p, v=-80.0, E_rev=E_rev):
-            y0 = np.full(n_state_vars, .0)
-            y0[0] = 1.0
-            y0 = np.append(y0, -80.0)
-
             # Start from matrix derived value
             y0 = matrix_steady_state_function(p, v).flatten()
 

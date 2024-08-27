@@ -633,8 +633,10 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     baseline_profile_ax.axvline(0, color='grey')
     baseline_profile_ax.axvline(1.0, color='grey')
 
-    baseline_profile_ax.set_xlabel(r'$\lambda$')
-    baseline_profile_ax.set_yscale('log')
+    profile_plotted = np.any(np.isfinite(scores))
+    if profile_plotted:
+        baseline_profile_ax.set_xlabel(r'$\lambda$')
+        baseline_profile_ax.set_yscale('log')
 
 
 def setup_grid(fig):
