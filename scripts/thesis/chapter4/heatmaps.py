@@ -83,7 +83,7 @@ def main():
     parser.add_argument('--ignore_validation_protocols', nargs='+', default=[], type=str)
     parser.add_argument('--ignore_fitting_protocols', nargs='+', default=['longap'], type=str)
     parser.add_argument('--ignore_wells', nargs='+', default=['M06'], type=str)
-    parser.add_argument('--fontsize', type=int)
+    parser.add_argument('--fontsize', type=int, default=8)
     parser.add_argument('-w', '--wells', type=str, nargs='+')
     parser.add_argument('--removal_duration', type=float, default=5.0)
     parser.add_argument('--experiment_name', '-e', default='newtonrun4')
