@@ -30,7 +30,7 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 cutoff_threshold = 1.01
 
-mpl.rcParams['axes.formatter.useoffset'] = False
+mpl.rcParams['axes.formatter.useoffset'] = True
 
 # rc('text', usetex=True)
 # rc('figure', dpi=400, facecolor=[0]*4)
@@ -335,9 +335,8 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
     times_fname = os.path.join(args.data_dir,
                                f"{args.experiment_name}-{protocol}-times.csv")
     times = np.loadtxt(times_fname).flatten()
-    trace = np.loadtxt(data_fname).flatten()
 
-    current, vp = get_data(well, protocol, args.data_dir, args.experiment_name,
+    trace, vp = get_data(well, protocol, args.data_dir, args.experiment_name,
                            sweep=sweep, label=args.data_label)
 
     desc = vp.get_all_sections()
@@ -428,6 +427,13 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
                                    )
         Vm = states[:, -1]
         protocol_ax.plot(times*1e-3, Vm, label=r'$V_\mathrm{m}$')
+    elif args.fitting_case == '0d':
+        E_obs = infer_reversal_potential(desc, trace, times,
+                                         voltages=voltages)
+        V_off = args.reversal - E_obs
+        Vm = voltages + V_off
+        protocol_ax.plot(times*1e-3, Vm, label=r'$V_\mathrm{m}$')
+
     else:
         protocol_ax.set_ylabel(r'$V_\text{cmd}$ (mV)')
     protocol_ax.set_xlabel('$t$ (ms)')
@@ -568,6 +574,11 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     else:
         assert(False)
 
+    best_params = get_best_params(params_df)
+    row = best_params.set_index(['well', 'protocol', 'sweep']).loc[(well, protocol, sweep)]
+    param_labels = model.get_parameter_labels()
+    params = row[param_labels].values.flatten().astype(np.float64)
+
     if args.default_parameters_file:
         default_parameters = np.loadtxt(os.path.join(args.default_parameters_file))
         m_model = make_model_of_class(args.model_class, voltage=prot_func,
@@ -577,17 +588,13 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     else:
         m_model = make_model_of_class(args.model_class, voltage=prot_func,
                                       protocol_description=desc,
-                                      times=times, E_rev=E_rev)
+                                      default_parameters=params, times=times,
+                                      E_rev=E_rev)
 
     if args.use_artefact_model:
         model = ArtefactModel(m_model)
     else:
         model = m_model
-
-    best_params = get_best_params(params_df)
-    row = best_params.set_index(['well', 'protocol', 'sweep']).loc[(well, protocol, sweep)]
-    param_labels = model.get_parameter_labels()
-    params = row[param_labels].values.flatten().astype(np.float64)
 
     default_params = model.get_default_parameters()
     default_params[m_model.GKr_index] = params[m_model.GKr_index]
