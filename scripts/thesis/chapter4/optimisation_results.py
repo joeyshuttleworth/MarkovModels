@@ -28,7 +28,6 @@ from markovmodels.voltage_protocols import get_protocol_list, make_voltage_funct
 from markovmodels.voltage_protocols import remove_spikes, detect_spikes
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-cutoff_threshold = 1.01
 
 mpl.rcParams['axes.formatter.useoffset'] = True
 
@@ -95,10 +94,14 @@ def main():
     parser.add_argument('--no_voltage', action='store_true')
     parser.add_argument('--file_format', default='')
     parser.add_argument('--reversal', default=-91.71, type=float)
+    parser.add_argument('--cutoff_threshold', default=1.01, type=float)
     parser.add_argument('--output')
 
     global args
     args = parser.parse_args()
+
+    global cutoff_threshold
+    cutoff_threshold = args.cutoff_threshold
 
     output_dir = setup_output_directory(args.output, 'chapter_4_optimisation_results')
 
