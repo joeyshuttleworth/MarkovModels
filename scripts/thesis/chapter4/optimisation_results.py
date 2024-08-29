@@ -355,7 +355,7 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
     pred, states = make_prediction(args.model_class, args, well, protocol, sweep,
                                    protocol, sweep, params_df, subtraction_df,
                                    args.fitting_case, args.reversal, protocol_dict,
-                                   current, voltages, label=args.data_label,
+                                   trace, voltages, label=args.data_label,
                                    return_states=True
                                    )
 
@@ -425,7 +425,7 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
         pred, states = make_prediction(args.model_class, args, well, protocol, sweep,
                                    protocol, sweep, params_df, subtraction_df,
                                    args.fitting_case, args.reversal, protocol_dict,
-                                   current, voltages, label=args.data_label,
+                                   trace, voltages, label=args.data_label,
                                    return_states=True
                                    )
         Vm = states[:, -1]
