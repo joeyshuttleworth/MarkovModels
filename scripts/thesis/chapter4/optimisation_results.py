@@ -577,6 +577,13 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     else:
         assert(False)
 
+    m_model = make_model_of_class(args.model_class)
+
+    if args.use_artefact_model:
+        model = ArtefactModel(m_model)
+    else:
+        model = m_model
+
     best_params = get_best_params(params_df)
     row = best_params.set_index(['well', 'protocol', 'sweep']).loc[(well, protocol, sweep)]
     param_labels = model.get_parameter_labels()
