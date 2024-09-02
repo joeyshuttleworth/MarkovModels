@@ -498,7 +498,7 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
 
         if xlims[0] != xlims[1] and ylims[0] != ylims[1]:
             inset_ax = inset_axes(scatter_ax,
-                                width="50%",
+                                width="40%",
                                 height="40%",
             )
 
