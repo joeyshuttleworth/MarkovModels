@@ -246,7 +246,7 @@ def main():
         # Compare best and worst wells
         fig.clf()
         # axs = fig.subplots(1, 3, width_ratios=[1, 1, 0.1])
-        heatmap_axs, prediction_axs, voltage_axs  = setup_best_worst_fig(fig)
+        heatmap_axs, prediction_axs, voltage_axs  = setup_best_worst_fig(fig, case)
         best_ax, worst_ax, cbar_ax = heatmap_axs
 
         if case in ['I', 'II', '0d'] or args.use_raw_data:
@@ -305,14 +305,22 @@ def main():
 
             voltage_axs[0].plot(times * 1e-3, Vcmd, color='black', lw=1)
             params_df = results_dict[model_class][case].copy()
-            worst_pred, _ = make_prediction(model_class, args, worst_well,
-                                            validation_protocol, predict_sweep,
-                                            fitting_protocol, fit_sweep, params_df,
-                                            subtraction_df.copy(), case,
-                                            args.reversal, protocol_dict,
-                                            worst_data, Vcmd,
-                                            label=data_label,
-                                            return_states=True )
+            worst_pred, states = make_prediction(model_class, args, worst_well,
+                                                 validation_protocol, predict_sweep,
+                                                 fitting_protocol, fit_sweep, params_df,
+                                                 subtraction_df.copy(), case,
+                                                 args.reversal, protocol_dict,
+                                                 worst_data, Vcmd,
+                                                 label=data_label,
+                                                 return_states=True )
+
+            if case in ['II']:
+                Vm = states[:, -1].flatten()
+            else:
+                E_rev = subtraction_df.set_index(['protocol', 'well', 'sweep']).loc[protocol, well, sweep]['E_rev'].astype(np.float64)
+                Voff = args.reversal - E_obs
+                Vm = Vcmd + Voff
+            voltage_axs[0].plot(times*1e-3, Vm)
 
             prediction_axs[0].plot(times * 1e-3, worst_data, alpha=.5, color='red',
                                    lw=.6)
@@ -488,6 +496,7 @@ def main():
         individual_ax, individual_cbar_ax = individual_fig.subplots(1, 2, width_ratios=[1, 0.1])
         individual_cbar_kws = cbar_kws.copy()
         individual_cbar_kws['orientation'] = 'vertical'
+        individual_cbar_kws['fraction'] = '0.15'
 
         # Do heatmap on individual plot with heatmap
         do_heatmap(individual_ax, model_class, case, sub_df, subtraction_df,
@@ -1078,7 +1087,10 @@ def setup_best_worst_fig(fig):
     voltage_axs = [fig.add_subplot(gs[0, :]), fig.add_subplot(gs[2, :])]
 
     for ax in prediction_axs:
-        ax.set_ylabel(r'$I_\mathrm{Kr} (pA)$')
+        if case in ['0d', 'II']:
+            ax.set_ylabel(r'$I_\mathrm{out} (pA)$')
+        else:
+            ax.set_ylabel(r'$I_\mathrm{Kr} (pA)$')
 
     prediction_axs[-1].set_xlabel(r'$t$ (ms)')
 
