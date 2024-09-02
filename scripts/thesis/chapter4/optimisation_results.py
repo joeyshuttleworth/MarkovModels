@@ -596,10 +596,15 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
                                       default_parameters=default_parameters,
                                       times=times, E_rev=E_rev)
     else:
+        if args.use_artefact_model:
+            channel_model_params = params[:-no_artefact_parameters].copy()
+        else:
+            channel_model_params = params.copy()
+
         m_model = make_model_of_class(args.model_class, voltage=prot_func,
                                       protocol_description=desc,
-                                      default_parameters=params, times=times,
-                                      E_rev=E_rev)
+                                      default_parameters=channel_model_params,
+                                      times=times, E_rev=E_rev)
 
     if args.use_artefact_model:
         model = ArtefactModel(m_model)
