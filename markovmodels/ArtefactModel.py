@@ -90,10 +90,6 @@ class ArtefactModel(MarkovModel):
 
         self.rhs_expr = sp.Matrix.vstack(channel_model.rhs_expr, sp.Matrix([artefact_rhs_expr]))
 
-        self.initial_condition = np.append(
-            self.channel_model.rhs_inf(self.channel_model.get_default_parameters(),
-                                       self.voltage(0)),
-            self.voltage(0))
 
     def define_steady_state_function(self, tend=5000):
         # Assume a holding potential of -80mV and simulate forwards for 5 seconds
