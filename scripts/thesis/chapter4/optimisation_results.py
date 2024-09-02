@@ -84,7 +84,7 @@ def main():
     parser.add_argument('--protocols', type=str, nargs='+')
     parser.add_argument('-w', '--wells', type=str, nargs='+')
     parser.add_argument('-s', '--sweeps', type=int, nargs='+')
-    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.3, 8])
+    parser.add_argument('--figsize', '-f', nargs=2, type=float, default=[5.3, 7.5])
     parser.add_argument('--fig_title', '-t', default='')
     parser.add_argument('--nolegend', action='store_true')
     parser.add_argument('--dpi', '-d', default=500, type=int)
