@@ -21,7 +21,7 @@ from matplotlib import rc
 
 import markovmodels
 from markovmodels.model_generation import make_model_of_class
-from markovmodels.fitting import get_best_params, infer_reversal_potential, make_prediction
+from markovmodels.fitting import get_best_params, infer_reversal_potential, make_prediction, adjust_kinetics
 from markovmodels.ArtefactModel import ArtefactModel, no_artefact_parameters
 from markovmodels.utilities import setup_output_directory, get_data, get_all_wells_in_directory
 from markovmodels.voltage_protocols import get_protocol_list, make_voltage_function_from_description
@@ -146,6 +146,12 @@ def main():
         args.infer_reversal_potential = False
         args.use_artefact_model = True
         args.data_label = 'before'
+
+    subtraction_df = pd.read_csv(args.subtraction_df)
+    if args.adjust_kinetics:
+        params_df = adjust_kinetics(args.model_class, params_df,
+                                    subtraction_df, args.reversal, args.reversal)
+
 
     if args.fontsize:
         matplotlib.rcParams.update({'font.size': args.fontsize})
@@ -584,6 +590,8 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     else:
         model = m_model
 
+    default_params = model.get_default_parameters()
+
     best_params = get_best_params(params_df)
     row = best_params.set_index(['well', 'protocol', 'sweep']).loc[(well, protocol, sweep)]
     param_labels = model.get_parameter_labels()
@@ -611,7 +619,6 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     else:
         model = m_model
 
-    default_params = model.get_default_parameters()
     default_params[m_model.GKr_index] = params[m_model.GKr_index]
 
     if args.use_artefact_model:
