@@ -148,10 +148,6 @@ def main():
         args.data_label = 'before'
 
     subtraction_df = pd.read_csv(args.subtraction_df)
-    if args.adjust_kinetics:
-        params_df = adjust_kinetics(args.model_class, params_df,
-                                    subtraction_df, args.reversal, args.reversal)
-
 
     if args.fontsize:
         matplotlib.rcParams.update({'font.size': args.fontsize})
@@ -449,6 +445,11 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
 
 
 def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
+
+    if args.adjust_kinetics:
+        params_df = adjust_kinetics(args.model_class, params_df,
+                                    subtraction_df, args.reversal, args.reversal).copy()
+
     param_labels = make_model_of_class(args.model_class).get_parameter_labels()
     params_df = params_df[(params_df.well == well)
                           & (params_df.protocol == protocol)
