@@ -1088,9 +1088,9 @@ def setup_best_worst_fig(fig):
 
     for ax in prediction_axs:
         if case in ['0d', 'II']:
-            ax.set_ylabel(r'$I_\mathrm{out} (pA)$')
+            ax.set_ylabel(r'$I_\mathrm{out}\, (pA)$')
         else:
-            ax.set_ylabel(r'$I_\mathrm{Kr} (pA)$')
+            ax.set_ylabel(r'$I_\mathrm{Kr}\, (pA)$')
 
     prediction_axs[-1].set_xlabel(r'$t$ (ms)')
 
