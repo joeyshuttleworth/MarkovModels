@@ -1073,7 +1073,7 @@ def setup_grid_single_case(fig, args):
     return model_axs, colour_bar_ax
 
 
-def setup_best_worst_fig(fig):
+def setup_best_worst_fig(fig, case):
     no_models = len(args.model_classes)
     no_columns = 3
     no_rows = 5
