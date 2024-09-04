@@ -317,7 +317,7 @@ def main():
             if case in ['II']:
                 Vm = states[:, -1].flatten()
             else:
-                E_rev = subtraction_df.set_index(['protocol', 'well', 'sweep']).loc[validation_protocol, worst_well, predict_sweepsweep]['E_rev'].astype(np.float64)
+                E_rev = subtraction_df.set_index(['protocol', 'well', 'sweep']).loc[validation_protocol, worst_well, predict_sweep]['E_rev'].astype(np.float64)
                 Voff = args.reversal - E_obs
                 Vm = Vcmd + Voff
             voltage_axs[0].plot(times*1e-3, Vm)
