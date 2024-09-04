@@ -317,7 +317,7 @@ def main():
             if case in ['II']:
                 Vm = states[:, -1].flatten()
             else:
-                E_rev = subtraction_df.set_index(['protocol', 'well', 'sweep']).loc[protocol, well, sweep]['E_rev'].astype(np.float64)
+                E_rev = subtraction_df.set_index(['protocol', 'well', 'sweep']).loc[protocol, worst_well, sweep]['E_rev'].astype(np.float64)
                 Voff = args.reversal - E_obs
                 Vm = Vcmd + Voff
             voltage_axs[0].plot(times*1e-3, Vm)
@@ -399,6 +399,14 @@ def main():
             fitting_protocol_i = _protocol_order.index(fitting_protocol) + int(fit_sweep)
             validation_protocol_i = _protocol_order.index(validation_protocol) + len(args.validation_protocols) + int(predict_sweep)
 
+            if case in ['II']:
+                Vm = states[:, -1].flatten()
+            else:
+                E_rev = subtraction_df.set_index(['protocol', 'well', 'sweep']).loc[protocol, worst_well, sweep]['E_rev'].astype(np.float64)
+                Voff = args.reversal - E_obs
+                Vm = Vcmd + Voff
+
+            voltage_axs[1].plot(times*1e-3, Vm)
             for protocol in args.validation_protocols:
                 if validation_protocol_i > protocol_order.index(protocol):
                     validation_protocol_i -= 1
