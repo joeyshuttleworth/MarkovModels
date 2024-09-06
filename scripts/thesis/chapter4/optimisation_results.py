@@ -367,6 +367,10 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
 
     states, state_labels = model.compute_all_states(states)
 
+    s_state_labels = sorted(state_labels)
+    reorder_indices = [s_state_labels.index(s) for s in state_labels]
+    states = states[:, reorder_indices].copy()
+
     # Hacky way of ensuring that the O state is at the bottom
     open_state_labels = ['O_O2', 'O1_O2', 'O']
 
