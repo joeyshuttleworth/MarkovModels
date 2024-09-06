@@ -381,7 +381,7 @@ def main():
                                                         fit_sweep))
 
             params_df = results_dict[model_class][case].copy()
-            best_pred, _ = make_prediction(model_class, args, best_well,
+            best_pred, states = make_prediction(model_class, args, best_well,
                                            validation_protocol, predict_sweep,
                                            fitting_protocol, fit_sweep, params_df,
                                            subtraction_df.copy(), case,
