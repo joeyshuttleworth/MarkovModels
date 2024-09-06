@@ -318,7 +318,7 @@ def main():
                 Vm = states[:, -1].flatten()
             else:
                 E_rev = subtraction_df.set_index(['protocol', 'well', 'sweep']).loc[validation_protocol, worst_well, int(predict_sweep)]['E_rev'].astype(np.float64)
-                Voff = args.reversal - E_obs
+                Voff = args.reversal - E_rev
                 Vm = Vcmd + Voff
             voltage_axs[0].plot(times*1e-3, Vm)
 
@@ -403,7 +403,7 @@ def main():
                 Vm = states[:, -1].flatten()
             else:
                 E_rev = subtraction_df.set_index(['protocol', 'well', 'sweep']).loc[validation_protocol, worst_well, int(predict_sweep)]['E_rev'].astype(np.float64)
-                Voff = args.reversal - E_obs
+                Voff = args.reversal - E_rev
                 Vm = Vcmd + Voff
 
             voltage_axs[1].plot(times*1e-3, Vm)
