@@ -470,8 +470,8 @@ def main():
         fig.align_ylabels(list(prediction_axs) + list(voltage_axs) \
                           + [best_ax])
 
-        voltage_axs[0].set_ylabel(r'$V_\mathrm{cmd}$ (mV)')
-        voltage_axs[1].set_ylabel(r'$V_\mathrm{cmd}$ (mV)')
+        voltage_axs[0].set_ylabel(r'$V$ (mV)')
+        voltage_axs[1].set_ylabel(r'$V$ (mV)')
 
         fig.savefig(os.path.join(output_dir, f"best_worst_{case}_{model_class}_heatmap"))
         fig.clf()
