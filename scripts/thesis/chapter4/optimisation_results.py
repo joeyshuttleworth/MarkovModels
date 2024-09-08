@@ -450,6 +450,7 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
 
 def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
 
+    subtraction_df = pd.read_csv(args.subtraction_df)
     if args.adjust_kinetics:
         params_df = adjust_kinetics(args.model_class, params_df,
                                     subtraction_df, args.reversal, args.reversal).copy()
