@@ -468,7 +468,7 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
 
     params_df = params_df[params_df.score != params_df.score.min()]
 
-    row = best_paramsset_index(['well', 'protocol', 'sweep']).loc[(well, protocol, sweep)].copy()
+    row = best_paramset_index(['well', 'protocol', 'sweep']).loc[(well, protocol, sweep)].copy()
     param_labels = make_model_of_class(args.model_class).get_parameter_labels()
     best_params = row[param_labels].values
 
