@@ -551,7 +551,7 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
             inset_ax.set_xticks(xticks)
             inset_ax.set_yticks(yticks)
 
-            inset_ax.tick_params(axis='x', rotation=0)
+            inset_ax.tick_params(axis='x', labelrotation=0)
 
             mark_inset(scatter_ax, inset_ax, 2, 3, alpha=.25)
 
@@ -602,7 +602,7 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     else:
         assert(False)
 
-    m_model = make_model_of_class(args.model_class)
+    m_model = make_model_of_class(args.model_class, E_rev=E_rev)
 
     if args.use_artefact_model:
         model = ArtefactModel(m_model)
@@ -654,7 +654,8 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
                                                   return_var='I_out')
 
     def compute_rmse(p):
-        y = solver(p.flatten(), times=times, protocol_description=desc)
+        y = solver(p.flatten(), times=times, protocol_description=desc,
+                   E_rev=E_rev)
         if args.fitting_case == '0d':
             y = y.flatten() + I_leak.flatten()
 
