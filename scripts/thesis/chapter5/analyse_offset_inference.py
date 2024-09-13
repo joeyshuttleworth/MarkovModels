@@ -25,7 +25,7 @@ pool_kws = {
 def main():
 
     parser = ArgumentParser()
-    parser.add_argument('--n_samples', '-n', type=int, default=10)
+    parser.add_argument('--n_samples', '-n', type=int, default=100)
     parser.add_argument('--seed', type=int)
     parser.add_argument('--output')
     parser.add_argument('--figsize', nargs=2, type=float, default=[5.4, 3.5])
@@ -139,8 +139,10 @@ def main():
         for key, val in new_vals.items():
             artefacts_df.loc[index, key] = val
 
+    # Adjust E_leak values to account for voltage offset
+    artefacts_df['E_rev'] = artefacts_df['E_rev'] - artefacts_df['V_off']
+    artefacts_df['E_rev_est'] = artefacts_df['E_rev_est'] - artefacts_df['V_off_est']
     print(artefacts_df)
-
     artefacts_df.to_csv(os.path.join(output_dir, "fitted_artefact_parameters.csv"))
 
     scatterplot_estimates(artefacts_df)
@@ -156,14 +158,14 @@ def scatterplot_estimates(artefacts_df):
     ]
 
     pretty_vars_dict = {
-        'gleak': r'$g_\text{l} (nS)$',
-        'gleak_est': r'$\hat g_\text{l} (nS)$',
-        'Eleak': r'$E_\text{l} (mV)$',
-        'Eleak_est': r'$\hat E_\text{l} (mV)$',
+        'gleak': r'$g_\text{L}$ (nS)',
+        'gleak_est': r'$\hat g_\text{L}$ (nS)',
+        'Eleak': r'$E_\text{L} (mV)$',
+        'Eleak_est': r'$\hat E_\text{L}$ (mV)',
         'V_off': r'$V_\text{off} (mV)$',
-        'V_off_est': r'$\hat V_\text{off} (mV)$',
-        'Rseries': r'$R_\mathrm{series} (\mathrm{G}\Omega)$',
-        'V_off_est_error': r'$\hat V_\mathrm{off} - V_\mathrm{off}$'
+        'V_off_est': r'$\hat V_\text{off}$ (mV)',
+        'Rseries': r'$R_\mathrm{series}$ $(\mathrm{G}\Omega)$',
+        'V_off_est_error': r'$\hat V_\mathrm{off} - V_\mathrm{off}$ (mV)'
     }
 
     axs = fig.subplots(2, 2).flatten()
@@ -283,12 +285,14 @@ def infer_artefact_values(args, current, protocol_desc, times, model_class,
     if a_solver_states is None:
         a_solver_states = a_model.make_hybrid_solver_states(hybrid=False,
                                                             strict=False,
+                                                            njitted=False,
                                                             atol=1e-6,
                                                             rtol=1e-6)
 
     if a_solver_current is None:
         a_solver_current = a_model.make_hybrid_solver_current(hybrid=False,
                                                               strict=False,
+                                                              njitted=False,
                                                               atol=1e-6,
                                                               rtol=1e-6,
                                                               return_var='I_out')
@@ -367,7 +371,7 @@ def generate_data(index, Rseries, Cm, gkr, gleak, Eleak, V_off, default_paramete
     params[-no_artefact_parameters - 1] = gkr
     print(params)
 
-    current = a_solver_current(params, times=times).flatten()
+    current = a_solver_current(params, times=times, protocol_description=protocol_desc).flatten()
     assert current.shape == times.shape
     current += rng.normal(0, args.noise_sigma, size=current.shape)
 

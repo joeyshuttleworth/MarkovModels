@@ -29,7 +29,7 @@ def main():
     res = [glob(os.path.join(directory, glob_string), recursive=True) for directory\
            in args.data_directories]
     print(res)
-
+ 
     # Flatten res
     res = list(itertools.chain(itertools.chain(res)))
     print(res)

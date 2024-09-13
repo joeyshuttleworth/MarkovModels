@@ -14,10 +14,6 @@ import pcpostprocess
 from markovmodels.ArtefactModel import ArtefactModel, no_artefact_parameters
 from markovmodels.model_generation import make_model_of_class
 import seaborn as sns
-    if use_artefacts:
-        c_param_labels = model.channel_model.get_parameter_labels()
-    else:
-        c_param_labels = param_labels
 from numba import njit
 from quality_control.leak_fit import fit_leak_lr
 import markovmodels.utilities as utilities
@@ -112,42 +108,42 @@ def main():
         noise, gkr = estimate_noise_and_conductance(well, protocol, sweep,
                                                     gleak, Eleak, Rseries, Cm, args.reversal)
 
-        if args.no_noise:
-            noise = 0
-        tasks.append((protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev, args,
-                      output_dir))
+    #     if args.no_noise:
+    #         noise = 0
+    #     tasks.append((protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev, args,
+    #                   output_dir))
 
-    print(f"tasks are {tasks}")
-    with multiprocessing.Pool(args.cpus) as pool:
-        res = pool.starmap(generate_data, tasks)
+    # print(f"tasks are {tasks}")
+    # with multiprocessing.Pool(args.cpus) as pool:
+    #     res = pool.starmap(generate_data, tasks)
 
-    dfs = []
-    for fname, task in zip(res, tasks):
-        protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev, _, _ = task
-        if well not in args.wells and args.wells:
-            continue
-        _args = parser.parse_args()
-        _args.data_directory = output_dir
-        _args.Erev = _args.reversal
-        print(_args)
-        df = subtract_leak(well, protocol, _args, output_dir)
-        df['noise'] = noise
-        df['gkr'] = gkr
-        df['noise'] = noise
-        df['Rseries'] = Rseries
-        df['Cm'] = Cm
-        df['Erev'] = Erev
-        if 'sweep' not in df:
-            df['sweep'] = 0
-        dfs.append(df)
+    # dfs = []
+    # for fname, task in zip(res, tasks):
+    #     protocol, well, Rseries, Cm, gleak, Eleak, noise, gkr, E_obs, Erev, _, _ = task
+    #     if well not in args.wells and args.wells:
+    #         continue
+    #     _args = parser.parse_args()
+    #     _args.data_directory = output_dir
+    #     _args.Erev = _args.reversal
+    #     print(_args)
+    #     df = subtract_leak(well, protocol, _args, output_dir)
+    #     df['noise'] = noise
+    #     df['gkr'] = gkr
+    #     df['noise'] = noise
+    #     df['Rseries'] = Rseries
+    #     df['Cm'] = Cm
+    #     df['Erev'] = Erev
+    #     if 'sweep' not in df:
+    #         df['sweep'] = 0
+    #     dfs.append(df)
 
-    df = pd.concat(dfs, ignore_index=True)
-    df.to_csv(os.path.join(output_dir, 'subtract_leak_df.csv'))
+    # df = pd.concat(dfs, ignore_index=True)
+    # df.to_csv(os.path.join(output_dir, 'subtract_leak_df.csv'))
 
-    plot_overlaid_traces(df)
-    do_scatterplots(df, leak_df)
+    # plot_overlaid_traces(df)
+    # do_scatterplots(df, leak_df)
 
-    compare_synth_real_postprocess_data(df, leak_df)
+    # compare_synth_real_postprocess_data(df, leak_df)
 
 
 def compare_synth_real_postprocess_data(df, leak_df):
@@ -318,7 +314,7 @@ def plot_overlaid_traces(df):
 
         model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm, R_series=Rseries)
 
-        solver = model.make_hybrid_solver_states(hybrid=False,
+        solver = model.make_hybrid_solver_states(hybrid=False, njitted=False,
                                                  return_var='I_out')
         states = solver(_parameters)
         Vm = states[:, -1].flatten()
@@ -371,6 +367,7 @@ def plot_overlaid_traces(df):
 
         axs[1].plot(times, protocol_voltages, label='Vcmd')
         axs[1].plot(times, Vm, label='Vm')
+        axs[1].set_xticklabels([])
 
         if not os.path.exists(os.path.join(output_dir, 'comparison_plots')):
             os.makedirs(os.path.join(output_dir, 'comparison_plots'))
@@ -421,7 +418,7 @@ def plot_overlaid_traces(df):
             # gleak = gleak * 1e-3
             model = ArtefactModel(c_model, E_leak=Eleak, g_leak=gleak, C_m=Cm, R_series=Rseries)
 
-            state_solver = model.make_hybrid_solver_states(hybrid=False,
+            state_solver = model.make_hybrid_solver_states(hybrid=False, njitted=False,
                                                            return_var='I_out')
             states = state_solver()
 
@@ -468,6 +465,9 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
     prot_func, desc = get_ramp_protocol_from_json(protocol, protocol_dir,
                                                   args.experiment_name)
 
+    # Temporary solver hack
+    desc = np.vstack((desc, [[desc[-1, 1], np.inf, -80.0, -80.0]]))
+
     # Assume first step is leak ramp
     first_step = [line for line in desc if line[2] != line[3]][0]
     ramp_start, ramp_end = first_step[:2]
@@ -500,8 +500,9 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
                           E_leak=Eleak)
     default_parameters = model.get_default_parameters().flatten()
 
-    solver = model.make_forward_solver_current(njitted=False,
-                                               return_var='I_out')
+    solver = model.make_hybrid_solver_current(njitted=False, hybrid=False,
+                                              protocol_description=desc,
+                                              return_var='I_out')
 
     assert np.all(np.isfinite(solver()))
 
@@ -550,7 +551,9 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
     param_labels = c_model.get_parameter_labels()
     ideal_params = params_df[param_labels].values.flatten()
 
-    c_solver = c_model.make_hybrid_solver_current(hybrid=False)
+    c_solver = c_model.make_hybrid_solver_current(hybrid=False, njitted=False,
+                                                  protocol_description=desc)
+
     Ileak_ideal = pp_gleak * (voltages - pp_Eleak)
     # Find gkr which best fits the data
     def ideal_opt_g(g):
@@ -606,10 +609,10 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
 
         p = default_parameters.copy()
         p[-no_artefact_parameters - 1] = gkr
-        ax.plot(times*1e-3, before_trace, label='raw pre-drug trace', color='grey', alpha=.5)
+        ax.plot(times*1e-3, before_trace, label='pre-drug trace', color='grey', alpha=.5)
         # ax.plot(times*1e-3, solver(p_no_V_off.flatten()), label='Case V')
         ax.plot(times*1e-3, solver(p_w_V_off.flatten()), label='with artefacts')
-        ax.plot(times*1e-3, ideal_current, label='without artefacts)')
+        ax.plot(times*1e-3, ideal_current, label='without artefacts')
 
         handles, labels = plt.gca().get_legend_handles_labels()
         order = [0,2,1]
@@ -618,7 +621,9 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
         ax.legend()
 
         ax.set_xlabel(r'$t$ (s)')
-        ax.set_ylabel(r'$I$ (pA)')
+        ax.set_ylabel(r'$I_\mathrm{out}$ (pA)')
+
+        voltage_ax.set_ylabel(r'$V$ (mV)')
 
         ax.set_ylim(np.quantile(before_trace, [0.01, 0.999]))
 
@@ -629,6 +634,7 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
         Vm_no_V_off = states[:, -1].flatten()
 
         voltage_ax.plot(times*1e-3, voltages, color='black')
+        voltage_ax.plot(times*1e-3, Vm_V_off)
         # voltage_ax.plot(times*1e-3, Vm_no_V_off)
         voltage_ax.plot(times*1e-3, Vm_V_off)
 
@@ -641,7 +647,8 @@ def estimate_noise_and_conductance(well, protocol, sweep, gleak, Eleak, Rseries,
         if not os.path.exists(os.path.join(output_dir, "conductance_estimation")):
             os.makedirs(os.path.join(output_dir, "conductance_estimation"))
 
-        ax.set_xticklabels([])
+        voltage_ax.set_xticklabels([])
+
         fig.savefig(os.path.join(output_dir, "conductance_estimation", f"{well}-{protocol}-sweep{sweep}"))
         plt.close(fig)
 
