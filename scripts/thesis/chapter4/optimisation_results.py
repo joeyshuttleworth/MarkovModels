@@ -464,7 +464,7 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
     if len(params_df.index) == 0:
         return
 
-    best_params = gets_best_params(params_df)
+    best_params = get_best_params(params_df)
 
     params_df = params_df[params_df.score != params_df.score.min()]
 
