@@ -551,6 +551,8 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
             inset_ax.set_xticks(xticks)
             inset_ax.set_yticks(yticks)
 
+            ax.tick_params(axis='x', rotation=0)
+
             mark_inset(scatter_ax, inset_ax, 2, 3, alpha=.25)
 
     else:
