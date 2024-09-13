@@ -36,11 +36,11 @@ class SensitivitiesMarkovModel(ODEModel):
         self.times = markov_model.times.copy()
         self.voltage = markov_model.voltage
 
-        self.protocol_description = markov_model.protocol_description
+        self.protocol_description = markov_model.protocol_description.copy()
         self.parameter_labels = markov_model.get_parameter_labels()
 
         self.setup_sensitivities()
-        self.compute_steady_state_expressions()
+        self.rhs_inf = self.compute_steady_state_expressions()
 
     def get_default_parameters(self):
         return self.default_parameters.copy()
@@ -74,8 +74,6 @@ class SensitivitiesMarkovModel(ODEModel):
 
             return res[-1, :].flatten()
 
-        self.rhs_inf = rhs_inf
-
         return rhs_inf
 
     def get_analytic_solver_func():
@@ -88,6 +86,7 @@ class SensitivitiesMarkovModel(ODEModel):
         ny = self.get_no_state_vars()
         n_max_steps = 64
 
+        E_rev = self.E_rev
         @cfunc(lsoda_sig)
         def crhs(t, y, dy, data):
             y = nb.carray(y, ny)
@@ -96,19 +95,19 @@ class SensitivitiesMarkovModel(ODEModel):
 
             p = data[:n_p]
             t_offset = data[n_p]
-            desc = data[n_p + 1:]
+            desc = data[n_p + 1:].reshape(-1, 4)
 
             v = voltage(t, offset=t_offset,
                         protocol_description=desc)
 
-            res = rhs(y, p, v).flatten()
+            res = rhs(y, p, v, E_rev).flatten()
 
             dy[:] = res
 
         return crhs
 
     def setup_sensitivities(self):
-        inputs = (list(self.markov_model.y), self.p, self.v)
+        inputs = (list(self.markov_model.y), self.p, self.v, 'E_Kr')
         n_state_vars = self.get_no_state_vars()
 
         if self.parameters_to_use:
@@ -155,9 +154,12 @@ class SensitivitiesMarkovModel(ODEModel):
         self.auxiliary_expression += sp.Matrix([sp.diff(self.markov_model.auxiliary_expression, p)
                                                 for p in parameters_to_use])
 
-        self.auxiliary_expression = self.auxiliary_expression.subs({'E_Kr': self.E_rev})
+        _auxiliary_function = sp.lambdify(inputs, self.auxiliary_expression, cse=True)
 
-        self.auxiliary_function = sp.lambdify(inputs, self.auxiliary_expression, cse=True)
+        def auxiliary_function(y, p, v, E_rev=self.E_rev):
+            return _auxiliary_function(y, p, v, E_rev)
+
+        self.auxiliary_function = auxiliary_function
 
         # Define number of 1st order sensitivities
         self.n_state_var_sensitivities = self.n_params * n_state_vars
@@ -173,5 +175,8 @@ class SensitivitiesMarkovModel(ODEModel):
         jS1 = fS1.jacobian(Ss)
         self.jfunc_S1 = sp.lambdify(inputs, jS1)
 
-    def define_auxiliary_function(self):
-        return self.auxiliary_function
+    def define_auxiliary_function(self, njitted=False):
+        if njitted:
+            return njit(self.auxiliary_function)
+        else:
+            return self.auxiliary_function

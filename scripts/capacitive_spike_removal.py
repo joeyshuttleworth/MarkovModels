@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import argparse
 import os
 import logging
@@ -22,13 +20,13 @@ from markovmodels.voltage_protocols import remove_spikes, detect_spikes,\
 
 from numba import njit
 
+import matplotlib
+
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib.pyplot import cycler
 
-# Don't use scientific notation offsets on plots (it's confusing)
-mpl.rcParams["axes.formatter.useoffset"] = False
-
+# mpl.rcParams["axes.formatter.useoffset"] = False
 sigma = 0.01
 
 
@@ -47,11 +45,15 @@ def main():
     parser.add_argument("-L", "--linear_model", help="Run with a simple linear model\
     instead (debugging)", action='store_true')
     parser.add_argument('-o', '--output')
-    parser.add_argument('--reversal_potential', type=float, default=-91.71)
+    parser.add_argument('--reversal_potential', type=float, default=-89.83)
     parser.add_argument('--parameters_file')
+    parser.add_argument('--fontsize', type=int, default=9)
 
     global args
     args = parser.parse_args()
+
+    if args.fontsize:
+        matplotlib.rcParams.update({'font.size': args.fontsize})
 
     global optimiser
     optimiser = pints.CMAES
@@ -67,9 +69,8 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    spike_removal_durations = np.unique(np.concatenate((np.linspace(0, 11, 25),
+    spike_removal_durations = np.unique(np.concatenate((np.linspace(0, 11, 12),
                                         np.linspace(10, 100, 46),
-                                        # np.linspace(100, 250, 10)
                                                         )))
 
     # Write durations to file
@@ -90,7 +91,11 @@ def main():
     tstart = 0
     tstep = .5
     times = np.linspace(tstart, tend, int((tend - tstart) / tstep))
+
+    print(times)
+
     voltages = np.array([protocol_func(t) for t in times])
+    print(voltages)
 
     full_times = times
 
@@ -99,14 +104,16 @@ def main():
     print(f"Reversal potential is {Erev}")
 
     if args.parameters_file:
-        default_parameters = np.loadtxt(args.parameters_file, delimiter=',').flatten()
+        default_parameters = np.loadtxt(args.parameters_file, delimiter=',').flatten().astype(np.float64)
 
     model = make_model_of_class(args.model_class, times=times,
                                 voltage=protocol_func, E_rev=Erev,
                                 protocol_description=desc)
 
     params = model.get_default_parameters()
-    solver = model.make_forward_solver_current()
+    solver = model.make_hybrid_solver_current(protocol_description=desc,
+                                              hybrid=False,
+                                              njitted=False)
 
     # Plot representative sample from DGP
     sample_mean = solver()
@@ -128,14 +135,21 @@ def main():
     v = 0.0
     p = s_model.get_default_parameters()
     y = np.full(s_model.get_no_state_vars(), 1.0)
+    print('S1 func', s_model.func_S1(y, p, v, args.reversal_potential).flatten())
+    rhs_inf = s_model.compute_steady_state_expressions()(p, -80.0)
+    print('rhs_inf=', rhs_inf)
 
-    print('S1 func', s_model.func_S1(y, p, v).flatten())
-
-    s_solver = s_model.make_hybrid_solver_states(hybrid=False, njitted=True)
-    states = s_solver()
-
+    s_solver = s_model.make_hybrid_solver_states(hybrid=False, njitted=False,
+                                                 strict=False, atol=1e-6, rtol=1e-6,
+                                                 protocol_description=desc)
+    states = s_solver(p, times)
     print(states)
-    S1 = s_model.auxiliary_function(states.T, params, voltages)[:, 0, :].T
+    assert(np.all(np.isfinite(states)))
+
+    S1 = s_model.auxiliary_function(states.T, params, voltages, Erev)[:, 0, :].T
+
+    print(S1)
+    assert(np.all(np.isfinite(S1)))
 
     s_S1 = S1 * params[None, :]
 
@@ -154,9 +168,6 @@ def main():
     r_states = model.y
     no_states = len(r_states)
 
-    print(r_states)
-    print(list(s_model.y))
-    print(model.get_no_state_vars())
 
     labels= [r'$\dfrac{\mathrm{d}}{\mathrm{d}' f"{p}" r'} I_\mathrm{Kr}(t)$' for p in model.p]
     print(S1.shape)
@@ -167,12 +178,11 @@ def main():
     sample_axs[1].legend()
     sample_fig.savefig(os.path.join(output_dir, 'normalised_sensitivities'))
 
-    # TODO Compute MLEs for each repeat and each removal duration
-
     for time_to_remove in spike_removal_durations:
         print(time_to_remove)
         _, _, indices = remove_spikes(times, voltages, spike_times,
                                       time_to_remove)
+        print('no indices', len(indices))
 
         indices_used.append(indices)
         # Plot the observations being removed
@@ -189,28 +199,40 @@ def main():
         # Plot the observations under consideration
         axs[1].plot(times*1e-3, data[:, 0].flatten(), color='grey',
                     alpha=.5)
-        axs[1].plot(times*1e-3, solver(params))
+        axs[1].plot(times[indices]*1e-3, solver(params)[indices])
         axs[1].set_xlabel(r'$t$ (s)')
-        axs[1].set_xticklabels([])
         axs[0].set_ylabel(r'$V$ (mV)')
         axs[0].set_xticklabels([])
         axs[1].set_ylabel(r'$I_\mathrm{Kr}$ (pA)')
-        axs[1].set_xlim([0, times[-1]])
 
-        sample_fig.savefig(os.path.join(output_dir, f"spike_removal_{time_to_remove:.0f}.png"))
+        for cap, ax in zip('abc', axs):
+            ax.set_title(cap, fontweight='bold', loc='left')
+
+        sample_fig.savefig(os.path.join(output_dir, f"spike_removal_{time_to_remove:.0f}.pdf"))
         for ax in axs:
             ax.cla()
 
         H = s_S1[indices, :].T @ s_S1[indices, :]
-        H_inv = np.linalg.inv(H)
-        D_optimalities.append(np.linalg.det(H_inv))
+
+        print('det=', np.linalg.det(H))
+
+        try:
+            H_inv = np.linalg.inv(H)
+        except np.linalg.LinAlgError as exc:
+            logging.warning(str(exc))
+            D_optimalities.append(np.nan)
+            A_optimalities.append(np.nan)
+            covs.append(np.full((S1.shape[1], S1.shape[1]), np.nan))
+            continue
+
+        D_optimalities.append(1/np.linalg.det(H))
         A_optimalities.append(np.trace(H_inv))
 
-        print(D_optimalities[-1])
-        print(A_optimalities[-1])
+        # print('opt_critera:')
+        # print(D_optimalities[-1])
+        # print(A_optimalities[-1])
 
         # G_optimalities.append(np.max(np.diag(S1[indices, :] @ H_inv @ S1[indices, :].T)))
-
         cov = sigma**2 * np.linalg.inv(S1[indices, :].T @ S1[indices, :])
         covs.append(cov)
 
@@ -237,22 +259,28 @@ def main():
     D_optimalities = D_optimalities / D_optimalities[0]
     A_optimalities = A_optimalities / A_optimalities[0]
 
-    df = pd.DataFrame(np.column_stack((spike_removal_durations*1e-3,
-                                       np.log(D_optimalities),
-                                       np.log(A_optimalities))),
-                      columns=('time removed after spikes /s',
-                               "normalised log D-optimality",
-                               "normalised log A-optimality"))
+    df = pd.DataFrame(np.column_stack((spike_removal_durations,
+                                       (D_optimalities),
+                                       (A_optimalities))),
+                      columns=('time removed after spikes /ms',
+                               "normalised D-optimality",
+                               "normalised A-optimality"))
 
-    df.set_index('time removed after spikes /s', inplace=True)
+    df.set_index('time removed after spikes /ms', inplace=True)
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     ax = fig.subplots()
     ax.spines[['top', 'right']].set_visible(False)
+    ax.set_yscale('log')
 
     df.plot(legend=True, subplots=True, ax=ax)
 
     print("plotting criteria")
+    for ax in fig.axes:
+        ax.spines[['top', 'right']].set_visible(False)
+        ax.set_yscale('log')
+
+    ax.set_xlabel(r'$R$ (ms)')
     fig.savefig(os.path.join(output_dir, "criteria.pdf"))
 
     # Now plot it zoomed in on the first 25ms
@@ -264,12 +292,13 @@ def main():
                                constrained_layout=True)
     ax = fig.subplots()
     df[df.index <= 25.0].plot(legend=True, subplots=False, ax=ax)
-    ax.set_xlabel(r'$t$ (s)')
+    ax.set_xlabel(r'$R$ (ms)')
     ax.set_ylabel('')
+    ax.spines[['top', 'right']].set_visible(False)
 
     xticks = ax.get_xticks()
-    xticks = list(xticks) + [5.0e-3, 1e-2]
-    ax.set_xticks(np.unique(xticks))
+    # xticks = list(xticks) + [5.0e-3, 1e-2]
+    # ax.set_xticks(np.unique(xticks))
     fig.savefig(os.path.join(output_dir, "criteria_shared_zoomed.pdf"))
 
     conf_fig = plt.figure(figsize=args.figsize, constrained_layout=True)
@@ -291,7 +320,7 @@ def main():
     sample_fig.clf()
     sample_axs = sample_fig.subplots(2, height_ratios=[0.33, 1])
 
-    indices_to_plot = [0, 2, 10, 20, 40]
+    indices_to_plot = [0, 2, 5, 10, 20, 40]
     covs_to_plot = [covs[i] for i in indices_to_plot]
     durations_to_plot = [covs[i] for i in indices_to_plot]
 
@@ -309,6 +338,9 @@ def main():
     plot_regions(covs_to_plot, labels, params, output_dir,
                  durations_to_plot, conf_fig, sigma2, (0, 1))
 
+    plot_regions(covs_to_plot, labels, params, output_dir,
+                 durations_to_plot, conf_fig, sigma2, (2, 3))
+
     for time_to_remove, cov in list(zip(spike_removal_durations, covs)):
         for ax in sample_axs:
             ax.cla()
@@ -316,7 +348,7 @@ def main():
                                  params, cov, sample_axs, args.n_samples,
                                  spike_indices)
         try:
-            sample_fig.savefig(os.path.join(output_dir, f"sample_trajectories_{time_to_remove:.2f}.png"))
+            sample_fig.savefig(os.path.join(output_dir, f"sample_trajectories_{time_to_remove:.2f}.pdf"))
         except Exception:
             logging.warning(f"Failed to plot trajectories for {time_to_remove}")
             pass
@@ -325,7 +357,7 @@ def main():
 
 def plot_sample_trajectories(solver, times, voltages, removal_duration, params, cov, axs, n_samples, spike_indices):
 
-    mean_param_trajectory = solver(params)
+    mean_param_trajectory = solver(params).flatten()
     axs[1].plot(times*1e-3, mean_param_trajectory, 'blue')
     axs[1].set_ylim(np.min(mean_param_trajectory) * 1.5, np.max(mean_param_trajectory) * 1.5)
 
@@ -382,6 +414,19 @@ def plot_regions(covs, labels, params, output_dir, spike_removal_durations,
     offset = [params[p_of_interest[0]], params[p_of_interest[1]]]
     colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
+    model = make_model_of_class(args.model_class)
+    transformations = model.transformations
+    parameter_labels = model.get_parameter_labels()
+
+    logged_params = [p for t, p in zip(transformations,
+                                       parameter_labels) if isinstance(t, pints.LogTransformation)]
+
+    unit_dict = {}
+    for param_label, transformation in zip(parameter_labels, transformations):
+        unit_dict[param_label] = r'mV$^{-1}$' if isinstance(transformation,
+                                                            pints.IdentityTransformation)\
+            else r'ms$^{-1}$'
+
     cov = covs[0][p_of_interest, :]
     cov = cov[:, p_of_interest]
     eigvals, eigvecs = np.linalg.eigh(cov)
@@ -429,12 +474,30 @@ def plot_regions(covs, labels, params, output_dir, spike_removal_durations,
     axs[0].plot(*offset, 'x', color='red')
     axs[1].plot(*offset, 'x', color='red')
 
+    axs[1].set_xlabel(f"{convert_to_latex(parameter_labels[p_of_interest[0]])} ({unit_dict[parameter_labels[p_of_interest[0]]]})")
+
+    for ax in axs:
+        ax.set_ylabel(f"{convert_to_latex(parameter_labels[p_of_interest[1]])} ({unit_dict[parameter_labels[p_of_interest[1]]]})")
+
     for ax in axs:
         ax.spines[['top', 'right']].set_visible(False)
 
+    for cap, ax in zip('abcde', axs):
+        ax.set_title(cap, loc='left', fontweight='bold')
+
     ax.legend()
     fig.savefig(os.path.join(output_dir,
-                             f"p{p_of_interest[0]+1} and p{p_of_interest[1]+1} confidence regions.png"))
+                             f"p{p_of_interest[0]+1} and p{p_of_interest[1]+1} confidence regions.pdf"))
+
+
+def convert_to_latex(string):
+    letters = ''.join([s for s in string if str.isalpha(s)])
+    digits = ''.join([s for s in string if str.isdigit(s)])
+
+    if digits:
+        return f"${letters}_{{{digits}}}$"
+    else:
+        return f"${letters}$"
 
 
 def draw_likelihood_heatmap(model, solver, params, mle, cov, mle_cov, data, sigma2,
