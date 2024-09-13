@@ -590,15 +590,12 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     Eleak = float(Eleak)
     I_leak = gleak * (voltages - Eleak)
 
-    s_trace = get_data(well, protocol, args.data_dir,
-                         args.experiment_name, sweep=sweep,
-                         label=args.data_label)
-
     if not args.infer_reversal_potential:
         E_rev = args.E_rev
     elif not args.use_artefact_model:
-        E_rev = infer_reversal_potential(desc, s_trace, times,
-                                         voltages=voltages)
+        E_rev = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol)
+                               & (subtraction_df.sweep == sweep)].iloc[0]['E_rev']
+        E_rev = float(E_rev)
     else:
         assert(False)
 
