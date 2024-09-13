@@ -581,10 +581,21 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
     _, _, indices = remove_spikes(times, voltages, spike_times,
                                   args.removal_duration)
 
+    row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol)
+                            & (subtraction_df.sweep == sweep)].iloc[0]
+    gleak, Eleak = row[['gleak_before', 'E_leak_before']].values.flatten().astype(np.float64)
+    gleak = float(gleak)
+    Eleak = float(Eleak)
+    I_leak = gleak * (voltages - Eleak)
+
     if not args.infer_reversal_potential:
         E_rev = args.E_rev
     elif not args.use_artefact_model:
-        E_rev = infer_reversal_potential(desc, trace, times,
+        if args.label == 'before':
+            s_trace = trace - I_leak
+        else:
+            s_trace = trace
+        E_rev = infer_reversal_potential(desc, s_trace, times,
                                          voltages=voltages)
     else:
         assert(False)
@@ -639,14 +650,6 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
                                                   strict=False,
                                                   njitted=False,
                                                   return_var='I_out')
-
-    row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol)
-                            & (subtraction_df.sweep == sweep)].iloc[0]
-    gleak, Eleak = row[['gleak_before', 'E_leak_before']].values.flatten().astype(np.float64)
-    gleak = float(gleak)
-    Eleak = float(Eleak)
-
-    I_leak = gleak * (voltages - Eleak)
 
     def compute_rmse(p):
         y = solver(p.flatten(), times=times, protocol_description=desc)
