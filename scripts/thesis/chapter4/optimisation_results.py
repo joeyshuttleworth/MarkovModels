@@ -464,11 +464,11 @@ def do_scatter_plot(scatter_ax, params_df, well, protocol, sweep, args):
     if len(params_df.index) == 0:
         return
 
-    best_params = get_best_params(params_df)
+    best_params = gets_best_params(params_df)
 
     params_df = params_df[params_df.score != params_df.score.min()]
 
-    row = best_params.set_index(['well', 'protocol', 'sweep']).loc[(well, protocol, sweep)].copy()
+    row = best_paramsset_index(['well', 'protocol', 'sweep']).loc[(well, protocol, sweep)].copy()
     param_labels = make_model_of_class(args.model_class).get_parameter_labels()
     best_params = row[param_labels].values
 
@@ -592,11 +592,12 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
 
     if not args.infer_reversal_potential:
         E_rev = args.E_rev
+
+
+    s_trace = get_data(well, protocol, args.data_dir,
+                         args.experiment_name, sweep=sweep,
+                         label=args.data_label)
     elif not args.use_artefact_model:
-        if args.label == 'before':
-            s_trace = trace - I_leak
-        else:
-            s_trace = trace
         E_rev = infer_reversal_potential(desc, s_trace, times,
                                          voltages=voltages)
     else:
