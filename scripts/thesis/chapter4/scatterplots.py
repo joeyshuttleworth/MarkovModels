@@ -1,12 +1,15 @@
 import argparse
+import itertools
 import os
+import pints
+import scipy
 
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import pints
+import statsmodels.api as sm
 from matplotlib.gridspec import GridSpec
 
 import markovmodels
@@ -38,6 +41,7 @@ def main():
     parser.add_argument("--vmax", "-m", default=None, type=float)
     parser.add_argument("--model", default='Beattie')
     parser.add_argument("--figsize", default=(5.3, 7), nargs=2, type=float)
+    parser.add_argument("--qq_figsize", default=(5.3, 5), nargs=2, type=float)
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
     parser.add_argument('--removal_duration', '-r', default=5, type=float)
     parser.add_argument('--reversal', type=float, default=np.nan)
@@ -138,7 +142,26 @@ def main():
     params_df = params_df.drop(param_labels[-1], axis='columns')
     param_labels = param_labels[:-1]
 
-    beta, ll = do_multivariate_regression(params_df, param_labels)
+    beta, ll, residuals = do_multivariate_regression(params_df, param_labels)
+
+    # Do residual QQ plot
+    QQ_fig = plt.figure(figsize=args.qq_figsize, constrained_layout=True)
+    QQ_ax = QQ_fig.subplots()
+
+    QQ_ax.spines[['top', 'right']].set_visible(False)
+
+    print(residuals.shape)
+    markers = itertools.cycle(('.', ',', 'x', '1', '2', '3', '4', 'v', '^', 'p', 'P'))
+    palette = itertools.cycle(sns.color_palette('husl', residuals.shape[1]))
+
+    for i in range(residuals.shape[1]):
+        color = next(palette)
+        sm.qqplot(residuals[:, i],
+                  dist=scipy.stats.norm, fit=True, line=None, ax=QQ_ax, markerfacecolor=color, markersize=2.5,
+                  markeredgecolor=color, marker=next(markers),
+                  )
+
+    QQ_fig.savefig(os.path.join(output_dir, 'QQ_plot'))
 
     with np.printoptions(threshold=np.inf):
         print(f"log likelihood is {ll}")
@@ -146,8 +169,8 @@ def main():
     no_protocols = len(params_df.protocol.unique())
     no_wells = len(params_df.well.unique())
 
-    beta_p, ll_p = do_multivariate_regression(params_df, param_labels, no_well_effect=True)
-    beta_w, ll_w = do_multivariate_regression(params_df, param_labels, no_protocol_effect=True)
+    beta_p, ll_p, _ = do_multivariate_regression(params_df, param_labels, no_well_effect=True)
+    beta_w, ll_w, _ = do_multivariate_regression(params_df, param_labels, no_protocol_effect=True)
 
     params = params_df[param_labels].values
     residuals = params - params.mean(axis=0)
@@ -155,7 +178,7 @@ def main():
 
     n_estimates = params_df.values.shape[0]
 
-    _, ll_no_effects =  do_multivariate_regression(params_df, param_labels,
+    _, ll_no_effects, _ =  do_multivariate_regression(params_df, param_labels,
                                                    no_protocol_effect=True,
                                                    no_well_effect=True)
 
@@ -481,7 +504,7 @@ def do_multivariate_regression(params_df, param_labels,
     for i in range(len(param_labels)):
         log_likelihood += - (n / 2.0) *  np.log(2*np.pi*sigma_ests[i]**2) - (1.0/(2*sigma_ests[i]**2)) * np.sum(residuals[:, i]**2)
 
-    return beta, log_likelihood
+    return beta, log_likelihood, residuals
 
 
 def setup_linear_model_coding(params_df, param_labels,
