@@ -29,6 +29,18 @@ def create_axes(fig, no_rows):
         return [fig.subplots(no_rows)]
 
 
+for model in ['model3', 'model2', 'model10', 'Wang']:
+    print(make_model_of_class(model).get_parameter_labels())
+
+param_labels_replace = {
+    'model3': [r'$p_{' + str(p[1:]) + r'}$' for p in make_model_of_class('model3').get_parameter_labels()],
+    'model10': [r'$p_{' + str(p[1:]) + r'}$' for p in make_model_of_class('model10').get_parameter_labels()],
+    'model2': [r'$p_{' + str(p[1:]) + r'}$' for p in make_model_of_class('model10').get_parameter_labels()],
+    'Wang': [r'$q_7$', r'$q_8$', r'$q_1$', r'$q_2$', r'$k_b$', r'$q_9$', r'$q_{10}$', r'$q_5$',
+             r'$q_6$', r'$q_3$', r'$q_4$', r'$q_{11}$', r'$q_{12}$', r'$k_f$', r'$g$']
+    }
+
+
 def main():
     description = ""
     parser = argparse.ArgumentParser(description=description)
@@ -66,6 +78,8 @@ def main():
 
     global param_labels
     param_labels = make_model_of_class(args.model).get_parameter_labels()
+    pretty_param_labels = param_labels_replace[args.model]
+    print(pretty_param_labels)
 
     chrono_fname = args.chrono_file
     with open(chrono_fname, 'r') as fin:
@@ -158,9 +172,10 @@ def main():
         color = next(palette)
         sm.qqplot(residuals[:, i],
                   dist=scipy.stats.norm, fit=True, line=None, ax=QQ_ax, markerfacecolor=color, markersize=2.5,
-                  markeredgecolor=color, marker=next(markers),
+                  markeredgecolor=color, marker=next(markers), label=pretty_param_labels[i]
                   )
 
+    QQ_ax.legend()
     QQ_fig.savefig(os.path.join(output_dir, 'QQ_plot'))
 
     with np.printoptions(threshold=np.inf):
