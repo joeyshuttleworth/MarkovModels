@@ -175,6 +175,15 @@ def main():
                   markeredgecolor=color, marker=next(markers), label=pretty_param_labels[i]
                   )
 
+    xlims = QQ_ax.get_xlim()
+    ylims = QQ_ax.get_ylim()
+
+    lims = np.vstack([xlims, ylims])
+    lims = [np.max(lims[:, 0]), np.min(lims[:, 1])]
+
+    plot_points = np.linspace(lims[0], lims[1], 2)
+    QQ_ax.plot(plot_points, plot_points, linestyle='--', color='grey', alpha=.4)
+
     QQ_ax.legend()
     handles, labels = QQ_ax.get_legend_handles_labels()
     # sort both labels and handles by labels
