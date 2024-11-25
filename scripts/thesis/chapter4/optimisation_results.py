@@ -420,7 +420,7 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
     current_ax.set_xlabel('')
 
     if args.fitting_case in ['0a', '0b']:
-        current_ax.set_ylabel(r'$I_\mathrm{post}$ (pA)')
+        current_ax.set_ylabel(r'$I_\mathrm{Kr}$ (pA)')
     else:
         current_ax.set_ylabel(r'$I_\mathrm{obs}$ (pA)')
 
