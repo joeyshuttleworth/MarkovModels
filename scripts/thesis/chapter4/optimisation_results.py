@@ -419,7 +419,7 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
     current_ax.plot(times*1e-3, pred, alpha=.5, lw=.8)
     current_ax.set_xlabel('')
 
-    if args.fitting_case in ['0a', '0b']:
+    if args.fitting_case in ['0a', '0b', '0c']:
         current_ax.set_ylabel(r'$I_\mathrm{Kr}$ (pA)')
     else:
         current_ax.set_ylabel(r'$I_\mathrm{obs}$ (pA)')
