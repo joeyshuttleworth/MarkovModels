@@ -79,7 +79,7 @@ def main():
     global param_labels
     param_labels = make_model_of_class(args.model).get_parameter_labels()
     pretty_param_labels = param_labels_replace[args.model]
-    print(pretty_param_labels)
+    print(list(zip(param_labels, pretty_param_labels)))
 
     chrono_fname = args.chrono_file
     with open(chrono_fname, 'r') as fin:
@@ -192,6 +192,19 @@ def main():
 
     QQ_fig.savefig(os.path.join(output_dir, 'QQ_plot'))
 
+    # Plot Residuals
+    res_dfs = []
+    for i in range(residuals.shape[1]):
+        res_df = pd.DataFrame()
+        res_df['residual'] = (residuals[:, i] - residuals[:, i].mean()) / residuals[:, i].std()
+        res_df['param'] = pretty_param_labels[i]
+        res_dfs.append(res_df)
+    res_df = pd.concat(res_dfs)
+    QQ_ax.cla()
+    sns.stripplot(x='param', y='residual', data=res_df, ax=QQ_ax)
+    QQ_fig.savefig(os.path.join(output_dir, f"{args.model}_residuals_swarm"))
+    plt.close(QQ_fig)
+
     with np.printoptions(threshold=np.inf):
         print(f"log likelihood is {ll}")
 
@@ -265,9 +278,9 @@ def main():
     marker_dict = {p: markers[i] for i, p in enumerate(params_df.protocol.unique())}
     markers = [marker_dict[p] for p in params_df.protocol]
 
-    # Do pairplot
-    sns.pairplot(data=params_df, hue=args.hue, vars=param_labels)
-    plt.savefig(os.path.join(output_dir, 'pairplot.pdf'))
+    # # Do pairplot
+    # sns.pairplot(data=params_df, hue=args.hue, vars=param_labels)
+    # plt.savefig(os.path.join(output_dir, 'pairplot.pdf'))
 
     fig = plt.figure(figsize=args.figsize, constrained_layout=True)
     axs = fig.subplots(2)
@@ -504,6 +517,7 @@ def do_multivariate_regression(params_df, param_labels,
         ts = make_model_of_class(args.model).transformations
         for i, t in enumerate(ts[:-1]):
             if type(t) is pints.LogTransformation:
+                print(param_labels[i])
                 params_df[param_labels[i]] = np.log10(params_df[param_labels[i]])
 
     X, Y = setup_linear_model_coding(params_df, param_labels,
