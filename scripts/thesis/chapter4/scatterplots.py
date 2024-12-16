@@ -200,6 +200,7 @@ def main():
         res_df['param'] = pretty_param_labels[i]
         res_dfs.append(res_df)
     res_df = pd.concat(res_dfs)
+    res_df.sort_values('param')
     QQ_ax.cla()
     sns.stripplot(x='param', y='residual', data=res_df, ax=QQ_ax)
     QQ_fig.savefig(os.path.join(output_dir, f"{args.model}_residuals_swarm"))
