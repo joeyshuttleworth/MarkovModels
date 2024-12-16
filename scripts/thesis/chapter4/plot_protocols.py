@@ -83,6 +83,8 @@ def main():
 
         plot_axes[i].set_ylabel(r'$V_\text{cmd}$', rotation=0)
 
+        plot_axes[i].set_yticks([-100, 0])
+        plot_axes[i].set_yticklabels([f"{int(lab)} mV" for lab in plot_axes[i].get_yticks()])
 
     plot_axes[-1].set_xticks([0, 1])
     plot_axes[-1].set_xlabel(r'$t$ (s)')
