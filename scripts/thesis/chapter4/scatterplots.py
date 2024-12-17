@@ -80,7 +80,6 @@ def main():
     global param_labels
     param_labels = make_model_of_class(args.model).get_parameter_labels()
     pretty_param_labels = param_labels_replace[args.model]
-    print(list(zip(param_labels, pretty_param_labels)))
 
     chrono_fname = args.chrono_file
     with open(chrono_fname, 'r') as fin:
@@ -101,8 +100,6 @@ def main():
     params_df.protocol = ['staircaseramp1' if prot in ['staircaseramp2', 'staircaseramp1_2'] else prot
                           for prot in params_df.protocol]
 
-    print(params_df.protocol.unique())
-
     # Reorder and relabel protocols
     relabel_dict = {p: r"$d_{" f"{i + 1}" r"}$" for i, p
                     in enumerate(protocol_order) if p != 'staircaseramp1'}
@@ -116,7 +113,6 @@ def main():
         params_df['protocol'] = pd.Categorical(params_df['protocol'],
                                                categories=protocol_order,
                                                ordered=True)
-        print(relabel_dict)
         params_df.protocol = params_df.protocol.cat.rename_categories(relabel_dict)
         protocols = params_df.protocol.unique()
 
@@ -203,7 +199,8 @@ def main():
     res_df = pd.concat(res_dfs)
     res_df.sort_values('param')
     QQ_ax.cla()
-    sns.stripplot(x='param', y='residual', data=res_df, ax=QQ_ax)
+    sns.stripplot(x='param', y='residual', data=res_df, ax=QQ_ax, s=2.5)
+    sns.violinplot(x="param", y="residual", data=res_df, color=".8", ax=QQ_ax, fill=False)
     QQ_fig.savefig(os.path.join(output_dir, f"{args.model}_residuals_swarm"))
     plt.close(QQ_fig)
 
@@ -520,7 +517,6 @@ def do_multivariate_regression(params_df, param_labels,
         ts = make_model_of_class(args.model).transformations
         for i, t in enumerate(ts[:-1]):
             if type(t) is pints.LogTransformation:
-                print(param_labels[i])
                 params_df[param_labels[i]] = np.log10(params_df[param_labels[i]])
 
     X, Y = setup_linear_model_coding(params_df, param_labels,
