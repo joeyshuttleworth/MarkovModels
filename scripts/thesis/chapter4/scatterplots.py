@@ -55,6 +55,7 @@ def main():
     parser.add_argument("--figsize", default=(5.3, 7), nargs=2, type=float)
     parser.add_argument("--qq_figsize", default=(5.3, 5), nargs=2, type=float)
     parser.add_argument('--experiment_name', default='newtonrun4', type=str)
+    parser.add_argument("--no_scatter_plots", action='store_true')
     parser.add_argument('--removal_duration', '-r', default=5, type=float)
     parser.add_argument('--reversal', type=float, default=np.nan)
     parser.add_argument('--solver_type', default='hybrid')
@@ -170,10 +171,10 @@ def main():
 
     for i in range(residuals.shape[1]):
         color = next(palette)
-        sm.qqplot(residuals[:, i],
-                  dist=scipy.stats.norm, fit=True, line=None, ax=QQ_ax, markerfacecolor=color, markersize=2.5,
-                  markeredgecolor=color, marker=next(markers), label=pretty_param_labels[i]
-                  )
+        sm.qqplot(residuals[:, i], dist=scipy.stats.norm, fit=True, line=None,
+                  ax=QQ_ax, markerfacecolor=color, markersize=2.5,
+                  markeredgecolor=color, marker=next(markers),
+                  label=pretty_param_labels[i])
 
     xlims = QQ_ax.get_xlim()
     ylims = QQ_ax.get_ylim()
@@ -190,7 +191,7 @@ def main():
     labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0]))
     QQ_ax.legend(handles, labels, ncol=2)
 
-    QQ_fig.savefig(os.path.join(output_dir, 'QQ_plot'))
+    QQ_fig.savefig(os.path.join(output_dir, f"QQ_plot_{args.model}"))
 
     # Plot Residuals
     res_dfs = []
@@ -261,19 +262,20 @@ def main():
     param_combinations = [(p1, p2) for i, p1 in enumerate(param_labels[:-1])
                           for j, p2 in enumerate(param_labels[:-1]) if p1 != p2 and i < j]
 
-    for well in params_df.well.unique():
-        for p1, p2 in param_combinations:
-            do_per_plots(None, well, params_df, p1, p2, output_dir, beta=beta,
-                         per_variable='protocol')
+    if not args.no_scatter_plots:
+        for well in params_df.well.unique():
+            for p1, p2 in param_combinations:
+                do_per_plots(None, well, params_df, p1, p2, output_dir, beta=beta,
+                            per_variable='protocol')
 
-            do_per_plots(None, None, params_df, p1, p2, os.path.join(output_dir,
-                                                                     'no_effects'),
-                         per_variable='protocol')
+                do_per_plots(None, None, params_df, p1, p2, os.path.join(output_dir,
+                                                                        'no_effects'),
+                            per_variable='protocol')
 
-    for protocol in params_df.protocol.unique():
-        for p1, p2 in param_combinations:
-            do_per_plots(protocol, None, params_df, p1, p2, output_dir, beta=beta,
-                         per_variable='well')
+        for protocol in params_df.protocol.unique():
+            for p1, p2 in param_combinations:
+                do_per_plots(protocol, None, params_df, p1, p2, output_dir, beta=beta,
+                            per_variable='well')
 
     markers = ['+', 'x', '1', '2', '3'] + list(range(12))
     marker_dict = {p: markers[i] for i, p in enumerate(params_df.protocol.unique())}
