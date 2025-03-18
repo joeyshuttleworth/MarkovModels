@@ -87,8 +87,8 @@ def make_model_of_class(name: str, times=None, voltage=None, *args, **kwargs):
         from markovmodels.WangModel import WangModel
         model = WangModel(times, voltage, *args, **kwargs)
     elif name == 'Mazhari' or name == 'MazhariModel':
-        from markovmodels.MarzhariModel import Mazhari
-        model = Mazhari(times, voltage, *args, **kwargs)
+        from markovmodels.MazhariModel import MazhariModel
+        model = MazhariModel(times, voltage, *args, **kwargs)
     elif thirty_models_regex.match(name):
         model_no = int(thirty_models_regex.search(name).group(1))
         model = generate_markov_model_from_graph(thirty_models[model_no](), times, voltage,
