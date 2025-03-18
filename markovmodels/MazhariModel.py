@@ -7,7 +7,6 @@ from markovmodels.MarkovModel import MarkovModel
 
 
 class MazhariModel(MarkovModel):
-
     def __init__(self, times=None, voltage=None,
                  parameters=None, *args, **kwargs):
         # Create symbols for symbolic functions
