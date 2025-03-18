@@ -21,9 +21,13 @@ class WangModel(MarkovModel):
         self.default_parameters = np.array([val
                                             for key, val in mc.default_values.items()
                                             if str(key) not in ['E_Kr', 'E_rev', 'V']]).astype(np.float64)
-        self.parameter_labels = [key
-                                 for key in mc.default_values
-                                 if str(key) not in ['E_Kr', 'E_rev', 'V']]
+        self.parameter_labels = sorted([key
+                                        for key in mc.default_values
+                                        if str(key) not in ['E_Kr', 'E_rev', 'V']]
+                                       )
+        self.parameter_labels.remove('g_Kr')
+        self.parameter_labels = self.parameter_labels + ['g_Kr']
+
         if parameters is not None:
             self.default_parameters = parameters
 
@@ -60,10 +64,6 @@ class WangModel(MarkovModel):
             pints.IdentityTransformation(1),
 
             pints.LogTransformation(1),
-
-            pints.LogTransformation(1),
-
-            pints.LogTransformation(1),
             pints.IdentityTransformation(1),
 
             pints.LogTransformation(1),
@@ -75,6 +75,8 @@ class WangModel(MarkovModel):
             pints.LogTransformation(1),
             pints.IdentityTransformation(1),
 
+            pints.LogTransformation(1),
+            pints.LogTransformation(1),
             pints.LogTransformation(1)
         ]
         assert len(self.transformations) == self.n_params
