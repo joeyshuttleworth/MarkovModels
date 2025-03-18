@@ -193,9 +193,12 @@ def main():
     res_dfs = []
     for i in range(residuals.shape[1]):
         res_df = pd.DataFrame()
-        res_df['residual'] = (residuals[:, i] - residuals[:, i].mean()) / residuals[:, i].std()
+        res_df['residual'] = (residuals[:, i] - residuals[:, i].mean()) / residuals[:, i].std(ddof=1)
         res_df['param'] = pretty_param_labels[i]
         res_dfs.append(res_df)
+
+        print(residuals[:, i].mean(), residuals[:, i].std())
+
     res_df = pd.concat(res_dfs)
     res_df.sort_values('param')
     QQ_ax.cla()

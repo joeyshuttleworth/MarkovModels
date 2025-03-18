@@ -107,6 +107,7 @@ class ODEModel:
         self.compute_steady_state_expressions()
         self.auxiliary_function = njit(self.define_auxiliary_function())
 
+
     def func_rhs(self):
         raise NotImplementedError()
 

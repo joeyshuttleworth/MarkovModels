@@ -27,6 +27,7 @@ def make_myokit_model(model_name: str):
         model_12,
         model_13,
         model_14,
+        model_20,
         model_30,
     )
 
@@ -61,13 +62,14 @@ def make_model_of_class(name: str, times=None, voltage=None, *args, **kwargs):
         model_12,
         model_13,
         model_14,
+        model_20,
         model_30,
     )
 
     thirty_models = [
         model_00, model_01, model_02, model_03, model_04,
         model_05, model_06, model_07, model_08, model_09, model_10,
-        model_11, model_12, model_13, model_14, model_30
+        model_11, model_12, model_13, model_14, model_20, model_30
     ]
 
     thirty_models_regex = re.compile(r'^model([0-9]+)$')
@@ -84,6 +86,9 @@ def make_model_of_class(name: str, times=None, voltage=None, *args, **kwargs):
     elif name == 'Wang' or name == 'WangModel':
         from markovmodels.WangModel import WangModel
         model = WangModel(times, voltage, *args, **kwargs)
+    elif name == 'Mazhari' or name == 'MazhariModel':
+        from markovmodels.MarzhariModel import Mazhari
+        model = Mazhari(times, voltage, *args, **kwargs)
     elif thirty_models_regex.match(name):
         model_no = int(thirty_models_regex.search(name).group(1))
         model = generate_markov_model_from_graph(thirty_models[model_no](), times, voltage,
