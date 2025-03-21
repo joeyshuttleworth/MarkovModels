@@ -36,7 +36,7 @@ def make_myokit_model(model_name: str):
     thirty_models = [
         model_00, model_01, model_02, model_03, model_04,
         model_05, model_06, model_07, model_08, model_09, model_10,
-        model_11, model_12, model_13, model_14, model_30
+        model_11, model_12, model_13, model_14, model_20, model_30
     ]
     if thirty_models_regex.match(model_name):
         model_no = int(thirty_models_regex.search(model_name).group(1))
