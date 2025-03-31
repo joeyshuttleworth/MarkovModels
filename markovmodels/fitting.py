@@ -165,7 +165,8 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     problem = pints.SingleOutputProblem(model, times[subset_indices],
                                         data[subset_indices])
 
-    error = pints.SumOfSquaresError(problem)
+    # error = pints.SumOfSquaresError(problem)
+    error = PenalisedRMSErrors(mm, data, indices, sovler, fix_parameters)
 
     if len(fix_parameters) != 0:
         unfixed_indices = [i for i in range(
@@ -754,34 +755,10 @@ class FittingBoundaries(pints.Boundaries):
                 if i < len(self.full_parameters) - 1:
                     parameters = np.insert(parameters, i, self.full_parameters[i])
 
-        parameters = parameters[:self.mm.GKr_index + 1].flatten()
+        if np.any(~np.isfinite(parameters)):
+            return False
 
         if np.any(parameters[:self.mm.GKr_index + 1] < 0):
-            return False
-
-        if max([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) > 1e5:
-            return False
-
-        if min([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) < 1e-7:
-            return False
-
-        if parameters[self.mm.GKr_index] > self.max_conductance:
-            return False
-
-        if parameters[self.mm.GKr_index] < self.min_conductance:
-            return False
-
-        Vs = [-120, 60]
-        rates_func = self.rates_func
-        rates_1 = rates_func(parameters, Vs[0]).flatten()
-        rates_2 = rates_func(parameters, Vs[1]).flatten()
-
-        max_transition_rates = np.max(np.vstack([rates_1, rates_2]), axis=0)
-
-        if np.any(max_transition_rates > 1e3):
-            return False
-
-        if np.any(max_transition_rates < 1.67e-5):
             return False
 
         return True
@@ -1912,3 +1889,49 @@ def get_ensemble_of_predictions(times, desc, params_df, protocol, well, sweep,
     if predictions:
         predictions = np.vstack(predictions)
     return predictions
+
+
+class PenalisedRMSErrors(pints.ErrorMeasure):
+    def __init__(mm, data, incides, solver, fix_parameters=[]):
+        self.data = data
+        self.indices = indices
+        self.fix_parameters = fix_parameters
+        self.solver = solver
+        pass
+
+    def n_parameters(self):
+        return mm.get_no_parameters - len(set(fix_parameters))
+
+    def __call__(self, p):
+        model_output = solver(p)
+        rmse = np.sqrt(np.mean((data[indices] - model_output[indices])**2))
+
+        if ~np.isfinite(rmse):
+            return np.inf
+
+        if val := max([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) > 1e5:
+            return (val - 1e5)**2
+
+        if val := min([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) < 1e-7:
+            penalty += 1 / (1e-7 - val)**2
+
+        if parameters[self.mm.GKr_index] > self.max_conductance:
+            penalty += (parameters[self.mm_GKr_index] - self.max_conductance)**2
+
+        if parameters[self.mm.GKr_index] < self.min_conductance:
+            1 / (self.min_condictance - parameters[self.mm_GKr_index])**2
+
+        Vs = [-120, 60]
+        rates_func = self.rates_func
+        rates_1 = rates_func(parameters, Vs[0]).flatten()
+        rates_2 = rates_func(parameters, Vs[1]).flatten()
+
+        max_transition_rates = np.max(np.vstack([rates_1, rates_2]), axis=0)
+
+        if np.any(max_transition_rates > 1e3):
+            penalty += (max_transition_rates.max() - 1e3)**2
+
+        if np.any(max_transition_rates < 1.67e-5):
+            penalty += (1.67e-5 - max_transition_rates.min())**-2
+
+        return rmse + penalty
