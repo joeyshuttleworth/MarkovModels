@@ -128,6 +128,7 @@ class ArtefactModel(MarkovModel):
                            rtol=rtol,
                            atol=atol,
                            exit_on_warning=False)
+
             return res[-1, :].flatten()
 
         return rhs_inf

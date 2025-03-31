@@ -138,7 +138,7 @@ def generate_markov_model_from_graph(mc: MarkovChain, times, voltage,
         # flatten
         transformations = [t for pair in transformations for t in pair]
         # append identity for conductance parameters
-        transformations += [pints.IdentityTransformation(1)]
+        transformations += [pints.LogTransformation(1)]
 
     if mc.is_connected():
         # Graph is connected, generate MarkovModel
