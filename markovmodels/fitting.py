@@ -1897,14 +1897,14 @@ class PenalisedRMSErrors(pints.ErrorMeasure):
         self.indices = indices
         self.fix_parameters = fix_parameters
         self.solver = solver
-        pass
+        self.mm = mm
 
     def n_parameters(self):
         return mm.get_no_parameters - len(set(fix_parameters))
 
     def __call__(self, p):
         model_output = solver(p)
-        rmse = np.sqrt(np.mean((data[indices] - model_output[indices])**2))
+        rmse = np.sqrt(np.mean((self.data[self.indices] - model_output[self.indices])**2))
 
         if ~np.isfinite(rmse):
             return np.inf
@@ -1922,9 +1922,9 @@ class PenalisedRMSErrors(pints.ErrorMeasure):
             1 / (self.min_condictance - parameters[self.mm_GKr_index])**2
 
         Vs = [-120, 60]
-        rates_func = self.rates_func
-        rates_1 = rates_func(parameters, Vs[0]).flatten()
-        rates_2 = rates_func(parameters, Vs[1]).flatten()
+        rates_func = self.mm.get_rates_func()
+        rates_1 = rates_func(p, Vs[0]).flatten()
+        rates_2 = rates_func(p, Vs[1]).flatten()
 
         max_transition_rates = np.max(np.vstack([rates_1, rates_2]), axis=0)
 
