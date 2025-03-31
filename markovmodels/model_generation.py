@@ -66,10 +66,18 @@ def make_model_of_class(name: str, times=None, voltage=None, *args, **kwargs):
         model_30,
     )
 
+    model_15 = None
+    model_16 = None
+    model_17 = None
+    model_18 = None
+    model_19 = None
+    
     thirty_models = [
         model_00, model_01, model_02, model_03, model_04,
         model_05, model_06, model_07, model_08, model_09, model_10,
-        model_11, model_12, model_13, model_14, model_20, model_30
+        model_11, model_12, model_13, model_14, model_15, model_16, model_17,
+        model_18, model_19,
+        model_20, model_30
     ]
 
     thirty_models_regex = re.compile(r'^model([0-9]+)$')
