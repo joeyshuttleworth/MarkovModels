@@ -1892,7 +1892,7 @@ def get_ensemble_of_predictions(times, desc, params_df, protocol, well, sweep,
 
 
 class PenalisedRMSErrors(pints.ErrorMeasure):
-    def __init__(mm, data, incides, solver, fix_parameters=[]):
+    def __init__(mm, data, indices, solver, fix_parameters=[]):
         self.data = data
         self.indices = indices
         self.fix_parameters = fix_parameters
