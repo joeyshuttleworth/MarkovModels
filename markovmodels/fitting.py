@@ -1906,7 +1906,7 @@ class PenalisedRMSErrors(pints.ErrorMeasure):
         self.default_parameters = default_parameters.copy()
 
     def n_parameters(self):
-        return self.mm.get_no_parameters - len(set(self.fix_parameters))
+        return self.mm.get_no_parameters() - len(set(self.fix_parameters))
 
     def __call__(self, p):
 
