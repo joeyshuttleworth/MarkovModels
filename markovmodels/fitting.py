@@ -166,8 +166,8 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                                         data[subset_indices])
 
     # error = pints.SumOfSquaresError(problem)
-    error = PenalisedRMSErrors(mm, data, subset_indices, solver,
-                               fix_parameters)
+    error = PenalisedRMSErrors(mm, data, subset_indices, solver, data, voltages,
+                               fix_parameters, starting_parameters)
 
     if len(fix_parameters) != 0:
         unfixed_indices = [i for i in range(
@@ -739,10 +739,8 @@ class FittingBoundaries(pints.Boundaries):
 
         indices = np.argwhere(np.abs(voltages - -120.0) < 1e-5)[10:200]
         conductances = (current / (voltages - self.mm.E_rev))[indices]
-
         self.max_conductance = np.abs(conductances.max()) * 100
         self.min_conductance = np.abs(conductances.max()) * 0.01
-
         self.rates_func = njit(self.mm.get_rates_func(njitted=False))
 
         self.rng = rng
@@ -1893,39 +1891,55 @@ def get_ensemble_of_predictions(times, desc, params_df, protocol, well, sweep,
 
 
 class PenalisedRMSErrors(pints.ErrorMeasure):
-    def __init__(mm, data, indices, solver, fix_parameters=[]):
+    def __init__(self, mm, data, indices, solver, current, voltages,
+                 fix_parameters=[], default_parameters=[]):
         self.data = data
         self.indices = indices
         self.fix_parameters = fix_parameters
         self.solver = solver
         self.mm = mm
+        indices = np.argwhere(np.abs(voltages - -120.0) < 1e-5)[10:200]
+        conductances = (current / (voltages - self.mm.E_rev))[indices]
+        self.max_conductance = np.abs(conductances.max()) * 100
+        self.min_conductance = np.abs(conductances.max()) * 0.01
+        self.rates_func = njit(self.mm.get_rates_func(njitted=False))
+        self.default_parameters = default_parameters.copy()
 
     def n_parameters(self):
-        return mm.get_no_parameters - len(set(fix_parameters))
+        return self.mm.get_no_parameters - len(set(self.fix_parameters))
 
     def __call__(self, p):
+
+        if len(self.fix_parameters) != 0:
+            for i in np.unique(self.fix_parameters):
+                # TODO repeated calls to insert are inefficient. Replace with
+                # something better
+                if i < len(self.default_parameters) - 1:
+                    p = np.insert(p, i, self.default_parameters[i])
+
         model_output = self.solver(p)
         rmse = np.sqrt(np.mean((self.data[self.indices] - model_output[self.indices])**2))
 
         if ~np.isfinite(rmse):
             return np.inf
 
-        if val := max([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) > 1e5:
+        penalty = 0.0
+
+        if val := max([p for i, p in enumerate(p) if i != self.mm.GKr_index]) > 1e5:
             return (val - 1e5)**2
 
-        if val := min([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) < 1e-7:
+        if val := min([p for i, p in enumerate(p) if i != self.mm.GKr_index]) < 1e-7:
             penalty += 1 / (1e-7 - val)**2
 
-        if parameters[self.mm.GKr_index] > self.max_conductance:
-            penalty += (parameters[self.mm_GKr_index] - self.max_conductance)**2
+        if p[self.mm.GKr_index] > self.max_conductance:
+            penalty += (p[self.mm.GKr_index] - self.max_conductance)**2
 
-        if parameters[self.mm.GKr_index] < self.min_conductance:
-            1 / (self.min_condictance - parameters[self.mm_GKr_index])**2
+        if p[self.mm.GKr_index] < self.min_conductance:
+            1 / (self.min_conductance - p[self.mm.GKr_index])**2
 
         Vs = [-120, 60]
-        rates_func = self.mm.get_rates_func()
-        rates_1 = rates_func(p, Vs[0]).flatten()
-        rates_2 = rates_func(p, Vs[1]).flatten()
+        rates_1 = self.rates_func(p, Vs[0]).flatten()
+        rates_2 = self.rates_func(p, Vs[1]).flatten()
 
         max_transition_rates = np.max(np.vstack([rates_1, rates_2]), axis=0)
 
