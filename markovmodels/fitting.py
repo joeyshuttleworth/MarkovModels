@@ -166,7 +166,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                                         data[subset_indices])
 
     # error = pints.SumOfSquaresError(problem)
-    error = PenalisedRMSErrors(mm, data, subset_indices, sovler,
+    error = PenalisedRMSErrors(mm, data, subset_indices, solver,
                                fix_parameters)
 
     if len(fix_parameters) != 0:
