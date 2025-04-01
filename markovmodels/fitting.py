@@ -1904,7 +1904,7 @@ class PenalisedRMSErrors(pints.ErrorMeasure):
         return mm.get_no_parameters - len(set(fix_parameters))
 
     def __call__(self, p):
-        model_output = solver(p)
+        model_output = self.solver(p)
         rmse = np.sqrt(np.mean((self.data[self.indices] - model_output[self.indices])**2))
 
         if ~np.isfinite(rmse):
