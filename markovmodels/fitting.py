@@ -728,17 +728,11 @@ class FittingBoundaries(pints.Boundaries):
 
         if self.is_artefact_model:
             self.mm = model.channel_model
-
-            self.fix_parameters = [
-                i for i in fix_parameters
-                if (i % len(full_parameters)) < self.mm.get_no_parameters()]
-
-            self.full_parameters = full_parameters[:self.mm.get_no_parameters()].copy()
-
         else:
-            self.fix_parameters = fix_parameters
-            self.full_parameters = full_parameters
             self.mm = model
+        
+        self.fix_parameters = fix_parameters
+        self.full_parameters = full_parameters
 
         indices = np.argwhere(np.abs(voltages - -120.0) < 1e-5)[10:200]
         conductances = (current / (voltages - self.mm.E_rev))[indices]
@@ -746,6 +740,7 @@ class FittingBoundaries(pints.Boundaries):
         self.min_conductance = np.abs(conductances.max()) * 0.01
         self.rates_func = njit(self.mm.get_rates_func(njitted=False))
         self.solver = solver
+        self.full_parameters = full_parameters.copy()
 
         self.rng = rng
 
@@ -756,10 +751,13 @@ class FittingBoundaries(pints.Boundaries):
 
         parameters = parameters.copy()
         if len(self.fix_parameters) != 0:
-            for i in np.unique(self.fix_parameters):
-                if i < len(self.full_parameters):
-                    parameters = np.insert(parameters, i, self.full_parameters[i])
+            _parameters = self.full_parameters.copy()
+            for i in range(len(_parameters)):
+                if i not in self.fix_parameters:
+                    _parameters[i] = parameters[i]
+            parameters = _parameters
 
+        print(parameters)
         if np.any(~np.isfinite(parameters)):
             return False
 
@@ -781,7 +779,7 @@ class FittingBoundaries(pints.Boundaries):
             if parameters[self.mm.GKr_index] < self.min_conductance:
                 return False
 
-            Vs = [-120, 60]
+            Vs = [-120.0, 60.0]
             rates_func = self.rates_func
             rates_1 = rates_func(channel_parameters, Vs[0]).flatten()
             rates_2 = rates_func(channel_parameters, Vs[1]).flatten()
@@ -796,6 +794,10 @@ class FittingBoundaries(pints.Boundaries):
 
         try:
             out = self.solver(parameters)
+            print(parameters)
+            if not np.all(np.isfinite(out)):
+                print("bad output")
+                return False
         except ValueError:
             return False
         except ZeroDivisionError:
@@ -814,10 +816,11 @@ class FittingBoundaries(pints.Boundaries):
         # Reject samples that don't lie in the boundaries
         # try 1000 times before giving up. This should be plenty
         for i in range(1000):
-            p = np.empty(self.full_parameters.shape)
+            channel_parameters = self.full_parameters[:self.mm.get_no_parameters()]
+            p = np.full(self.full_parameters.shape, np.nan)
 
-            p[:self.mm.GKr_index] = 10**rng.uniform(min_log_p, max_log_p,
-                                                        self.full_parameters.shape[0] - 1)
+            p[:len(channel_parameters) - 1] = 10**rng.uniform(min_log_p, max_log_p,
+                                                              channel_parameters.shape[0] - 1)
             p[self.mm.GKr_index] = 0.5 * (self.min_conductance + self.max_conductance)
             if len(self.fix_parameters) != 0:
                 p = p[[i for i in range(len(self.full_parameters)) if i not in
@@ -839,14 +842,10 @@ class FittingBoundaries(pints.Boundaries):
     def sample(self, n=1):
         min_log_p, max_log_p = [-7, 1]
 
-        ret_vec = np.full((n, len(self.full_parameters)), np.nan)
+        ret_vec = np.full((n, len(self.full_parameters) - len(self.fix_parameters)), np.nan)
         for i in range(n):
             ret_vec[i, :] = self._sample_once(min_log_p, max_log_p)
 
-        params_not_fixed = [i for i in range(len(self.mm.get_default_parameters()))\
-                            if i not in self.fix_parameters]
-
-        ret_vec = ret_vec[:, params_not_fixed]
         return ret_vec
 
 
