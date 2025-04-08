@@ -99,7 +99,16 @@ class MarkovModel(ODEModel):
         @njit
         def rhs_inf(p=p, v=-80.0, E_rev=E_rev):
             # Start from matrix derived value
-            y0 = matrix_steady_state_function(p, v).flatten()
+            y0 = np.full(y0.shape, 0.0) / len(y0 + 1)
+            try:
+                y0 = matrix_steady_state_function(p, v).flatten()
+            except ValueError:
+                pass
+            except ZeroDivisionError:
+                pass
+
+            if not np.all(np.isfinite(y0)):
+                y0 = np.full(y0.shape, 0.0) / len(y0 + 1)
 
             data = np.append(p, 0.0)
             data = np.concatenate((data, np.full(n_max_steps*4, 0))).flatten()

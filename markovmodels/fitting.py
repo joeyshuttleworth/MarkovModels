@@ -766,39 +766,39 @@ class FittingBoundaries(pints.Boundaries):
         if np.any(parameters[:self.mm.GKr_index + 1] < 0):
             return False
 
-        out = self.solver(parameters)
+        if full_check is True:
+            channel_parameters = parameters[:self.mm.GKr_index + 1].flatten().copy()
 
-        if np.any(~np.isfinite(out)):
+            if max([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) > 1e5:
+                return False
+
+            if min([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) < 1e-7:
+                return False
+
+            if parameters[self.mm.GKr_index] > self.max_conductance:
+                return False
+
+            if parameters[self.mm.GKr_index] < self.min_conductance:
+                return False
+
+            Vs = [-120, 60]
+            rates_func = self.rates_func
+            rates_1 = rates_func(channel_parameters, Vs[0]).flatten()
+            rates_2 = rates_func(channel_parameters, Vs[1]).flatten()
+
+            max_transition_rates = np.max(np.vstack([rates_1, rates_2]), axis=0)
+
+            if np.any(max_transition_rates > 1e3):
+                return False
+
+            if np.any(max_transition_rates < 1.67e-5):
+                return False
+
+        try:
+            out = self.solver(parameters)
+        except ValueError:
             return False
-
-        if full_check is False:
-            return True
-
-        parameters = parameters[:self.mm.GKr_index + 1].flatten()
-
-        if max([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) > 1e5:
-            return False
-
-        if min([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) < 1e-7:
-            return False
-
-        if parameters[self.mm.GKr_index] > self.max_conductance:
-            return False
-
-        if parameters[self.mm.GKr_index] < self.min_conductance:
-            return False
-
-        Vs = [-120, 60]
-        rates_func = self.rates_func
-        rates_1 = rates_func(parameters, Vs[0]).flatten()
-        rates_2 = rates_func(parameters, Vs[1]).flatten()
-
-        max_transition_rates = np.max(np.vstack([rates_1, rates_2]), axis=0)
-
-        if np.any(max_transition_rates > 1e3):
-            return False
-
-        if np.any(max_transition_rates < 1.67e-5):
+        except ZeroDivisionError:
             return False
 
         return True

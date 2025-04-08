@@ -102,8 +102,7 @@ class ArtefactModel(MarkovModel):
         crhs_ptr = crhs.address
 
         n_channel_state_vars = self.channel_model.get_no_state_vars()
-        y0 = np.full(n_channel_state_vars, .0)
-        y0[0] = 1.0
+        y0 = np.full(n_channel_state_vars, 1.0).flatten() / (n_channel_state_vars + 1)
         y0 = np.append(y0, -80.0)
 
         n_max_steps = 64

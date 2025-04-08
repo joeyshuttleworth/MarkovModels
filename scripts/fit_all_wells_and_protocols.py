@@ -39,7 +39,7 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
     else:
         data_label = args.data_label
 
-    if args.soft_boundaries is True:
+    if args.soft_boundaries:
         full_check = False
     else:
         full_check = True
@@ -111,6 +111,7 @@ def main():
     parser.add_argument('--compute_predictions', action='store_true')
     parser.add_argument('--reversal', type=float)
     parser.add_argument('--tolerance', nargs=2, type=float, default=(1e-8, 1e-8))
+    parser.add_argument('--soft_boundaries', action='store_true', default=False)
     parser.add_argument('-o', '--output')
 
     global args
