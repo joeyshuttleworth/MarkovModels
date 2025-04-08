@@ -751,11 +751,12 @@ class FittingBoundaries(pints.Boundaries):
 
         parameters = parameters.copy()
         if len(self.fix_parameters) != 0:
-            _parameters = self.full_parameters.copy()
-            for i in range(len(_parameters)):
-                if i not in self.fix_parameters:
-                    _parameters[i] = parameters[i]
-            parameters = _parameters
+            for i in np.unique(self.fix_parameters):
+                if i < len(self.default_parameters) - 1:
+                    p = np.insert(p, i, self.default_parameters[i])
+                if len(self.default_parameters) in self.fix_parameters:
+                    p = np.append(p, self.default_parameters[-1])
+            parameters = p
 
         print(parameters)
         if np.any(~np.isfinite(parameters)):
