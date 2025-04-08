@@ -385,6 +385,7 @@ class ODEModel:
         def hybrid_forward_solve(p=params, times=times, atol=atol, rtol=rtol,
                                  hybrid=hybrid,
                                  protocol_description=protocol_description,
+                                 strict=strict,
                                  E_rev=E_rev):
             voltages = np.empty(len(times))
             for i in range(len(times)):

@@ -749,16 +749,15 @@ class FittingBoundaries(pints.Boundaries):
         if full_check is None:
             full_check = self.full_check
 
-        parameters = parameters.copy()
         if len(self.fix_parameters) != 0:
+            p = parameters.copy()
             for i in np.unique(self.fix_parameters):
-                if i < len(self.default_parameters) - 1:
-                    p = np.insert(p, i, self.default_parameters[i])
-                if len(self.default_parameters) in self.fix_parameters:
-                    p = np.append(p, self.default_parameters[-1])
+                if i < len(self.full_parameters) - 1:
+                    p = np.insert(p, i, self.full_parameters[i])
+                if len(self.full_parameters) - 1 in self.fix_parameters:
+                    p = np.append(p, self.full_parameters[-1])
             parameters = p
 
-        print(parameters)
         if np.any(~np.isfinite(parameters)):
             return False
 
@@ -767,17 +766,16 @@ class FittingBoundaries(pints.Boundaries):
 
         if full_check is True:
             channel_parameters = parameters[:self.mm.GKr_index + 1].flatten().copy()
-
-            if max([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) > 1e5:
+            if max([p for i, p in enumerate(channel_parameters[:-1])]) > 1e5:
                 return False
 
-            if min([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) < 1e-7:
+            if min([p for i, p in enumerate(channel_parameters[:-1])]) < 1e-7:
                 return False
 
-            if parameters[self.mm.GKr_index] > self.max_conductance:
+            if channel_parameters[self.mm.GKr_index] > self.max_conductance:
                 return False
 
-            if parameters[self.mm.GKr_index] < self.min_conductance:
+            if channel_parameters[self.mm.GKr_index] < self.min_conductance:
                 return False
 
             Vs = [-120.0, 60.0]
@@ -787,17 +785,15 @@ class FittingBoundaries(pints.Boundaries):
 
             max_transition_rates = np.max(np.vstack([rates_1, rates_2]), axis=0)
 
-            if np.any(max_transition_rates > 1e3):
+            if np.any(max_transition_rates > 1e10):
                 return False
 
             if np.any(max_transition_rates < 1.67e-5):
                 return False
 
         try:
-            out = self.solver(parameters)
-            print(parameters)
+            out = self.solver(parameters, strict=False)
             if not np.all(np.isfinite(out)):
-                print("bad output")
                 return False
         except ValueError:
             return False
@@ -816,13 +812,14 @@ class FittingBoundaries(pints.Boundaries):
 
         # Reject samples that don't lie in the boundaries
         # try 1000 times before giving up. This should be plenty
-        for i in range(1000):
+        n_tries = 1000
+        for i in range(n_tries):
             channel_parameters = self.full_parameters[:self.mm.get_no_parameters()]
             p = np.full(self.full_parameters.shape, np.nan)
 
             p[:len(channel_parameters) - 1] = 10**rng.uniform(min_log_p, max_log_p,
                                                               channel_parameters.shape[0] - 1)
-            p[self.mm.GKr_index] = 0.5 * (self.min_conductance + self.max_conductance)
+            p[self.mm.GKr_index] = self.min_conductance
             if len(self.fix_parameters) != 0:
                 p = p[[i for i in range(len(self.full_parameters)) if i not in
                        self.fix_parameters]]
@@ -832,7 +829,6 @@ class FittingBoundaries(pints.Boundaries):
                 if self.mm.GKr_index not in self.fix_parameters:
                     gkr_index = self.mm.GKr_index - np.sum(np.array(self.fix_parameters)\
                                                            < self.mm.GKr_index)
-
                 p[gkr_index] = 10 ** (rng.uniform(np.log10(self.min_conductance),
                                                   np.log10(self.max_conductance)))
                 return p
@@ -1986,9 +1982,9 @@ class PenalisedRMSErrors(pints.ErrorMeasure):
         max_transition_rates = np.max(np.vstack([rates_1, rates_2]), axis=0)
 
         if np.any(max_transition_rates > 1e3):
-            penalty += (max_transition_rates.max() - 1e3)**2
+            penalty += (1 / max_transition_rates.max() - 1 / 1e3)**2
 
         if np.any(max_transition_rates < 1.67e-5):
-            penalty += (1.67e-5 - max_transition_rates.min())**-2
+            penalty += (1 / 1.67e-5 - 1 / max_transition_rates.min())**2
 
         return rmse + penalty
