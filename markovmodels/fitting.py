@@ -31,9 +31,9 @@ def fit_model(mm, data, times=None, starting_parameters=None,
               method=pints.CMAES, solver=None, log_transform=True, repeats=1,
               return_fitting_df=False, parallel=False, voltages=None,
               randomise_initial_guess=True, output_dir=None, solver_type=None,
-              no_conductance_boundary=False, use_artefact_model=False,
-              rng=None, population_size=None, add_simple_leak=False, g_leak=None,
-              E_leak=None, data_label=''):
+              use_artefact_model=False, rng=None, population_size=None,
+              add_simple_leak=False, g_leak=None, E_leak=None, data_label='',
+              full_check=True):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -184,8 +184,9 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         s_data = data
 
     boundaries = FittingBoundaries(starting_parameters, mm, s_data,
-                                   voltages, rng, fix_parameters,
-                                   use_artefact_model=use_artefact_model)
+                                   voltages, rng, solver, fix_parameters,
+                                   use_artefact_model=use_artefact_model,
+                                   full_check=full_check)
 
     if randomise_initial_guess:
         initial_guess_dist = boundaries
@@ -318,7 +319,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                   scale_conductance=True, no_conductance_boundary=False,
                   use_artefact_model=False, artefact_default_kinetic_parameters=None,
                   fix_parameters=[], data_label=None, tolerance=None,
-                  population_size=None):
+                  population_size=None, full_check=True):
 
     if default_parameters is None or len(default_parameters) == 0:
         if use_artefact_model:
@@ -558,12 +559,12 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                                  output_dir=output_dir,
                                                  solver_type=solver_type,
                                                  use_artefact_model=use_artefact_model,
-                                                 no_conductance_boundary=no_conductance_boundary,
                                                  fix_parameters=fix_parameters,
                                                  population_size=population_size,
                                                  g_leak=pp_g_leak,
                                                  E_leak=pp_E_leak,
-                                                 add_simple_leak=add_simple_leak
+                                                 add_simple_leak=add_simple_leak,
+                                                 full_check=full_check
                                                  )
 
     fitting_df['score'] = fitting_df['RMSE']
@@ -719,9 +720,11 @@ def compute_mcmc_chains(model, times, indices, data, solver=None,
 
 
 class FittingBoundaries(pints.Boundaries):
-    def __init__(self, full_parameters, model, current, voltages, rng,
-                 fix_parameters=[], use_artefact_model=False):
+    def __init__(self, full_parameters, model, current, voltages, rng, solver,
+                 fix_parameters=[], use_artefact_model=False, full_check=True):
         self.is_artefact_model = use_artefact_model
+
+        self.full_check = full_check
 
         if self.is_artefact_model:
             self.mm = model.channel_model
@@ -742,22 +745,60 @@ class FittingBoundaries(pints.Boundaries):
         self.max_conductance = np.abs(conductances.max()) * 100
         self.min_conductance = np.abs(conductances.max()) * 0.01
         self.rates_func = njit(self.mm.get_rates_func(njitted=False))
+        self.solver = solver
 
         self.rng = rng
 
-    def check(self, parameters):
+    def check(self, parameters, full_check=None):
+
+        if full_check is None:
+            full_check = self.full_check
+
         parameters = parameters.copy()
         if len(self.fix_parameters) != 0:
             for i in np.unique(self.fix_parameters):
-                # TODO repeated calls to insert are inefficient. Replace with
-                # something better
-                if i < len(self.full_parameters) - 1:
+                if i < len(self.full_parameters):
                     parameters = np.insert(parameters, i, self.full_parameters[i])
 
         if np.any(~np.isfinite(parameters)):
             return False
 
         if np.any(parameters[:self.mm.GKr_index + 1] < 0):
+            return False
+
+        out = self.solver(parameters)
+
+        if np.any(~np.isfinite(out)):
+            return False
+
+        if full_check is False:
+            return True
+
+        parameters = parameters[:self.mm.GKr_index + 1].flatten()
+
+        if max([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) > 1e5:
+            return False
+
+        if min([p for i, p in enumerate(parameters) if i != self.mm.GKr_index]) < 1e-7:
+            return False
+
+        if parameters[self.mm.GKr_index] > self.max_conductance:
+            return False
+
+        if parameters[self.mm.GKr_index] < self.min_conductance:
+            return False
+
+        Vs = [-120, 60]
+        rates_func = self.rates_func
+        rates_1 = rates_func(parameters, Vs[0]).flatten()
+        rates_2 = rates_func(parameters, Vs[1]).flatten()
+
+        max_transition_rates = np.max(np.vstack([rates_1, rates_2]), axis=0)
+
+        if np.any(max_transition_rates > 1e3):
+            return False
+
+        if np.any(max_transition_rates < 1.67e-5):
             return False
 
         return True
@@ -783,7 +824,7 @@ class FittingBoundaries(pints.Boundaries):
                        self.fix_parameters]]
 
             # Check this lies in boundaries
-            if self.check(p):
+            if self.check(p, full_check=True):
                 if self.mm.GKr_index not in self.fix_parameters:
                     gkr_index = self.mm.GKr_index - np.sum(np.array(self.fix_parameters)\
                                                            < self.mm.GKr_index)
@@ -1892,7 +1933,7 @@ def get_ensemble_of_predictions(times, desc, params_df, protocol, well, sweep,
 
 class PenalisedRMSErrors(pints.ErrorMeasure):
     def __init__(self, mm, data, indices, solver, current, voltages,
-                 fix_parameters=[], default_parameters=[]):
+                 fix_parameters=[], default_parameters=[], times=None):
         self.data = data
         self.indices = indices
         self.fix_parameters = fix_parameters
@@ -1904,6 +1945,7 @@ class PenalisedRMSErrors(pints.ErrorMeasure):
         self.min_conductance = np.abs(conductances.max()) * 0.01
         self.rates_func = njit(self.mm.get_rates_func(njitted=False))
         self.default_parameters = default_parameters.copy()
+        self.times = times
 
     def n_parameters(self):
         return self.mm.get_no_parameters() - len(set(self.fix_parameters))
@@ -1912,10 +1954,10 @@ class PenalisedRMSErrors(pints.ErrorMeasure):
 
         if len(self.fix_parameters) != 0:
             for i in np.unique(self.fix_parameters):
-                # TODO repeated calls to insert are inefficient. Replace with
-                # something better
                 if i < len(self.default_parameters) - 1:
                     p = np.insert(p, i, self.default_parameters[i])
+                if len(self.default_parameters) in self.fix_parameters:
+                    p = np.append(p, self.default_parameters[-1])
 
         model_output = self.solver(p)
         rmse = np.sqrt(np.mean((self.data[self.indices] - model_output[self.indices])**2))
@@ -1935,7 +1977,7 @@ class PenalisedRMSErrors(pints.ErrorMeasure):
             penalty += (p[self.mm.GKr_index] - self.max_conductance)**2
 
         if p[self.mm.GKr_index] < self.min_conductance:
-            1 / (self.min_conductance - p[self.mm.GKr_index])**2
+            penalty += 1 / (self.min_conductance - p[self.mm.GKr_index])**2
 
         Vs = [-120, 60]
         rates_1 = self.rates_func(p, Vs[0]).flatten()

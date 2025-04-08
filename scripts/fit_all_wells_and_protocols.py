@@ -39,6 +39,11 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
     else:
         data_label = args.data_label
 
+    if args.soft_boundaries is True:
+        full_check = False
+    else:
+        full_check = True
+
     fix_parameters = []
     if args.use_artefact_model:
         fix_parameters = [-1, -2, -3, -4, -5, -6, -7, -8]
@@ -63,7 +68,8 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
         use_artefact_model=args.use_artefact_model,
         fix_parameters=fix_parameters,
         data_label=data_label,
-        artefact_default_kinetic_parameters=default_kinetic_parameters
+        artefact_default_kinetic_parameters=default_kinetic_parameters,
+        full_check=full_check
     )
 
     res_df['well'] = well
