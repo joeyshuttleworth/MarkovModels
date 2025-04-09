@@ -274,16 +274,13 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             plt.close(fig)
 
     if len(fix_parameters) > 0:
-        for i in np.unique(fix_parameters):
-            best_parameters = np.insert(best_parameters,
-                                        i,
-                                        starting_parameters[i])
+        insert_default_parameters(best_parameters, starting_parameters, fix_parameters)
+
     if return_fitting_df:
         if len(fix_parameters) > 0:
             new_rows = parameter_sets
-            for i in np.unique(fix_parameters):
-                for j, row in enumerate(parameter_sets):
-                    new_rows[j] = np.insert(row, i, starting_parameters[i])
+            for j, row in enumerate(parameter_sets):
+                new_rows[j] = insert_default_parameters(best_parameters, starting_parameters, fix_parameters)
             parameter_sets = np.array(new_rows)
         else:
             parameter_sets = np.vstack(parameter_sets)
@@ -303,7 +300,6 @@ def fit_model(mm, data, times=None, starting_parameters=None,
 
             fitting_df = pd.concat([fitting_df, initial_guess_df],
                                    ignore_index=True)
-
         return best_parameters, best_score, fitting_df
     else:
         return best_parameters, best_score
@@ -750,32 +746,27 @@ class FittingBoundaries(pints.Boundaries):
             full_check = self.full_check
 
         if len(self.fix_parameters) != 0:
-            p = parameters.copy()
-            for i in np.unique(self.fix_parameters):
-                if i < len(self.full_parameters) - 1:
-                    p = np.insert(p, i, self.full_parameters[i])
-                if len(self.full_parameters) - 1 in self.fix_parameters:
-                    p = np.append(p, self.full_parameters[-1])
-            parameters = p
+            parameters = insert_default_parameters(parameters, self.full_parameters, self.fix_parameters)
 
         if np.any(~np.isfinite(parameters)):
             return False
 
-        if np.any(parameters[:self.mm.GKr_index + 1] < 0):
+        channel_parameters = parameters[:self.mm.GKr_index + 1].copy()
+
+        if np.any(channel_parameters < 0):
             return False
 
         if full_check is True:
-            channel_parameters = parameters[:self.mm.GKr_index + 1].flatten().copy()
             if max([p for i, p in enumerate(channel_parameters[:-1])]) > 1e5:
                 return False
 
             if min([p for i, p in enumerate(channel_parameters[:-1])]) < 1e-7:
                 return False
 
-            if channel_parameters[self.mm.GKr_index] > self.max_conductance:
+            if parameters[self.mm.GKr_index] > self.max_conductance:
                 return False
 
-            if channel_parameters[self.mm.GKr_index] < self.min_conductance:
+            if parameters[self.mm.GKr_index] < self.min_conductance:
                 return False
 
             Vs = [-120.0, 60.0]
@@ -792,7 +783,7 @@ class FittingBoundaries(pints.Boundaries):
                 return False
 
         try:
-            out = self.solver(parameters, strict=False)
+            out = self.solver(parameters, strict=True)
             if not np.all(np.isfinite(out)):
                 return False
         except ValueError:
@@ -803,7 +794,7 @@ class FittingBoundaries(pints.Boundaries):
         return True
 
     def n_parameters(self):
-        return self.mm.get_no_parameters() - \
+        return len(self.full_parameters) - \
             len(self.fix_parameters) if len(self.fix_parameters) != 0 \
             else self.mm.get_no_parameters()
 
@@ -814,23 +805,23 @@ class FittingBoundaries(pints.Boundaries):
         # try 1000 times before giving up. This should be plenty
         n_tries = 1000
         for i in range(n_tries):
-            channel_parameters = self.full_parameters[:self.mm.get_no_parameters()]
-            p = np.full(self.full_parameters.shape, np.nan)
-
-            p[:len(channel_parameters) - 1] = 10**rng.uniform(min_log_p, max_log_p,
-                                                              channel_parameters.shape[0] - 1)
-            p[self.mm.GKr_index] = self.min_conductance
+            p = self.full_parameters.copy()
+            p[:self.mm.GKr_index - 1] = 10**rng.uniform(min_log_p, max_log_p,
+                                                        self.mm.GKr_index - 1)
             if len(self.fix_parameters) != 0:
-                p = p[[i for i in range(len(self.full_parameters)) if i not in
-                       self.fix_parameters]]
+                if self.mm.GKr_index not in self.fix_parameters:
+                    gkr_index = self.mm.GKr_index - np.sum(np.array(self.fix_parameters) < self.mm.GKr_index)
 
+            else:
+                gkr_index = self.mm.GKr_index
+
+            if self.mm.GKr_index not in self.fix_parameters:
+                p[gkr_index] = 10 ** (rng.uniform(np.log10(self.min_conductance),
+                                                      np.log10(self.max_conductance)))
+            if len(self.fix_parameters) > 0:
+                p = p[[i for i in range(len(p)) if i not in self.fix_parameters]]
             # Check this lies in boundaries
             if self.check(p, full_check=True):
-                if self.mm.GKr_index not in self.fix_parameters:
-                    gkr_index = self.mm.GKr_index - np.sum(np.array(self.fix_parameters)\
-                                                           < self.mm.GKr_index)
-                p[gkr_index] = 10 ** (rng.uniform(np.log10(self.min_conductance),
-                                                  np.log10(self.max_conductance)))
                 return p
 
         logging.warning("Couldn't sample from boundaries")
@@ -1944,16 +1935,11 @@ class PenalisedRMSErrors(pints.ErrorMeasure):
         self.times = times
 
     def n_parameters(self):
-        return self.mm.get_no_parameters() - len(set(self.fix_parameters))
+        return len(self.default_parameters.flatten()) - len(set(self.fix_parameters))
 
     def __call__(self, p):
-
         if len(self.fix_parameters) != 0:
-            for i in np.unique(self.fix_parameters):
-                if i < len(self.default_parameters) - 1:
-                    p = np.insert(p, i, self.default_parameters[i])
-                if len(self.default_parameters) in self.fix_parameters:
-                    p = np.append(p, self.default_parameters[-1])
+            p = insert_default_parameters(p, self.default_parameters, self.fix_parameters)
 
         model_output = self.solver(p)
         rmse = np.sqrt(np.mean((self.data[self.indices] - model_output[self.indices])**2))
@@ -1975,9 +1961,14 @@ class PenalisedRMSErrors(pints.ErrorMeasure):
         if p[self.mm.GKr_index] < self.min_conductance:
             penalty += 1 / (self.min_conductance - p[self.mm.GKr_index])**2
 
-        Vs = [-120, 60]
-        rates_1 = self.rates_func(p, Vs[0]).flatten()
-        rates_2 = self.rates_func(p, Vs[1]).flatten()
+
+        if len(p) > self.mm.GKr_index + 1:
+            channel_p = p[:self.mm.GKr_index + 1].copy()
+        else:
+            channel_p = p.copy()
+        Vs = [-120.0, 60.0]
+        rates_1 = self.rates_func(channel_p, Vs[0]).flatten()
+        rates_2 = self.rates_func(channel_p, Vs[1]).flatten()
 
         max_transition_rates = np.max(np.vstack([rates_1, rates_2]), axis=0)
 
@@ -1988,3 +1979,13 @@ class PenalisedRMSErrors(pints.ErrorMeasure):
             penalty += (1 / 1.67e-5 - 1 / max_transition_rates.min())**2
 
         return rmse + penalty
+
+def insert_default_parameters(parameters, default_parameters, fix_parameters):
+    p = parameters.copy()
+    if len(fix_parameters) != 0:
+        for i in np.unique(fix_parameters):
+            if i < len(p) - 1:
+                p = np.insert(p, i, default_parameters[i])
+            else:
+                p = np.append(p, default_parameters[i])
+    return p

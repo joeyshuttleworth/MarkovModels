@@ -87,9 +87,11 @@ class ArtefactModel(MarkovModel):
         artefact_rhs_expr = artefact_rhs_expr.subs(subs_dict).subs(subs_dict)
 
         self.auxiliary_expression = I_out_expr.subs(subs_dict).subs(subs_dict)
-
         self.rhs_expr = sp.Matrix.vstack(channel_model.rhs_expr, sp.Matrix([artefact_rhs_expr]))
+        self.GKr_index = channel_model.GKr_index
 
+    def get_rates_func(self, *args, **kwargs):
+        return self.channel_model.get_rates_func(*args, **kwargs)
 
     def define_steady_state_function(self, tend=5000):
         # Assume a holding potential of -80mV and simulate forwards for 5 seconds
@@ -101,27 +103,24 @@ class ArtefactModel(MarkovModel):
 
         crhs_ptr = crhs.address
 
-        n_channel_state_vars = self.channel_model.get_no_state_vars()
-        y0 = np.full(n_channel_state_vars, 1.0).flatten() / (n_channel_state_vars + 1)
-        y0 = np.append(y0, -80.0)
-
+        channel_rhs_inf = self.channel_model.rhs_inf
         n_max_steps = 64
 
         E_rev = self.channel_model.E_rev
-
+        no_channel_params = self.channel_model.get_no_parameters()
         @njit
         def rhs_inf(p=p, v=-80.0, E_rev=E_rev):
-            data = np.append(p, 0.0)
+            channel_p = p[:no_channel_params]
+            y0 = channel_rhs_inf(channel_p, v)
+            y0 = np.append(y0, v)
 
+            data = np.append(p, 0.0)
             desc = np.full((n_max_steps, 4), 0.0)
             desc[:, 2:] = v
 
             data = np.concatenate((data, desc.flatten())).flatten()
-
-            _y0 = y0.copy()
-            _y0[-1] = v
-
-            res, _ = lsoda(crhs_ptr, _y0,
+                
+            res, _ = lsoda(crhs_ptr, y0,
                            np.array((-tend, .0)),
                            data=data,
                            rtol=rtol,
