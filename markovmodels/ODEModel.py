@@ -44,8 +44,10 @@ class ODEModel:
                  parameter_labels=None,  transformations=None,
                  state_labels: str = None):
 
-        self.initial_condition = None
+        self.open_state_index = None
+        self.auxiliary_expression = None
 
+        self.initial_condition = None
         self.name = name
 
         if state_labels:
@@ -103,9 +105,11 @@ class ODEModel:
 
         # Set the initial conditions of the model and the initial sensitivities
         # by finding the steady state of the model
+        if self.open_state_index is not None:
+            self.compute_steady_state_expressions()
 
-        self.compute_steady_state_expressions()
-        self.auxiliary_function = njit(self.define_auxiliary_function())
+        if self.auxiliary_expression is not None:
+            self.auxiliary_function = njit(self.define_auxiliary_function())
 
 
     def func_rhs(self):

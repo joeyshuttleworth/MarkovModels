@@ -35,6 +35,7 @@ class MarkovModel(ODEModel):
                  name=None, E_rev=None, GKr_index: int=None, open_state_index:
                  int = None, default_parameters=None, **kws):
 
+        self.state_labels = None
 
         if open_state_index is not None:
             self.open_state_index = open_state_index
