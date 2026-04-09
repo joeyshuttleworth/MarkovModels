@@ -8,36 +8,54 @@ from markov_builder import MarkovChain
 from markovmodels.DisconnectedMarkovModel import DisconnectedMarkovModel
 from markovmodels.MarkovModel import MarkovModel
 
+from markov_builder.models.thirty_models import (
+    model_00,
+    model_01,
+    model_02,
+    model_03,
+    model_04,
+    model_05,
+    model_06,
+    model_07,
+    model_08,
+    model_09,
+    model_10,
+    model_11,
+    model_12,
+    model_13,
+    model_14,
+    model_15,
+    model_16,
+    model_17,
+    model_18,
+    model_19,
+    model_20,
+    model_21,
+    model_22,
+    model_23,
+    model_24,
+    model_25,
+    model_26,
+    model_26,
+    model_27,
+    model_28,
+    model_29,
+    model_30,
+)
+
+thirty_models_regex = re.compile(r'^model([0-9]*)$')
+
+thirty_models = [
+    model_00, model_01, model_02, model_03, model_04,
+    model_05, model_06, model_07, model_08, model_09, model_10,
+    model_11, model_12, model_13, model_14, model_15, model_16,
+    model_17, model_18, model_19, model_20, model_21, model_22,
+    model_23, model_24, model_25, model_26, model_27, model_28,
+    model_29, model_30
+]
+
 
 def make_myokit_model(model_name: str):
-
-    from markov_builder.models.thirty_models import (
-        model_00,
-        model_01,
-        model_02,
-        model_03,
-        model_04,
-        model_05,
-        model_06,
-        model_07,
-        model_08,
-        model_09,
-        model_10,
-        model_11,
-        model_12,
-        model_13,
-        model_14,
-        model_20,
-        model_30,
-    )
-
-    thirty_models_regex = re.compile(r'^model([0-9]*)$')
-
-    thirty_models = [
-        model_00, model_01, model_02, model_03, model_04,
-        model_05, model_06, model_07, model_08, model_09, model_10,
-        model_11, model_12, model_13, model_14, model_20, model_30
-    ]
     if thirty_models_regex.match(model_name):
         model_no = int(thirty_models_regex.search(model_name).group(1))
         mk_model = thirty_models[model_no]().generate_myokit_model()
@@ -46,40 +64,6 @@ def make_myokit_model(model_name: str):
 
 
 def make_model_of_class(name: str, times=None, voltage=None, *args, **kwargs):
-    from markov_builder.models.thirty_models import (
-        model_00,
-        model_01,
-        model_02,
-        model_03,
-        model_04,
-        model_05,
-        model_06,
-        model_07,
-        model_08,
-        model_09,
-        model_10,
-        model_11,
-        model_12,
-        model_13,
-        model_14,
-        model_20,
-        model_30,
-    )
-
-    model_15 = None
-    model_16 = None
-    model_17 = None
-    model_18 = None
-    model_19 = None
-    
-    thirty_models = [
-        model_00, model_01, model_02, model_03, model_04,
-        model_05, model_06, model_07, model_08, model_09, model_10,
-        model_11, model_12, model_13, model_14, model_15, model_16, model_17,
-        model_18, model_19,
-        model_20, model_30
-    ]
-
     thirty_models_regex = re.compile(r'^model([0-9]+)$')
 
     if name == 'Beattie' or name == 'BeattieModel':

@@ -42,6 +42,8 @@ class DisconnectedMarkovModel(MarkovModel):
         self.n_state_vars = sum([len(y) for y in self.ys])
         self.auxiliary_function = njit(self.define_auxiliary_function())
 
+        self.compute_steady_state_expressions()
+
 
     def compute_steady_state_expressions(self):
 

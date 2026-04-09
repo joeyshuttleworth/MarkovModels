@@ -38,16 +38,16 @@ class ODEModel:
         else:
             return ['state_%i' % i for i in range(self.get_no_state_vars())]
 
+    open_state_index = None
+    auxiliary_expression = None
+    initial_condition = None
+
     def __init__(self, symbols, times=None, voltage=None,
                  tolerances=(1e-8, 1e-8), protocol_description=None,
                  name=None, E_rev=None, default_parameters=None,
                  parameter_labels=None,  transformations=None,
                  state_labels: str = None):
 
-        self.open_state_index = None
-        self.auxiliary_expression = None
-
-        self.initial_condition = None
         self.name = name
 
         if state_labels:
