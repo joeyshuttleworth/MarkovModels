@@ -5,7 +5,7 @@ From: mambaorg/micromamba
 ./markovmodels/* /markovmodels/
 ./markovmodels/protocols/* /markovmodels/protocols
 ./markovmodels/quality_control /markovmodels/quality_control
-../syncropatch_export syncropatch_export
+../syncropatch_export ../syncropatch_export
 setup.py setup.py
 README.md README.md
 MANIFEST.in MANIFEST.in
@@ -15,8 +15,10 @@ environment.yml environment.yml
 %post
     apt update -y
     apt install git -y
-    apt update && apt-get install git graphviz graphviz-dev gcc bash build-essential cmake gfortran -y
+    apt update
+    apt-get install git graphviz libgraphviz-dev gcc bash build-essential cmake gfortran pkg-config python3-dev -y
     apt install texlive-latex-extra texlive-fonts-recommended dvipng cm-super -y
     micromamba env create -f environment.yml 
+
 %runscript
     micromamba run -n markovmodels "$@"

@@ -47,8 +47,8 @@ setup(
     install_requires=[
         'pints>=0.4.0',
         'scipy>=1.9.1',
-        'pyvis>=0.3.0',
         'numpy<=1.26.4',
+        'pyvis>=0.3.0',
         'matplotlib>=3.6.2',
         'pandas>=1.5.0',
         'sympy<=1.11.1',
@@ -56,9 +56,8 @@ setup(
         'regex>=2022.9.13',
         'myokit>=1.33.0',
         'seaborn>=0.12.0',
-	'loky>=3.0.0',
+	    'loky>=3.0.0',
         'markov_builder @ git+https://git@github.com/CardiacModelling/Markov-builder@thirty_models',
-        'numbalsoda @ git+https://git@github.com/NicholasWogan/numbalsoda@main',
         'scikit-build>=0.16.7',
         'syncropatch_export>=0.0.1'
     ],
