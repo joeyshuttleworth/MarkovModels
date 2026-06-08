@@ -1,22 +1,60 @@
 Bootstrap: docker
-From: mambaorg/micromamba
+From: ghcr.io/mamba-org/micromamba:latest
+
+%environment
+    export PIP_PROGRESS_BAR=on
+    export PIP_VERBOSE=1
+    export PIP_NO_INPUT=0
 
 %files
-./markovmodels/* /markovmodels/
-./markovmodels/protocols/* /markovmodels/protocols
-./markovmodels/quality_control /markovmodels/quality_control
-../syncropatch_export syncropatch_export
-setup.py setup.py
-README.md README.md
-MANIFEST.in MANIFEST.in
-scripts scripts
-environment.yml environment.yml
+. /MarkovModels
+
+%environment
+    export OPENSSL_ROOT_DIR="$CONDA_PREFIX"
+    export OPENSSL_INCLUDE_DIR="$CONDA_PREFIX/include"
+    export OPENSSL_CRYPTO_LIBRARY="$CONDA_PREFIX/lib"	
+    export WORK=${SLURM_TMPDIR:-${TMPDIR:-$HOME/work}}
+    mkdir -p $WORK/tmp
+    export TMPDIR=$WORK/tmp
 
 %post
+    export PYTHONNOUSERSITE=1
+    export PIP_NO_CACHE_DIR=1
+    cd /MarkovModels
+
     apt update -y
-    apt install git -y
-    apt update && apt-get install git graphviz graphviz-dev gcc bash build-essential cmake gfortran -y
-    apt install texlive-latex-extra texlive-fonts-recommended dvipng cm-super -y
-    micromamba env create -f environment.yml 
+    apt install git uuid-runtime -y
+    apt update
+    apt install texlive-latex-extra texlive-fonts-recommended dvipng cm-super git -y
+
+    micromamba create -n markovmodels python=3.11 pip setuptools wheel scikit-build -y
+
+    micromamba install -n markovmodels -y -c conda-forge \
+        openssl \
+    cmake ninja pkg-config \
+    make cmake \
+    compilers \
+    cython \
+    meson meson-python \
+    scikit-build \
+    zlib libffi sqlite bzip2 \
+    llvm llvmlite llvmdev numba numpy scipy
+
+    # install conda deps 
+    micromamba install -y -n markovmodels -f environment.yml
+    export CFLAGS="-Wl,-z,noexecstack"
+    export LDFLAGS="-Wl,-z,noexecstack"
+    micromamba run -n markovmodels python3 -m pip uninstall numbalsoda -y
+    micromamba run -n markovmodels python3 -m pip install --no-binary numbalsoda numbalsoda
+    micromamba run -n markovmodels python3 -m pip install --no-deps --no-cache-dir .
+    micromamba run -n markovmodels python3 -m pip install .
+
+   apt autoremove -y
+
+  git config --system --add safe.directory /MarkovModels
+  chown -R root:root /MarkovModels	
+
 %runscript
+    export PYTHONNOUSERSITE=1
+    cd /MarkovModels
     micromamba run -n markovmodels "$@"
