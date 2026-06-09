@@ -23,6 +23,11 @@ class ODEModel:
 
     E_Kr_symb = sp.sympify('E_Kr')
 
+    open_state_index = None
+    auxiliary_expression = None
+    initial_condition = None
+
+
     def get_default_parameters(self):
         return self.default_parameters.copy()
 
@@ -44,10 +49,6 @@ class ODEModel:
                  parameter_labels=None,  transformations=None,
                  state_labels: str = None):
 
-        self.open_state_index = None
-        self.auxiliary_expression = None
-
-        self.initial_condition = None
         self.name = name
 
         if state_labels:
@@ -116,11 +117,12 @@ class ODEModel:
         raise NotImplementedError()
 
     def define_auxiliary_function(self, njitted=False, return_var=None, **kwargs):
+
         lamb_func = njit(sp.lambdify((self.y, self.p, self.v, self.E_Kr_symb),
                                      self.auxiliary_expression))
 
         E_rev = self.E_rev
-        def aux_func(y, p, v, E_rev=E_rev):
+        def aux_func(y, p, v, E_rev=E_revprotocoldati):
             return lamb_func(y, p, v, E_rev)
 
         if njitted:
@@ -163,6 +165,9 @@ class ODEModel:
 
         return njit(rates_func) if njitted else rates_func
 
+    def get_rhs_inf(self):
+        return self.rhs_inf
+
     def make_hybrid_solver_states(self, protocol_description=None,
                                   njitted=False, analytic_solver=None,
                                   strict=True, cond_threshold=None, atol=None,
@@ -191,7 +196,7 @@ class ODEModel:
             def analytic_solver(times=None, voltage=None, p=None, y0=None):
                 return np.array([np.nan]), False
 
-        rhs_inf = self.rhs_inf
+        rhs_inf = self.get_rhs_inf()
         voltage = self.voltage
 
         if atol is None:

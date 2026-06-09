@@ -24,21 +24,22 @@ class DisconnectedMarkovModel(MarkovModel):
         self.Qs = Qs
         self.ys = ys
 
+        super().__init__(symbols, A, B, rates_dict, times, GKr_index=GKr_index,
+                         *args, **kwargs)
+
         self.auxiliary_expression = auxiliary_expression
 
         self.connected_components = connected_components
         self.n_states = sum([Q.shape[0] for Q in Qs])
         self.parameter_labels = parameter_labels
 
-        self.y = [var for y in ys for var in y]
+        self.y = sp.Matrix([[var for y in ys for var in y]]).T
 
         if protocol_description is not None:
             self.protocol_description = protocol_description.copy()
         else:
             self.protocol_description = np.array([[.0, 1000.0, -80.0, -80.0]])
 
-        super().__init__(symbols, A, B, rates_dict, times, GKr_index=GKr_index,
-                         *args, **kwargs)
         self.n_state_vars = sum([len(y) for y in self.ys])
         self.auxiliary_function = njit(self.define_auxiliary_function())
 
@@ -61,7 +62,9 @@ class DisconnectedMarkovModel(MarkovModel):
         rhs_inf_expr_rates = sp.Matrix.vstack(*[expr for expr in self.rhs_inf_expr])
         rhs_inf_expr = rhs_inf_expr_rates.subs(self.rates_dict)
 
-        self.rhs_inf = njit(sp.lambdify((self.p, self.v), rhs_inf_expr))
+        rhs_inf = njit(sp.lambdify((self.p, self.v), rhs_inf_expr))
+
+        return rhs_inf, rhs_inf_expr
 
     def get_analytic_solution_funcs(self, cond_threshold=None):
         rates_func = self.get_rates_func()

@@ -103,7 +103,7 @@ class ArtefactModel(MarkovModel):
 
         crhs_ptr = crhs.address
 
-        channel_rhs_inf = self.channel_model.rhs_inf
+        channel_rhs_inf, _ = self.channel_model.compute_steady_state_expressions()
         n_max_steps = 64
 
         E_rev = self.channel_model.E_rev
@@ -119,7 +119,7 @@ class ArtefactModel(MarkovModel):
             desc[:, 2:] = v
 
             data = np.concatenate((data, desc.flatten())).flatten()
-                
+
             res, _ = lsoda(crhs_ptr, y0,
                            np.array((-tend, .0)),
                            data=data,

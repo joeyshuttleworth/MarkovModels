@@ -71,7 +71,7 @@ def make_model_of_class(name: str, times=None, voltage=None, *args, **kwargs):
     model_17 = None
     model_18 = None
     model_19 = None
-    
+
     thirty_models = [
         model_00, model_01, model_02, model_03, model_04,
         model_05, model_06, model_07, model_08, model_09, model_10,

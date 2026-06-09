@@ -35,6 +35,19 @@ class MarkovModel(ODEModel):
                  name=None, E_rev=None, GKr_index: int=None, open_state_index:
                  int = None, default_parameters=None, **kws):
 
+        self.A = A
+        self.B = B
+
+        self.y = symbols['y']
+        self.p = symbols['p']
+        self.v = symbols['v']
+
+        self.rhs_expr = (A @ sp.Matrix(self.y[:A.shape[0], :]) + B).subs(rates_dict)
+
+        super().__init__(symbols, times, voltage, tolerances,
+                         protocol_description, name, E_rev,
+                         default_parameters=default_parameters, **kws)
+
         self.state_labels = None
 
         if open_state_index is not None:
@@ -55,9 +68,6 @@ class MarkovModel(ODEModel):
 
         self.window_locs = None
 
-        self.y = symbols['y']
-        self.p = symbols['p']
-        self.v = symbols['v']
         self.initial_condition = np.full(len(self.y), .0)
 
         self.rates_dict = rates_dict
@@ -65,14 +75,8 @@ class MarkovModel(ODEModel):
         self.symbols = symbols
 
         self.times = times
-        self.A = A
-        self.B = B
+        self.solver_tolerances = tuple(tolerances)
 
-        self.rhs_expr = (A @ sp.Matrix(self.y[:A.shape[0], :]) + B).subs(rates_dict)
-
-        super().__init__(symbols, times, voltage, tolerances,
-                         protocol_description, name, E_rev,
-                         default_parameters=default_parameters, **kws)
 
     def set_E_rev(self, E_rev):
         self.E_rev = E_rev
@@ -94,18 +98,17 @@ class MarkovModel(ODEModel):
 
         E_rev = self.E_rev
 
-        matrix_steady_state_function = njit(sp.lambdify((self.p, self.v), self.rhs_inf_expr,
-                                                        modules='numpy', cse=True))
+        matrix_steady_state_function, _ = self.compute_steady_state_expressions()
+
+        y0 = matrix_steady_state_function(self.get_default_parameters(), -80)
 
         @njit
         def rhs_inf(p=p, v=-80.0, E_rev=E_rev):
             # Start from matrix derived value
-            y0 = np.full(y0.shape, 0.0) / len(y0 + 1)
+            y0 = np.full(n_state_vars, 0.0) / (n_state_vars + 1)
             try:
-                y0 = matrix_steady_state_function(p, v).flatten()
-            except ValueError:
-                pass
-            except ZeroDivisionError:
+                y0 = matrix_steady_state_function(p.flatten(), v).flatten()
+            except Exception:
                 pass
 
             if not np.all(np.isfinite(y0)):
@@ -127,19 +130,19 @@ class MarkovModel(ODEModel):
 
         return rhs_inf
 
+    def get_rhs_inf(self):
+        return self.define_steady_state_function()
 
     def compute_steady_state_expressions(self):
         self.rhs_inf_expr_rates = -self.A.LUsolve(self.B)
         self.rhs_inf_expr = self.rhs_inf_expr_rates.subs(self.rates_dict)
-        self.rhs_inf = nb.njit(sp.lambdify((self.p, self.v), self.rhs_inf_expr,
+        rhs_inf = nb.njit(sp.lambdify((self.p, self.v), self.rhs_inf_expr,
                                            modules='numpy', cse=True))
-
-        rhs_inf = self.define_steady_state_function()
 
         self.auxiliary_expression = self.p[self.GKr_index] * \
             self.y[self.open_state_index] * (self.v - self.E_Kr_symb)
 
-        return self.rhs_inf, self.rhs_inf_expr
+        return rhs_inf, self.rhs_inf_expr
 
     def rhs(self, t, y, p):
         """ Evaluates the RHS of the model (including sensitivities)
