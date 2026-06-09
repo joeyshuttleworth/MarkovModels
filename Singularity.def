@@ -45,9 +45,11 @@ From: ghcr.io/mamba-org/micromamba:latest
     export CFLAGS="-Wl,-z,noexecstack"
     export LDFLAGS="-Wl,-z,noexecstack"
     micromamba run -n markovmodels python3 -m pip uninstall numbalsoda -y
-    micromamba run -n markovmodels python3 -m pip install --no-binary numbalsoda numbalsoda
+    micromamba run -n markovmodels python3 -m pip install --no-binary numbalsoda numbalsoda@git+https://github.com/Nicholaswogan/numbalsoda@main
     micromamba run -n markovmodels python3 -m pip install --no-deps --no-cache-dir .
     micromamba run -n markovmodels python3 -m pip install .
+    micromamba run -n markovmodels python3 -m pip uninstall syncropatch_export -y
+    micromamba run -n markovmodels python3 -m pip install -e ./syncropatch_export
 
    apt autoremove -y
 

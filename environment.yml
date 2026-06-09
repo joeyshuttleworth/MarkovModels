@@ -15,5 +15,4 @@ dependencies:
   - conda-forge::graphviz
   - conda-forge::pygraphviz
   - pip:
-      - ./syncropatch_export
       - .
