@@ -122,7 +122,7 @@ class ODEModel:
                                      self.auxiliary_expression))
 
         E_rev = self.E_rev
-        def aux_func(y, p, v, E_rev=E_revprotocoldati):
+        def aux_func(y, p, v, E_rev=E_rev):
             return lamb_func(y, p, v, E_rev)
 
         if njitted:
