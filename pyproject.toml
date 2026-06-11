@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=64.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "markovmodels"
+version = "0.1.0"
+description = "markov models for cardiac modelling"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.10.0"
+
+authors = [
+    { name = "Joseph Shuttleworth", email = "joseph.shuttleworth@nottingham.ac.uk" },
+    { name = "Dominic Whittaker" },
+    { name = "Michael Clerx" },
+    { name = "Maurice Hendrix" },
+    { name = "Gary Mirams" }
+]
+
+maintainers = [
+    { name = "Joseph Shuttleworth", email = "joseph.shuttleworth@nottingham.ac.uk" }
+]
+
+license = { text = "BSD License" }
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "pints>=0.4.0",
+    "scipy>=1.9.1",
+    "numpy>=1.23.3",
+    "matplotlib>=3.6.2",
+    "pandas>=1.5.0",
+    "sympy>=1.11.1",
+    "numba>=0.56.2",
+    "regex>=2022.9.13",
+    "myokit>=1.33.0",
+    "seaborn>=0.12.0",
+    "scikit-build>=0.16.7",
+    "markov_builder @ git+https://github.com/CardiacModelling/Markov-builder@thirty_models",
+    "pcpostprocess @git+https://github.com/CardiacModelling/pcpostprocess@main",
+    "syncropatch_export @git+https://github.com/CardiacModelling/syncropatch_export.git",
+    "numbalsoda @git+https://github.com/Nicholaswogan/numbalsoda@main",
+    "loky>=3.5.0",
+    "pyvis>=0.3.0"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest-cov>=2.10",
+    "pytest>=4.6",
+    "flake8>=3",
+    "isort",
+    "mock>=3.0.5",
+    "codecov>=2.1.3"
+]
+
+[project.urls]
+Homepage = "https://github.com/joeyshuttleworth/markovmodels"
+
+[tool.setuptools.packages.find]
+where = ["markovmodels"]
+include = ["markovmodels", "markovmodels.*"]
+exclude = ["tests*", "docs*", "notebooks*", "output*", "test_output*", "paper_output*", "build*", ".venv*"]
+
+[tool.setuptools]
+include-package-data = true
+
