@@ -195,12 +195,17 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     scores, parameter_sets, iterations, times_taken = [], [], [], []
     for i in range(repeats):
         if randomise_initial_guess:
-            initial_guess = initial_guess_dist.sample(n=1).flatten()
+            initial_guess = initial_guess_dist.sample(n=1, full_check=False).flatten()
             starting_parameter_sets.append(initial_guess)
             params_not_fixed = initial_guess
 
         if np.any(~np.isfinite(params_not_fixed)):
-            raise ValueError(f"starting parameter lie outside boundary: {params_not_fixed}")
+            raise logging.warning(f"starting parameter lie outside boundary: {params_not_fixed}")
+            parameter_sets.append(initial_guess)
+            scores.append(np.inf)
+            iterations.append(0)
+            times_taken.append(0)
+
 
         controller = pints.OptimisationController(error, params_not_fixed,
                                                   boundaries=boundaries,
@@ -222,6 +227,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             found_value = np.inf
             found_parameters = starting_parameters
 
+        logging.info("Starting optimisation run")
         timer_start = time.process_time()
         found_parameters, found_value = controller.run()
         timer_end = time.process_time()
@@ -726,7 +732,7 @@ class FittingBoundaries(pints.Boundaries):
             self.mm = model.channel_model
         else:
             self.mm = model
-        
+
         self.fix_parameters = fix_parameters
         self.full_parameters = full_parameters
 
@@ -798,12 +804,15 @@ class FittingBoundaries(pints.Boundaries):
             len(self.fix_parameters) if len(self.fix_parameters) != 0 \
             else self.mm.get_no_parameters()
 
-    def _sample_once(self, min_log_p, max_log_p):
+    def _sample_once(self, min_log_p, max_log_p, full_check=None):
         rng = self.rng
+
+        if full_check is None:
+            full_check = self.full_check
 
         # Reject samples that don't lie in the boundaries
         # try 1000 times before giving up. This should be plenty
-        n_tries = 1000
+        n_tries = 10000
         for i in range(n_tries):
             p = self.full_parameters.copy()
             p[:self.mm.GKr_index - 1] = 10**rng.uniform(min_log_p, max_log_p,
@@ -821,18 +830,21 @@ class FittingBoundaries(pints.Boundaries):
             if len(self.fix_parameters) > 0:
                 p = p[[i for i in range(len(p)) if i not in self.fix_parameters]]
             # Check this lies in boundaries
-            if self.check(p, full_check=True):
+            if self.check(p, full_check=full_check):
                 return p
 
         logging.warning("Couldn't sample from boundaries")
         return np.full(p.shape, np.nan)
 
-    def sample(self, n=1):
+    def sample(self, n=1, full_check=None):
+        if full_check is None:
+            full_check = self.full_check
+
         min_log_p, max_log_p = [-7, 1]
 
         ret_vec = np.full((n, len(self.full_parameters) - len(self.fix_parameters)), np.nan)
         for i in range(n):
-            ret_vec[i, :] = self._sample_once(min_log_p, max_log_p)
+            ret_vec[i, :] = self._sample_once(min_log_p, max_log_p, full_check=full_check)
 
         return ret_vec
 
