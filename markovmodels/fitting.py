@@ -229,7 +229,13 @@ def fit_model(mm, data, times=None, starting_parameters=None,
 
         logging.info("Starting optimisation run")
         timer_start = time.process_time()
-        found_parameters, found_value = controller.run()
+        try:
+            found_parameters, found_value = controller.run()
+        except ValueError as exc:
+            logging.error(f"PINTS optimisation error: {str(exc)}")
+            found_value = np.inf
+            found_parameters = starting_parameters
+
         timer_end = time.process_time()
         time_elapsed = timer_end - timer_start
 
