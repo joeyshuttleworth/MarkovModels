@@ -314,6 +314,7 @@ class DisconnectedMarkovModel(MarkovModel):
 
         rhs_cfunc_ptrs = tuple(rhs_cfunc_ptrs)
 
+        self.compute_steady_state_expressions()
         steady_state_funcs = tuple(self.rhs_infs)
         analytic_solvers = tuple([njit(func) for func in self.get_analytic_solution_funcs()])
 
