@@ -195,7 +195,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     scores, parameter_sets, iterations, times_taken = [], [], [], []
     for i in range(repeats):
         if randomise_initial_guess:
-            initial_guess = initial_guess_dist.sample(n=1, full_check=False).flatten()
+            initial_guess = initial_guess_dist.sample(n=1).flatten()
             starting_parameter_sets.append(initial_guess)
             params_not_fixed = initial_guess
 
@@ -327,7 +327,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                   scale_conductance=True, no_conductance_boundary=False,
                   use_artefact_model=False, artefact_default_kinetic_parameters=None,
                   fix_parameters=[], data_label=None, tolerance=None,
-                  population_size=None, full_check=True):
+                  population_size=None, full_check=True, strict=True):
 
     if default_parameters is None or len(default_parameters) == 0:
         if use_artefact_model:
@@ -527,7 +527,6 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         raise Exception('solver and solver type provided')
 
     if solver is None:
-        strict = True
         try:
             if use_artefact_model and data_label == 'before':
                 assert solver_type is None or solver_type=='default'
@@ -585,13 +584,15 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         try:
             if data_label == 'before' and not use_artefact_model:
                 I_leak = pp_g_leak * (voltages - pp_E_leak)
-                ax.plot(times, solver(fitted_params) + I_leak,
+                ax.plot(times[indices], solver(fitted_params)[indices] + I_leak[indices],
                         label='fitted parameters')
-                ax.plot(times, solver(initial_params) + I_leak,
+                ax.plot(times[indices], solver(initial_params)[indices] + I_leak[indices],
                         label='default parameters')
             else:
-                ax.plot(times, solver(fitted_params), label='fitted parameters')
-                ax.plot(times, solver(initial_params), label='default parameters')
+                ax.plot(times[indices], solver(fitted_params)[indices],
+                        label='fitted parameters')
+                ax.plot(times[indices], solver(initial_params)[indices],
+                        label='default parameters')
 
             ax.plot(times, data, color='grey', label='data', alpha=.5)
         except Exception as exc:
@@ -794,14 +795,23 @@ class FittingBoundaries(pints.Boundaries):
             if np.any(max_transition_rates < 1.67e-5):
                 return False
 
-        try:
-            out = self.solver(parameters, strict=True)
-            if not np.all(np.isfinite(out)):
+            try:
+                out = self.solver(parameters)
+                if not np.all(np.isfinite(out)):
+                            return False
+            except ValueError:
                 return False
-        except ValueError:
-            return False
-        except ZeroDivisionError:
-            return False
+            except ZeroDivisionError:
+                return False
+        else:
+            try:
+                out = self.solver(parameters)
+                if not np.all(np.isfinite(out)):
+                    return False
+            except ValueError:
+                return False
+            except ZeroDivisionError:
+                return False
 
         return True
 
@@ -818,8 +828,10 @@ class FittingBoundaries(pints.Boundaries):
 
         # Reject samples that don't lie in the boundaries
         # try 1000 times before giving up. This should be plenty
-        n_tries = 10000
+        n_tries = 1000
         for i in range(n_tries):
+            if i > 0 and i % 100 == 0:
+                logging.info(f"{i}th attempt at sampling initial guess")
             p = self.full_parameters.copy()
             p[:self.mm.GKr_index - 1] = 10**rng.uniform(min_log_p, max_log_p,
                                                         self.mm.GKr_index - 1)
