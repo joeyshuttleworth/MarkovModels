@@ -23,7 +23,8 @@ pool_kws = {'maxtasksperchild': 1}
 
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
              randomise_initial_guess=True, prefix='', sweep=None,
-             output_dir=None, args=None, default_kinetic_parameters=None):
+             output_dir=None, args=None, default_kinetic_parameters=None,
+             strict=True):
 
     assert args is not None
 
@@ -69,7 +70,8 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
         fix_parameters=fix_parameters,
         data_label=data_label,
         artefact_default_kinetic_parameters=default_kinetic_parameters,
-        full_check=full_check
+        full_check=full_check,
+        strict=strict
     )
 
     res_df['well'] = well
@@ -112,6 +114,7 @@ def main():
     parser.add_argument('--reversal', type=float)
     parser.add_argument('--tolerance', nargs=2, type=float, default=(1e-8, 1e-8))
     parser.add_argument('--soft_boundaries', action='store_true', default=False)
+    parser.add_argument('--strict_solver', action='store_true', default=False)
     parser.add_argument('-o', '--output')
 
     global args
@@ -232,7 +235,7 @@ def main():
 
         tasks.append([protocol, well, args.model, starting_parameters, args.reversal,
                       not args.dont_randomise_initial_guess, prefix, sweep, output_dir, args,
-                      default_artefact_kinetic_parameters])
+                      default_artefact_kinetic_parameters, args.strict_solver])
         print(f"Tasks are {tasks}")
 
         protocols_list.append(protocol)
