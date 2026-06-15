@@ -200,7 +200,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             params_not_fixed = initial_guess
 
         if np.any(~np.isfinite(params_not_fixed)):
-            raise logging.warning(f"starting parameter lie outside boundary: {params_not_fixed}")
+            logging.warning(f"starting parameter lie outside boundary: {params_not_fixed}")
             parameter_sets.append(initial_guess)
             scores.append(np.inf)
             iterations.append(0)
@@ -828,7 +828,7 @@ class FittingBoundaries(pints.Boundaries):
 
         # Reject samples that don't lie in the boundaries
         # try 1000 times before giving up. This should be plenty
-        n_tries = 1000
+        n_tries = 10_000
         for i in range(n_tries):
             if i > 0 and i % 100 == 0:
                 logging.info(f"{i}th attempt at sampling initial guess")
