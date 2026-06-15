@@ -298,7 +298,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             parameter_sets = np.vstack(parameter_sets)
         fitting_df = pd.DataFrame(parameter_sets,
                                   columns=mm.get_parameter_labels()[:parameter_sets.shape[1]])
-        fitting_df['RMSE'] = np.array(scores) / len(subset_indices)
+        fitting_df['RMSE'] = np.sqrt(np.array(scores) / len(subset_indices))
         fitting_df['iterations'] = iterations
         fitting_df['CPU_time'] = times_taken
 
