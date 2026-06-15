@@ -298,6 +298,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             parameter_sets = np.vstack(parameter_sets)
         fitting_df = pd.DataFrame(parameter_sets,
                                   columns=mm.get_parameter_labels()[:parameter_sets.shape[1]])
+        fitting_df['score'] = scores
         fitting_df['RMSE'] = np.sqrt(np.array(scores) / len(subset_indices))
         fitting_df['iterations'] = iterations
         fitting_df['CPU_time'] = times_taken
@@ -574,7 +575,6 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                                  full_check=full_check
                                                  )
 
-    fitting_df['score'] = fitting_df['RMSE']
     fitting_df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
 
     fig = plt.figure(figsize=(14, 12))
