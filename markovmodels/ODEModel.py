@@ -10,7 +10,7 @@ from markovmodels.utilities import calculate_reversal_potential
 from markovmodels.voltage_protocols import make_voltage_function_from_description
 
 
-_lsoda_n_max_steps = 100_000
+_lsoda_n_max_steps = 1_000_000
 
 n_max_protocol_steps = 128
 
