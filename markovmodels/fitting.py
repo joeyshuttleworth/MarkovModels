@@ -177,6 +177,9 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         unfixed_indices = list(range(len(starting_parameters)))
         params_not_fixed = starting_parameters
 
+    param_labels = [l for i, l in enumerate(mm.get_parameter_labels())
+                    if i in unfixed_indices]
+
     voltages = np.array([mm.voltage(t) for t in times])
     if data_label == 'before':
         s_data = data - leak_current
@@ -187,7 +190,6 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                                    voltages, rng, solver, fix_parameters,
                                    use_artefact_model=use_artefact_model,
                                    full_check=full_check)
-
     if randomise_initial_guess:
         initial_guess_dist = boundaries
         starting_parameter_sets = []
@@ -240,6 +242,15 @@ def fit_model(mm, data, times=None, starting_parameters=None,
         time_elapsed = timer_end - timer_start
 
         this_run_iterations = controller.iterations()
+
+        param_labels_str = ",".join(param_labels)
+        found_params_str = ",".join([str(v) for v in found_parameters])
+        # Output all info to csv file
+        with open(os.path.join(output_dir, f"fitting_repeat_{i}.csv"), "w") as fin:
+            fin.write(f"{param_labels_str},score,iterations,time_taken\n")
+            fin.write(f"{found_params_str},{found_value},"
+                      f"{this_run_iterations},{time_elapsed}\n")
+
         parameter_sets.append(found_parameters)
         scores.append(found_value)
         iterations.append(this_run_iterations)
