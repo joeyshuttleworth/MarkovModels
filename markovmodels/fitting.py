@@ -251,7 +251,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             fin.write(f"{found_params_str},{found_value},"
                       f"{this_run_iterations},{time_elapsed}\n")
 
-        parameter_sets.append(found_parameters)
+        parameter_sets.append(found_parameters.copy())
         scores.append(found_value)
         iterations.append(this_run_iterations)
         times_taken.append(time_elapsed)
@@ -296,14 +296,11 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                 logging.warning(str(exc))
             plt.close(fig)
 
-    if len(fix_parameters) > 0:
-        insert_default_parameters(best_parameters, starting_parameters, fix_parameters)
-
     if return_fitting_df:
         if len(fix_parameters) > 0:
-            new_rows = parameter_sets
+            new_rows = parameter_sets.copy()
             for j, row in enumerate(parameter_sets):
-                new_rows[j] = insert_default_parameters(best_parameters, starting_parameters, fix_parameters)
+                new_rows[j] = insert_default_parameters(row, starting_parameters, fix_parameters)
             parameter_sets = np.array(new_rows)
         else:
             parameter_sets = np.vstack(parameter_sets)
