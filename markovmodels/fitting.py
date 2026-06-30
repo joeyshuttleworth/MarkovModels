@@ -245,11 +245,16 @@ def fit_model(mm, data, times=None, starting_parameters=None,
 
         param_labels_str = ",".join(param_labels)
         found_params_str = ",".join([str(v) for v in found_parameters])
+
+        starting_params_str = ",".join([str(v) for v in starting_parameters])
         # Output all info to csv file
         with open(os.path.join(output_dir, f"fitting_repeat_{i}.csv"), "w") as fin:
             fin.write(f"{param_labels_str},score,iterations,time_taken\n")
             fin.write(f"{found_params_str},{found_value},"
                       f"{this_run_iterations},{time_elapsed}\n")
+
+            fin.write(f"{starting_params_str}, {np.nan},"
+                      f"{0},{0}\n")
 
         parameter_sets.append(found_parameters.copy())
         scores.append(found_value)
