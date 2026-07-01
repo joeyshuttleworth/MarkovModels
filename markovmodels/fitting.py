@@ -231,17 +231,22 @@ def fit_model(mm, data, times=None, starting_parameters=None,
 
         logging.info("Starting optimisation run")
         timer_start = time.process_time()
+        this_run_iterations = 0
         try:
             found_parameters, found_value = controller.run()
+            this_run_iterations = controller.iterations()
         except ValueError as exc:
             logging.error(f"PINTS optimisation error: {str(exc)}")
             found_value = np.inf
             found_parameters = starting_parameters
 
         timer_end = time.process_time()
-        time_elapsed = timer_end - timer_start
+        time_elapsed = 0
 
-        this_run_iterations = controller.iterations()
+        try:
+            time_elapsed = timer_end - timer_start
+        except TypeError as exc:
+            print(str(exc))
 
         param_labels_str = ",".join(param_labels)
         found_params_str = ",".join([str(v) for v in found_parameters])
