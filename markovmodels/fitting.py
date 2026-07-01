@@ -33,7 +33,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
               randomise_initial_guess=True, output_dir=None, solver_type=None,
               use_artefact_model=False, rng=None, population_size=None,
               add_simple_leak=False, g_leak=None, E_leak=None, data_label='',
-              full_check=True):
+              full_check=True, strict=None):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -109,10 +109,10 @@ def fit_model(mm, data, times=None, starting_parameters=None,
 
     if solver is None:
         try:
-            solver = mm.make_forward_solver_of_type(solver_type)
+            solver = mm.make_forward_solver_of_type(solver_type, strict=strict)
         except numba.core.errors.TypingError as exc:
             logging.warning(f"unable to make nopython forward solver {str(exc)}")
-            solver = mm.make_forward_solver_of_type(solver_type, njitted=False)
+            solver = mm.make_forward_solver_of_type(solver_type, njitted=False, strict=strict)
 
     if subset_indices is None:
         subset_indices = np.array(list(range(len(mm.times))))
@@ -209,36 +209,40 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             times_taken.append(0)
 
 
-        controller = pints.OptimisationController(error, params_not_fixed,
-                                                  boundaries=boundaries,
-                                                  method=method,
-                                                  transformation=transformation)
-        if population_size is not None:
+        try:
+            controller = pints.OptimisationController(error, params_not_fixed,
+                                                      boundaries=boundaries,
+                                                      method=method,
+                                                      transformation=transformation)
+        except ValueError as exc:
+            print(str(exc))
+            controller = None
+
+        if population_size is not None and controller is not None:
             # May throw an error if this option doesn't exist
             controller.optimiser().set_population_size(population_size)
 
         if not parallel:
             controller.set_parallel(False)
 
-        try:
-            if max_iterations is not None:
+        if max_iterations is not None:
+                try:
                 controller.set_max_iterations(max_iterations)
-
-        except Exception as e:
-            print(str(e))
-            found_value = np.inf
-            found_parameters = starting_parameters
 
         logging.info("Starting optimisation run")
         timer_start = time.process_time()
         this_run_iterations = 0
-        try:
-            found_parameters, found_value = controller.run()
-            this_run_iterations = controller.iterations()
-        except ValueError as exc:
-            logging.error(f"PINTS optimisation error: {str(exc)}")
-            found_value = np.inf
+
+        if controller is not None:
+            try:
+                found_parameters, found_value = controller.run()
+                this_run_iterations = controller.iterations()
+            except ValueError as exc:
+                logging.error(f"PINTS optimisation error: {str(exc)}")
+
+        else:
             found_parameters = starting_parameters
+            found_value = np.inf
 
         timer_end = time.process_time()
         time_elapsed = 0
@@ -590,7 +594,8 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                                  g_leak=pp_g_leak,
                                                  E_leak=pp_E_leak,
                                                  add_simple_leak=add_simple_leak,
-                                                 full_check=full_check
+                                                 full_check=full_check,
+                                                 strict=strict
                                                  )
 
     fitting_df.to_csv(os.path.join(output_dir, f"{well}_{protocol}_fitted_params.csv"))
