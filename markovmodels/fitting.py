@@ -226,8 +226,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             controller.set_parallel(False)
 
         if max_iterations is not None:
-                try:
-                controller.set_max_iterations(max_iterations)
+            controller.set_max_iterations(max_iterations)
 
         logging.info("Starting optimisation run")
         timer_start = time.process_time()
