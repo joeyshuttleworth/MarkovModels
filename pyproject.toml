@@ -10,7 +10,7 @@ readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10.0"
 
 authors = [
-    { name = "Joseph Shuttleworth", email = "joseph.shuttleworth@nottingham.ac.uk" },
+    { name = "Joseph Shuttleworth", email = "joey.shuttleworth@nottingham.ac.uk" },
     { name = "Dominic Whittaker" },
     { name = "Michael Clerx" },
     { name = "Maurice Hendrix" },
@@ -18,7 +18,7 @@ authors = [
 ]
 
 maintainers = [
-    { name = "Joseph Shuttleworth", email = "joseph.shuttleworth@nottingham.ac.uk" }
+    { name = "Joseph Shuttleworth", email = "joey.shuttleworth@nottingham.ac.uk" }
 ]
 
 license = { text = "BSD License" }
@@ -63,7 +63,7 @@ test = [
 Homepage = "https://github.com/joeyshuttleworth/markovmodels"
 
 [tool.setuptools.packages.find]
-where = ["markovmodels"]
+where = ["."]
 include = ["markovmodels", "markovmodels.*"]
 exclude = ["tests*", "docs*", "notebooks*", "output*", "test_output*", "paper_output*", "build*", ".venv*"]
 
