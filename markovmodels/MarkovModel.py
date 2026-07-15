@@ -44,14 +44,15 @@ class MarkovModel(ODEModel):
 
         self.rhs_expr = (A @ sp.Matrix(self.y[:A.shape[0], :]) + B).subs(rates_dict)
 
+        if open_state_index is not None:
+            self.open_state_index = open_state_index
+
         super().__init__(symbols, times, voltage, tolerances,
                          protocol_description, name, E_rev,
                          default_parameters=default_parameters, **kws)
 
         self.state_labels = None
 
-        if open_state_index is not None:
-            self.open_state_index = open_state_index
 
         self.n_states = A.shape[0] + 1
         self.n_state_vars = A.shape[0]
