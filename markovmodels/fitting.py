@@ -222,11 +222,12 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             # May throw an error if this option doesn't exist
             controller.optimiser().set_population_size(population_size)
 
-        if not parallel:
-            controller.set_parallel(False)
+        if controller is not None:
+            if not parallel:
+                controller.set_parallel(False)
 
-        if max_iterations is not None:
-            controller.set_max_iterations(max_iterations)
+            if max_iterations is not None:
+                controller.set_max_iterations(max_iterations)
 
         logging.info("Starting optimisation run")
         timer_start = time.process_time()
