@@ -47,6 +47,8 @@ class MarkovModel(ODEModel):
         if open_state_index is not None:
             self.open_state_index = open_state_index
 
+        self.rates_dict = rates_dict
+
         super().__init__(symbols, times, voltage, tolerances,
                          protocol_description, name, E_rev,
                          default_parameters=default_parameters, **kws)
@@ -71,7 +73,6 @@ class MarkovModel(ODEModel):
 
         self.initial_condition = np.full(len(self.y), .0)
 
-        self.rates_dict = rates_dict
 
         self.symbols = symbols
 
