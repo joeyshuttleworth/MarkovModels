@@ -798,10 +798,10 @@ class FittingBoundaries(pints.Boundaries):
             max_rate = 1e3
             min_rate = 1.67e-5
         else:
-            max_par = 1e6
-            max_par = 1e-7
-            max_rate = 1e4
-            min_rate = 1.67e-6
+            max_par = 1.5e5
+            min_par = 0.5e-7
+            max_rate = 1.5e3
+            min_rate = 0.5e-5
 
         if max([p for i, p in enumerate(channel_parameters[:-1])]) > max_par:
             return False
@@ -850,8 +850,8 @@ class FittingBoundaries(pints.Boundaries):
             full_check = self.full_check
 
         # Reject samples that don't lie in the boundaries
-        # try 1000 times before giving up. This should be plenty
-        n_tries = 10_000
+        # try many times before giving up. This should be plenty
+        n_tries = 1_000_000
         for i in range(n_tries):
             if i > 0 and i % 100 == 0:
                 logging.info(f"{i}th attempt at sampling initial guess")
@@ -881,7 +881,7 @@ class FittingBoundaries(pints.Boundaries):
         if full_check is None:
             full_check = self.full_check
 
-        min_log_p, max_log_p = [-7, 1]
+        min_log_p, max_log_p = [-7, 5]
 
         ret_vec = np.full((n, len(self.full_parameters) - len(self.fix_parameters)), np.nan)
         for i in range(n):
