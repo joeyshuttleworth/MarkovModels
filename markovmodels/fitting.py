@@ -792,50 +792,50 @@ class FittingBoundaries(pints.Boundaries):
         if np.any(channel_parameters < 0):
             return False
 
-        if full_check is True:
-            if max([p for i, p in enumerate(channel_parameters[:-1])]) > 1e5:
-                return False
-
-            if min([p for i, p in enumerate(channel_parameters[:-1])]) < 1e-7:
-                return False
-
-            if parameters[self.mm.GKr_index] > self.max_conductance:
-                return False
-
-            if parameters[self.mm.GKr_index] < self.min_conductance:
-                return False
-
-            Vs = [-120.0, 60.0]
-            rates_func = self.rates_func
-            rates_1 = rates_func(channel_parameters, Vs[0]).flatten()
-            rates_2 = rates_func(channel_parameters, Vs[1]).flatten()
-
-            max_transition_rates = np.max(np.vstack([rates_1, rates_2]), axis=0)
-
-            if np.any(max_transition_rates > 1e10):
-                return False
-
-            if np.any(max_transition_rates < 1.67e-5):
-                return False
-
-            try:
-                out = self.solver(parameters)
-                if not np.all(np.isfinite(out)):
-                            return False
-            except ValueError:
-                return False
-            except ZeroDivisionError:
-                return False
+        if full_check:
+            max_par = 1e5
+            min_par = 1e-7
+            max_rate = 1e3
+            min_rate = 1.67e-5
         else:
-            try:
-                out = self.solver(parameters)
-                if not np.all(np.isfinite(out)):
-                    return False
-            except ValueError:
-                return False
-            except ZeroDivisionError:
-                return False
+            max_par = 1e6
+            max_par = 1e-7
+            max_rate = 1e4
+            min_rate = 1.67e-6
 
+        if max([p for i, p in enumerate(channel_parameters[:-1])]) > max_par:
+            return False
+
+        if min([p for i, p in enumerate(channel_parameters[:-1])]) < min_par:
+            return False
+
+        if parameters[self.mm.GKr_index] > self.max_conductance:
+            return False
+
+        if parameters[self.mm.GKr_index] < self.min_conductance:
+            return False
+
+        Vs = [-120.0, 60.0]
+        rates_func = self.rates_func
+        rates_1 = rates_func(channel_parameters, Vs[0]).flatten()
+        rates_2 = rates_func(channel_parameters, Vs[1]).flatten()
+
+        max_transition_rates = np.max(np.vstack([rates_1, rates_2]), axis=0)
+
+        if np.any(max_transition_rates > max_rate):
+            return False
+
+        if np.any(max_transition_rates < min_rate):
+            return False
+
+        try:
+            out = self.solver(parameters)
+            if not np.all(np.isfinite(out)):
+                        return False
+        except ValueError:
+            return False
+        except ZeroDivisionError:
+            return False
         return True
 
     def n_parameters(self):
