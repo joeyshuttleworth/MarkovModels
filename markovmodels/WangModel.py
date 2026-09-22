@@ -56,7 +56,7 @@ class WangModel(MarkovModel):
         super().__init__(symbols, A, B, mc.rate_expressions, times=times,
                          voltage=voltage, Q=Q, *args, **kwargs,
                          name='WangModel', open_state_index=open_state_index,
-                         GKr_index=GKr_index)
+                         GKr_index=self.GKr_index)
 
         self.transformations = [
             pints.LogTransformation(1),
