@@ -54,7 +54,7 @@ class MarkovModel(ODEModel):
         super().__init__(symbols, times, voltage, tolerances,
                          protocol_description, name, E_rev,
                          default_parameters=default_parameters,
-                         GKr_index=GKr_index, open_state_index=open_state_index,
+                         open_state_index=open_state_index,
                          **kws)
 
         self.state_labels = None
