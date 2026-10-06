@@ -49,9 +49,13 @@ class MarkovModel(ODEModel):
 
         self.rates_dict = rates_dict
 
+        self.GKr_index = GKr_index
+
         super().__init__(symbols, times, voltage, tolerances,
                          protocol_description, name, E_rev,
-                         default_parameters=default_parameters, **kws)
+                         default_parameters=default_parameters,
+                         GKr_index=GKr_index, open_state_index=open_state_index,
+                         **kws)
 
         self.state_labels = None
 

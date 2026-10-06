@@ -24,6 +24,7 @@ class DisconnectedMarkovModel(MarkovModel):
         self.Qs = Qs
         self.ys = ys
 
+        self.GKr_index = GKr_index
         super().__init__(symbols, A, B, rates_dict, times, GKr_index=GKr_index,
                          *args, **kwargs)
 
