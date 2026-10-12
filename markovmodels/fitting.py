@@ -330,7 +330,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
             columns = np.array(mm.get_parameter_labels())
             initial_guess_df = pd.DataFrame(starting_parameter_sets,
                                             columns=columns[unfixed_indices])
-            initial_guess_df['iterations'] = iterations
+            initial_guess_df['iterations'] = np.nan
             initial_guess_df['RMSE'] = np.nan
 
             fitting_df = pd.concat([fitting_df, initial_guess_df],
