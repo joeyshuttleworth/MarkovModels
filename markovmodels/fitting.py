@@ -607,9 +607,9 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         try:
             if data_label == 'before' and not use_artefact_model:
                 I_leak = pp_g_leak * (voltages - pp_E_leak)
-                ax.plot(times[indices], solver(fitted_params)[indices] + I_leak[indices],
+                ax.plot(times[indices], solver(fitted_params, E_rev=E_rev)[indices] + I_leak[indices],
                         label='fitted parameters')
-                ax.plot(times[indices], solver(initial_params)[indices] + I_leak[indices],
+                ax.plot(times[indices], solver(initial_params, E_rev=E_rev)[indices] + I_leak[indices],
                         label='default parameters')
             else:
                 ax.plot(times[indices], solver(fitted_params)[indices],
