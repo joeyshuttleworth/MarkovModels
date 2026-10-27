@@ -49,7 +49,7 @@ class MazhariModel(MarkovModel):
         self.open_state_index = labs.index('O')
 
         super().__init__(symbols, A, B, mc.rate_expressions, times=times,
-                         voltage=voltage, Q=Q, *args, **kwargs,
+                         voltage=voltage, Q=Q, *args, **kwargs, GKr_index=self.GKr_index,
                          name='MazhariModel')
 
         self.transformations = [
