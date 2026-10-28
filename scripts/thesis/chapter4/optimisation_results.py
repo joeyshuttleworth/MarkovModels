@@ -309,7 +309,7 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
 
     ranks = np.array(list(range(len(scores))))
 
-    # Highlight 25% best results
+    # Highlight best results
     cutoff = scores.min() * cutoff_threshold
     highlight_indices = np.argwhere((scores <= cutoff) & (scores != scores.min()))
 
@@ -642,11 +642,11 @@ def do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args
 
     if args.fitting_case in ['0a', '0b', '0d']:
         solver = model.make_hybrid_solver_current(hybrid=False,
-                                                  strict=False,
+                                                  strict=True,
                                                   njitted=False)
     else:
         solver = model.make_hybrid_solver_current(hybrid=False,
-                                                  strict=False,
+                                                  strict=True,
                                                   njitted=False,
                                                   return_var='I_out')
 
