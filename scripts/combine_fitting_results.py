@@ -29,7 +29,7 @@ def main():
     res = [glob(os.path.join(directory, glob_string), recursive=True) for directory\
            in args.data_directories]
     print(res)
- 
+
     # Flatten res
     res = list(itertools.chain(itertools.chain(res)))
     print(res)
@@ -52,7 +52,7 @@ def main():
     df.to_csv(os.path.join(output_dir, 'combined_fitting_results.csv'))
 
     if args.model_class:
-        model = markovmodels.make_model_of_class(args.model_class)
+        model = make_model_of_class(args.model_class)
         param_labels = model.get_parameter_labels()
         # filter out parameters that dont lie in parameter set
         remove = []
