@@ -33,7 +33,7 @@ class MarkovModel(ODEModel):
     def __init__(self, symbols, A, B, rates_dict, times=None, voltage=None,
                  tolerances=(1e-8, 1e-8), Q=None, protocol_description=None,
                  name=None, E_rev=None, GKr_index: int=None, open_state_index:
-                 int = None, default_parameters=None, **kws):
+                 int = None, default_parameters=None, state_labels=None, **kws):
 
         self.A = A
         self.B = B
@@ -56,7 +56,7 @@ class MarkovModel(ODEModel):
                          default_parameters=default_parameters,
                          **kws)
 
-        self.state_labels = None
+        self.state_labels = state_labels
 
 
         self.n_states = A.shape[0] + 1

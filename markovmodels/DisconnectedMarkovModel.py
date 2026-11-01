@@ -15,9 +15,11 @@ class DisconnectedMarkovModel(MarkovModel):
     def __init__(self, symbols, A, B, Qs, As, Bs, ys, connected_components,
                  rates_dict, times, parameter_labels, auxiliary_expression,
                  analytic_solution_funcs=None, GKr_index: int = None,
-                 protocol_description=None, *args, **kwargs):
+                 state_labels=None, protocol_description=None, *args, **kwargs):
 
         self.analytic_solution_funcs = analytic_solution_funcs
+
+        self.state_labels = state_labels
 
         self.As = As
         self.Bs = Bs
@@ -26,7 +28,7 @@ class DisconnectedMarkovModel(MarkovModel):
 
         self.GKr_index = GKr_index
         super().__init__(symbols, A, B, rates_dict, times, GKr_index=GKr_index,
-                         *args, **kwargs)
+                         state_labels=state_labels, *args, **kwargs)
 
         self.auxiliary_expression = auxiliary_expression
 
