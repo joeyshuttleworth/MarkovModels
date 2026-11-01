@@ -103,6 +103,7 @@ def main():
     global cutoff_threshold
     cutoff_threshold = args.cutoff_threshold
 
+    global output_dir
     output_dir = setup_output_directory(args.output, 'chapter_4_optimisation_results')
 
     fitting_results_fname = args.fitting_results
@@ -259,7 +260,7 @@ def map_func(well, protocol, sweep, params_df, args, output_dir):
                     sweep, args)
     if args.plot_wip:
         fig.savefig(os.path.join(output_dir, f"{well}_{protocol}_sweep{sweep}.pdf"))
-    do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args)
+    # do_profile_plots(baseline_profile_ax, params_df, protocol, well, sweep, args)
 
     # Make sure ticks and limits match for top 3 subfigures
     occupations_ax.set_xticks(current_ax.get_xticks())
@@ -311,7 +312,7 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
 
     # Highlight best results
     cutoff = scores.min() * cutoff_threshold
-    highlight_indices = np.argwhere((scores <= cutoff) & (scores != scores.min()))
+    highlight_indices = np.where((scores <= cutoff) & np.arange(len(scores))!= np.argmin(scores))
 
     other_indices = np.argwhere(scores > cutoff)
 
@@ -331,12 +332,7 @@ def do_rank_plot(rank_ax, params_df, protocol, well, sweep, args):
 
 def do_trace_plots(current_ax, protocol_ax, occupations_ax,
                    protocol, well, sweep, params_df, args):
-    # Load trace
-    data_fname = os.path.join(args.data_dir,
-                              f"{args.experiment_name}-{protocol}-{well}-sweep{sweep}-subtracted.csv")
-
     subtraction_df = pd.read_csv(args.subtraction_df)
-
     times_fname = os.path.join(args.data_dir,
                                f"{args.experiment_name}-{protocol}-times.csv")
     times = np.loadtxt(times_fname).flatten()
@@ -354,9 +350,34 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
 
     voltages = np.array([prot_func(t) for t in times])
 
+    row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol)
+                            & (subtraction_df.sweep == sweep)].iloc[0]
+
+    if args.fitting_case == "0d":
+        gleak, Eleak = row[['gleak_before', 'E_leak_before']].values.flatten().astype(np.float64)
+        gleak = float(gleak)
+        Eleak = float(Eleak)
+        I_leak = gleak * (voltages - Eleak)
+
+        leak_ramp_i = [i for i, l in enumerate(desc) if l[2] != l[3]][0]
+        ramp_start = desc[leak_ramp_i, 0]
+        ramp_end = desc[leak_ramp_i, 1]
+
+    spike_times, _ = detect_spikes(times, voltages, window_size=0)
+    _, _, indices = remove_spikes(times, voltages, spike_times,
+                                  args.removal_duration)
+    E_obs = infer_reversal_potential(desc, (trace - I_leak)[indices], times[indices],
+                                     voltages=voltages[indices],
+                                     plot=True,
+                                     output_path=os.path.join(args.output, f"{well}-{protocol}-{sweep}_reversal.pdf")
+                                     )
+
+    if args.fitting_case in ["0b", "0d", "II"]:
+        E_rev = E_obs
+
     pred, states = make_prediction(args.model_class, args, well, protocol, sweep,
                                    protocol, sweep, params_df, subtraction_df,
-                                   args.fitting_case, args.reversal, protocol_dict,
+                                   args.fitting_case, E_rev, protocol_dict,
                                    trace, voltages, label=args.data_label,
                                    return_states=True
                                    )
@@ -372,13 +393,15 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
     states = states[:, reorder_indices].copy()
 
     # Hacky way of ensuring that the O state is at the bottom
-    open_state_labels = ['O_O2', 'O1_O2', 'O']
+    open_state_labels = ['O_O2', 'O1_O2', 'O', 'state_O']
 
     open_state_label = 'O'
     for lab in open_state_labels:
         if lab in state_labels:
             open_state_label = lab
             break
+
+    assert open_state_label in state_labels
 
     open_index = state_labels.index(open_state_label)
     state_labels.remove(open_state_label)
@@ -429,16 +452,37 @@ def do_trace_plots(current_ax, protocol_ax, occupations_ax,
     if args.fitting_case in ['I', 'II']:
         protocol_ax.set_ylabel(r'$V$ (mV)')
         pred, states = make_prediction(args.model_class, args, well, protocol, sweep,
-                                   protocol, sweep, params_df, subtraction_df,
-                                   args.fitting_case, args.reversal, protocol_dict,
-                                   trace, voltages, label=args.data_label,
-                                   return_states=True
-                                   )
+                                       protocol, sweep, params_df, subtraction_df,
+                                       args.fitting_case, args.reversal, protocol_dict,
+                                       trace, voltages, label=args.data_label,
+                                       return_states=True
+                                       )
         Vm = states[:, -1]
         protocol_ax.plot(times*1e-3, Vm, label=r'$V_\mathrm{m}$')
     elif args.fitting_case == '0d':
-        E_obs = infer_reversal_potential(desc, trace, times,
-                                         voltages=voltages)
+
+        row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol)
+                             & (subtraction_df.sweep == sweep)].iloc[0]
+
+        spike_times, _ = detect_spikes(times, voltages, window_size=0)
+        _, _, indices = remove_spikes(times, voltages, spike_times,
+                                      args.removal_duration)
+
+        gleak, Eleak = row[['gleak_before', 'E_leak_before']].values.flatten().astype(np.float64)
+        gleak = float(gleak)
+        Eleak = float(Eleak)
+        I_leak = gleak * (voltages - Eleak)
+
+        leak_ramp_i = [i for i, l in enumerate(desc) if l[2] != l[3]][0]
+        ramp_start = desc[leak_ramp_i, 0]
+        ramp_end = desc[leak_ramp_i, 1]
+
+        E_obs = infer_reversal_potential(desc, (trace - I_leak)[indices], times[indices],
+                                         voltages=voltages[indices],
+                                         plot=True,
+                                         output_path=os.path.join(args.output, f"{well}-{protocol}-{sweep}_reversal.pdf")
+                                         )
+
         V_off = args.reversal - E_obs
         Vm = voltages + V_off
         protocol_ax.plot(times*1e-3, Vm, label=r'$V_\mathrm{m}$')
