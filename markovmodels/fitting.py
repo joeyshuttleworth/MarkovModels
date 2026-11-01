@@ -33,7 +33,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
               randomise_initial_guess=True, output_dir=None, solver_type=None,
               use_artefact_model=False, rng=None, population_size=None,
               add_simple_leak=False, g_leak=None, E_leak=None, data_label='',
-              full_check=True, strict=None):
+              full_check=True, strict=None, E_rev=None):
     """
     Fit a MarkovModel to some dataset using pints.
 
@@ -139,7 +139,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                     sim_parameters = np.copy(parameters)
                     for i, j in enumerate(unfixed_parameters):
                         sim_parameters[j] = p[i]
-                    sol = solver(sim_parameters)[subset_indices]
+                    sol = solver(sim_parameters, E_rev=E_rev)[subset_indices]
                     return sol
             else:
                 def simulate(p, times):
@@ -165,7 +165,6 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     problem = pints.SingleOutputProblem(model, times[subset_indices],
                                         data[subset_indices])
 
-    # error = pints.SumOfSquaresError(problem)
     error = PenalisedRMSErrors(mm, data, subset_indices, solver, data, voltages,
                                fix_parameters, starting_parameters)
 
@@ -346,6 +345,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                   removal_duration=5, repeats=1, infer_E_rev=False,
                   fit_initial_conductance=True, experiment_name='newtonrun4',
                   solver=None, E_rev=None, randomise_initial_guess=True,
+                  subtraction_df=None,
                   parallel=False, solver_type=None, sweep=None,
                   scale_conductance=True, no_conductance_boundary=False,
                   use_artefact_model=False, artefact_default_kinetic_parameters=None,
@@ -461,17 +461,11 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
 
         else:
             if data_label == 'before':
-                leak_ramp_i = [i for i, l in enumerate(protocol_desc)
-                               if l[2] != l[3]][0]
-                g_leak_est, E_leak_est, _, _, _, _, _ = fit_leak_lr(
-                    voltages, data.copy(), dt=dt,
-                    ramp_start=ramp_start,
-                    ramp_end=ramp_end
-                )
-                pp_Eleak = E_leak_est
-                pp_gleak = g_leak_est
+                row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol)
+                                     & (subtraction_df.sweep == sweep)].iloc[0]
+                gleak, Eleak = row[['gleak_before', 'E_leak_before']].values.flatten().astype(np.float64)
 
-                sub_trace = data - pp_gleak * (voltages - pp_Eleak)
+                sub_trace = data - gleak * (voltages - Eleak)
 
             else:
                 sub_trace = data
@@ -480,6 +474,10 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                              plot=plot,
                                              output_path=reversal_output_path,
                                              voltages=voltages)
+
+            if infer_E_rev:
+                E_rev = E_obs
+
         if use_artefact_model:
             inferred_E_rev = E_rev
             default_parameters[-3] = V_off
@@ -488,7 +486,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
         else:
             inferred_E_rev = E_obs
 
-        if inferred_E_rev < -50 or inferred_E_rev > -100:
+        if inferred_E_rev < -50 and inferred_E_rev > -100:
             E_rev = inferred_E_rev
 
     if not use_artefact_model and data_label == 'before':
@@ -496,11 +494,16 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
     else:
         add_simple_leak = False
 
-    pp_g_leak, pp_E_leak, _, _, _, _, _ = fit_leak_lr(
-                    voltages, data.copy(), dt=dt,
-                    ramp_start=ramp_start,
-                    ramp_end=ramp_end
-                )
+    if data_label != "before":
+        pp_g_leak, pp_E_leak, _, _, _, _, _ = fit_leak_lr(
+            voltages, data.copy(), dt=dt,
+            ramp_start=ramp_start,
+            ramp_end=ramp_end
+        )
+
+    else:
+        pp_g_leak = gleak
+        pp_E_leak = Eleak
 
     # Fit leak parameters
     if use_artefact_model:
@@ -533,6 +536,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                   protocol_description=protocol_desc,
                                   tolerances=tolerance)
 
+    print(f"Erev = {E_rev}")
     if use_artefact_model:
         model = ArtefactModel(m_model)
         model.protocol_description=protocol_desc
@@ -595,6 +599,7 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                                  E_leak=pp_E_leak,
                                                  add_simple_leak=add_simple_leak,
                                                  full_check=full_check,
+                                                 E_rev=E_rev,
                                                  strict=strict
                                                  )
 
@@ -1390,6 +1395,8 @@ def infer_reversal_potential(protocol_desc: np.array, current: np.array, times, 
             plt.close(fig)
 
     if len(roots) == 0:
+        print("No roots")
+        raise ValueError
         return np.nan
 
     return min(roots[-1], voltages.max())
@@ -1644,7 +1651,7 @@ def get_best_params(fitting_df, protocol_label='protocol', param_labels=[]):
 
 
 def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None,
-                    use_boundaries=False):
+                    use_boundaries=False, E_rev_var="E_rev"):
     # Assume that params_df is a datafram of parameter estimates that were
     # found under the assumption that E_obs = E_Nernst. Then adjust the
     # kinetics parameters such that E_obs = E_Nernst - V_off, instead.
@@ -1680,7 +1687,7 @@ def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None,
         well = row['well']
         sweep = row['sweep']
 
-        inferred_E_rev = E_rev_df.loc[(protocol, well, sweep)]['E_rev']
+        inferred_E_rev = E_rev_df.loc[(protocol, well, sweep)][E_rev_var]
 
         if not new_E_rev:
             V_off = inferred_E_rev - E_rev
@@ -1713,14 +1720,14 @@ def adjust_kinetics(model_class, params_df, E_rev_df, E_rev, new_E_rev=None,
 
 
 def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
-                    protocol_fitted, fitting_sweep, params_df, subtractions_df,
+                    protocol_fitted, fitting_sweep, params_df, subtraction_df,
                     fitting_case, E_rev, protocol_dict, full_data, voltages,
                     label='', solver=None, do_spike_removal=True,
                     return_states=False, strict=True, tolerances=(None, None)):
 
     params_df = params_df.copy()
-    subtractions_df = subtractions_df.copy()
-    subtractions_df.sweep = subtractions_df.sweep.astype(int)
+    subtraction_df = subtraction_df.copy()
+    subtraction_df.sweep = subtraction_df.sweep.astype(int)
 
     params_df = params_df[params_df.well == well].copy()
 
@@ -1747,10 +1754,10 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     param_labels = model.get_parameter_labels()
 
-    subtractions_df = subtractions_df.copy()
-    subtractions_df['sweep'] = subtractions_df['sweep'].astype(int)
+    subtraction_df = subtraction_df.copy()
+    subtraction_df['sweep'] = subtraction_df['sweep'].astype(int)
 
-    inferred_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(sim_protocol, well, int(predict_sweep))]['E_rev']
+    inferred_E_rev = subtraction_df.set_index(['protocol', 'well', 'sweep']).loc[(sim_protocol, well, int(predict_sweep))]['E_rev']
 
 
     if fitting_case in ['0a', 'I', 'II']:
@@ -1758,14 +1765,55 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
     else:
         pred_E_rev = inferred_E_rev
 
-    if fitting_case == '0c' or fitting_case == '0d':
-        fitting_E_rev = subtractions_df.set_index(['protocol', 'well', 'sweep']).loc[(protocol_fitted, well, int(fitting_sweep))]['E_rev']
-        new_E_rev = inferred_E_rev
-        params_df = adjust_kinetics(model_class, params_df, subtractions_df,
-                                    fitting_E_rev, new_E_rev, use_boundaries=False)
+    fitting_E_rev = subtraction_df.set_index(['protocol', 'well', 'sweep']).loc[(protocol_fitted, well, int(fitting_sweep))]['E_rev']
 
-    # Protocol we use for simulation
-    desc, full_times = protocol_dict[sim_protocol]
+    if fitting_case == '0d':
+
+        # Protocol we use for simulation
+        desc, full_times = protocol_dict[sim_protocol]
+
+        row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == sim_protocol)
+                             & (subtraction_df.sweep == predict_sweep)].iloc[0]
+        gleak, Eleak = row[['gleak_before', 'E_leak_before']].values.flatten().astype(np.float64)
+        gleak = float(gleak)
+        Eleak = float(Eleak)
+        I_leak = gleak * (voltages - Eleak)
+
+        leak_ramp_i = [i for i, l in enumerate(desc) if l[2] != l[3]][0]
+        ramp_start = desc[leak_ramp_i, 0]
+        ramp_end = desc[leak_ramp_i, 1]
+        spike_times, _ = detect_spikes(full_times, voltages, window_size=0)
+        _, _, indices = remove_spikes(full_times, voltages, spike_times,
+                                    args.removal_duration)
+        pred_E_rev = infer_reversal_potential(desc, (full_data - I_leak)[indices], full_times[indices],
+                                                  voltages=voltages[indices],
+                                        plot=True,
+                                        # output_path=os.path.join(args.output, f"{well}-{sim_protocol}-{sweep}_reversal.pdf")
+                                        )
+
+        # Protocol we used for fitting
+        desc, full_times = protocol_dict[protocol_fitted]
+
+        row = subtraction_df[(subtraction_df.well == well) & (subtraction_df.protocol == protocol_fitted)
+                             & (subtraction_df.sweep == fitting_sweep)].iloc[0]
+        gleak, Eleak = row[['gleak_before', 'E_leak_before']].values.flatten().astype(np.float64)
+        gleak = float(gleak)
+        Eleak = float(Eleak)
+        I_leak = gleak * (voltages - Eleak)
+
+        leak_ramp_i = [i for i, l in enumerate(desc) if l[2] != l[3]][0]
+        ramp_start = desc[leak_ramp_i, 0]
+        ramp_end = desc[leak_ramp_i, 1]
+        spike_times, _ = detect_spikes(full_times, voltages, window_size=0)
+        _, _, indices = remove_spikes(full_times, voltages, spike_times,
+                                      args.removal_duration)
+        fitting_E_rev = infer_reversal_potential(desc, (full_data - I_leak)[indices], full_times[indices],
+                                                  voltages=voltages[indices],
+                                        plot=True,
+                                        )
+
+        # params_df = adjust_kinetics(model_class, params_df, subtraction_df,
+        #                             fitting_E_rev, pred_E_rev, use_boundaries=False)
 
     if solver is None:
         if use_artefacts:
@@ -1817,9 +1865,9 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
         if not np.all(np.isfinite(artefact_params)):
             print("Inferring artefact parameters")
-            row = subtractions_df[(subtractions_df.well == well) &
-                                  (subtractions_df.protocol == sim_protocol) &
-                                  (subtractions_df.sweep.astype(int) == int(predict_sweep))]
+            row = subtraction_df[(subtraction_df.well == well) &
+                                  (subtraction_df.protocol == sim_protocol) &
+                                  (subtraction_df.sweep.astype(int) == int(predict_sweep))]
             assert(row.shape[0] == 1)
 
             Rseries, Cm = row.iloc[0][['Rseries', 'Cm']]
@@ -1904,7 +1952,7 @@ def make_prediction(model_class, args, well, sim_protocol, predict_sweep,
 
     if not use_artefacts and label=='before':
 
-        gleak, Eleak = subtractions_df.set_index(['protocol', 'well', 'sweep'])\
+        gleak, Eleak = subtraction_df.set_index(['protocol', 'well', 'sweep'])\
                                       .loc[(sim_protocol, well, int(predict_sweep))][['gleak_before', 'E_leak_before']]
         ideal_leak = gleak * (voltages - Eleak)
         current = current + ideal_leak
@@ -2012,13 +2060,14 @@ class PenalisedRMSErrors(pints.ErrorMeasure):
             penalty += (p[self.mm.GKr_index] - self.max_conductance)**2
 
         if p[self.mm.GKr_index] < self.min_conductance:
-            penalty += 1 / (self.min_conductance - p[self.mm.GKr_index])**2
+            penalty += (1 / self.min_conductance - 1/p[self.mm.GKr_index])**2
 
-
-        if len(p) > self.mm.GKr_index + 1:
+        # Assuming that GKr is the final parameter in the ion-channel model
+        if len(p) >= self.mm.GKr_index + 1:
             channel_p = p[:self.mm.GKr_index + 1].copy()
         else:
             channel_p = p.copy()
+
         Vs = [-120.0, 60.0]
         rates_1 = self.rates_func(channel_p, Vs[0]).flatten()
         rates_2 = self.rates_func(channel_p, Vs[1]).flatten()
