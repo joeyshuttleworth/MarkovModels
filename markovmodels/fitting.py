@@ -536,7 +536,6 @@ def fit_well_data(model_class_name: str, well, protocol, data_directory,
                                   protocol_description=protocol_desc,
                                   tolerances=tolerance)
 
-    print(f"Erev = {E_rev}")
     if use_artefact_model:
         model = ArtefactModel(m_model)
         model.protocol_description=protocol_desc
