@@ -24,7 +24,7 @@ pool_kws = {'maxtasksperchild': 1}
 def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
              randomise_initial_guess=True, prefix='', sweep=None,
              output_dir=None, args=None, default_kinetic_parameters=None,
-             strict=True):
+             strict=True, subtraction_df=None):
 
     assert args is not None
 
@@ -71,7 +71,8 @@ def fit_func(protocol, well, model_class, default_parameters=None, E_rev=None,
         data_label=data_label,
         artefact_default_kinetic_parameters=default_kinetic_parameters,
         full_check=full_check,
-        strict=strict
+        strict=strict,
+        subtraction_df=subtraction_df
     )
 
     res_df['well'] = well
@@ -235,7 +236,7 @@ def main():
 
         tasks.append([protocol, well, args.model, starting_parameters, args.reversal,
                       not args.dont_randomise_initial_guess, prefix, sweep, output_dir, args,
-                      default_artefact_kinetic_parameters, args.strict_solver])
+                      default_artefact_kinetic_parameters, args.strict_solver, subtraction_df])
         print(f"Tasks are {tasks}")
 
         protocols_list.append(protocol)
