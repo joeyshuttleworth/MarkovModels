@@ -135,14 +135,14 @@ def fit_model(mm, data, times=None, starting_parameters=None,
                 fix_parameters = tuple()
 
             if len(fix_parameters) > 0:
-                def simulate(p, times):
+                def simulate(p, times=times):
                     sim_parameters = np.copy(parameters)
                     for i, j in enumerate(unfixed_parameters):
                         sim_parameters[j] = p[i]
                     sol = solver(sim_parameters, E_rev=E_rev)[subset_indices]
                     return sol
             else:
-                def simulate(p, times):
+                def simulate(p, times=times):
                     # try:
                     if not add_simple_leak:
                         return solver(p)[subset_indices]
@@ -165,7 +165,7 @@ def fit_model(mm, data, times=None, starting_parameters=None,
     problem = pints.SingleOutputProblem(model, times[subset_indices],
                                         data[subset_indices])
 
-    error = PenalisedRMSErrors(mm, data, subset_indices, solver, data, voltages,
+    error = PenalisedRMSErrors(mm, data, subset_indices, model.simulate, data, voltages,
                                fix_parameters, starting_parameters)
 
     if len(fix_parameters) != 0:
@@ -2019,20 +2019,20 @@ def get_ensemble_of_predictions(times, desc, params_df, protocol, well, sweep,
 
 
 class PenalisedRMSErrors(pints.ErrorMeasure):
-    def __init__(self, mm, data, indices, solver, current, voltages,
+    def __init__(self, mm, data, data_indices, solver, current, voltages,
                  fix_parameters=[], default_parameters=[], times=None):
         self.data = data
-        self.indices = indices
+        self.data_indices = data_indices
         self.fix_parameters = fix_parameters
         self.solver = solver
         self.mm = mm
-        indices = np.argwhere(np.abs(voltages - -120.0) < 1e-5)[10:200]
-        conductances = (current / (voltages - self.mm.E_rev))[indices]
+        cond_indices = np.argwhere(np.abs(voltages - -120.0) < 1e-5)[10:200]
+        conductances = (current / (voltages - self.mm.E_rev))[cond_indices]
         self.max_conductance = np.abs(conductances.max()) * 100
         self.min_conductance = np.abs(conductances.max()) * 0.01
         self.rates_func = njit(self.mm.get_rates_func(njitted=False))
         self.default_parameters = default_parameters.copy()
-        self.times = times
+        self.times = times if times is not None else mm.times
 
     def n_parameters(self):
         return len(self.default_parameters.flatten()) - len(set(self.fix_parameters))
@@ -2042,7 +2042,7 @@ class PenalisedRMSErrors(pints.ErrorMeasure):
             p = insert_default_parameters(p, self.default_parameters, self.fix_parameters)
 
         model_output = self.solver(p)
-        rmse = np.sqrt(np.mean((self.data[self.indices] - model_output[self.indices])**2))
+        rmse = np.sqrt(np.mean((self.data[self.data_indices] - model_output)**2))
 
         if ~np.isfinite(rmse):
             return np.inf
@@ -2053,7 +2053,7 @@ class PenalisedRMSErrors(pints.ErrorMeasure):
             return (val - 1e5)**2
 
         if val := min([p for i, p in enumerate(p) if i != self.mm.GKr_index]) < 1e-7:
-            penalty += 1 / (1e-7 - val)**2
+            penalty += (1/1e-7 - 1/val)**2
 
         if p[self.mm.GKr_index] > self.max_conductance:
             penalty += (p[self.mm.GKr_index] - self.max_conductance)**2
